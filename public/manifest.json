@@ -1,0 +1,18 @@
+{
+  "name": "J.A.R.V.I.S. Mark-IV // Master Sri Command Center",
+  "short_name": "J.A.R.V.I.S.",
+  "description": "Master Sri's Personal Autonomous AI Right-Hand and Multi-Agent Command Swarm",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0891b2",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
