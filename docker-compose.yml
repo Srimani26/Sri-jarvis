@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  jarvis-core:
+    build: .
+    container_name: jarvis_mark_iv
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
+      - ./.jarvis-keys.json:/app/.jarvis-keys.json
