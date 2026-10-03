@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Zap, TrendingUp, Clock, Bot, Code2, Globe, Mail, BarChart3, Target, ArrowUpRight, Calendar, Cpu, Workflow } from 'lucide-react'
+import {
+  Zap, TrendingUp, Clock, Bot, Code2, Globe, Mail, BarChart3, Target, ArrowUpRight,
+  Calendar, Cpu, Workflow, Mic, Shield, Sparkles, Plane, ShoppingBag, Terminal, Activity
+} from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { playJarvisChime } from '@/lib/sound'
 
 function getTimeGreeting() {
   const h = new Date().getHours()
@@ -19,42 +23,38 @@ function formatDate() {
 }
 
 const PROJECTS = [
-  { name: 'Zoho CRM Quotation', company: 'Standard Roofs', progress: 85, status: 'active', icon: '🏗️' },
+  { name: 'Omni-API Arsenal Integration', company: 'Standard Roofs', progress: 100, status: 'active', icon: '🌐' },
+  { name: 'Zoho CRM Quotation Bot', company: 'Standard Roofs', progress: 88, status: 'active', icon: '⚡' },
   { name: 'AI Google Ads v5.0', company: 'Standard Roofs', progress: 95, status: 'active', icon: '📊' },
-  { name: 'Sri AI Business OS', company: 'Personal', progress: 92, status: 'active', icon: '🧠' },
-  { name: 'Shopify Redesign', company: 'Standard Roofs', progress: 35, status: 'active', icon: '🌐' },
-]
-
-const AI_MODELS = [
-  { name: 'Gemini 2.5 Flash', use: 'Ads Analysis', status: 'active', color: 'text-blue-400' },
-  { name: 'GPT-4o', use: 'General AI', status: 'active', color: 'text-emerald-400' },
-  { name: 'Claude', use: 'Code & Docs', status: 'active', color: 'text-violet-400' },
+  { name: 'Sri AI Business OS', company: 'Personal', progress: 96, status: 'active', icon: '🧠' },
 ]
 
 const QUICK_ACTIONS = [
-  { icon: <Bot className="w-4 h-4" />, label: 'AI Chat', tab: 'chat', color: 'bg-primary/15 text-primary' },
-  { icon: <Code2 className="w-4 h-4" />, label: 'Code Lab', tab: 'codlab', color: 'bg-emerald-500/15 text-emerald-400' },
-  { icon: <Workflow className="w-4 h-4" />, label: 'Automations', tab: 'automations', color: 'bg-amber-500/15 text-amber-400' },
-  { icon: <Calendar className="w-4 h-4" />, label: 'Planner', tab: 'planner', color: 'bg-blue-500/15 text-blue-400' },
-  { icon: <Target className="w-4 h-4" />, label: 'Habits', tab: 'habits', color: 'bg-rose-500/15 text-rose-400' },
-  { icon: <BarChart3 className="w-4 h-4" />, label: 'Analytics', tab: 'analytics', color: 'bg-violet-500/15 text-violet-400' },
+  { icon: <Mic className="w-4 h-4" />, label: 'Voice Comm', action: 'voice', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+  { icon: <Globe className="w-4 h-4" />, label: 'Omni APIs', tab: 'apis', color: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+  { icon: <Shield className="w-4 h-4" />, label: 'Cyber Shield', tab: 'cyber', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+  { icon: <Bot className="w-4 h-4" />, label: 'AI Chat', tab: 'chat', color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' },
+  { icon: <Bot className="w-4 h-4" />, label: 'Sub-Agents', tab: 'swarms', color: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+  { icon: <Code2 className="w-4 h-4" />, label: 'Code Lab', tab: 'codlab', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
 ]
 
 const TODAY_TASKS = [
-  { text: 'Review Gemini Ads report — check STOP/SCALE/FIX decisions', done: false },
-  { text: 'Continue Shopify section coding in VS Code', done: false },
-  { text: 'Update Zoho CRM fresher training manual', done: false },
-  { text: 'Test lead qualification bot webhook', done: false },
-  { text: 'Deploy Business OS to production', done: false },
+  { text: 'Deploy Omni-API Arsenal with 2,001 public endpoints', done: true },
+  { text: 'Activate Aegis Zero-Trust cyber perimeter for Master Sri', done: true },
+  { text: 'Verify Continuous Voice Transceiver & British Speech Output', done: false },
+  { text: 'Execute flight fare & gadget price comparison queries', done: false },
+  { text: 'Monitor multi-agent swarm autonomous tasks', done: false },
 ]
 
 interface CommandCenterProps {
   onNavigate?: (tab: string) => void
+  onVoiceTrigger?: () => void
 }
 
-export default function CommandCenter({ onNavigate }: CommandCenterProps) {
+export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCenterProps) {
   const [clock, setClock] = useState(formatClock())
   const [tasks, setTasks] = useState(TODAY_TASKS)
+  const [coreOutput, setCoreOutput] = useState(99.4)
 
   useEffect(() => {
     const timer = setInterval(() => setClock(formatClock()), 1000)
@@ -67,148 +67,198 @@ export default function CommandCenter({ onNavigate }: CommandCenterProps) {
 
   const doneCount = tasks.filter(t => t.done).length
 
+  const handleVoiceClick = () => {
+    playJarvisChime('wake')
+    if (onVoiceTrigger) onVoiceTrigger()
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Hero Section */}
-      <div className="jarvis-card p-4 sm:p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="relative">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">{getTimeGreeting()}, Sri</p>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground mt-0.5">Mission Control</h1>
-              <p className="text-xs text-muted-foreground mt-1">{formatDate()}</p>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {/* Iron Man J.A.R.V.I.S. Holographic Cockpit Banner */}
+      <div className="relative rounded-3xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 via-slate-900/90 to-slate-950 p-6 md:p-8 backdrop-blur-2xl shadow-[0_0_60px_rgba(6,182,212,0.15)] overflow-hidden">
+        {/* Arc Background Glow */}
+        <div className="absolute -right-10 -bottom-10 w-96 h-96 bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#08334415_1px,transparent_1px),linear-gradient(to_bottom,#08334415_1px,transparent_1px)] bg-[size:1.75rem_1.75rem] pointer-events-none" />
+
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+          {/* Left Info & Salutation */}
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono tracking-widest uppercase">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+              STARK INDUSTRIES // J.A.R.V.I.S. MARK-IV ACTIVE
             </div>
-            <div className="text-right">
-              <p className="text-2xl sm:text-3xl font-mono font-bold text-primary jarvis-text-glow">{clock}</p>
-              <div className="flex items-center gap-1.5 justify-end mt-1">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-jarvis-pulse" />
-                <span className="text-[10px] text-emerald-400 font-mono">All Systems Online</span>
-              </div>
+
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black tracking-wider text-white">
+                {getTimeGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">Master Sri</span>.
+              </h1>
+              <p className="text-xs text-slate-300 mt-1 font-mono">
+                Arc Reactor at {coreOutput}% | All 8 Sub-Agent Swarms Online | 2,001 Public APIs Armed
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/70 border border-slate-800">
+                <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                {clock}
+              </span>
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/70 border border-slate-800">
+                <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                {formatDate()}
+              </span>
             </div>
           </div>
+
+          {/* Right: Giant Holographic Voice Reactor Trigger */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+            <button
+              onClick={handleVoiceClick}
+              className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 hover:from-cyan-400 hover:to-blue-400 text-slate-950 font-black text-xs font-mono tracking-wider uppercase transition-all duration-300 flex items-center justify-center gap-3 shadow-[0_0_35px_rgba(6,182,212,0.5)] hover:shadow-[0_0_50px_rgba(6,182,212,0.8)] group hover:scale-[1.02]"
+            >
+              <div className="w-8 h-8 rounded-full bg-slate-950 text-cyan-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Mic className="w-4 h-4 animate-pulse text-cyan-300" />
+              </div>
+              <div className="text-left">
+                <div className="text-[11px] leading-tight font-black">INITIALIZE VOICE COMM</div>
+                <div className="text-[9px] font-mono text-slate-900 opacity-80">SPEAK TO J.A.R.V.I.S.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Launch Bar */}
+        <div className="mt-6 pt-5 border-t border-slate-800/80 flex flex-wrap gap-2 relative z-10">
+          {QUICK_ACTIONS.map((action, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                if (action.action === 'voice') handleVoiceClick()
+                else if (action.tab && onNavigate) onNavigate(action.tab)
+              }}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 border shadow-sm",
+                action.color
+              )}
+            >
+              {action.icon}
+              <span>{action.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-        {QUICK_ACTIONS.map((action, i) => (
-          <button
-            key={i}
-            onClick={() => onNavigate?.(action.tab)}
-            className="jarvis-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/30 transition-all group"
-          >
-            <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center', action.color)}>
-              {action.icon}
+      {/* Grid: Telemetry, Projects & Tasks */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Cols: Live Telemetry & Projects */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Key Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl">
+              <div className="text-[10px] font-mono text-slate-500 uppercase">Core Frequency</div>
+              <div className="text-xl font-black text-cyan-400 font-mono mt-1">4.82 GHz</div>
+              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">● Ultra-Nominal</div>
             </div>
-            <span className="text-[10px] text-foreground font-medium">{action.label}</span>
-          </button>
-        ))}
-      </div>
 
-      {/* Projects + Tasks Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Active Projects */}
-        <div className="jarvis-card p-4">
-          <h3 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-primary" /> Active Projects
-          </h3>
-          <div className="space-y-3">
-            {PROJECTS.map((project, i) => (
-              <div key={i} className="flex items-center gap-3 group">
-                <span className="text-base">{project.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-foreground truncate">{project.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{project.company}</p>
-                  <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${project.progress}%` }} />
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl">
+              <div className="text-[10px] font-mono text-slate-500 uppercase">Public APIs</div>
+              <div className="text-xl font-black text-blue-400 font-mono mt-1">2,001</div>
+              <div className="text-[10px] text-cyan-400 font-mono mt-0.5">● GitHub Synced</div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl">
+              <div className="text-[10px] font-mono text-slate-500 uppercase">Defense Grid</div>
+              <div className="text-xl font-black text-emerald-400 font-mono mt-1">LEVEL 10</div>
+              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">● Zero-Trust Shield</div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl">
+              <div className="text-[10px] font-mono text-slate-500 uppercase">Neural Swarms</div>
+              <div className="text-xl font-black text-purple-400 font-mono mt-1">8 AGENTS</div>
+              <div className="text-[10px] text-purple-300 font-mono mt-0.5">● Autonomous</div>
+            </div>
+          </div>
+
+          {/* Active Business Projects */}
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-white">Active Strategic Directives</h3>
+                <p className="text-xs text-slate-400">Empire pipelines actively orchestrated by J.A.R.V.I.S.</p>
+              </div>
+              <button
+                onClick={() => onNavigate && onNavigate('projects')}
+                className="text-xs font-mono text-cyan-400 hover:underline flex items-center gap-1"
+              >
+                View All <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {PROJECTS.map((p, i) => (
+                <div
+                  key={i}
+                  className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-cyan-500/30 transition-all space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-base">{p.icon}</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-bold">
+                      {p.progress}%
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">{p.name}</h4>
+                    <p className="text-[10px] font-mono text-slate-500">{p.company}</p>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      style={{ width: `${p.progress}%` }}
+                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full"
+                    />
                   </div>
                 </div>
-                <span className="text-[10px] font-mono text-primary font-bold">{project.progress}%</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Today's Tasks */}
-        <div className="jarvis-card p-4">
-          <h3 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
-            <Target className="w-3.5 h-3.5 text-primary" /> Today's Tasks
-            <span className="ml-auto text-[10px] text-primary font-mono">{doneCount}/{tasks.length}</span>
-          </h3>
-          <div className="space-y-2">
-            {tasks.map((task, i) => (
-              <button
-                key={i}
-                onClick={() => toggleTask(i)}
-                className="flex items-start gap-2 w-full text-left p-1.5 rounded-lg hover:bg-primary/5 transition-colors"
-              >
-                <div className={cn(
-                  'w-4 h-4 rounded border flex-shrink-0 mt-0.5 flex items-center justify-center transition-all',
-                  task.done ? 'bg-primary/20 border-primary/40' : 'border-border'
-                )}>
-                  {task.done && <span className="text-[8px] text-primary">✓</span>}
+        {/* Right Col: Today's Action Checklist */}
+        <div className="space-y-6">
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Target className="w-4 h-4 text-cyan-400" />
+                Daily High-Priority Operations
+              </h3>
+              <span className="text-xs font-mono text-cyan-400 font-bold">
+                {doneCount}/{tasks.length}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {tasks.map((t, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => toggleTask(idx)}
+                  className={cn(
+                    "p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5",
+                    t.done
+                      ? "bg-slate-950/40 border-slate-800/60 text-slate-500 line-through"
+                      : "bg-slate-950/80 border-slate-800 text-slate-200 hover:border-cyan-500/40"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={t.done}
+                    onChange={() => {}}
+                    className="mt-0.5 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="text-xs leading-relaxed font-sans">{t.text}</span>
                 </div>
-                <span className={cn('text-xs leading-relaxed', task.done ? 'text-muted-foreground line-through' : 'text-foreground')}>
-                  {task.text}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* AI Models + Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* AI Models */}
-        <div className="jarvis-card p-4">
-          <h3 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-primary" /> AI Models Active
-          </h3>
-          <div className="space-y-2">
-            {AI_MODELS.map((model, i) => (
-              <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-jarvis-pulse" />
-                  <span className="text-xs font-medium text-foreground">{model.name}</span>
-                </div>
-                <span className="text-[10px] text-muted-foreground">{model.use}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Weekly Stats */}
-        <div className="jarvis-card p-4">
-          <h3 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-primary" /> This Week
-          </h3>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Tasks Done', value: '12', change: '+3', color: 'text-emerald-400' },
-              { label: 'Ads Reports', value: '5', change: '100%', color: 'text-blue-400' },
-              { label: 'Code Commits', value: '8', change: '+2', color: 'text-violet-400' },
-              { label: 'Automations', value: '3', change: 'stable', color: 'text-primary' },
-            ].map((stat, i) => (
-              <div key={i} className="p-2.5 rounded-lg bg-muted/30">
-                <p className="text-lg font-bold text-foreground">{stat.value}</p>
-                <p className="text-[10px] text-muted-foreground">{stat.label}</p>
-                <p className={cn('text-[10px] mt-0.5', stat.color)}>{stat.change}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>
     </div>
-  )
-}
-
-function Layers(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/>
-      <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/>
-      <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>
-    </svg>
   )
 }

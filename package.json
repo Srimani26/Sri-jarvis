@@ -5,9 +5,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"node server.mjs\" \"vite\"",
     "dev:full": "concurrently \"bun run dev:server\" \"bun run dev:client\"",
-    "dev:server": "bun --watch run server.tsx",
+    "dev:server": "node server.mjs",
     "dev:client": "vite",
     "build": "vite build && (node scripts/guard-dist.mjs || true)",
     "start": "bun run server.tsx",
@@ -17,7 +17,8 @@
     "db:migrate:deploy": "bun x --bun prisma migrate deploy",
     "db:push": "bun x --bun prisma db push",
     "db:reset": "bun x --bun prisma db push --force-reset --accept-data-loss",
-    "db:studio": "bun x --bun prisma studio"
+    "db:studio": "bun x --bun prisma studio",
+    "build:server": "esbuild server.tsx --bundle --platform=node --format=esm --packages=external --outfile=server.mjs"
   },
   "dependencies": {
     "@prisma/adapter-libsql": "^7.3.0",

@@ -18,11 +18,14 @@ import KnowledgeHub from './surfaces/KnowledgeHub'
 import TechRadar from './surfaces/TechRadar'
 import Profile from './surfaces/Profile'
 import Inbox from './surfaces/Inbox'
+import CyberThreatDefense from './surfaces/CyberThreatDefense'
+import OmniApiArsenal from './surfaces/OmniApiArsenal'
+import JarvisVoiceModal from './components/JarvisVoiceModal'
 import {
   LayoutDashboard, MessageSquare, Layers, Code2, Workflow,
   CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe,
-  Menu, X, Settings, Lock, Shield, LogOut, Eye, EyeOff, AlertTriangle,
-  ChevronRight, MemoryStick, Link2, Fingerprint, UserRound
+  Menu, X, Settings, Lock, Shield, ShieldAlert, LogOut, Eye, EyeOff, AlertTriangle,
+  ChevronRight, MemoryStick, Link2, Fingerprint, UserRound, Bot
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
@@ -31,6 +34,8 @@ const navItems = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ', mobileLabel: 'Home' },
   { id: 'chat', icon: <MessageSquare className="w-4 h-4" />, label: 'AI Chat', mobileLabel: 'Chat' },
   { id: 'swarms', icon: <Bot className="w-4 h-4" />, label: 'Agent Swarm', mobileLabel: 'Swarm' },
+  { id: 'cyber', icon: <ShieldAlert className="w-4 h-4" />, label: 'Cyber Shield', mobileLabel: 'Defense' },
+  { id: 'apis', icon: <Globe className="w-4 h-4" />, label: 'Omni APIs', mobileLabel: 'APIs' },
   { id: 'projects', icon: <Layers className="w-4 h-4" />, label: 'Projects', mobileLabel: 'Projects' },
   { id: 'inbox', icon: <Globe className="w-4 h-4" />, label: 'Inbox', mobileLabel: 'Inbox' },
   { id: 'codlab', icon: <Code2 className="w-4 h-4" />, label: 'Code Lab', mobileLabel: 'Code' },
@@ -177,6 +182,14 @@ function ConnectionsView() {
               <a key={r.name} href={r.url} target="_blank" rel="noopener"
                 className="block bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 hover:border-cyan-500/30 transition-all">
                 <div className="flex items-center gap-2">
+            <button
+              onClick={() => setVoiceModalOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-300 text-xs font-mono font-bold transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse"
+              title="Voice Comm with J.A.R.V.I.S."
+            >
+              <Mic className="w-3.5 h-3.5 text-cyan-300" />
+              <span>VOICE COMM</span>
+            </button>
                   <p className="text-sm font-medium text-white">{r.name}</p>
                   {r.language && <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">{r.language}</span>}
                   {r.stars > 0 && <span className="text-[10px] text-amber-400">★ {r.stars}</span>}
@@ -196,6 +209,7 @@ export default function App() {
   const [username, setUsername] = useState(() => localStorage.getItem('jarvis_user') || '')
   const [activeTab, setActiveTab] = useState('command')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
@@ -421,9 +435,11 @@ export default function App() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 pb-24 md:pb-4">
-        {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} />}
+        {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => setVoiceModalOpen(true)} />}
         {activeTab === 'chat' && <AIChat />}
         {activeTab === 'swarms' && <AgentEcosystem />}
+        {activeTab === 'cyber' && <CyberThreatDefense />}
+          {activeTab === 'apis' && <OmniApiArsenal />}
         {activeTab === 'projects' && <Projects />}
         {activeTab === 'inbox' && <Inbox />}
         {activeTab === 'codlab' && <CodeLab />}
