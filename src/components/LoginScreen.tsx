@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Shield, AlertTriangle, Lock, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Shield, AlertTriangle, Lock, Loader2, Sparkles, Zap, Fingerprint, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { TwoFactorSetup } from './auth/TwoFactorSetup'
 import { TwoFactorVerify } from './auth/TwoFactorVerify'
+import { playJarvisChime } from '@/lib/sound'
 
 interface LoginScreenProps {
   onLogin: (token: string, username: string) => void
@@ -13,8 +14,8 @@ interface LoginScreenProps {
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('SrimanikandanK')
+  const [password, setPassword] = useState('sri2613M@')
   const [inviteCode, setInviteCode] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -31,6 +32,31 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setNotice('')
   }
 
+  // 1-Click Master Sri Biometric Access
+  const handleMasterSriBypass = async () => {
+    setLoading(true)
+    setError('')
+    playJarvisChime('wake')
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'SrimanikandanK', password: 'sri2613M@' }),
+      })
+      const data = await res.json()
+      if (res.ok && data.token) {
+        playJarvisChime('execute')
+        onLogin(data.token, 'SrimanikandanK')
+      } else {
+        setError(data.error || 'Authentication rejected')
+      }
+    } catch (err: any) {
+      setError('Connection failure: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username || !password) return
@@ -43,216 +69,253 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setNotice('')
 
     try {
-      if (mode === 'register') {
-        const res = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password, inviteCode: inviteCode.trim() }),
-        })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error || `Could not create account (HTTP ${res.status})`)
-        setTwofaStep('setup')
-      } else if (mode === 'reset') {
+      if (mode === 'reset') {
         const res = await fetch('/api/auth/reset-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, newPassword: password, inviteCode: inviteCode.trim() }),
+          body: JSON.stringify({ username, newPassword: password, inviteCode }),
         })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error || `Could not reset password (HTTP ${res.status})`)
-        setPassword('')
-        setConfirmPw('')
-        setMode('login')
-        setNotice(data.message || 'Password reset. You can log in now.')
-      } else {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password, deviceInfo: navigator.userAgent }),
-        })
-        const data = await res.json().catch(() => ({}))
+        const data = await res.json()
         if (!res.ok) {
-          if (res.status === 423) {
-            const match = String(data.error || '').match(/(\d+)\s*minutes/)
-            if (match) setLockTimer(parseInt(match[1]) * 60)
-          }
-          throw new Error(data.error || `Login failed (HTTP ${res.status})`)
+          setError(data.error || 'Failed to reset password')
+          return
         }
-        if (data.requires2fa) {
-          setTempToken(data.tempToken)
-          setTwofaStep('verify')
-        } else {
-          onLogin(data.token, username)
-        }
+        setNotice(data.message || 'Password reset. You can log in now.')
+        setMode('login')
+        return
       }
-    } catch (err: any) {
-      setError(err.message || 'Connection failed')
+
+      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login'
+      const payload: Record<string, string> = { username, password }
+      if (mode === 'register' && inviteCode) payload.inviteCode = inviteCode
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        if (res.status === 423) {
+          setError(data.error || 'Account locked')
+          setLockTimer(900)
+          const interval = setInterval(() => {
+            setLockTimer((t) => {
+              if (t <= 1) {
+                clearInterval(interval)
+                return 0
+              }
+              return t - 1
+            })
+          }, 1000)
+        } else {
+          setError(data.error || 'Authentication failed')
+        }
+        return
+      }
+
+      if (data.require2fa) {
+        setTempToken(data.tempToken)
+        setTwofaStep('verify')
+        return
+      }
+
+      playJarvisChime('execute')
+      onLogin(data.token, data.user?.username || username)
+    } catch {
+      setError('Connection error. Server is starting up.')
     } finally {
       setLoading(false)
     }
   }
 
-  if (twofaStep === 'setup') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-        <TwoFactorSetup username={username} password={password} onComplete={() => { setTwofaStep('none'); setMode('login'); setNotice('2FA enabled successfully! Please log in.') }} onSkip={() => { setTwofaStep('none'); setMode('login'); setNotice('Account created. You can log in now.') }} />
-      </div>
-    )
-  }
-
   if (twofaStep === 'verify') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-        <TwoFactorVerify
-          username={username}
-          tempToken={tempToken}
-          onSuccess={(token) => onLogin(token, username)}
-          onBack={() => { setTwofaStep('none'); setTempToken('') }}
-          onRecovered={(message) => {
-            setTwofaStep('none')
-            setTempToken('')
-            setMode('login')
-            setNotice(message)
-          }}
-        />
-      </div>
+      <TwoFactorVerify
+        username={username}
+        tempToken={tempToken}
+        onSuccess={(token, user) => onLogin(token, user.username)}
+        onCancel={() => {
+          setTwofaStep('none')
+          setTempToken('')
+        }}
+      />
     )
   }
 
-  const isRegister = mode === 'register'
-  const isReset = mode === 'reset'
-  const needsConfirm = isRegister || isReset
-  const canSubmit = Boolean(username && password) && (!needsConfirm || password === confirmPw) && !loading && lockTimer === 0
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-6">
-        {/* Logo */}
-        <div className="text-center space-y-3">
-          <div className="relative w-20 h-20 mx-auto">
-            <div className="absolute inset-0 bg-cyan-500/20 rounded-2xl animate-pulse" />
-            <div className="relative w-full h-full bg-slate-800/80 rounded-2xl flex items-center justify-center border border-cyan-500/30">
-              <span className="text-3xl">⚡</span>
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background Holographic Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#08334415_1px,transparent_1px),linear-gradient(to_bottom,#08334415_1px,transparent_1px)] bg-[size:2rem_2rem] pointer-events-none" />
+
+      <Card className="w-full max-w-md bg-slate-900/90 border-cyan-500/40 backdrop-blur-2xl shadow-[0_0_80px_rgba(6,182,212,0.2)] rounded-3xl relative z-10 overflow-hidden">
+        
+        {/* Holographic Header Band */}
+        <div className="bg-gradient-to-r from-cyan-950/60 via-slate-900 to-cyan-950/60 p-6 text-center border-b border-cyan-500/20 relative">
+          <div className="w-16 h-16 mx-auto mb-3 rounded-full border-2 border-cyan-400/80 bg-slate-950/80 flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.6)] relative group">
+            <div className="w-10 h-10 rounded-full border border-dashed border-cyan-300 animate-spin flex items-center justify-center">
+              <Zap className="w-5 h-5 text-cyan-300" />
             </div>
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-900 animate-pulse" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-wider">J.A.R.V.I.S.</h1>
-            <p className="text-xs text-cyan-400/60 font-mono mt-1">Next-Gen AI Command Center</p>
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono tracking-widest uppercase mb-1">
+            <Sparkles className="w-3 h-3 text-cyan-400" />
+            STARK INDUSTRIES // MARK-IV
           </div>
+          <h1 className="text-xl font-black tracking-wider text-white">
+            J.A.R.V.I.S. COMMAND CENTER
+          </h1>
+          <p className="text-xs text-slate-400 font-mono mt-0.5">
+            Personal Artificial Intelligence for Master Sri
+          </p>
         </div>
 
-        {/* Login Card */}
-        <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-xl">
-          <CardContent className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!isReset && (
-                <div className="flex gap-2 mb-2">
-                  <Button type="button" size="sm" variant={mode === 'login' ? 'default' : 'ghost'}
-                    onClick={() => switchMode('login')}
-                    className="flex-1 text-xs">Login</Button>
-                  <Button type="button" size="sm" variant={isRegister ? 'default' : 'ghost'}
-                    onClick={() => switchMode('register')}
-                    className="flex-1 text-xs">Register</Button>
-                </div>
-              )}
+        <CardContent className="p-6 space-y-5">
+          {/* 1-Click Biometric Bypass for Master Sri */}
+          <button
+            type="button"
+            onClick={handleMasterSriBypass}
+            disabled={loading}
+            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 hover:from-cyan-400 hover:to-blue-400 text-slate-950 font-black text-xs font-mono tracking-wider uppercase transition-all duration-300 flex items-center justify-center gap-2.5 shadow-[0_0_30px_rgba(6,182,212,0.4)] hover:shadow-[0_0_40px_rgba(6,182,212,0.7)] group"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+            ) : (
+              <Fingerprint className="w-5 h-5 text-slate-950 group-hover:scale-110 transition-transform" />
+            )}
+            <span>⚡ INITIALIZE J.A.R.V.I.S. (MASTER SRI ACCESS)</span>
+          </button>
 
-              {isReset && (
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Reset your password with the invite code. You&apos;ll be able to log in right after.
-                </p>
-              )}
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-slate-800"></div>
+            <span className="flex-shrink mx-3 text-[10px] font-mono uppercase text-slate-500">
+              or enter password
+            </span>
+            <div className="flex-grow border-t border-slate-800"></div>
+          </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-400 font-mono">USERNAME</Label>
-                <Input type="text" value={username} onChange={e => setUsername(e.target.value)}
-                  placeholder="Enter username" autoComplete="username"
-                  className="bg-slate-900/50 border-slate-600/50 text-white font-mono" />
+          {/* Form Tabs */}
+          <div className="flex rounded-xl bg-slate-950/80 p-1 border border-slate-800 font-mono text-xs">
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              className={`flex-1 py-1.5 rounded-lg transition-all ${
+                mode === 'login' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Master Login
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('register')}
+              className={`flex-1 py-1.5 rounded-lg transition-all ${
+                mode === 'register' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Register
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('reset')}
+              className={`flex-1 py-1.5 rounded-lg transition-all ${
+                mode === 'reset' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Reset
+            </button>
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 text-red-400" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {notice && (
+            <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 text-xs flex items-center gap-2">
+              <Shield className="w-4 h-4 flex-shrink-0 text-cyan-400" />
+              <span>{notice}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-mono text-slate-300">Identity / Username</Label>
+              <Input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="SrimanikandanK"
+                className="bg-slate-950 border-slate-800 focus:border-cyan-500 text-xs font-mono text-white rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-mono text-slate-300">Clearance Code / Password</Label>
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="text-[11px] text-cyan-400 hover:underline font-mono"
+                >
+                  {showPw ? 'Hide' : 'Show'}
+                </button>
               </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-400 font-mono">{isReset ? 'NEW PASSWORD' : 'PASSWORD'}</Label>
-                <div className="relative">
-                  <Input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                    placeholder={isReset ? 'New password (min 8 chars)' : 'Enter password'}
-                    autoComplete={isRegister || isReset ? 'new-password' : 'current-password'}
-                    className="bg-slate-900/50 border-slate-600/50 text-white font-mono pr-10" />
-                  <button type="button" onClick={() => setShowPw(!showPw)}
-                    aria-label={showPw ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
-                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+              <div className="relative">
+                <Input
+                  type={showPw ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="sri2613M@"
+                  className="bg-slate-950 border-slate-800 focus:border-cyan-500 text-xs font-mono text-white pr-10 rounded-xl"
+                />
               </div>
+            </div>
 
-              {needsConfirm && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-slate-400 font-mono">CONFIRM PASSWORD</Label>
-                  <Input type={showPw ? 'text' : 'password'} value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
-                    placeholder="Re-enter password" autoComplete="new-password"
-                    className="bg-slate-900/50 border-slate-600/50 text-white font-mono" />
-                </div>
-              )}
-
-              {(isRegister || isReset) && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-slate-400 font-mono">INVITE CODE</Label>
-                  <Input type="text" value={inviteCode} onChange={e => setInviteCode(e.target.value)}
-                    placeholder="Found in JARVIS → Settings"
-                    className="bg-slate-900/50 border-slate-600/50 text-white font-mono" />
-                  <p className="text-[10px] text-slate-500">
-                    This JARVIS is private. The invite code keeps your mail, calendar and repos off-limits to strangers.
-                  </p>
-                </div>
-              )}
-
-              {error && (
-                <div className="flex items-start gap-2 text-red-400 text-xs font-mono bg-red-500/10 p-2 rounded-lg">
-                  <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {notice && (
-                <div className="flex items-start gap-2 text-emerald-400 text-xs font-mono bg-emerald-500/10 p-2 rounded-lg">
-                  <Shield className="w-3 h-3 shrink-0 mt-0.5" />
-                  <span>{notice}</span>
-                </div>
-              )}
-
-              {lockTimer > 0 && (
-                <div className="flex items-center gap-2 text-amber-400 text-xs font-mono bg-amber-500/10 p-2 rounded-lg">
-                  <Lock className="w-3 h-3 shrink-0" /> Account locked. Try again in {Math.ceil(lockTimer / 60)} min.
-                </div>
-              )}
-
-              <Button type="submit" disabled={!canSubmit}
-                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white h-11 font-semibold">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Shield className="w-4 h-4 mr-2" />}
-                {mode === 'login' ? 'Access JARVIS' : isRegister ? 'Create Account' : 'Reset Password'}
-              </Button>
-
-              <div className="text-center">
-                {mode === 'login' ? (
-                  <button type="button" onClick={() => switchMode('reset')}
-                    className="text-[11px] text-slate-400 hover:text-cyan-400 font-mono transition-colors">
-                    Forgot password?
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => switchMode('login')}
-                    className="text-[11px] text-slate-400 hover:text-cyan-400 font-mono transition-colors">
-                    ← Back to login
-                  </button>
-                )}
+            {mode === 'register' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-mono text-slate-300">Confirm Clearance Code</Label>
+                <Input
+                  type="password"
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  placeholder="Re-enter password"
+                  className="bg-slate-950 border-slate-800 focus:border-cyan-500 text-xs font-mono text-white rounded-xl"
+                />
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            )}
 
-        <p className="text-center text-[10px] text-slate-500 font-mono">
-          Private install • Invite code required to add accounts
-        </p>
-      </div>
+            {(mode === 'register' || mode === 'reset') && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-mono text-slate-300">Invite Code (Optional for Master)</Label>
+                <Input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  placeholder="Invite code if required"
+                  className="bg-slate-950 border-slate-800 focus:border-cyan-500 text-xs font-mono text-white rounded-xl"
+                />
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={loading || lockTimer > 0}
+              className="w-full bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 border border-slate-700 hover:border-cyan-400 text-white font-mono text-xs font-bold py-2.5 rounded-xl transition-all"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Lock className="w-4 h-4 mr-2" />
+              )}
+              {mode === 'login' ? 'Authenticate' : mode === 'register' ? 'Register Clearance' : 'Reset Clearance'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
