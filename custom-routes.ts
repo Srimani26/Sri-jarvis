@@ -730,7 +730,7 @@ function isModelReady(model: ModelState): boolean {
 // ── Bring-Your-Own-Key store (server-side only, never shipped to the client) ──
 
 const KEYS_FILE = join(process.cwd(), '.jarvis-keys.json')
-type ProviderKeys = { openai?: string; anthropic?: string; gemini?: string }
+type ProviderKeys = { openai?: string; anthropic?: string; gemini?: string; geminiKeys?: string[]; groq?: string; openrouter?: string; mistral?: string; huggingface?: string }
 
 function loadKeys(): ProviderKeys {
   try {
@@ -774,6 +774,102 @@ async function callDirectAnthropic(key: string, system: string, messages: any[])
   const data: any = await res.json()
   const text = data?.content?.[0]?.text
   if (!text) throw new Error('Anthropic returned empty response')
+  return text
+}
+
+
+// Multi-Provider Call Engines
+
+let geminiKeyIndex = 0
+
+async function callDirectGeminiPool(keys: string[], system: string, messages: any[]): Promise<string> {
+  const contents = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }))
+
+  const errors: string[] = []
+  // Try each Gemini key in rotation
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[(geminiKeyIndex + i) % keys.length]
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents }),
+          signal: AbortSignal.timeout(60_000),
+        }
+      )
+      if (res.ok) {
+        const data: any = await res.json()
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (text?.trim()) {
+          geminiKeyIndex = (geminiKeyIndex + i + 1) % keys.length
+          return text
+        }
+      }
+      errors.push(`Gemini key #${(geminiKeyIndex + i) % keys.length + 1} status ${res.status}`)
+    } catch (e: any) {
+      errors.push(e.message)
+    }
+  }
+  throw new Error(`Gemini Pool exhausted: ${errors.join(', ')}`)
+}
+
+async function callDirectGroq(key: string, system: string, messages: any[]): Promise<string> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'deepseek-r1-distill-llama-70b',
+      messages: [{ role: 'system', content: system }, ...messages],
+      max_tokens: 4096,
+      temperature: 0.6,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) throw new Error(`Groq ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  const data: any = await res.json()
+  const text = data?.choices?.[0]?.message?.content
+  if (!text) throw new Error('Groq returned empty response')
+  return text
+}
+
+async function callDirectOpenRouter(key: string, system: string, messages: any[]): Promise<string> {
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://standardroofs.com', 'X-Title': 'J.A.R.V.I.S. Command Center' },
+    body: JSON.stringify({
+      model: 'deepseek/deepseek-r1:free',
+      messages: [{ role: 'system', content: system }, ...messages],
+      max_tokens: 4096,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  const data: any = await res.json()
+  const text = data?.choices?.[0]?.message?.content
+  if (!text) throw new Error('OpenRouter returned empty response')
+  return text
+}
+
+async function callDirectMistral(key: string, system: string, messages: any[]): Promise<string> {
+  const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'codestral-latest',
+      messages: [{ role: 'system', content: system }, ...messages],
+      max_tokens: 4096,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) throw new Error(`Mistral ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  const data: any = await res.json()
+  const text = data?.choices?.[0]?.message?.content
+  if (!text) throw new Error('Mistral returned empty response')
   return text
 }
 
@@ -826,19 +922,27 @@ async function callAI(systemPrompt: string, messages: Array<{ role: string; cont
     }
   }
 
-  // 2) Sri's own provider keys (never runs out)
+  // 2) Sri's own provider keys (Multi-Provider Swarm)
   const keys = loadKeys()
-  const directProviders: Array<{ name: string; fn: (k: string) => Promise<string>; key?: string }> = [
-    { name: 'OpenAI (your key)', fn: k => callDirectOpenAI(k, systemPrompt, chatMessages), key: keys.openai },
-    { name: 'Anthropic (your key)', fn: k => callDirectAnthropic(k, systemPrompt, chatMessages), key: keys.anthropic },
-    { name: 'Gemini (your key)', fn: k => callDirectGemini(k, systemPrompt, chatMessages), key: keys.gemini },
+  const geminiPool = (keys.geminiKeys && keys.geminiKeys.length) ? keys.geminiKeys : (keys.gemini ? [keys.gemini] : [])
+
+  const directProviders: Array<{ name: string; fn: () => Promise<string>; enabled: boolean }> = [
+    { name: 'Groq (DeepSeek R1 70B)', fn: () => callDirectGroq(keys.groq!, systemPrompt, chatMessages), enabled: Boolean(keys.groq) },
+    { name: 'Google Gemini 2.5 Multi-Key Pool', fn: () => callDirectGeminiPool(geminiPool, systemPrompt, chatMessages), enabled: geminiPool.length > 0 },
+    { name: 'Mistral (Codestral)', fn: () => callDirectMistral(keys.mistral!, systemPrompt, chatMessages), enabled: Boolean(keys.mistral) },
+    { name: 'OpenRouter (DeepSeek R1)', fn: () => callDirectOpenRouter(keys.openrouter!, systemPrompt, chatMessages), enabled: Boolean(keys.openrouter) },
+    { name: 'OpenAI (your key)', fn: () => callDirectOpenAI(keys.openai!, systemPrompt, chatMessages), enabled: Boolean(keys.openai) },
+    { name: 'Anthropic (your key)', fn: () => callDirectAnthropic(keys.anthropic!, systemPrompt, chatMessages), enabled: Boolean(keys.anthropic) },
   ]
+
   for (const p of directProviders) {
-    if (!p.key) continue
+    if (!p.enabled) continue
     try {
-      const text = await p.fn(p.key)
+      const text = await p.fn()
       if (text?.trim()) return { text, source: p.name }
-    } catch (err: any) { errors.push(`${p.name}: ${err.message}`) }
+    } catch (err: any) {
+      errors.push(`${p.name}: ${err.message}`)
+    }
   }
 
   throw new Error(errors.slice(0, 3).join(' | ') || 'No AI provider available')
