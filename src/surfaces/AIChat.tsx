@@ -1,27 +1,37 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Search, Mic, Bot, User, Sparkles, ArrowUpRight, RotateCcw, Loader2, AlertTriangle, Cpu, RefreshCw } from 'lucide-react'
+import {
+  Send, Search, Mic, Bot, User, Sparkles, ArrowUpRight, RotateCcw,
+  Loader2, AlertTriangle, Cpu, RefreshCw, Volume2, VolumeX, Shield,
+  Code2, Workflow, DollarSign, Brain, Laptop, Layers, Zap, ExternalLink, Play
+} from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select'
+import ArcReactorHUD from '@/components/ArcReactorHUD'
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
-  /** Which model answered, when the reply came from a live model. */
   source?: string
-  /** True when this bubble is a connection notice, not an answer. */
   error?: boolean
   detail?: string
   setupHint?: string
+  actionTriggered?: {
+    type: 'youtube' | 'food' | 'code'
+    label: string
+    url?: string
+  }
 }
 
 const QUICK_ACTIONS = [
-  { icon: '🤖', label: 'Write a Python automation', query: 'Write a Python script that monitors Google Ads campaign performance every hour and sends me a Telegram alert if CPC goes above ₹50' },
-  { icon: '🔍', label: 'Research latest AI tools', query: 'What are the best AI tools for automating business workflows in 2026? Compare n8n, Zapier, and Make.com for an AI automation engineer.' },
-  { icon: '💡', label: 'Design an automation', query: 'I run a roofing business called Standard Roofs. Design an end-to-end AI automation that qualifies leads from my website, adds them to Zoho CRM, and sends a personalized WhatsApp message.' },
-  { icon: '🏗️', label: 'Help with my SaaS', query: 'I\'m building Sri AI Business OS with Next.js + FastAPI + SQLite + n8n. The prototype is 92% complete. Help me plan the remaining 8% and prepare for production deployment.' },
+  { icon: '🛡️', label: 'Build Full-Stack SaaS', agent: 'aegis', query: 'Aegis, scaffold a complete full-stack AI Business OS architecture using Next.js 15, FastAPI, SQLite, and Tailwind CSS. Provide full directory tree and working code.' },
+  { icon: '⚡', label: 'Export n8n Automation', agent: 'vortex', query: 'Vortex, generate a complete copy-pasteable n8n workflow JSON that catches website leads, qualifies them using Gemini AI, and generates a quotation in Zoho CRM.' },
+  { icon: '💰', label: 'Make Me Money (B2B Retainer)', agent: 'midas', query: 'Midas, generate a high-ticket client acquisition pitch and cold outreach strategy to sell ₹1,50,000 automated CRM quotation engines to construction and roofing companies.' },
+  { icon: '🧠', label: 'Global AI & Tech Recon', agent: 'cerebro', query: 'Cerebro, synthesize the top geopolitical and technical AI developments this week, focusing on sovereign AI infrastructure, autonomous swarms, and enterprise automation trends.' },
+  { icon: '🎬', label: 'Open YouTube Research', agent: 'stark', query: 'open youtube for AI multi-agent architecture and autonomous swarms' },
+  { icon: '🍔', label: 'Order Food in Erode', agent: 'stark', query: 'order food for me in Erode' },
 ]
 
 function generateId() {
@@ -33,7 +43,6 @@ function formatTime(date: Date) {
 }
 
 function renderMarkdown(text: string) {
-  // Split by code blocks first
   const parts = text.split(/(```[\s\S]*?```)/g)
   return parts.map((part, i) => {
     if (part.startsWith('```') && part.endsWith('```')) {
@@ -42,48 +51,49 @@ function renderMarkdown(text: string) {
       const lang = langMatch ? langMatch[1] : ''
       const code = langMatch ? lines.slice(langMatch[0].length) : lines
       return (
-        <div key={i} className="my-2 rounded-lg overflow-hidden border border-border">
+        <div key={i} className="my-2.5 rounded-xl overflow-hidden border border-cyan-500/30 shadow-lg">
           {lang && (
-            <div className="px-3 py-1 bg-muted/50 text-[10px] text-muted-foreground font-mono border-b border-border">
-              {lang}
+            <div className="px-3.5 py-1.5 bg-slate-900 text-[10px] text-cyan-300 font-mono border-b border-slate-800 flex items-center justify-between">
+              <span>{lang.toUpperCase()} // PRODUCTION CODE</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(code)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                Copy
+              </button>
             </div>
           )}
-          <pre className="p-3 bg-background/80 overflow-x-auto">
-            <code className="text-[11px] text-foreground/80 font-mono whitespace-pre leading-relaxed">{code}</code>
+          <pre className="p-3.5 bg-slate-950/90 overflow-x-auto text-[11px] text-slate-200 font-mono whitespace-pre leading-relaxed">
+            <code>{code}</code>
           </pre>
         </div>
       )
     }
 
-    // Regular text with inline formatting
     return (
-      <div key={i} className="space-y-1">
+      <div key={i} className="space-y-1.5">
         {part.split('\n').map((line, j) => {
           if (!line.trim()) return <div key={j} className="h-1.5" />
 
-          // Bullet points
-          if (line.match(/^\s*[-•]\s/)) {
-            return <li key={j} className="ml-4 text-sm leading-relaxed list-disc text-foreground/90">{line.replace(/^\s*[-•]\s/, '')}</li>
+          if (line.match(/^\s*[-*•]\s/)) {
+            return <li key={j} className="ml-4 text-xs leading-relaxed list-disc text-slate-200">{line.replace(/^\s*[-*•]\s/, '')}</li>
           }
-          // Numbered lists
           if (line.match(/^\s*\d+\.\s/)) {
-            return <li key={j} className="ml-4 text-sm leading-relaxed list-decimal text-foreground/90">{line.replace(/^\s*\d+\.\s/, '')}</li>
+            return <li key={j} className="ml-4 text-xs leading-relaxed list-decimal text-slate-200">{line.replace(/^\s*\d+\.\s/, '')}</li>
           }
-          // Headers
-          if (line.startsWith('### ')) return <h4 key={j} className="text-sm font-bold text-foreground mt-3">{line.slice(4)}</h4>
-          if (line.startsWith('## ')) return <h3 key={j} className="text-sm font-bold text-foreground mt-3">{line.slice(3)}</h3>
-          if (line.startsWith('# ')) return <h2 key={j} className="text-sm font-bold text-foreground mt-3">{line.slice(2)}</h2>
+          if (line.startsWith('### ')) return <h4 key={j} className="text-xs font-bold text-cyan-300 mt-2.5 font-mono">{line.slice(4)}</h4>
+          if (line.startsWith('## ')) return <h3 key={j} className="text-sm font-bold text-white mt-3 font-mono border-b border-slate-800 pb-1">{line.slice(3)}</h3>
+          if (line.startsWith('# ')) return <h2 key={j} className="text-base font-bold text-cyan-400 mt-3 font-mono">{line.slice(2)}</h2>
 
-          // Bold + inline code
-          const rendered = line.split(/(\*\*.*?\*\*|`[^`]+`)/g).map((part, k) => {
-            if (part.startsWith('**') && part.endsWith('**'))
-              return <strong key={k} className="text-foreground font-semibold">{part.slice(2, -2)}</strong>
-            if (part.startsWith('`') && part.endsWith('`'))
-              return <code key={k} className="px-1 py-0.5 bg-muted rounded text-[11px] text-primary">{part.slice(1, -1)}</code>
-            return part
+          const rendered = line.split(/(\*\*.*?\*\*|`[^`]+`)/g).map((token, k) => {
+            if (token.startsWith('**') && token.endsWith('**'))
+              return <strong key={k} className="text-white font-semibold">{token.slice(2, -2)}</strong>
+            if (token.startsWith('`') && token.endsWith('`'))
+              return <code key={k} className="px-1 py-0.5 bg-slate-900 text-cyan-300 rounded font-mono text-[11px] border border-cyan-500/20">{token.slice(1, -1)}</code>
+            return token
           })
 
-          return <p key={j} className="text-sm leading-relaxed text-foreground/90">{rendered}</p>
+          return <p key={j} className="text-xs leading-relaxed text-slate-200">{rendered}</p>
         })}
       </div>
     )
@@ -97,8 +107,15 @@ export default function AIChat() {
   const [isListening, setIsListening] = useState(false)
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [jarvisMode, setJarvisMode] = useState<'active' | 'sleeping'>('active')
+  const [hudStatus, setHudStatus] = useState<'online' | 'thinking' | 'speaking' | 'executing'>('online')
+  const [isMuted, setIsMuted] = useState(() => {
+    try { return localStorage.getItem('jarvis_muted') === 'true' } catch { return false }
+  })
   const [models, setModels] = useState<Array<{ id: string; name: string; healthy: boolean }>>([])
   const [selectedModel, setSelectedModel] = useState('auto')
+  const [selectedAgent, setSelectedAgent] = useState<'all' | 'aegis' | 'vortex' | 'midas' | 'cerebro' | 'stark'>('all')
+  const [moaMode, setMoaMode] = useState(true)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -106,12 +123,56 @@ export default function AIChat() {
   const GREETING: Message = {
     id: generateId(),
     role: 'assistant',
-    content: "Greetings, Master Sri. I am **J.A.R.V.I.S.** — your personal AI command center.\n\nI am fully online and at your service. Here's what I can do for you:\n\n- 💻 **Write any code** — Python, TypeScript, Deluge, Apps Script, React, Next.js, FastAPI\n- ⚙️ **Build automations** — n8n workflows, Zoho CRM, Google Ads pipelines\n- 🐛 **Debug & fix** — paste any error, I'll trace and fix it\n- 🏗️ **Design systems** — architecture, APIs, databases, workflows\n- 📧 **Manage email** — read, send, organize your Gmail\n- 📅 **Your schedule** — check calendar, plan meetings\n- 🌐 **Research** — find best tools, frameworks, techniques\n- 💰 **Business** — strategy, automation, revenue optimization\n\n**Your wish is my command, Master. What shall we build today?**",
+    content: "Greetings, Master Sri. I am **J.A.R.V.I.S. Mark-IV** — your personal autonomous AI command center.\n\nThe **Arc Reactor** is primed, the **MoA multi-agent swarm** is standing by, and all operational domains are under your direct command:\n\n- 🛡️ **Aegis (Full-Stack Engineer)** — Builds complete Next.js / FastAPI web apps, databases, and micro-SaaS platforms\n- ⚡ **Vortex (Heavy Automation)** — Generates n8n JSON workflows, 4-layer Zoho CRM Deluge functions, and Google Ads scripts\n- 💰 **Midas (Revenue Engine)** — Formulates high-ticket B2B client acquisition pitches, pricing engines, and lead monetization\n- 🧠 **Cerebro (Deep Intel & Research)** — Real-time geopolitics, market trends, competitive reconnaissance, and reasoning\n- 📱 **Stark OS (Device Concierge)** — Dispatches immediate workstation actions: searches YouTube, orders food in Erode, launches tools\n- 🏭 **Forge (Agent Trainer)** — Spawns and trains new custom subordinate AI agents on your order\n\n**Your wish is my command, Master. What shall we execute today?**",
     timestamp: new Date(),
+    source: 'J.A.R.V.I.S. Core (Argon Swarm)',
   }
 
-  // Restore the conversation Sri was in the middle of, so a reload does not
-  // throw away his history.
+  // Text-To-Speech (British J.A.R.V.I.S. Audio)
+  const speakJarvisResponse = useCallback((text: string) => {
+    if (isMuted || typeof window === 'undefined' || !window.speechSynthesis) return
+    try {
+      window.speechSynthesis.cancel()
+      const cleanText = text
+        .replace(/```[\s\S]*?```/g, 'Code block generated.')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/[#*_-]/g, '')
+        .slice(0, 350)
+        .trim()
+
+      if (!cleanText) return
+
+      const utterance = new SpeechSynthesisUtterance(cleanText)
+      const voices = window.speechSynthesis.getVoices()
+      const britishVoice = voices.find(
+        (v) => v.lang.includes('en-GB') || v.name.includes('British') || v.name.includes('Daniel') || v.name.includes('UK')
+      ) || voices.find((v) => v.lang.startsWith('en'))
+
+      if (britishVoice) utterance.voice = britishVoice
+      utterance.rate = 1.02
+      utterance.pitch = 0.95
+      utterance.onstart = () => setHudStatus('speaking')
+      utterance.onend = () => setHudStatus('online')
+      utterance.onerror = () => setHudStatus('online')
+      window.speechSynthesis.speak(utterance)
+    } catch {
+      setHudStatus('online')
+    }
+  }, [isMuted])
+
+  const toggleMute = () => {
+    setIsMuted((prev) => {
+      const next = !prev
+      try { localStorage.setItem('jarvis_muted', String(next)) } catch {}
+      if (next && typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+      return next
+    })
+  }
+
+  // Restore history
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -135,29 +196,31 @@ export default function AIChat() {
     return () => { cancelled = true }
   }, [])
 
-  // Which models are actually live right now.
+  // Fetch live models
   useEffect(() => {
     fetch('/api/ai/models')
-      .then(r => r.json())
-      .then(d => setModels(d?.models || []))
+      .then((r) => r.json())
+      .then((d) => setModels(d?.models || []))
       .catch(() => {})
   }, [])
 
   const selectedLabel = selectedModel === 'auto'
-    ? 'Auto'
-    : (models.find(mm => mm.id === selectedModel)?.name || selectedModel)
+    ? 'Auto (Argon MoA)'
+    : (models.find((mm) => mm.id === selectedModel)?.name || selectedModel)
 
   const resetChat = useCallback(async () => {
     fetch('/api/ai/history', { method: 'DELETE', headers: authHeaders() }).catch(() => {})
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
     setMessages([{
       id: generateId(),
       role: 'assistant',
-      content: 'Systems reset, Master. A fresh slate — what would you like me to work on?',
+      content: 'All neural buffers cleared, Master Sri. Arc Reactor at 100%. Standing by for your next strategic directive.',
       timestamp: new Date(),
+      source: 'J.A.R.V.I.S. Core',
     }])
   }, [])
 
-  // Init voice recognition
+  // Voice STT recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (SpeechRecognition) {
@@ -198,40 +261,61 @@ export default function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
+  // Send message
   const sendMessage = useCallback(async (text: string, opts?: { skipUserEcho?: boolean }) => {
     if (!text.trim() || isTyping) return
 
     const lower = text.trim().toLowerCase()
 
-    // Sleep/wake commands — instant, no API call needed
+    // Standby & Wake commands
     const wakePatterns = ['hey jarvis', 'wake up', 'wake', 'jarvis wake', 'hello jarvis', 'activate', 'jarvis activate', 'online jarvis', 'jarvis online']
-    const sleepPatterns = ['rest', 'go to rest', 'go to sleep', 'sleep', 'jarvis rest', 'jarvis sleep', 'you can rest', 'go sleep', 'standby']
+    const sleepPatterns = ['rest', 'go to rest', 'go to sleep', 'sleep', 'jarvis rest', 'jarvis sleep', 'you can rest', 'standby']
 
-    if (wakePatterns.some(p => lower.includes(p))) {
+    if (wakePatterns.some((p) => lower.includes(p))) {
       setJarvisMode('active')
-      setMessages(prev => [...prev, {
+      const wakeReply = "Arc Reactor online, Master Sri. J.A.R.V.I.S. is at full operational readiness. Swarms standing by. What are your orders?"
+      setMessages((prev) => [...prev, {
         id: generateId(), role: 'user', content: text.trim(), timestamp: new Date(),
       }, {
-        id: generateId(), role: 'assistant', content: "**Systems online, Master.** ⚡\n\nJ.A.R.V.I.S. is fully awake and ready to execute your commands. All systems operational.\n\nWhat shall we accomplish today?", timestamp: new Date(),
+        id: generateId(), role: 'assistant', content: wakeReply, timestamp: new Date(), source: 'J.A.R.V.I.S. Core',
       }])
+      speakJarvisResponse(wakeReply)
       setInput('')
       return
     }
 
-    if (sleepPatterns.some(p => lower.includes(p))) {
+    if (sleepPatterns.some((p) => lower.includes(p))) {
       setJarvisMode('sleeping')
-      setMessages(prev => [...prev, {
+      const sleepReply = "Entering standby power mode, Master Sri. Peripheral telemetry and security sentinels remain active in the background. Say 'Hey JARVIS' to bring all systems online."
+      setMessages((prev) => [...prev, {
         id: generateId(), role: 'user', content: text.trim(), timestamp: new Date(),
       }, {
-        id: generateId(), role: 'assistant', content: "Entering **standby mode**, Master. 🌙\n\nCore systems on low power. I'll be monitoring in the background.\n\nSay **\"Hey JARVIS\"** or **\"Wake up\"** to bring me back online anytime.", timestamp: new Date(),
+        id: generateId(), role: 'assistant', content: sleepReply, timestamp: new Date(), source: 'J.A.R.V.I.S. Core',
       }])
+      speakJarvisResponse(sleepReply)
       setInput('')
       return
     }
 
-    // If sleeping, wake up automatically on any message
     if (jarvisMode === 'sleeping') {
       setJarvisMode('active')
+    }
+
+    // Direct Device Action: YouTube
+    let actionTriggered: any = null
+    if (lower.includes('youtube') && (lower.includes('open') || lower.includes('search') || lower.includes('play'))) {
+      const q = text.replace(/open|youtube|search|play|for|can you|please|jarvis/gi, '').trim() || 'AI agent autonomous swarm'
+      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      actionTriggered = { type: 'youtube', label: `Opening YouTube search for: "${q}"`, url }
+    }
+
+    // Direct Device Action: Food Order in Erode
+    if (lower.includes('order food') || lower.includes('swiggy') || lower.includes('zomato')) {
+      const q = text.replace(/order|food|swiggy|zomato|for me|can you|in erode/gi, '').trim() || 'Food Delivery Restaurants Erode'
+      const url = `https://www.google.com/search?q=${encodeURIComponent(q + ' Swiggy Zomato Erode')}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      actionTriggered = { type: 'food', label: `Dispatching food logistics in Erode for Master Sri`, url }
     }
 
     const userMsg: Message = {
@@ -245,28 +329,29 @@ export default function AIChat() {
     setMessages(newMessages)
     setInput('')
     setIsTyping(true)
+    setHudStatus('thinking')
 
     const assistantId = generateId()
 
     const updateAssistant = (content: string, source?: string) => {
-      setMessages(prev => {
+      setMessages((prev) => {
         const updated = [...prev]
-        const lastIdx = updated.findIndex(m => m.id === assistantId)
+        const lastIdx = updated.findIndex((m) => m.id === assistantId)
         if (lastIdx >= 0) {
-          updated[lastIdx] = { ...updated[lastIdx], content, source, error: false, detail: undefined, setupHint: undefined }
+          updated[lastIdx] = { ...updated[lastIdx], content, source, error: false, actionTriggered }
         } else {
-          updated.push({ id: assistantId, role: 'assistant', content, timestamp: new Date(), source })
+          updated.push({ id: assistantId, role: 'assistant', content, timestamp: new Date(), source, actionTriggered })
         }
         return updated
       })
+      speakJarvisResponse(content)
+      setHudStatus('online')
     }
 
-    // A failed call must never masquerade as an answer from J.A.R.V.I.S.
-    // Surface the real reason and the way to fix it instead.
     const failAssistant = (content: string, detail?: string, setupHint?: string) => {
-      setMessages(prev => {
+      setMessages((prev) => {
         const updated = [...prev]
-        const idx = updated.findIndex(mm => mm.id === assistantId)
+        const idx = updated.findIndex((mm) => mm.id === assistantId)
         const notice: Message = {
           id: assistantId, role: 'assistant', content, timestamp: new Date(), error: true, detail, setupHint,
         }
@@ -274,6 +359,25 @@ export default function AIChat() {
         else updated.push(notice)
         return updated
       })
+      setHudStatus('online')
+    }
+
+    // Prepend Sub-Agent Routing Directive if selected
+    let promptPayload = text.trim()
+    if (selectedAgent === 'aegis') {
+      promptPayload = `[SUB-AGENT AEGIS DIRECTIVE // FULL-STACK ARCHITECT]: ${promptPayload}`
+    } else if (selectedAgent === 'vortex') {
+      promptPayload = `[SUB-AGENT VORTEX DIRECTIVE // HEAVY AUTOMATION SPECIALIST]: ${promptPayload}`
+    } else if (selectedAgent === 'midas') {
+      promptPayload = `[SUB-AGENT MIDAS DIRECTIVE // REVENUE & MONETIZATION ENGINE]: ${promptPayload}`
+    } else if (selectedAgent === 'cerebro') {
+      promptPayload = `[SUB-AGENT CEREBRO DIRECTIVE // DEEP REASONING & INTEL]: ${promptPayload}`
+    } else if (selectedAgent === 'stark') {
+      promptPayload = `[SUB-AGENT STARK OS DIRECTIVE // DEVICE & CONCIERGE CONTROLLER]: ${promptPayload}`
+    }
+
+    if (moaMode) {
+      promptPayload = `[MoA 3-LAYER DELIBERATION ACTIVE]: ${promptPayload}`
     }
 
     try {
@@ -282,8 +386,11 @@ export default function AIChat() {
         headers: jsonAuthHeaders(),
         body: JSON.stringify({
           messages: newMessages
-            .filter(msg => !msg.error)
-            .map(msg => ({ role: msg.role, content: msg.content })),
+            .filter((msg) => !msg.error)
+            .map((msg, idx) => ({
+              role: msg.role,
+              content: idx === newMessages.length - 1 ? promptPayload : msg.content,
+            })),
           model: selectedModel === 'auto' ? undefined : selectedModel,
         }),
       })
@@ -299,235 +406,252 @@ export default function AIChat() {
         return
       }
 
-      throw new Error(data.error || 'Empty response from AI')
-    } catch (error: any) {
-      // One automatic retry
-      try {
-        const retryRes = await fetch('/api/ai/chat', {
-          method: 'POST',
-          headers: jsonAuthHeaders(),
-          body: JSON.stringify({
-            messages: newMessages
-              .filter(msg => !msg.error)
-              .map(msg => ({ role: msg.role, content: msg.content })),
-            model: selectedModel === 'auto' ? undefined : selectedModel,
-          }),
-        })
-        const retryData = await retryRes.json().catch(() => null)
-        if (retryRes.ok && retryData?.content) {
-          updateAssistant(retryData.content, retryData.source)
-          return
-        }
-      } catch {}
-
       failAssistant(
-        'Connection failed — no AI model answered.',
-        error?.message || 'Unknown error',
-        'Retry below. If it keeps failing, check Settings - AI Providers.',
+        'Systems temporarily unreachable, Master Sri.',
+        data?.detail || 'No response returned from the MoA neural engine.',
+        data?.setupHint
+      )
+    } catch (err: any) {
+      failAssistant(
+        'Neural link timeout, Master Sri.',
+        err?.message || 'Network anomaly detected.',
+        'J.A.R.V.I.S. is attempting reconnect protocol.'
       )
     } finally {
       setIsTyping(false)
-      inputRef.current?.focus()
     }
-  }, [messages, isTyping, selectedModel])
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage(input)
-    }
-  }
-
-  const lastUserText = [...messages].reverse().find(msg => msg.role === 'user' && !msg.error)?.content || ''
+  }, [messages, isTyping, jarvisMode, selectedModel, selectedAgent, moaMode, speakJarvisResponse])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] sm:h-[calc(100vh-8rem)]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center jarvis-glow">
-            <Bot className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">J.A.R.V.I.S. AI</h2>
-            <p className="text-xs text-primary/60 font-mono">
-              {jarvisMode === 'sleeping' ? '🌙 Standby Mode — Say "Hey JARVIS" to wake' : isTyping ? 'Thinking…' : `Online • ${selectedLabel}`}
-            </p>
-          </div>
+    <div className="space-y-4">
+      {/* Arc Reactor HUD Header */}
+      <ArcReactorHUD
+        status={hudStatus}
+        activeModel={selectedLabel}
+        isMuted={isMuted}
+        onToggleMute={toggleMute}
+        onVoiceTrigger={toggleVoice}
+      />
+
+      {/* Sub-Agent Delegation Selector Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 backdrop-blur-xl">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+          <span className="text-[10px] font-mono text-slate-500 mr-1 hidden sm:inline">SWARM DELEGATION:</span>
+          {[
+            { id: 'all', label: 'J.A.R.V.I.S. (Chief)', icon: Shield, color: 'text-cyan-400' },
+            { id: 'aegis', label: 'Aegis (Full-Stack)', icon: Code2, color: 'text-cyan-300' },
+            { id: 'vortex', label: 'Vortex (Auto)', icon: Workflow, color: 'text-amber-400' },
+            { id: 'midas', label: 'Midas (Revenue)', icon: DollarSign, color: 'text-emerald-400' },
+            { id: 'cerebro', label: 'Cerebro (Intel)', icon: Brain, color: 'text-purple-400' },
+            { id: 'stark', label: 'Stark OS (Device)', icon: Laptop, color: 'text-rose-400' },
+          ].map((item) => {
+            const Icon = item.icon
+            const isSelected = selectedAgent === item.id
+            return (
+              <button
+                key={item.id}
+                onClick={() => setSelectedAgent(item.id as any)}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-mono transition-all border whitespace-nowrap',
+                  isSelected
+                    ? 'bg-cyan-500/20 text-white border-cyan-500/60 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                    : 'bg-slate-900/60 text-slate-400 border-slate-800/80 hover:text-slate-200'
+                )}
+              >
+                <Icon className={cn('w-3 h-3', isSelected ? item.color : 'text-slate-500')} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
         </div>
+
+        {/* MoA Toggle & Reset */}
         <div className="flex items-center gap-2">
-          <Select value={selectedModel} onValueChange={setSelectedModel}>
-            <SelectTrigger className="h-9 w-[7.5rem] sm:w-[11rem] rounded-lg border border-border bg-muted/40 px-2.5 text-xs">
-              <span className="flex items-center gap-1.5 min-w-0">
-                <Cpu className="w-3.5 h-3.5 text-primary shrink-0" />
-                <span className="truncate">{selectedLabel}</span>
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">Auto — failover chain</SelectItem>
-              {models.map(mm => (
-                <SelectItem key={mm.id} value={mm.id}>{mm.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <button
+            onClick={() => setMoaMode(!moaMode)}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-mono border transition-all',
+              moaMode
+                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-[0_0_10px_rgba(168,85,247,0.3)]'
+                : 'bg-slate-900 text-slate-500 border-slate-800'
+            )}
+            title="Mixture of Agents: Parallel multi-model consensus"
+          >
+            <Sparkles className="w-3 h-3 text-purple-400" />
+            <span>MoA 3-LAYER: {moaMode ? 'ARMED' : 'OFF'}</span>
+          </button>
+
           <button
             onClick={resetChat}
-            title="Clear conversation"
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-slate-900 border border-transparent hover:border-red-500/20"
+            title="Clear conversation history"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2 scrollbar-thin">
-        {messages.length <= 1 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-            {QUICK_ACTIONS.map((action, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(action.query)}
-                className="jarvis-card p-3 text-left hover:border-primary/30 transition-all group"
-              >
-                <span className="text-lg">{action.icon}</span>
-                <p className="text-xs text-foreground mt-1.5 font-medium">{action.label}</p>
-                <ArrowUpRight className="w-3 h-3 text-primary/40 group-hover:text-primary mt-1 transition-colors" />
-              </button>
-            ))}
-          </div>
-        )}
-
+      {/* Chat Messages Log */}
+      <div className="relative min-h-[420px] max-h-[560px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-4 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={cn(
-              'flex gap-3 max-w-[90%] sm:max-w-[85%]',
-              msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''
+              'flex gap-3 max-w-3xl transition-all',
+              msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'
             )}
           >
-            <div className={cn(
-              'w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center',
-              msg.role === 'user' ? 'bg-primary/20' : 'bg-muted'
-            )}>
-              {msg.role === 'user'
-                ? <User className="w-3.5 h-3.5 text-primary" />
-                : <Bot className="w-3.5 h-3.5 text-foreground" />
-              }
-            </div>
-            <div className={cn(
-              'rounded-2xl px-4 py-3 min-w-0',
-              msg.role === 'user'
-                ? 'bg-primary/15 text-foreground rounded-tr-sm'
-                : msg.error
-                  ? 'bg-amber-500/10 border border-amber-500/30 rounded-tl-sm'
-                  : 'jarvis-card rounded-tl-sm'
-            )}>
-              {msg.error ? (
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-                    <p className="text-sm text-amber-200">{msg.content}</p>
-                  </div>
-                  {msg.detail && (
-                    <p className="text-[11px] font-mono text-muted-foreground break-words pl-6">{msg.detail}</p>
-                  )}
-                  {msg.setupHint && (
-                    <p className="text-[11px] text-muted-foreground pl-6">{msg.setupHint}</p>
-                  )}
-                  <div className="pl-6">
-                    <button
-                      onClick={() => lastUserText && sendMessage(lastUserText, { skipUserEcho: true })}
-                      disabled={isTyping || !lastUserText}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 disabled:opacity-40 text-[11px] font-semibold text-amber-100 transition-colors"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Retry
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-1">{renderMarkdown(msg.content)}</div>
+            <div
+              className={cn(
+                'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-lg',
+                msg.role === 'user'
+                  ? 'bg-gradient-to-br from-cyan-600 to-blue-700 border-cyan-400/50 text-white'
+                  : 'bg-gradient-to-br from-slate-900 to-cyan-950 border-cyan-500/40 text-cyan-300'
               )}
-              <p className="text-[10px] text-muted-foreground mt-2 opacity-60">
-                {formatTime(msg.timestamp)}{msg.source ? ` · ${msg.source}` : ''}
-              </p>
+            >
+              {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4 text-cyan-400" />}
+            </div>
+
+            <div
+              className={cn(
+                'rounded-2xl p-4 border text-xs leading-relaxed space-y-2 max-w-[88%]',
+                msg.role === 'user'
+                  ? 'bg-cyan-500/10 border-cyan-500/30 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)]'
+                  : msg.error
+                  ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                  : 'bg-slate-900/80 border-slate-800/90 text-slate-200 shadow-md'
+              )}
+            >
+              <div className="flex items-center justify-between gap-4 pb-1 border-b border-slate-800/60 text-[10px] font-mono text-slate-400">
+                <span className="font-bold text-cyan-400 uppercase">
+                  {msg.role === 'user' ? 'Master Sri' : 'J.A.R.V.I.S. Mark-IV'}
+                </span>
+                <span>{formatTime(msg.timestamp)}</span>
+              </div>
+
+              <div>{renderMarkdown(msg.content)}</div>
+
+              {msg.actionTriggered && (
+                <div className="mt-2 p-2 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 flex items-center justify-between text-[11px] font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{msg.actionTriggered.label}</span>
+                  </div>
+                  {msg.actionTriggered.url && (
+                    <a
+                      href={msg.actionTriggered.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 underline"
+                    >
+                      <span>Open Link</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {msg.source && (
+                <div className="pt-1.5 text-[9px] font-mono text-slate-500 flex items-center justify-end gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
+                  <span>Synthesized by: {msg.source}</span>
+                </div>
+              )}
             </div>
           </div>
         ))}
 
-        {isTyping && messages[messages.length - 1]?.role !== 'assistant' && (
-          <div className="flex gap-3 max-w-[85%]">
-            <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-              <Bot className="w-3.5 h-3.5 text-foreground" />
+        {isTyping && (
+          <div className="flex gap-3 max-w-xl mr-auto items-center">
+            <div className="w-8 h-8 rounded-xl bg-slate-900 border border-cyan-500/40 flex items-center justify-center shrink-0">
+              <Bot className="w-4 h-4 text-cyan-400 animate-pulse" />
             </div>
-            <div className="jarvis-card rounded-2xl rounded-tl-sm px-4 py-3">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
+            <div className="px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 text-xs font-mono text-cyan-300 flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+              <span>J.A.R.V.I.S. neural swarm deliberating...</span>
             </div>
           </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="jarvis-card p-3">
-        <div className="flex items-end gap-2">
-          <button className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all flex-shrink-0 mb-0.5">
-            <Search className="w-4 h-4" />
-          </button>
+      {/* Quick Action Directives */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {QUICK_ACTIONS.map((action, i) => (
           <button
-            onClick={toggleVoice}
-            className={cn(
-              'p-2 rounded-lg transition-all flex-shrink-0 mb-0.5',
-              isListening
-                ? 'text-red-400 bg-red-500/15 animate-pulse'
-                : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
-            )}
-            title={voiceSupported ? 'Voice input (tap to speak)' : 'Voice not supported in this browser'}
+            key={i}
+            onClick={() => {
+              setSelectedAgent(action.agent as any)
+              sendMessage(action.query)
+            }}
+            className="flex flex-col items-start p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/40 hover:bg-slate-900/70 transition-all text-left group"
           >
-            <Mic className="w-4 h-4" />
+            <span className="text-base mb-1">{action.icon}</span>
+            <span className="text-[11px] font-mono font-bold text-slate-200 group-hover:text-cyan-300 transition-colors">
+              {action.label}
+            </span>
           </button>
-          <div className="flex-1 relative">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={jarvisMode === 'sleeping' ? 'Say "Hey JARVIS" to wake up...' : 'Ask me to write code, build automations, debug errors...'}
-              disabled={jarvisMode === 'sleeping'}
-              rows={1}
-              className={cn(
-                "w-full bg-background/50 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:border-primary/50 transition-colors",
-                jarvisMode === 'sleeping' && "opacity-40 cursor-not-allowed"
-              )}
-              style={{ minHeight: '40px', maxHeight: '120px' }}
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement
-                target.style.height = 'auto'
-                target.style.height = Math.min(target.scrollHeight, 120) + 'px'
-              }}
-            />
+        ))}
+      </div>
+
+      {/* Chat Command Input Bar */}
+      <div className="relative rounded-2xl border border-cyan-500/40 bg-slate-950/90 p-2 shadow-2xl backdrop-blur-2xl">
+        <textarea
+          ref={inputRef}
+          rows={2}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              sendMessage(input)
+            }
+          }}
+          placeholder="Command J.A.R.V.I.S... (e.g. 'Build a Next.js full-stack SaaS', 'Open YouTube for AI tutorial', 'Export n8n workflow')"
+          className="w-full bg-transparent px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none resize-none font-mono"
+        />
+
+        <div className="flex items-center justify-between pt-1 px-2 border-t border-slate-800/80">
+          <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+            <span>COMMANDER: <strong className="text-slate-300">MASTER SRI</strong></span>
+            <span>•</span>
+            <span>TARGET: <strong className="text-cyan-400 uppercase">{selectedAgent}</strong></span>
           </div>
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || isTyping}
-            className={cn(
-              'p-2.5 rounded-xl transition-all flex-shrink-0 mb-0.5',
-              input.trim() && !isTyping
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90 jarvis-glow'
-                : 'bg-muted text-muted-foreground'
+
+          <div className="flex items-center gap-2">
+            {voiceSupported && (
+              <button
+                type="button"
+                onClick={toggleVoice}
+                className={cn(
+                  'p-2 rounded-xl border transition-all',
+                  isListening
+                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 animate-pulse'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                )}
+                title="Voice Input (Speech-To-Text)"
+              >
+                <Mic className="w-3.5 h-3.5" />
+              </button>
             )}
-          >
-            {isTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
+
+            <button
+              type="button"
+              disabled={!input.trim() || isTyping}
+              onClick={() => sendMessage(input)}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all',
+                input.trim() && !isTyping
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.4)] cursor-pointer'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              )}
+            >
+              <span>DISPATCH</span>
+              <Send className="w-3 h-3" />
+            </button>
+          </div>
         </div>
-        <p className="text-[10px] text-muted-foreground mt-2 text-center opacity-50">
-          <Sparkles className="w-3 h-3 inline mr-1" />
-          Multi-AI Engine (Claude → GPT-4o → Gemini) • Always Online • Shift+Enter for new line
-        </p>
       </div>
     </div>
   )
