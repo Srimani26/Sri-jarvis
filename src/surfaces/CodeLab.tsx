@@ -1,3 +1,5 @@
+import { authHeaders, jsonAuthHeaders } from '@/lib/api'
+import { playJarvisChime } from '@/lib/sound'
 import { useState } from 'react'
 import { Code2, Copy, Check, Search, Star, Plus, FileCode, Terminal, Zap, BookOpen, Lightbulb } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -151,6 +153,39 @@ const LANG_COLORS: Record<string, string> = {
 }
 
 export default function CodeLab() {
+  const [ghUrl, setGhUrl] = useState('https://github.com/public-apis/public-apis');
+  const [ghPrompt, setGhPrompt] = useState('Extract key tools, architecture, and integration steps for J.A.R.V.I.S.');
+  const [ghAnalysis, setGhAnalysis] = useState<any>(null);
+  const [ghLoading, setGhLoading] = useState(false);
+
+  const analyzeGitHubRepo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ghUrl.trim()) return;
+    setGhLoading(true);
+    setGhAnalysis(null);
+    playJarvisChime('wake');
+
+    try {
+      const res = await fetch('/api/github/analyze-repo', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({ repoUrl: ghUrl.trim(), prompt: ghPrompt.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'SUCCESS') {
+        setGhAnalysis(data);
+        playJarvisChime('execute');
+        if (typeof window !== 'undefined' && window.speechSynthesis && data.spokenSummary) {
+          const utter = new SpeechSynthesisUtterance(data.spokenSummary);
+          window.speechSynthesis.speak(utter);
+        }
+      }
+    } catch (err) {
+      console.error('GitHub analysis failed:', err);
+    } finally {
+      setGhLoading(false);
+    }
+  };
   const [snippets, setSnippets] = useState(SNIPPETS)
   const [search, setSearch] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -175,7 +210,84 @@ export default function CodeLab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* J.A.R.V.I.S. GitHub Deep Codebase Analyzer */}
+      <div className="relative rounded-2xl p-6 border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 via-slate-900/90 to-slate-950 backdrop-blur-xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
+              <Terminal className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                J.A.R.V.I.S. GITHUB REPOSITORY ANALYZER // GEMINI 3.8
+              </h2>
+              <p className="text-xs text-slate-400 font-mono">
+                Deep architectural analysis, endpoint discovery, and autonomous code extraction
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+            GEMINI 3.8 FLASH
+          </span>
+        </div>
+
+        <form onSubmit={analyzeGitHubRepo} className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2">
+              <input
+                type="text"
+                value={ghUrl}
+                onChange={(e) => setGhUrl(e.target.value)}
+                placeholder="https://github.com/public-apis/public-apis"
+                className="w-full px-4 py-2.5 bg-slate-950/90 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs font-mono text-white outline-none"
+              />
+            </div>
+            <div>
+              <button
+                type="submit"
+                disabled={ghLoading}
+                className="w-full py-2.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold text-xs font-mono tracking-wider transition-all flex items-center justify-center gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                {ghLoading ? 'ANALYZING REPO...' : 'ANALYZE REPO'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Analysis Results Display */}
+        {ghAnalysis && (
+          <div className="mt-5 p-5 rounded-xl bg-slate-950/90 border border-cyan-500/30 space-y-3 animate-in fade-in duration-300">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>{ghAnalysis.repository.name}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                    Stars: {ghAnalysis.repository.stars.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono">
+                    {ghAnalysis.repository.language}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5 font-mono">{ghAnalysis.repository.description}</p>
+              </div>
+              <a
+                href={ghAnalysis.repository.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-mono text-cyan-400 hover:underline"
+              >
+                Open on GitHub ↗
+              </a>
+            </div>
+
+            <div className="prose prose-invert max-w-none text-xs text-slate-200 font-sans leading-relaxed whitespace-pre-wrap">
+              {ghAnalysis.analysis}
+            </div>
+          </div>
+        )}
+      </div>
       <div>
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <span className="text-xl">💻</span> AI Code Lab
