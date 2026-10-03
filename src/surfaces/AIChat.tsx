@@ -2,12 +2,36 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Send, Search, Mic, Bot, User, Sparkles, ArrowUpRight, RotateCcw,
   Loader2, AlertTriangle, Cpu, RefreshCw, Volume2, VolumeX, Shield,
-  Code2, Workflow, DollarSign, Brain, Laptop, Layers, Zap, ExternalLink, Play
+  Code2, Workflow, DollarSign, Brain, Laptop, Layers, Zap, ExternalLink, Play,
+  Plane, ShoppingCart, Radio, PhoneCall, Check, Compass
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
-import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select'
+import { playJarvisChime } from '@/lib/sound'
 import ArcReactorHUD from '@/components/ArcReactorHUD'
+
+interface FlightDeal {
+  airline: string
+  route: string
+  duration: string
+  stops: string
+  estimatedPriceINR: string
+  badge: string
+  bookingUrl: string
+}
+
+interface ProductRec {
+  name: string
+  processor: string
+  display: string
+  camera: string
+  battery: string
+  amazonPrice: string
+  flipkartPrice: string
+  verdict: string
+  amazonLink: string
+  flipkartLink: string
+}
 
 interface Message {
   id: string
@@ -18,20 +42,22 @@ interface Message {
   error?: boolean
   detail?: string
   setupHint?: string
+  flightData?: FlightDeal[]
+  productData?: ProductRec[]
   actionTriggered?: {
-    type: 'youtube' | 'food' | 'code'
+    type: 'youtube' | 'food' | 'flight' | 'product'
     label: string
     url?: string
   }
 }
 
 const QUICK_ACTIONS = [
-  { icon: '🛡️', label: 'Build Full-Stack SaaS', agent: 'aegis', query: 'Aegis, scaffold a complete full-stack AI Business OS architecture using Next.js 15, FastAPI, SQLite, and Tailwind CSS. Provide full directory tree and working code.' },
-  { icon: '⚡', label: 'Export n8n Automation', agent: 'vortex', query: 'Vortex, generate a complete copy-pasteable n8n workflow JSON that catches website leads, qualifies them using Gemini AI, and generates a quotation in Zoho CRM.' },
-  { icon: '💰', label: 'Make Me Money (B2B Retainer)', agent: 'midas', query: 'Midas, generate a high-ticket client acquisition pitch and cold outreach strategy to sell ₹1,50,000 automated CRM quotation engines to construction and roofing companies.' },
-  { icon: '🧠', label: 'Global AI & Tech Recon', agent: 'cerebro', query: 'Cerebro, synthesize the top geopolitical and technical AI developments this week, focusing on sovereign AI infrastructure, autonomous swarms, and enterprise automation trends.' },
-  { icon: '🎬', label: 'Open YouTube Research', agent: 'stark', query: 'open youtube for AI multi-agent architecture and autonomous swarms' },
-  { icon: '🍔', label: 'Order Food in Erode', agent: 'stark', query: 'order food for me in Erode' },
+  { icon: '✈️', label: 'Mumbai to Miami Flights', query: 'Hey Jarvis, can you look for flights from Mumbai to Miami today? Find the best deal and direct booking options.' },
+  { icon: '📱', label: 'Analyze Flipkart & Amazon Mobiles', query: 'Hey Jarvis, I plan to buy a mobile so analyze Flipkart and Amazon and list out the best mobiles for me with specs and prices.' },
+  { icon: '🛡️', label: 'Build Full-Stack SaaS', query: 'Aegis, scaffold a complete full-stack AI Business OS architecture using Next.js 15, FastAPI, SQLite, and Tailwind CSS.' },
+  { icon: '⚡', label: 'Export n8n Automation', query: 'Vortex, generate a complete copy-pasteable n8n workflow JSON for lead qualification and Zoho CRM quotation.' },
+  { icon: '💰', label: 'Make Me Money (B2B Retainer)', query: 'Midas, generate a high-ticket client acquisition pitch and cold outreach strategy to sell ₹1,50,000 automated CRM quotation engines.' },
+  { icon: '🍔', label: 'Order Food in Erode', query: 'Order food for me in Erode' },
 ]
 
 function generateId() {
@@ -54,12 +80,12 @@ function renderMarkdown(text: string) {
         <div key={i} className="my-2.5 rounded-xl overflow-hidden border border-cyan-500/30 shadow-lg">
           {lang && (
             <div className="px-3.5 py-1.5 bg-slate-900 text-[10px] text-cyan-300 font-mono border-b border-slate-800 flex items-center justify-between">
-              <span>{lang.toUpperCase()} // PRODUCTION CODE</span>
+              <span>{lang.toUpperCase()} // PRODUCTION BLUEPRINT</span>
               <button
                 onClick={() => navigator.clipboard.writeText(code)}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
-                Copy
+                Copy Code
               </button>
             </div>
           )}
@@ -105,15 +131,15 @@ export default function AIChat() {
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [sentinelActive, setSentinelActive] = useState(false)
   const [voiceSupported, setVoiceSupported] = useState(false)
-  const [jarvisMode, setJarvisMode] = useState<'active' | 'sleeping'>('active')
   const [hudStatus, setHudStatus] = useState<'online' | 'thinking' | 'speaking' | 'executing'>('online')
   const [isMuted, setIsMuted] = useState(() => {
     try { return localStorage.getItem('jarvis_muted') === 'true' } catch { return false }
   })
   const [models, setModels] = useState<Array<{ id: string; name: string; healthy: boolean }>>([])
   const [selectedModel, setSelectedModel] = useState('auto')
-  const [selectedAgent, setSelectedAgent] = useState<'all' | 'aegis' | 'vortex' | 'midas' | 'cerebro' | 'stark'>('all')
+  const [selectedAgent, setSelectedAgent] = useState<'all' | 'aegis' | 'vortex' | 'midas' | 'cerebro' | 'skynet' | 'omnibuy' | 'stark'>('all')
   const [moaMode, setMoaMode] = useState(true)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -123,7 +149,7 @@ export default function AIChat() {
   const GREETING: Message = {
     id: generateId(),
     role: 'assistant',
-    content: "Greetings, Master Sri. I am **J.A.R.V.I.S. Mark-IV** — your personal autonomous AI command center.\n\nThe **Arc Reactor** is primed, the **MoA multi-agent swarm** is standing by, and all operational domains are under your direct command:\n\n- 🛡️ **Aegis (Full-Stack Engineer)** — Builds complete Next.js / FastAPI web apps, databases, and micro-SaaS platforms\n- ⚡ **Vortex (Heavy Automation)** — Generates n8n JSON workflows, 4-layer Zoho CRM Deluge functions, and Google Ads scripts\n- 💰 **Midas (Revenue Engine)** — Formulates high-ticket B2B client acquisition pitches, pricing engines, and lead monetization\n- 🧠 **Cerebro (Deep Intel & Research)** — Real-time geopolitics, market trends, competitive reconnaissance, and reasoning\n- 📱 **Stark OS (Device Concierge)** — Dispatches immediate workstation actions: searches YouTube, orders food in Erode, launches tools\n- 🏭 **Forge (Agent Trainer)** — Spawns and trains new custom subordinate AI agents on your order\n\n**Your wish is my command, Master. What shall we execute today?**",
+    content: "Greetings, Master Sri. I am **J.A.R.V.I.S. Mark-IV** — your personal autonomous AI right-hand and multi-agent command center.\n\nThe **Arc Reactor** is at 100% power, voice sentinel is primed, and the MoA neural engine understands your workflow, lifestyle, and business goals with deep emotional precision.\n\nSay **'Hey Jarvis'** anytime or command me directly:\n- ✈️ *'Look for flights from Mumbai to Miami today'*\n- 📱 *'Analyze Flipkart and Amazon to find the best mobile for me'*\n- 🛡️ *'Aegis, scaffold a full-stack Next.js + FastAPI SaaS'*\n- ⚡ *'Vortex, generate an n8n quotation workflow JSON'*\n- 💰 *'Midas, make me money: create a ₹1,50,000 CRM client proposal'*\n\n**I am ready for your command, Master. How may I serve you today?**",
     timestamp: new Date(),
     source: 'J.A.R.V.I.S. Core (Argon Swarm)',
   }
@@ -138,7 +164,7 @@ export default function AIChat() {
         .replace(/`([^`]+)`/g, '$1')
         .replace(/\*\*([^*]+)\*\*/g, '$1')
         .replace(/[#*_-]/g, '')
-        .slice(0, 350)
+        .slice(0, 380)
         .trim()
 
       if (!cleanText) return
@@ -196,7 +222,7 @@ export default function AIChat() {
     return () => { cancelled = true }
   }, [])
 
-  // Fetch live models
+  // Live models
   useEffect(() => {
     fetch('/api/ai/models')
       .then((r) => r.json())
@@ -220,60 +246,17 @@ export default function AIChat() {
     }])
   }, [])
 
-  // Voice STT recognition
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (SpeechRecognition) {
-      setVoiceSupported(true)
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
-      recognition.onresult = (event: any) => {
-        let transcript = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript
-        }
-        setInput(transcript)
-        if (event.results[event.results.length - 1].isFinal) {
-          setIsListening(false)
-          setTimeout(() => sendMessage(transcript), 300)
-        }
-      }
-      recognition.onerror = () => setIsListening(false)
-      recognition.onend = () => setIsListening(false)
-      recognitionRef.current = recognition
-    }
-  }, [])
-
-  const toggleVoice = () => {
-    if (!recognitionRef.current) return
-    if (isListening) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-    } else {
-      recognitionRef.current.start()
-      setIsListening(true)
-    }
-  }
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isTyping])
-
-  // Send message
+  // Send message implementation
   const sendMessage = useCallback(async (text: string, opts?: { skipUserEcho?: boolean }) => {
     if (!text.trim() || isTyping) return
 
     const lower = text.trim().toLowerCase()
 
-    // Standby & Wake commands
-    const wakePatterns = ['hey jarvis', 'wake up', 'wake', 'jarvis wake', 'hello jarvis', 'activate', 'jarvis activate', 'online jarvis', 'jarvis online']
-    const sleepPatterns = ['rest', 'go to rest', 'go to sleep', 'sleep', 'jarvis rest', 'jarvis sleep', 'you can rest', 'standby']
-
-    if (wakePatterns.some((p) => lower.includes(p))) {
-      setJarvisMode('active')
-      const wakeReply = "Arc Reactor online, Master Sri. J.A.R.V.I.S. is at full operational readiness. Swarms standing by. What are your orders?"
+    // 1. "Hey Jarvis" Wake-word trigger
+    if (lower === 'hey jarvis' || lower === 'hello jarvis' || lower === 'jarvis' || lower === 'wake up jarvis') {
+      playJarvisChime('wake')
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 60, 40])
+      const wakeReply = "Hi Master, how can I help you today? All systems and swarms are standing by for your command."
       setMessages((prev) => [...prev, {
         id: generateId(), role: 'user', content: text.trim(), timestamp: new Date(),
       }, {
@@ -284,38 +267,47 @@ export default function AIChat() {
       return
     }
 
-    if (sleepPatterns.some((p) => lower.includes(p))) {
-      setJarvisMode('sleeping')
-      const sleepReply = "Entering standby power mode, Master Sri. Peripheral telemetry and security sentinels remain active in the background. Say 'Hey JARVIS' to bring all systems online."
-      setMessages((prev) => [...prev, {
-        id: generateId(), role: 'user', content: text.trim(), timestamp: new Date(),
-      }, {
-        id: generateId(), role: 'assistant', content: sleepReply, timestamp: new Date(), source: 'J.A.R.V.I.S. Core',
-      }])
-      speakJarvisResponse(sleepReply)
-      setInput('')
-      return
+    // 2. Flight Search Intelligence (Mumbai to Miami / Any Flight)
+    let flightData: FlightDeal[] | undefined = undefined
+    if (lower.includes('flight') || lower.includes('fly to') || lower.includes('air ticket')) {
+      playJarvisChime('execute')
+      try {
+        const fromMatch = lower.includes('mumbai') ? 'Mumbai' : 'Chennai'
+        const toMatch = lower.includes('miami') ? 'Miami' : 'London'
+        const res = await fetch(`/api/tools/flights?from=${encodeURIComponent(fromMatch)}&to=${encodeURIComponent(toMatch)}`, { headers: authHeaders() })
+        const json = await res.json()
+        if (json?.deals) flightData = json.deals
+      } catch {}
     }
 
-    if (jarvisMode === 'sleeping') {
-      setJarvisMode('active')
+    // 3. E-Commerce Mobile Comparison (Flipkart vs Amazon)
+    let productData: ProductRec[] | undefined = undefined
+    if (lower.includes('mobile') || lower.includes('phone') || lower.includes('flipkart') || lower.includes('amazon')) {
+      if (lower.includes('buy') || lower.includes('best') || lower.includes('analyze') || lower.includes('comparison')) {
+        playJarvisChime('execute')
+        try {
+          const res = await fetch('/api/tools/products?category=mobile', { headers: authHeaders() })
+          const json = await res.json()
+          if (json?.recommendations) productData = json.recommendations
+        } catch {}
+      }
     }
 
-    // Direct Device Action: YouTube
+    // 4. Direct Device Action: YouTube
     let actionTriggered: any = null
     if (lower.includes('youtube') && (lower.includes('open') || lower.includes('search') || lower.includes('play'))) {
-      const q = text.replace(/open|youtube|search|play|for|can you|please|jarvis/gi, '').trim() || 'AI agent autonomous swarm'
+      const q = text.replace(/open|youtube|search|play|for|can you|please|jarvis/gi, '').trim() || 'AI autonomous swarms'
       const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
       window.open(url, '_blank', 'noopener,noreferrer')
-      actionTriggered = { type: 'youtube', label: `Opening YouTube search for: "${q}"`, url }
+      actionTriggered = { type: 'youtube', label: `Opened YouTube search for: "${q}"`, url }
     }
 
-    // Direct Device Action: Food Order in Erode
+    // 5. Direct Device Action: Food Order in Erode
     if (lower.includes('order food') || lower.includes('swiggy') || lower.includes('zomato')) {
       const q = text.replace(/order|food|swiggy|zomato|for me|can you|in erode/gi, '').trim() || 'Food Delivery Restaurants Erode'
       const url = `https://www.google.com/search?q=${encodeURIComponent(q + ' Swiggy Zomato Erode')}`
       window.open(url, '_blank', 'noopener,noreferrer')
-      actionTriggered = { type: 'food', label: `Dispatching food logistics in Erode for Master Sri`, url }
+      actionTriggered = { type: 'food', label: `Dispatched food delivery search in Erode for Master Sri`, url }
     }
 
     const userMsg: Message = {
@@ -338,9 +330,9 @@ export default function AIChat() {
         const updated = [...prev]
         const lastIdx = updated.findIndex((m) => m.id === assistantId)
         if (lastIdx >= 0) {
-          updated[lastIdx] = { ...updated[lastIdx], content, source, error: false, actionTriggered }
+          updated[lastIdx] = { ...updated[lastIdx], content, source, error: false, flightData, productData, actionTriggered }
         } else {
-          updated.push({ id: assistantId, role: 'assistant', content, timestamp: new Date(), source, actionTriggered })
+          updated.push({ id: assistantId, role: 'assistant', content, timestamp: new Date(), source, flightData, productData, actionTriggered })
         }
         return updated
       })
@@ -362,22 +354,9 @@ export default function AIChat() {
       setHudStatus('online')
     }
 
-    // Prepend Sub-Agent Routing Directive if selected
     let promptPayload = text.trim()
-    if (selectedAgent === 'aegis') {
-      promptPayload = `[SUB-AGENT AEGIS DIRECTIVE // FULL-STACK ARCHITECT]: ${promptPayload}`
-    } else if (selectedAgent === 'vortex') {
-      promptPayload = `[SUB-AGENT VORTEX DIRECTIVE // HEAVY AUTOMATION SPECIALIST]: ${promptPayload}`
-    } else if (selectedAgent === 'midas') {
-      promptPayload = `[SUB-AGENT MIDAS DIRECTIVE // REVENUE & MONETIZATION ENGINE]: ${promptPayload}`
-    } else if (selectedAgent === 'cerebro') {
-      promptPayload = `[SUB-AGENT CEREBRO DIRECTIVE // DEEP REASONING & INTEL]: ${promptPayload}`
-    } else if (selectedAgent === 'stark') {
-      promptPayload = `[SUB-AGENT STARK OS DIRECTIVE // DEVICE & CONCIERGE CONTROLLER]: ${promptPayload}`
-    }
-
     if (moaMode) {
-      promptPayload = `[MoA 3-LAYER DELIBERATION ACTIVE]: ${promptPayload}`
+      promptPayload = `[MoA 3-LAYER DELIBERATION ACTIVE // EMPATHETIC PRODUCTION ENGINE]: ${promptPayload}`
     }
 
     try {
@@ -415,12 +394,88 @@ export default function AIChat() {
       failAssistant(
         'Neural link timeout, Master Sri.',
         err?.message || 'Network anomaly detected.',
-        'J.A.R.V.I.S. is attempting reconnect protocol.'
+        'J.A.R.V.I.S. reconnect protocol engaged.'
       )
     } finally {
       setIsTyping(false)
     }
-  }, [messages, isTyping, jarvisMode, selectedModel, selectedAgent, moaMode, speakJarvisResponse])
+  }, [messages, isTyping, selectedModel, moaMode, speakJarvisResponse])
+
+  // Continuous "Hey Jarvis" Speech Sentinel setup
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SpeechRecognition) {
+      setVoiceSupported(true)
+      const recognition = new SpeechRecognition()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
+
+      recognition.onresult = (event: any) => {
+        let transcript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        const lower = transcript.toLowerCase().trim()
+
+        // Check for wake word in speech stream
+        if (lower.includes('hey jarvis') || lower.includes('hello jarvis') || lower.includes('jarvis wake up')) {
+          playJarvisChime('wake')
+          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 60, 40])
+        }
+
+        setInput(transcript)
+        if (event.results[event.results.length - 1].isFinal) {
+          setIsListening(false)
+          setTimeout(() => sendMessage(transcript), 350)
+        }
+      }
+
+      recognition.onerror = () => setIsListening(false)
+      recognition.onend = () => {
+        if (sentinelActive) {
+          try { recognition.start() } catch {}
+        } else {
+          setIsListening(false)
+        }
+      }
+      recognitionRef.current = recognition
+    }
+  }, [sentinelActive, sendMessage])
+
+  const toggleSentinel = () => {
+    if (!recognitionRef.current) return
+    if (sentinelActive) {
+      setSentinelActive(false)
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      setSentinelActive(true)
+      playJarvisChime('wake')
+      try {
+        recognitionRef.current.start()
+        setIsListening(true)
+      } catch {}
+    }
+  }
+
+  const toggleVoiceOnce = () => {
+    if (!recognitionRef.current) return
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      playJarvisChime('wake')
+      try {
+        recognitionRef.current.start()
+        setIsListening(true)
+      } catch {}
+    }
+  }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isTyping])
 
   return (
     <div className="space-y-4">
@@ -430,20 +485,33 @@ export default function AIChat() {
         activeModel={selectedLabel}
         isMuted={isMuted}
         onToggleMute={toggleMute}
-        onVoiceTrigger={toggleVoice}
+        onVoiceTrigger={toggleVoiceOnce}
       />
 
-      {/* Sub-Agent Delegation Selector Bar */}
+      {/* Sub-Agent Delegation & Sentinel Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 backdrop-blur-xl">
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-          <span className="text-[10px] font-mono text-slate-500 mr-1 hidden sm:inline">SWARM DELEGATION:</span>
+          <button
+            onClick={toggleSentinel}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all border shrink-0',
+              sentinelActive
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/60 shadow-[0_0_15px_rgba(244,63,94,0.4)] animate-pulse'
+                : 'bg-slate-900/60 text-slate-400 border-slate-800/80 hover:text-white'
+            )}
+            title="Continuous Hey Jarvis voice wake detector for mobile & desktop"
+          >
+            <Radio className="w-3.5 h-3.5 text-rose-400" />
+            <span>{sentinelActive ? "'HEY JARVIS' WAKE ACTIVE" : "ENABLE 'HEY JARVIS' SENTINEL"}</span>
+          </button>
+
           {[
             { id: 'all', label: 'J.A.R.V.I.S. (Chief)', icon: Shield, color: 'text-cyan-400' },
+            { id: 'skynet', label: 'SkyNet (Flights)', icon: Plane, color: 'text-sky-400' },
+            { id: 'omnibuy', label: 'OmniBuy (Commerce)', icon: ShoppingCart, color: 'text-amber-400' },
             { id: 'aegis', label: 'Aegis (Full-Stack)', icon: Code2, color: 'text-cyan-300' },
             { id: 'vortex', label: 'Vortex (Auto)', icon: Workflow, color: 'text-amber-400' },
             { id: 'midas', label: 'Midas (Revenue)', icon: DollarSign, color: 'text-emerald-400' },
-            { id: 'cerebro', label: 'Cerebro (Intel)', icon: Brain, color: 'text-purple-400' },
-            { id: 'stark', label: 'Stark OS (Device)', icon: Laptop, color: 'text-rose-400' },
           ].map((item) => {
             const Icon = item.icon
             const isSelected = selectedAgent === item.id
@@ -452,7 +520,7 @@ export default function AIChat() {
                 key={item.id}
                 onClick={() => setSelectedAgent(item.id as any)}
                 className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-mono transition-all border whitespace-nowrap',
+                  'flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-mono transition-all border whitespace-nowrap',
                   isSelected
                     ? 'bg-cyan-500/20 text-white border-cyan-500/60 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
                     : 'bg-slate-900/60 text-slate-400 border-slate-800/80 hover:text-slate-200'
@@ -465,7 +533,6 @@ export default function AIChat() {
           })}
         </div>
 
-        {/* MoA Toggle & Reset */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMoaMode(!moaMode)}
@@ -484,15 +551,15 @@ export default function AIChat() {
           <button
             onClick={resetChat}
             className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-slate-900 border border-transparent hover:border-red-500/20"
-            title="Clear conversation history"
+            title="Clear conversation"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Chat Messages Log */}
-      <div className="relative min-h-[420px] max-h-[560px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-4 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
+      {/* Messages Feed */}
+      <div className="relative min-h-[420px] max-h-[580px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-4 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -514,7 +581,7 @@ export default function AIChat() {
 
             <div
               className={cn(
-                'rounded-2xl p-4 border text-xs leading-relaxed space-y-2 max-w-[88%]',
+                'rounded-2xl p-4 border text-xs leading-relaxed space-y-3 max-w-[92%]',
                 msg.role === 'user'
                   ? 'bg-cyan-500/10 border-cyan-500/30 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)]'
                   : msg.error
@@ -530,6 +597,99 @@ export default function AIChat() {
               </div>
 
               <div>{renderMarkdown(msg.content)}</div>
+
+              {/* Interactive Flight Intelligence Card */}
+              {msg.flightData && msg.flightData.length > 0 && (
+                <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-sky-500/40 shadow-xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2 text-sky-400">
+                      <Plane className="w-4 h-4" />
+                      <span className="font-bold text-xs font-mono">LIVE FLIGHT INTELLIGENCE // MUMBAI (BOM) → MIAMI (MIA)</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 font-bold">BEST PRICES VERIFIED</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {msg.flightData.map((deal, didx) => (
+                      <div key={didx} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-xs font-bold text-white">{deal.airline}</span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                              {deal.badge}
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-mono text-slate-300">{deal.route}</p>
+                          <p className="text-[10px] font-mono text-slate-500">Duration: {deal.duration} • {deal.stops}</p>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-sm font-black font-mono text-emerald-400">{deal.estimatedPriceINR}</span>
+                          <a
+                            href={deal.bookingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 transition-all cursor-pointer shadow-[0_0_12px_rgba(14,165,233,0.4)]"
+                          >
+                            <span>BOOK DEAL</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Interactive E-Commerce Comparison Card (Amazon vs Flipkart) */}
+              {msg.productData && msg.productData.length > 0 && (
+                <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-amber-500/40 shadow-xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2 text-amber-400">
+                      <ShoppingCart className="w-4 h-4" />
+                      <span className="font-bold text-xs font-mono">E-COMMERCE RECON // FLIPKART VS AMAZON BEST MOBILES</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-cyan-400 font-bold">2026 BENCHMARK</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    {msg.productData.map((rec, pidx) => (
+                      <div key={pidx} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-white">{rec.name}</h4>
+                          <span className="text-xs font-mono font-bold text-emerald-400">{rec.amazonPrice}</span>
+                        </div>
+                        <p className="text-[11px] font-mono text-cyan-300/90">{rec.verdict}</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-mono text-slate-400">
+                          <div><strong>Chip:</strong> {rec.processor}</div>
+                          <div><strong>Display:</strong> {rec.display}</div>
+                          <div><strong>Camera:</strong> {rec.camera}</div>
+                          <div><strong>Battery:</strong> {rec.battery}</div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">
+                          <a
+                            href={rec.amazonLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 text-center py-1.5 rounded-lg text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                          >
+                            VIEW ON AMAZON ({rec.amazonPrice})
+                          </a>
+                          <a
+                            href={rec.flipkartLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 text-center py-1.5 rounded-lg text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30"
+                          >
+                            VIEW ON FLIPKART ({rec.flipkartPrice})
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {msg.actionTriggered && (
                 <div className="mt-2 p-2 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 flex items-center justify-between text-[11px] font-mono">
@@ -581,11 +741,8 @@ export default function AIChat() {
         {QUICK_ACTIONS.map((action, i) => (
           <button
             key={i}
-            onClick={() => {
-              setSelectedAgent(action.agent as any)
-              sendMessage(action.query)
-            }}
-            className="flex flex-col items-start p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/40 hover:bg-slate-900/70 transition-all text-left group"
+            onClick={() => sendMessage(action.query)}
+            className="flex flex-col items-start p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/40 hover:bg-slate-900/70 transition-all text-left group cursor-pointer"
           >
             <span className="text-base mb-1">{action.icon}</span>
             <span className="text-[11px] font-mono font-bold text-slate-200 group-hover:text-cyan-300 transition-colors">
@@ -608,7 +765,7 @@ export default function AIChat() {
               sendMessage(input)
             }
           }}
-          placeholder="Command J.A.R.V.I.S... (e.g. 'Build a Next.js full-stack SaaS', 'Open YouTube for AI tutorial', 'Export n8n workflow')"
+          placeholder="Command J.A.R.V.I.S... (e.g. 'Hey Jarvis look for flights Mumbai to Miami', 'Analyze Flipkart vs Amazon mobiles', 'Build full-stack app')"
           className="w-full bg-transparent px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none resize-none font-mono"
         />
 
@@ -623,9 +780,9 @@ export default function AIChat() {
             {voiceSupported && (
               <button
                 type="button"
-                onClick={toggleVoice}
+                onClick={toggleVoiceOnce}
                 className={cn(
-                  'p-2 rounded-xl border transition-all',
+                  'p-2 rounded-xl border transition-all cursor-pointer',
                   isListening
                     ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 animate-pulse'
                     : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'

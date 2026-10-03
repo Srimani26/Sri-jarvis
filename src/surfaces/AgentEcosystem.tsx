@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Shield, Bot, Code2, Workflow, DollarSign, Brain, Laptop, Plus, Play,
+  Shield, Bot, Code2, Plane, ShoppingCart, Workflow, DollarSign, Brain, Laptop, Plus, Play,
   Copy, Check, ExternalLink, RefreshCw, Terminal, ArrowUpRight, Sparkles,
   Layers, Sliders, Zap, Database, Download, CheckCircle2, Search, FileCode,
   Wrench, Globe, Send, MessageSquare, AlertCircle, TrendingUp, Cpu
@@ -99,6 +99,36 @@ const DEFAULT_AGENTS: SubAgent[] = [
     description: 'Acts as Master Sri\'s real-world concierge and machine controller. Dispatches browser actions, triggers searches, and launches real-world daily workflows.',
     tasksCompleted: 114,
     model: 'Local System Bridge & Cloud Broker',
+  },
+  {
+    id: 'skynet',
+    name: 'SkyNet',
+    codename: 'AGENT-06 // GLOBAL FLIGHT & TRAVEL SCOUT',
+    role: 'Live Aviation, Flight & Logistics Specialist',
+    status: 'active',
+    icon: Plane,
+    color: 'text-sky-400',
+    bg: 'bg-sky-500/10',
+    border: 'border-sky-500/30',
+    specialties: ['International Flight Search', 'Mumbai to Miami Routes', 'Qatar & Emirates Layover Analysis', 'Google Flights & Skyscanner Aggregation', 'Best Airfare Discovery'],
+    description: 'Autonomous travel logistics agent. Finds optimal international and domestic flight routes, compares airline comfort, minimizes layover fatigue, and prepares 1-click booking options for Master Sri.',
+    tasksCompleted: 42,
+    model: 'Gemini 2.5 Flash / SkyNet API',
+  },
+  {
+    id: 'omnibuy',
+    name: 'OmniBuy',
+    codename: 'AGENT-07 // COMMERCE & HARDWARE RECON',
+    role: 'E-Commerce, Flipkart vs Amazon Spec Scout',
+    status: 'active',
+    icon: ShoppingCart,
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/30',
+    specialties: ['Flipkart vs Amazon Price Scraping', 'Smartphone Benchmark Analysis', 'Snapdragon 8 Gen 3 Specs', 'Hardware Deal Spotting', 'ROI & Value Ratings'],
+    description: 'Autonomous commerce analyst. Researches and compares hardware specifications, monitors real-time prices on Flipkart and Amazon India, and filters out gimmicks to recommend the best mobile for Master Sri.',
+    tasksCompleted: 57,
+    model: 'Argon MoA Engine',
   },
 ]
 
