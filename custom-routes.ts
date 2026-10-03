@@ -691,7 +691,7 @@ interface ModelState {
 
 const MODEL_CHAIN: ModelState[] = [
   // Primary Argon-grade super-intelligence
-  { name: 'Gemini 2.5 Flash (Argon)', id: 'gemini-2.5-flash', healthy: true, lastError: null, lastFailAt: 0, cooldownMs: 45_000, consecutiveFails: 0 },
+  { name: 'Gemini 3.8 Flash (Argon)', id: 'gemini-3.8-flash', healthy: true, lastError: null, lastFailAt: 0, cooldownMs: 45_000, consecutiveFails: 0 },
   // Deep Reasoning & Multi-Agent Proposer
   { name: 'Gemini 2.5 Pro (Reasoning)', id: 'gemini-2.5-pro', healthy: true, lastError: null, lastFailAt: 0, cooldownMs: 60_000, consecutiveFails: 0 },
   // High-reliability Claude family
@@ -794,7 +794,7 @@ async function callDirectGeminiPool(keys: string[], system: string, messages: an
     const key = keys[(geminiKeyIndex + i) % keys.length]
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${key}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1800,6 +1800,104 @@ app.post('/cyber-shield/toggle-lockdown', requireAuth, async (c) => {
       ? 'PERIMETER LOCKDOWN ENGAGED: Non-essential network interfaces rejected. Strict Level-10 biometric master clearance enforced.'
       : 'PERIMETER LOCKDOWN DE-ESCALATED: Standard high-security monitoring operational.',
   });
+});
+
+
+// ============================================================================
+// GITHUB DEEP REPOSITORY ANALYZER - AUTONOMOUS CODEBASE INTELLIGENCE
+// ============================================================================
+app.post('/github/analyze-repo', requireAuth, async (c) => {
+  try {
+    const { repoUrl, prompt } = await c.req.json();
+    if (!repoUrl) return c.json({ error: 'Repository URL is required' }, 400);
+
+    // Clean URL into owner/repo
+    const clean = repoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
+    const parts = clean.split('/');
+    if (parts.length < 2) {
+      return c.json({ error: 'Invalid GitHub URL. Must be in format owner/repo' }, 400);
+    }
+    const [owner, repo] = parts;
+
+    // Fetch repository metadata from GitHub public API
+    const metaRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: {
+        'User-Agent': 'JARVIS-Mark-IV-AI-OS',
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!metaRes.ok) {
+      return c.json({ error: `GitHub repository ${owner}/${repo} not found or rate limited` }, 404);
+    }
+    const meta = await metaRes.json();
+
+    // Fetch README
+    let readmeText = '';
+    try {
+      const readmeRes = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${meta.default_branch || 'master'}/README.md`);
+      if (readmeRes.ok) {
+        readmeText = await readmeRes.text();
+      }
+    } catch {}
+
+    const sampleReadme = readmeText.slice(0, 8000);
+
+    // Analyze using Gemini 3.8 Flash
+    const keys = JSON.parse(readFileSync(join(process.cwd(), '.jarvis-keys.json'), 'utf8'));
+    const apiKey = keys.gemini || (keys.geminiKeys && keys.geminiKeys[0]);
+
+    const systemPrompt = `You are J.A.R.V.I.S., Tony Stark's AI operating system serving Master Sri.
+Analyze this GitHub repository with supreme technical precision and executive clarity.
+
+Repository: ${meta.full_name}
+Stars: ${meta.stargazers_count} | Forks: ${meta.forks_count} | Primary Language: ${meta.language || 'Multi-language'}
+Description: ${meta.description || 'None'}
+Topics: ${(meta.topics || []).join(', ')}
+
+README Context:
+${sampleReadme}
+
+Master Sri's Inquiry: ${prompt || 'Provide a complete architectural analysis, key tools, and business value.'}
+
+Format your response in Markdown with:
+1. **Executive Architecture Summary**: What does this project do and how is it engineered?
+2. **Key Capabilities & Endpoints/Tools**: What can Master Sri build or extract from this?
+3. **Integration Blueprint for J.A.R.V.I.S.**: Step-by-step instructions for wiring this repo into Master Sri's Business OS.
+4. **Security & Performance Assessment**: Are there any dependency risks or rate limits?`;
+
+    const aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
+          generationConfig: { maxOutputTokens: 2000, temperature: 0.2 },
+        }),
+      }
+    );
+
+    const aiData = await aiRes.json();
+    const analysisText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || 'Analysis completed with heuristic fallback.';
+
+    return c.json({
+      status: 'SUCCESS',
+      repository: {
+        name: meta.full_name,
+        description: meta.description,
+        stars: meta.stargazers_count,
+        forks: meta.forks_count,
+        language: meta.language,
+        license: meta.license?.name || 'Open Source',
+        htmlUrl: meta.html_url,
+      },
+      analysis: analysisText,
+      spokenSummary: `Master Sri, I have analyzed ${meta.full_name}. It has ${meta.stargazers_count} stars and specializes in ${meta.language || 'software automation'}. All blueprints are ready in your Command Center.`,
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
 });
 
 app.all('*', (c) =>

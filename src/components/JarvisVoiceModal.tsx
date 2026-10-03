@@ -72,6 +72,17 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
+    if (lower.includes('github') || lower.includes('analyze repo') || lower.includes('repository')) {
+      const resp = 'Analyzing GitHub repository architecture with Gemini 3.8 Flash, Master Sri. Routing to Code Lab.'
+      setJarvisResponse(resp)
+      speak(resp, () => {
+        onNavigate('codlab')
+        onClose()
+      })
+      setIsProcessing(false)
+      return
+    }
+
     if (lower.includes('api') || lower.includes('public api') || lower.includes('arsenal') || lower.includes('tool')) {
       const resp = 'Accessing the Omni-API Arsenal with 2,001 verified endpoints, Master Sri. Routing your display now.'
       setJarvisResponse(resp)
