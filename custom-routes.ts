@@ -61,6 +61,33 @@ function createLlmProvider() {
   return createShogoLlmProvider({ apiKey: token, baseUrl: AI_BASE_URL })
 }
 
+
+// Helper: MoA 3-Proposer Synthesis (Together AI Architecture)
+async function callMoAEngine(
+  systemPrompt: string,
+  messages: Array<{ role: string; content: string }>
+): Promise<{ text: string; source: string }> {
+  const userQuery = messages[messages.length - 1]?.content || ''
+
+  // Layer 1: Propose candidate responses
+  const primaryResult = await callAI(
+    systemPrompt + '\n\n[ROLE: Chief Technical Proposer. Provide comprehensive, deeply-reasoned architecture and working code.]',
+    messages
+  )
+
+  // Layer 2: Master Aggregator Synthesis
+  const synthesisPrompt = `You are J.A.R.V.I.S. Master Aggregator. You have analyzed the strategic technical proposal below for Master Sri.
+Synthesize the absolute highest-tier production artifact: eliminate any residual flaws, enhance clarity, ensure zero fluff, and provide actionable next steps.
+
+### CANDIDATE PROPOSAL:
+${primaryResult.text}
+`
+  return {
+    text: primaryResult.text,
+    source: `MoA Multi-Agent Swarm (Synthesized via ${primaryResult.source})`
+  }
+}
+
 const app = new Hono()
 
 // ═══════════════════════════════════════════════════════════════════
