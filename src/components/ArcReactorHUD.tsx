@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Shield, Volume2, VolumeX, Cpu, Radio, Sparkles, Activity } from 'lucide-react'
+import { Shield, Volume2, VolumeX, Cpu, Radio, Sparkles, Activity, Battery, BatteryCharging, Zap, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { getDeviceTelemetry, triggerHaptic } from '@/lib/deviceBridge'
+import { SelfEvolutionEngine } from '@/lib/selfEvolution'
+
 
 interface ArcReactorHUDProps {
   status?: 'online' | 'thinking' | 'speaking' | 'executing'
@@ -18,13 +21,17 @@ export default function ArcReactorHUD({
   onVoiceTrigger,
 }: ArcReactorHUDProps) {
   const [pulse, setPulse] = useState(0)
+  const [telemetry, setTelemetry] = useState<any>({ batteryLevel: 100, charging: false, isMobile: false })
+  const [evolutionStats, setEvolutionStats] = useState(SelfEvolutionEngine.getEvolutionStats())
 
   useEffect(() => {
+    getDeviceTelemetry().then(setTelemetry).catch(() => {})
     const interval = setInterval(() => {
       setPulse((p) => (p + 1) % 100)
     }, 100)
     return () => clearInterval(interval)
   }, [])
+
 
   const getStatusColor = () => {
     switch (status) {
@@ -83,6 +90,10 @@ export default function ArcReactorHUD({
                 <Shield className="w-2.5 h-2.5 text-cyan-400" />
                 LEVEL 10 ALPHA
               </span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse">
+                <Zap className="w-2.5 h-2.5 text-purple-400" />
+                {evolutionStats.currentGeneration} // SELF-EVOLVED
+              </span>
             </div>
             <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
               <span>Sole Commander:</span>
@@ -139,8 +150,15 @@ export default function ArcReactorHUD({
 
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[10px] font-mono text-slate-400">
             <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-            <span>SWARM: 5 ACTIVE</span>
+            <span>SWARM: 7 ACTIVE</span>
           </div>
+
+          {telemetry.batteryLevel !== undefined && (
+            <div className="hidden md:flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[10px] font-mono text-cyan-300">
+              {telemetry.charging ? <BatteryCharging className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> : <Battery className="w-3.5 h-3.5 text-cyan-400" />}
+              <span>{telemetry.batteryLevel}%</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
