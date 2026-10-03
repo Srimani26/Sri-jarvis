@@ -4,6 +4,8 @@ import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import CommandCenter from './surfaces/CommandCenter'
+import AgentEcosystem from './surfaces/AgentEcosystem'
+import ArcReactorHUD from './components/ArcReactorHUD'
 import AIChat from './surfaces/AIChat'
 import Projects from './surfaces/Projects'
 import CodeLab from './surfaces/CodeLab'
@@ -28,6 +30,7 @@ import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 const navItems = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ', mobileLabel: 'Home' },
   { id: 'chat', icon: <MessageSquare className="w-4 h-4" />, label: 'AI Chat', mobileLabel: 'Chat' },
+  { id: 'swarms', icon: <Bot className="w-4 h-4" />, label: 'Agent Swarm', mobileLabel: 'Swarm' },
   { id: 'projects', icon: <Layers className="w-4 h-4" />, label: 'Projects', mobileLabel: 'Projects' },
   { id: 'inbox', icon: <Globe className="w-4 h-4" />, label: 'Inbox', mobileLabel: 'Inbox' },
   { id: 'codlab', icon: <Code2 className="w-4 h-4" />, label: 'Code Lab', mobileLabel: 'Code' },
@@ -420,6 +423,7 @@ export default function App() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 pb-24 md:pb-4">
         {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} />}
         {activeTab === 'chat' && <AIChat />}
+        {activeTab === 'swarms' && <AgentEcosystem />}
         {activeTab === 'projects' && <Projects />}
         {activeTab === 'inbox' && <Inbox />}
         {activeTab === 'codlab' && <CodeLab />}
