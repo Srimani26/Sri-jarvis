@@ -367,6 +367,22 @@ var poolMetrics = {
   registeredKeyCount: 0,
   poolHealthPercent: 100
 };
+function registerKey(provider, key) {
+  if (!key || key.trim().length < 8) return;
+  const keyId = `${provider}_${key.slice(0, 4)}...${key.slice(-4)}`;
+  if (!keyStatusMap.has(keyId)) {
+    keyStatusMap.set(keyId, {
+      provider,
+      keyMasked: keyId,
+      healthy: true,
+      lastUsed: 0,
+      failureCount: 0,
+      cooldownUntil: 0,
+      totalTokensUsed: 0
+    });
+  }
+  poolMetrics.registeredKeyCount = keyStatusMap.size;
+}
 function updatePoolHealth() {
   const total = keyStatusMap.size;
   if (total === 0) {
@@ -1543,19 +1559,55 @@ function isModelReady(model) {
 }
 var KEYS_FILE = join2(process.cwd(), ".jarvis-keys.json");
 function loadKeys() {
+  let fileKeys = {};
   try {
-    if (!existsSync(KEYS_FILE)) return {};
-    return JSON.parse(readFileSync(KEYS_FILE, "utf8"));
+    if (existsSync(KEYS_FILE)) {
+      fileKeys = JSON.parse(readFileSync(KEYS_FILE, "utf8"));
+    }
   } catch {
-    return {};
+  }
+  const geminiEnv = process.env.GEMINI_API_KEY;
+  const geminiKeysEnv = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(",").map((s) => s.trim()) : void 0;
+  const groqEnv = process.env.GROQ_API_KEY;
+  const openrouterEnv = process.env.OPENROUTER_API_KEY;
+  const mistralEnv = process.env.MISTRAL_API_KEY;
+  const huggingfaceEnv = process.env.HUGGINGFACE_API_KEY;
+  const openaiEnv = process.env.OPENAI_API_KEY;
+  const anthropicEnv = process.env.ANTHROPIC_API_KEY;
+  return {
+    openai: fileKeys.openai || openaiEnv,
+    anthropic: fileKeys.anthropic || anthropicEnv,
+    gemini: fileKeys.gemini || geminiEnv,
+    geminiKeys: fileKeys.geminiKeys && fileKeys.geminiKeys.length ? fileKeys.geminiKeys : geminiKeysEnv || (geminiEnv ? [geminiEnv] : void 0),
+    groq: fileKeys.groq || groqEnv,
+    openrouter: fileKeys.openrouter || openrouterEnv,
+    mistral: fileKeys.mistral || mistralEnv,
+    huggingface: fileKeys.huggingface || huggingfaceEnv
+  };
+}
+function syncKeysToPool() {
+  const k = loadKeys();
+  if (k.groq) registerKey("Groq (LPU)", k.groq);
+  if (k.openrouter) registerKey("OpenRouter", k.openrouter);
+  if (k.mistral) registerKey("Mistral AI", k.mistral);
+  if (k.huggingface) registerKey("HuggingFace", k.huggingface);
+  if (k.openai) registerKey("OpenAI", k.openai);
+  if (k.anthropic) registerKey("Anthropic", k.anthropic);
+  if (k.gemini) registerKey("Google Gemini (Primary)", k.gemini);
+  if (k.geminiKeys && Array.isArray(k.geminiKeys)) {
+    k.geminiKeys.forEach((gKey, idx) => {
+      registerKey(`Google Gemini (Pool #${idx + 1})`, gKey);
+    });
   }
 }
+syncKeysToPool();
 function saveKeys(keys) {
   writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2));
   try {
     chmodSync(KEYS_FILE, 384);
   } catch {
   }
+  syncKeysToPool();
 }
 async function callDirectOpenAI(key, system, messages) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
