@@ -2180,8 +2180,10 @@ Write 2 to 3 natural, conversational, highly professional paragraphs (100 to 180
       spokenSummary = `Master Sri, I have executed your directive for ${agent.name}. All technical deliverables, production blueprints, and operational steps have been synchronized to your Command Center. What specific facet would you like to review first?`
     }
 
-    // Clean markdown formatting from spoken summary for speech synthesis
+    // Clean markdown formatting and section headers from spoken summary for speech synthesis
     spokenSummary = spokenSummary
+      .replace(/\(?FOR NEURAL VOICE SYNTHESIS\)?/gi, '')
+      .replace(/###?\s*SPOKEN\s*EXECUTIVE\s*SUMMARY/gi, '')
       .replace(/[*_#`~>]/g, '')
       .replace(/https?:\/\/[^\s]+/g, 'the link on your screen')
       .replace(/\{[\s\S]*?\}/g, '')
