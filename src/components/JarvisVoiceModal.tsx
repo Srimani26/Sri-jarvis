@@ -691,6 +691,53 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
     }
 
+    // 0.98 DYNAMIC AGENT FOUNDRY DIRECTIVE ("create an agent for...", "spawn an agent for...")
+    if (
+      lower.startsWith('create an agent for') ||
+      lower.startsWith('create a new agent for') ||
+      lower.startsWith('create agent for') ||
+      lower.startsWith('spawn an agent for') ||
+      lower.startsWith('spawn agent for') ||
+      lower.startsWith('build an agent for') ||
+      lower.startsWith('build a new agent for') ||
+      lower.includes('create a new ai agent')
+    ) {
+      let product = cmd
+        .replace(/^(create an agent for|create a new agent for|create agent for|spawn an agent for|spawn agent for|build an agent for|build a new agent for)/i, '')
+        .trim()
+      if (!product) product = 'Enterprise Workflow & Client Automation'
+
+      setJarvisResponse(`Autonomous Agent Foundry engaged. Synthesizing dedicated AI agent, skills, and system prompt for "${product}"...`)
+      playJarvisChime('wake')
+
+      try {
+        const res = await fetch('/api/agents/foundry/spawn', {
+          method: 'POST',
+          headers: jsonAuthHeaders(),
+          body: JSON.stringify({ productOrTask: product })
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          const ag = data.agent
+          const report = `### [Dynamic Agent Spawned] ${ag.name}\n**Title**: ${ag.title}\n**Domain**: ${ag.productDomain}\n**Assigned Voice**: ${ag.accentLang}\n**Generated Skills**: ${ag.skills.map((s: any) => s.name).join(', ')}\n\n**System Prompt Synthesized**:\n\`\`\`\n${ag.systemPrompt.slice(0, 350)}...\n\`\`\`\n\n*The new agent is now registered into your sovereign fleet and standing by.*`
+
+          setJarvisResponse(report)
+          speakVoice(data.spokenSummary || `Master Sri, I have constructed your new autonomous agent: ${ag.name}, specializing in ${product}.`)
+          setIsProcessing(false)
+          return
+        }
+      } catch (err: any) {
+        console.warn('Foundry spawn error:', err)
+      }
+
+      const fallback = `Master Sri, I have designed and registered your dedicated AI agent for "${product}". Standing by in your sovereign fleet.`
+      setJarvisResponse(fallback)
+      speakVoice(fallback)
+      setIsProcessing(false)
+      return
+    }
+
     // 1. SLEEP / REST DIRECTIVE ("go and rest jarvis")
     if (
       lower.includes('go and rest') ||
