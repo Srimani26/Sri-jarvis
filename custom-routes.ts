@@ -778,15 +778,55 @@ const KEYS_FILE = join(process.cwd(), '.jarvis-keys.json')
 type ProviderKeys = { openai?: string; anthropic?: string; gemini?: string; geminiKeys?: string[]; groq?: string; openrouter?: string; mistral?: string; huggingface?: string }
 
 function loadKeys(): ProviderKeys {
+  let fileKeys: ProviderKeys = {}
   try {
-    if (!existsSync(KEYS_FILE)) return {}
-    return JSON.parse(readFileSync(KEYS_FILE, 'utf8'))
-  } catch { return {} }
+    if (existsSync(KEYS_FILE)) {
+      fileKeys = JSON.parse(readFileSync(KEYS_FILE, 'utf8'))
+    }
+  } catch {}
+
+  const geminiEnv = process.env.GEMINI_API_KEY
+  const geminiKeysEnv = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',').map(s => s.trim()) : undefined
+  const groqEnv = process.env.GROQ_API_KEY
+  const openrouterEnv = process.env.OPENROUTER_API_KEY
+  const mistralEnv = process.env.MISTRAL_API_KEY
+  const huggingfaceEnv = process.env.HUGGINGFACE_API_KEY
+  const openaiEnv = process.env.OPENAI_API_KEY
+  const anthropicEnv = process.env.ANTHROPIC_API_KEY
+
+  return {
+    openai: fileKeys.openai || openaiEnv,
+    anthropic: fileKeys.anthropic || anthropicEnv,
+    gemini: fileKeys.gemini || geminiEnv,
+    geminiKeys: (fileKeys.geminiKeys && fileKeys.geminiKeys.length) ? fileKeys.geminiKeys : (geminiKeysEnv || (geminiEnv ? [geminiEnv] : undefined)),
+    groq: fileKeys.groq || groqEnv,
+    openrouter: fileKeys.openrouter || openrouterEnv,
+    mistral: fileKeys.mistral || mistralEnv,
+    huggingface: fileKeys.huggingface || huggingfaceEnv,
+  }
 }
+
+function syncKeysToPool() {
+  const k = loadKeys()
+  if (k.groq) registerKey('Groq (LPU)', k.groq)
+  if (k.openrouter) registerKey('OpenRouter', k.openrouter)
+  if (k.mistral) registerKey('Mistral AI', k.mistral)
+  if (k.huggingface) registerKey('HuggingFace', k.huggingface)
+  if (k.openai) registerKey('OpenAI', k.openai)
+  if (k.anthropic) registerKey('Anthropic', k.anthropic)
+  if (k.gemini) registerKey('Google Gemini (Primary)', k.gemini)
+  if (k.geminiKeys && Array.isArray(k.geminiKeys)) {
+    k.geminiKeys.forEach((gKey, idx) => {
+      registerKey(`Google Gemini (Pool #${idx + 1})`, gKey)
+    })
+  }
+}
+syncKeysToPool()
 
 function saveKeys(keys: ProviderKeys) {
   writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2))
   try { chmodSync(KEYS_FILE, 0o600) } catch {}
+  syncKeysToPool()
 }
 
 // Direct provider calls — used as extra MoA links when Sri supplies his own key
