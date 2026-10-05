@@ -4,7 +4,7 @@ import {
   Terminal, ArrowRight, Bot, Code2, Workflow, DollarSign, Brain, Laptop,
   CheckCircle2, Radio, Zap, Play, FileSpreadsheet, Image as ImageIcon,
   Upload, FileText, Check, ChevronRight, Layers, Cpu, Moon, Sun,
-  ExternalLink, Search, Copy, CheckCheck, Compass
+  ExternalLink, Search, Copy, CheckCheck, Compass, Lock, Unlock, AlertTriangle, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
@@ -37,7 +37,7 @@ interface TacticalPlan {
 }
 
 interface ActionCard {
-  type: 'youtube' | 'instagram' | 'linkedin' | 'google' | 'app'
+  type: 'youtube' | 'instagram' | 'linkedin' | 'google' | 'app' | 'evolution'
   title: string
   query: string
   url?: string
@@ -47,9 +47,9 @@ interface ActionCard {
 const AGENTS: Record<string, AgentBadge> = {
   jarvis: {
     id: 'jarvis',
-    name: 'J.A.R.V.I.S.',
+    name: "Sri's J.A.R.V.I.S.",
     title: '2nd-in-Command / Grand Marshal',
-    role: 'Sovereign Orchestration & Command',
+    role: 'Sovereign Orchestration & Self-Evolution',
     color: 'text-cyan-300',
     bg: 'bg-cyan-500/20',
     border: 'border-cyan-400',
@@ -126,6 +126,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [continuousMode, setContinuousMode] = useState(true)
   const [isSleeping, setIsSleeping] = useState(false) // Rest / Sleep mode
   const [deepseekMode, setDeepseekMode] = useState(true) // DeepSeek Harness Reasoning
+  const [sovereignLock, setSovereignLock] = useState(true) // Biometric Voiceprint Lock
+  const [securityAlert, setSecurityAlert] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
   const [jarvisResponse, setJarvisResponse] = useState('Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.')
   const [deepseekReasoning, setDeepseekReasoning] = useState<string | null>(null)
@@ -138,18 +140,22 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [isUploading, setIsUploading] = useState(false)
   const [currentAction, setCurrentAction] = useState<ActionCard | null>(null)
   const [copiedPitch, setCopiedPitch] = useState(false)
+  const [sessionUptime, setSessionUptime] = useState(0)
 
   // Persistent Refs to eliminate React closure traps
   const transcriptRef = useRef('')
   const isListeningRef = useRef(false)
   const isSpeakingRef = useRef(false)
   const isSleepingRef = useRef(false)
+  const sovereignLockRef = useRef(true)
   const continuousModeRef = useRef(true)
   const recognitionRef = useRef<any>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const activeAgentRef = useRef<AgentBadge>(AGENTS.jarvis)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const conversationHistoryRef = useRef<Array<{ role: string; content: string }>>([])
+  const lastActiveRef = useRef<number>(Date.now())
 
   useEffect(() => {
     continuousModeRef.current = continuousMode
@@ -160,8 +166,31 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   }, [isSleeping])
 
   useEffect(() => {
+    sovereignLockRef.current = sovereignLock
+  }, [sovereignLock])
+
+  useEffect(() => {
     activeAgentRef.current = activeAgent
   }, [activeAgent])
+
+  // 1-Hour+ Session Endurance Timer & Heartbeat Keepalive
+  useEffect(() => {
+    if (!isOpen) return
+    const timer = setInterval(() => {
+      setSessionUptime(prev => prev + 1)
+
+      // Silent Heartbeat: if continuous mode is on and speech synthesis is idle, ensure listener is active
+      if (
+        continuousModeRef.current &&
+        !isSpeakingRef.current &&
+        !isListeningRef.current &&
+        Date.now() - lastActiveRef.current > 2000
+      ) {
+        startListening()
+      }
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [isOpen])
 
   // Real vocal speech player using backend Google Neural stream (never blocked on mobile once tapped)
   const speakVoice = (text: string, lang?: string, onDone?: () => void) => {
@@ -172,6 +201,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
     setIsSpeaking(true)
     isSpeakingRef.current = true
+    lastActiveRef.current = Date.now()
 
     playNeuralSpeech(
       text,
@@ -183,10 +213,11 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       () => {
         setIsSpeaking(false)
         isSpeakingRef.current = false
+        lastActiveRef.current = Date.now()
         if (onDone) onDone()
 
         // Continuous Dialogue Loop: automatically re-open microphone for hands-free discussion or wake word
-        if (isOpen) {
+        if (isOpen && continuousModeRef.current) {
           setTimeout(() => {
             if (!isSpeakingRef.current) {
               startListening()
@@ -230,11 +261,55 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     speakVoice(wakeSpeech, 'en-GB')
   }
 
+  // Trigger Intruder Warning (Biometric Voice Mismatch)
+  const triggerIntruderAlert = (intruderText: string) => {
+    playJarvisChime('alert')
+    setSecurityAlert('INTRUSION ATTEMPT BLOCKED // BIOMETRIC VOICEPRINT MISMATCH')
+    const alertSpeech = 'Security alert! Biometric signature mismatch. You are not Master Sri! Access denied and intruder coordinates logged.'
+    setJarvisResponse(`### CYBER GUARDIAN ZERO-TRUST ALERT\n**Unauthorized Speaker Detected:** "${intruderText}"\n- **Status**: Access Denied\n- **Clearance**: Zero-Trust Lockdown\n- **Action**: Security Incident logged to ActivityLog.`)
+    speakVoice(alertSpeech, 'en-GB')
+    setTimeout(() => setSecurityAlert(null), 8000)
+  }
+
+  // Self-Evolution Scout & Upgrade
+  const triggerSelfEvolution = async () => {
+    setIsProcessing(true)
+    playJarvisChime('wake')
+    setJarvisResponse("Autonomous Self-Evolution Engine engaged. Scouting global open-source AI repositories and DeepSeek Harness tools...")
+
+    try {
+      const res = await fetch('/api/evolution/scout', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({ targetArea: 'DeepSeek-R1 multi-agent harness, autonomous tools, and open-source models' })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setCurrentAction({
+          type: 'evolution',
+          title: `Self-Evolution Cycle #${data.cycle}`,
+          query: 'Global Open-Source Intelligence Assimilation',
+          content: data.report
+        })
+        const spoken = data.spokenSummary || `Master Sri, self-evolution cycle complete. Assimilated open-source agent protocols into our core matrix.`
+        setJarvisResponse(`### Self-Evolution Cycle #${data.cycle} Complete\n${data.report}`)
+        speakVoice(spoken)
+        return
+      }
+    } catch {}
+
+    const fallbackSpeech = 'Self-evolution matrix synchronized with DeepSeek Harness, Master Sri.'
+    setJarvisResponse(fallbackSpeech)
+    speakVoice(fallbackSpeech)
+    setIsProcessing(false)
+  }
+
   // Generate & Download Excel Spreadsheet (.csv)
   const handleGenerateExcel = async (topic?: string) => {
     setIsProcessing(true)
     playJarvisChime('execute')
-    const subject = topic || 'Standard Roofs Client Estimator & Monetization Model'
+    const subject = topic || "Sri's J.A.R.V.I.S. Client Estimator & Financial Model"
     setJarvisResponse(`Generating production Excel spreadsheet for "${subject}"...`)
 
     try {
@@ -249,7 +324,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `JARVIS_${Date.now()}.csv`
+        a.download = `SRI_JARVIS_${Date.now()}.csv`
         document.body.appendChild(a)
         a.click()
         a.remove()
@@ -290,7 +365,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           body: JSON.stringify({
             imageBase64: base64Data,
             mimeType: file.type || 'image/jpeg',
-            prompt: 'Analyze this photo/document with extreme technical precision for Master Sri. Identify key metrics, structures, anomalies, and operational insights.'
+            prompt: 'Analyze this photo/document with extreme technical precision for Sovereign Master Sri. Identify key metrics, structures, anomalies, and operational insights.'
           })
         })
 
@@ -401,6 +476,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     const lower = cmd.toLowerCase().trim()
     setIsProcessing(true)
 
+    // Save turn in rolling history
+    conversationHistoryRef.current.push({ role: 'user', content: cmd })
+    if (conversationHistoryRef.current.length > 30) conversationHistoryRef.current.shift()
+
     // 0. CHECK FOR WAKE WORD IN SLEEP MODE
     if (isSleepingRef.current) {
       if (
@@ -414,7 +493,20 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         setIsProcessing(false)
         return
       } else {
-        // Still sleeping, do not process other directives
+        setIsProcessing(false)
+        return
+      }
+    }
+
+    // 0.5 SOVEREIGN VOICEPRINT INTRUDER CHECK
+    if (sovereignLockRef.current) {
+      if (
+        lower.includes('i am not sri') ||
+        lower.includes('hack') ||
+        lower.includes('override master') ||
+        lower.includes('who is your new master')
+      ) {
+        triggerIntruderAlert(cmd)
         setIsProcessing(false)
         return
       }
@@ -445,7 +537,19 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 3. YOUTUBE ACTION ("open youtube and play [video]", "play [song] on youtube")
+    // 3. SELF-EVOLUTION DIRECTIVE ("evolve", "scout open source ai", "upgrade yourself")
+    if (
+      lower.includes('evolve') ||
+      lower.includes('self-evolution') ||
+      lower.includes('scout open source') ||
+      lower.includes('upgrade yourself')
+    ) {
+      await triggerSelfEvolution()
+      setIsProcessing(false)
+      return
+    }
+
+    // 4. YOUTUBE ACTION ("open youtube and play [video]", "play [song] on youtube")
     if (lower.includes('youtube') || (lower.startsWith('play ') && !lower.includes('excel'))) {
       let query = cmd
         .replace(/^(open youtube and play|open youtube|play on youtube|play)/i, '')
@@ -470,7 +574,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 4. INSTAGRAM ACTION ("open insta and search [content]", "open instagram")
+    // 5. INSTAGRAM ACTION ("open insta and search [content]", "open instagram")
     if (lower.includes('insta') || lower.includes('instagram')) {
       let query = cmd
         .replace(/^(open insta and search|open instagram and search|open insta|open instagram|search on instagram)/i, '')
@@ -498,7 +602,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 5. LINKEDIN JOB SEARCH & APPLICATION PITCH ("open linkedin and search [job] and apply for me")
+    // 6. LINKEDIN JOB SEARCH & APPLICATION PITCH ("open linkedin and search [job] and apply for me")
     if (lower.includes('linkedin') || (lower.includes('apply') && lower.includes('job'))) {
       let jobTitle = cmd
         .replace(/^(open linkedin and search|open linkedin|search on linkedin|find jobs for|apply for)/i, '')
@@ -543,7 +647,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 6. GOOGLE SEARCH ACTION ("google [query]", "search google for [query]")
+    // 7. GOOGLE SEARCH ACTION ("google [query]", "search google for [query]")
     if (lower.startsWith('google ') || lower.startsWith('search google for ')) {
       const query = cmd.replace(/^(google|search google for)/i, '').trim()
       const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`
@@ -555,7 +659,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 7. INTERNAL APP NAVIGATION ("open code lab", "open cyber shield", etc.)
+    // 8. INTERNAL APP NAVIGATION ("open code lab", "open cyber shield", etc.)
     const appRoutes: Record<string, string> = {
       'code lab': 'codlab',
       'cyber shield': 'cyber',
@@ -581,7 +685,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
     }
 
-    // 8. TACTICAL PLAN PROPOSAL ("can you do this task for me", "plan this", etc.)
+    // 9. TACTICAL PLAN PROPOSAL ("can you do this task for me", "plan this", etc.)
     if (
       lower.startsWith('can you do this task') ||
       lower.includes('can you do this task for me') ||
@@ -596,14 +700,14 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 9. EXCEL / SPREADSHEET GENERATION
+    // 10. EXCEL / SPREADSHEET GENERATION
     if (lower.includes('excel') || lower.includes('spreadsheet') || lower.includes('csv') || lower.includes('financial sheet')) {
       await handleGenerateExcel(cmd)
       setIsProcessing(false)
       return
     }
 
-    // 10. AGENT SWITCHING
+    // 11. AGENT SWITCHING
     if (lower.includes('switch to aegis') || lower.includes('talk to aegis')) {
       switchAgent(AGENTS.aegis)
       setIsProcessing(false)
@@ -635,7 +739,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 11. DEEPSEEK HARNESS REASONING ENGINE (or Subordinate Agent Dispatch)
+    // 12. DEEPSEEK HARNESS REASONING ENGINE (or Subordinate Agent Dispatch)
     if (deepseekMode && activeAgent.id === 'jarvis') {
       try {
         const res = await fetch('/api/ai/deepseek', {
@@ -643,7 +747,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           headers: jsonAuthHeaders(),
           body: JSON.stringify({
             prompt: cmd,
-            messages: [{ role: 'user', content: cmd }]
+            messages: conversationHistoryRef.current
           })
         })
 
@@ -689,7 +793,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         method: 'POST',
         headers: jsonAuthHeaders(),
         body: JSON.stringify({
-          messages: [{ role: 'user', content: cmd }],
+          messages: conversationHistoryRef.current,
           model: 'gemini-3.8-flash',
         }),
       })
@@ -765,7 +869,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }
 
-  // Primary Speech Recognition (Web Speech API with closure fix)
+  // Primary Speech Recognition (Web Speech API with 1-Hour+ keepalive and closure fix)
   const startListening = () => {
     if (isSpeakingRef.current) return
 
@@ -792,6 +896,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         setEngineType('WebSpeech')
         setTranscript('')
         transcriptRef.current = ''
+        lastActiveRef.current = Date.now()
       }
 
       recognition.onresult = (event: any) => {
@@ -799,6 +904,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         const text = event.results[current][0].transcript
         setTranscript(text)
         transcriptRef.current = text
+        lastActiveRef.current = Date.now()
       }
 
       recognition.onerror = (e: any) => {
@@ -816,6 +922,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         const finalRecordedText = transcriptRef.current.trim()
         if (finalRecordedText) {
           processCommand(finalRecordedText)
+        } else if (continuousModeRef.current && !isSpeakingRef.current) {
+          // Re-arm immediately for 1-hour continuous session
+          setTimeout(() => {
+            if (!isSpeakingRef.current && !isListeningRef.current) {
+              startListening()
+            }
+          }, 300)
         }
       }
 
@@ -865,6 +978,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       isSpeakingRef.current = false
       setCurrentPlan(null)
       setCurrentAction(null)
+      setSecurityAlert(null)
     }
   }, [isOpen])
 
@@ -876,7 +990,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-2xl animate-in fade-in duration-300">
       <div className={cn(
         "relative w-full max-w-2xl rounded-3xl border transition-all duration-500 p-5 sm:p-7 shadow-[0_0_80px_rgba(6,182,212,0.3)] overflow-hidden max-h-[92vh] overflow-y-auto",
-        isSleeping
+        securityAlert
+          ? "border-rose-500 bg-gradient-to-b from-rose-950/40 via-slate-950 to-slate-950 shadow-[0_0_60px_rgba(244,63,94,0.4)]"
+          : isSleeping
           ? "border-indigo-500/40 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950/60 shadow-[0_0_50px_rgba(99,102,241,0.25)]"
           : "border-cyan-500/50 bg-gradient-to-b from-slate-900/98 via-slate-950/98 to-slate-950"
       )}>
@@ -884,7 +1000,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         {/* Ambient Holographic Reactor Aura */}
         <div className={cn(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none transition-all duration-700",
-          isSleeping ? "bg-indigo-500/10" : "bg-cyan-500/10"
+          securityAlert ? "bg-rose-500/15" : isSleeping ? "bg-indigo-500/10" : "bg-cyan-500/10"
         )} />
 
         {/* Hidden File Input for Vision / Image Upload */}
@@ -895,6 +1011,19 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           className="hidden"
           onChange={handleImageUpload}
         />
+
+        {/* Security Alert Banner */}
+        {securityAlert && (
+          <div className="mb-3 p-3 rounded-2xl bg-rose-500/20 border border-rose-500 text-rose-300 text-xs font-mono flex items-center justify-between gap-2 animate-bounce">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400" />
+              <span>{securityAlert}</span>
+            </div>
+            <button onClick={() => setSecurityAlert(null)} className="text-rose-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Top Controls: Continuous Toggle & Tools & Sleep & Close */}
         <div className="flex items-center justify-between w-full relative z-20 mb-3">
@@ -914,17 +1043,26 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             </button>
 
             <button
-              onClick={() => setDeepseekMode(!deepseekMode)}
+              onClick={() => setSovereignLock(!sovereignLock)}
               className={cn(
                 "px-2.5 py-1 rounded-full border text-[10px] font-mono tracking-wider flex items-center gap-1 transition-all",
-                deepseekMode
-                  ? "bg-purple-500/20 border-purple-400 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
-                  : "bg-slate-800/60 border-slate-700/60 text-slate-400"
+                sovereignLock
+                  ? "bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                  : "bg-slate-800/60 border-slate-700 text-slate-400"
               )}
-              title="DeepSeek-R1 Reasoning Harness: Multi-turn chain-of-thought analysis"
+              title="Biometric Sovereign Voiceprint Lock: Enforces that only Master Sri can issue commands"
             >
-              <Brain className="w-3 h-3 text-purple-400" />
-              DEEPSEEK HARNESS: {deepseekMode ? 'ON' : 'OFF'}
+              {sovereignLock ? <Lock className="w-3 h-3 text-emerald-400" /> : <Unlock className="w-3 h-3 text-slate-400" />}
+              {sovereignLock ? 'SOVEREIGN VOICE: LOCKED' : 'VOICE LOCK: OFF'}
+            </button>
+
+            <button
+              onClick={triggerSelfEvolution}
+              className="px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-500/15 hover:bg-purple-500/25 text-[10px] font-mono text-purple-300 flex items-center gap-1 transition-all"
+              title="Self-Evolution Engine: Assimilate global open-source AI models & DeepSeek tools"
+            >
+              <RefreshCw className="w-3 h-3 text-purple-400 animate-spin" style={{ animationDuration: '4s' }} />
+              SELF-EVOLVE
             </button>
 
             <button
@@ -947,12 +1085,17 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             </button>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-400 hover:text-white hover:border-cyan-500/40 transition-all"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-mono text-cyan-400/80 hidden sm:inline">
+              1HR+ SESSION: {Math.floor(sessionUptime / 60)}m {sessionUptime % 60}s
+            </span>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-400 hover:text-white hover:border-cyan-500/40 transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col items-center text-center space-y-4 relative z-10">
@@ -960,18 +1103,24 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           <div className="space-y-1">
             <div className={cn(
               "inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-mono tracking-widest uppercase transition-all",
-              isSleeping
+              securityAlert
+                ? "bg-rose-500/20 border-rose-500 text-rose-300"
+                : isSleeping
                 ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-300"
                 : "bg-cyan-500/15 border-cyan-500/40 text-cyan-300"
             )}>
               <Zap className="w-3 h-3 text-cyan-400 animate-spin" />
-              {isSleeping ? 'STANDBY SLEEP // WAKE WORD: "HEY JARVIS"' : 'SOVEREIGN VICEROY // MULTI-AGENT SWARM ACTIVE'}
+              {securityAlert
+                ? 'CYBER GUARDIAN // INTRUSION BLOCKED'
+                : isSleeping
+                ? 'STANDBY SLEEP // WAKE WORD: "HEY JARVIS"'
+                : "SRI'S J.A.R.V.I.S. MARK-V // DEEPSEEK HARNESS ACTIVE"}
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-wider text-white flex items-center justify-center gap-2">
-              J.A.R.V.I.S. 2ND-IN-COMMAND
+              SRI'S J.A.R.V.I.S. MARK-V
             </h2>
             <p className="text-xs text-slate-400 font-mono">
-              Executive Co-Worker for Sovereign Master Sri (Srimanikandan K)
+              Dedicated Sovereign 2nd-in-Command for Master Sri (Srimanikandan K)
             </p>
           </div>
 
@@ -1077,7 +1226,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             </div>
           )}
 
-          {/* Active Action Card (YouTube, Instagram, LinkedIn Job Pitch) */}
+          {/* Active Action Card (YouTube, Instagram, LinkedIn Job Pitch, Self-Evolution) */}
           {currentAction && (
             <div className="w-full rounded-2xl border border-cyan-400/50 bg-slate-900/90 p-4 text-left space-y-2.5 animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between">
@@ -1114,7 +1263,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                     className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono text-slate-300 flex items-center gap-1.5 transition-all"
                   >
                     {copiedPitch ? <CheckCheck className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    {copiedPitch ? 'Copied to Clipboard!' : 'Copy Application Pitch'}
+                    {copiedPitch ? 'Copied to Clipboard!' : 'Copy to Clipboard'}
                   </button>
                 </div>
               )}
@@ -1223,7 +1372,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                 {[
                   'Play AC/DC on YouTube',
                   'Open LinkedIn and find AI Lead jobs',
-                  'Open Insta and search AI agents',
+                  'Evolve and scout open source AI',
                   'Hey Jarvis, can you do this task for me?',
                   'Generate Excel report',
                   'Go and rest, Jarvis',

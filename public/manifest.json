@@ -1,11 +1,11 @@
 {
-  "name": "J.A.R.V.I.S. Mark-IV // Master Sri Command Center",
-  "short_name": "J.A.R.V.I.S.",
-  "description": "Master Sri's Personal Autonomous AI Right-Hand and Multi-Agent Command Swarm",
+  "name": "Sri's J.A.R.V.I.S. Mark-V // Sovereign AI Business OS",
+  "short_name": "Sri's JARVIS",
+  "description": "Master Sri's Executive 2nd-in-Command, Self-Evolving DeepSeek Swarm & Sovereign Cyber Guardian",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
-  "theme_color": "#0891b2",
+  "theme_color": "#06b6d4",
   "orientation": "portrait-primary",
   "icons": [
     {
