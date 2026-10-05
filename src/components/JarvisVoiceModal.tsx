@@ -147,6 +147,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const isListeningRef = useRef(false)
   const isSpeakingRef = useRef(false)
   const isSleepingRef = useRef(false)
+  const isProcessingRef = useRef(false)
+  const silenceTimerRef = useRef<any>(null)
+  const maxRecordingTimerRef = useRef<any>(null)
   const sovereignLockRef = useRef(true)
   const continuousModeRef = useRef(true)
   const recognitionRef = useRef<any>(null)
@@ -172,6 +175,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   useEffect(() => {
     activeAgentRef.current = activeAgent
   }, [activeAgent])
+
+  useEffect(() => {
+    isProcessingRef.current = isProcessing
+  }, [isProcessing])
 
   // 1-Hour+ Session Endurance Timer & Heartbeat Keepalive
   useEffect(() => {
@@ -817,31 +824,88 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }
 
-  // Universal Fallback: Server-side Whisper transcription via Groq for Mobile
+  // Universal Fallback: Server-side Gemini STT with VAD (Voice Activity Detection)
   const startWhisperRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
+
+      // Web Audio VAD: Auto-detect when Master Sri finishes speaking
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+        const audioCtx = new AudioCtx()
+        const source = audioCtx.createMediaStreamSource(stream)
+        const analyser = audioCtx.createAnalyser()
+        analyser.fftSize = 256
+        source.connect(analyser)
+        const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+        let hasSpoken = false
+        let silenceStart: number | null = null
+
+        const checkVAD = () => {
+          if (!isListeningRef.current || recorder.state !== 'recording') {
+            audioCtx.close().catch(() => {})
+            return
+          }
+          analyser.getByteFrequencyData(dataArray)
+          let sum = 0
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
+          const avg = sum / dataArray.length
+
+          if (avg > 18) {
+            hasSpoken = true
+            silenceStart = null
+            setTranscript('Hearing Master Sri speak...')
+          } else if (hasSpoken) {
+            if (!silenceStart) silenceStart = Date.now()
+            else if (Date.now() - silenceStart > 1300) {
+              // 1.3 seconds of silence after speaking -> auto-stop and process!
+              if (recorder.state === 'recording') {
+                recorder.stop()
+              }
+              return
+            }
+          }
+          requestAnimationFrame(checkVAD)
+        }
+        requestAnimationFrame(checkVAD)
+      } catch (vadErr) {
+        console.warn('VAD setup skipped:', vadErr)
+      }
+
+      // Safety timeout: max 12 seconds per turn
+      if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
+      maxRecordingTimerRef.current = setTimeout(() => {
+        if (recorder.state === 'recording') {
+          recorder.stop()
+        }
+      }, 12000)
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
 
       recorder.onstop = async () => {
+        if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
         stream.getTracks().forEach(t => t.stop())
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        if (audioBlob.size < 100) return
+        if (audioBlob.size < 200) {
+          setIsListening(false)
+          isListeningRef.current = false
+          return
+        }
 
         setIsProcessing(true)
+        isProcessingRef.current = true
 
         try {
           const form = new FormData()
           form.append('file', audioBlob, 'voice.webm')
           const res = await fetch('/api/voice/transcribe', {
             method: 'POST',
-            headers: authHeaders(),
             body: form,
           })
           if (res.ok) {
@@ -850,16 +914,25 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               setTranscript(data.text.trim())
               transcriptRef.current = data.text.trim()
               processCommand(data.text.trim())
+              return
             }
           }
         } catch (e) {
-          console.error('Whisper STT error', e)
+          console.error('Gemini STT error', e)
         } finally {
           setIsProcessing(false)
+          isProcessingRef.current = false
+          if (continuousModeRef.current && !isSpeakingRef.current && isOpen) {
+            setTimeout(() => {
+              if (!isSpeakingRef.current && !isListeningRef.current) {
+                startListening()
+              }
+            }, 400)
+          }
         }
       }
 
-      recorder.start()
+      recorder.start(250)
       setIsListening(true)
       isListeningRef.current = true
       setEngineType('Whisper-Turbo')
@@ -869,9 +942,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }
 
-  // Primary Speech Recognition (Web Speech API with 1-Hour+ keepalive and closure fix)
+  // Primary Speech Recognition (Web Speech API with Full Accumulation & Silence Debounce VAD)
   const startListening = () => {
-    if (isSpeakingRef.current) return
+    if (isSpeakingRef.current || isProcessingRef.current) return
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
@@ -886,7 +959,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
 
       const recognition = new SpeechRecognition()
-      recognition.continuous = false
+      recognition.continuous = true
       recognition.interimResults = true
       recognition.lang = 'en-US'
 
@@ -900,16 +973,38 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
 
       recognition.onresult = (event: any) => {
-        const current = event.resultIndex
-        const text = event.results[current][0].transcript
-        setTranscript(text)
-        transcriptRef.current = text
+        let interimText = ''
+        let finalText = ''
+        for (let i = 0; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalText += event.results[i][0].transcript + ' '
+          } else {
+            interimText += event.results[i][0].transcript
+          }
+        }
+        const combined = (finalText + interimText).trim()
+        setTranscript(combined)
+        transcriptRef.current = combined
         lastActiveRef.current = Date.now()
+
+        // Silence Debounce / VAD: Automatically dispatch when Master Sri pauses speaking
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+        if (combined.length > 0) {
+          silenceTimerRef.current = setTimeout(() => {
+            const captured = transcriptRef.current.trim()
+            if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
+              stopListening()
+              processCommand(captured)
+            }
+          }, 1300)
+        }
       }
 
       recognition.onerror = (e: any) => {
-        setIsListening(false)
-        isListeningRef.current = false
+        if (e.error === 'no-speech') {
+          // Normal brief silence on mobile, do not crash
+          return
+        }
         if (e.error === 'not-allowed' || e.error === 'network') {
           setEngineType('Whisper-Turbo')
         }
@@ -920,12 +1015,11 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         isListeningRef.current = false
 
         const finalRecordedText = transcriptRef.current.trim()
-        if (finalRecordedText) {
+        if (finalRecordedText && !isSpeakingRef.current && !isProcessingRef.current) {
           processCommand(finalRecordedText)
-        } else if (continuousModeRef.current && !isSpeakingRef.current) {
-          // Re-arm immediately for 1-hour continuous session
+        } else if (continuousModeRef.current && !isSpeakingRef.current && !isProcessingRef.current && isOpen) {
           setTimeout(() => {
-            if (!isSpeakingRef.current && !isListeningRef.current) {
+            if (!isSpeakingRef.current && !isListeningRef.current && !isProcessingRef.current) {
               startListening()
             }
           }, 300)
@@ -940,6 +1034,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   }
 
   const stopListening = () => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+    if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
@@ -1205,6 +1301,28 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               </div>
             </div>
           </div>
+
+          {/* Live Real-time Voice Feedback Banner */}
+          {isListening && (
+            <div className="w-full max-w-md px-4 py-2.5 rounded-2xl bg-cyan-950/80 border border-cyan-400/50 text-cyan-200 text-xs font-mono flex items-center justify-between gap-3 shadow-[0_0_25px_rgba(6,182,212,0.35)] animate-pulse">
+              <div className="flex items-center gap-2 truncate">
+                <Mic className="w-4 h-4 text-cyan-400 shrink-0 animate-bounce" />
+                <span className="truncate font-bold">
+                  {transcript ? `Hearing: "${transcript}"` : "Listening to Master Sri..."}
+                </span>
+              </div>
+              <span className="text-[9px] px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 uppercase font-black tracking-wider shrink-0 border border-cyan-400/40">
+                ACTIVE VAD
+              </span>
+            </div>
+          )}
+
+          {isProcessing && (
+            <div className="w-full max-w-md px-4 py-2.5 rounded-2xl bg-amber-950/80 border border-amber-400/50 text-amber-200 text-xs font-mono flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] animate-pulse">
+              <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
+              <span className="font-bold">DeepSeek Reasoning & Swarm Matrix Executing...</span>
+            </div>
+          )}
 
           {/* Equalizer Waveform */}
           {!isSleeping && (
