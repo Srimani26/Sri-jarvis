@@ -659,6 +659,11 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     if (
       lower.includes('other agent') ||
       lower.includes('other agents') ||
+      lower.includes('agents are live') ||
+      lower.includes('are other agents live') ||
+      lower.includes('is the team live') ||
+      lower.includes('is the team ready') ||
+      lower.includes('introduce other agents') ||
       lower.includes('introduce yourselves') ||
       lower.includes('meet the swarm') ||
       lower.includes('who are you all') ||
@@ -1334,6 +1339,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           silenceTimerRef.current = setTimeout(() => {
             const captured = transcriptRef.current.trim()
             if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
+              transcriptRef.current = ''
+              setTranscript('')
               stopListening()
               processCommand(captured)
             }
@@ -1356,6 +1363,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         isListeningRef.current = false
 
         const finalRecordedText = transcriptRef.current.trim()
+        transcriptRef.current = ''
+        setTranscript('')
         if (finalRecordedText && !isSpeakingRef.current && !isProcessingRef.current) {
           processCommand(finalRecordedText)
         } else if (continuousModeRef.current && !isSpeakingRef.current && !isProcessingRef.current && isOpen) {
@@ -1363,7 +1372,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             if (!isSpeakingRef.current && !isListeningRef.current && !isProcessingRef.current) {
               startListening()
             }
-          }, 300)
+          }, 400)
         }
       }
 

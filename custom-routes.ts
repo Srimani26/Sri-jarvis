@@ -2287,24 +2287,50 @@ app.get('/voice/speak', async (c) => {
 
     const lang = c.req.query('lang') || 'en-GB'
 
-    // Fast static path for welcome greeting
+    // Instant pre-rendered studio neural audio lookup
+    const audioDir = join(process.cwd(), 'public', 'audio')
+    let staticFile: string | null = null
     if (clean.includes('greetings and welcome back') || clean.includes('Master Sri, greetings')) {
-      const welcomePath = join(process.cwd(), 'public', 'welcome.mp3')
-      if (existsSync(welcomePath)) {
-        c.header('Content-Type', 'audio/mpeg')
-        c.header('Cache-Control', 'public, max-age=86400')
-        return c.body(readFileSync(welcomePath))
-      }
+      staticFile = join(process.cwd(), 'public', 'welcome.mp3')
+    } else if (clean.includes('J.A.R.V.I.S. Grand Marshal core reporting') || clean.includes('commanding the subordinate')) {
+      staticFile = join(audioDir, 'rollcall_jarvis.mp3')
+    } else if (clean.includes('I am Aegis') || clean.includes('Aegis online')) {
+      staticFile = join(audioDir, 'rollcall_aegis.mp3')
+    } else if (clean.includes('I am Vortex') || clean.includes('Vortex operational')) {
+      staticFile = join(audioDir, 'rollcall_vortex.mp3')
+    } else if (clean.includes('I am Midas') || clean.includes('Midas at your service')) {
+      staticFile = join(audioDir, 'rollcall_midas.mp3')
+    } else if (clean.includes('I am Cerebro') || clean.includes('Cerebro activated')) {
+      staticFile = join(audioDir, 'rollcall_cerebro.mp3')
+    } else if (clean.includes('I am Stark OS') || clean.includes('Stark OS here')) {
+      staticFile = join(audioDir, 'rollcall_stark.mp3')
+    } else if (clean.includes('all agents are live, synchronized')) {
+      staticFile = join(audioDir, 'rollcall_conclusion.mp3')
     }
 
-    // High-fidelity neural human voice synthesis (edge-tts)
+    if (staticFile && existsSync(staticFile)) {
+      c.header('Content-Type', 'audio/mpeg')
+      c.header('Cache-Control', 'public, max-age=86400')
+      return c.body(readFileSync(staticFile))
+    }
+
+    // High-fidelity neural human voice synthesis (edge-tts via python3/python)
     try {
       const { execFileSync } = await import('node:child_process')
       const scriptPath = join(process.cwd(), 'scripts', 'neural-tts.py')
-      const audioBuffer = execFileSync('python', [scriptPath, '--text', clean, '--voice', lang], {
-        maxBuffer: 10 * 1024 * 1024,
-        timeout: 7000
-      })
+      const pyBin = process.platform === 'win32' ? 'python' : 'python3'
+      let audioBuffer: Buffer | null = null
+      try {
+        audioBuffer = execFileSync(pyBin, [scriptPath, '--text', clean, '--voice', lang], {
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 8000
+        })
+      } catch {
+        audioBuffer = execFileSync('python', [scriptPath, '--text', clean, '--voice', lang], {
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 8000
+        })
+      }
       if (audioBuffer && audioBuffer.length > 500) {
         c.header('Content-Type', 'audio/mpeg')
         c.header('Cache-Control', 'public, max-age=86400')
