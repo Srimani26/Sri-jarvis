@@ -94,7 +94,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
                 {getTimeGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">Master Sri</span>.
               </h1>
               <p className="text-xs text-slate-300 mt-1 font-mono">
-                Arc Reactor at {coreOutput}% | All 8 Sub-Agent Swarms Online | 2,001 Public APIs Armed
+                Arc Reactor at {coreOutput}% | All 16 Sovereign Agent Swarms Online | 2,001 Public APIs Armed
               </p>
             </div>
 
@@ -190,7 +190,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
 
             <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl">
               <div className="text-[10px] font-mono text-slate-500 uppercase">Neural Swarms</div>
-              <div className="text-xl font-black text-purple-400 font-mono mt-1">8 AGENTS</div>
+              <div className="text-xl font-black text-purple-400 font-mono mt-1">16 AGENTS</div>
               <div className="text-[10px] text-purple-300 font-mono mt-0.5">● Autonomous</div>
             </div>
           </div>

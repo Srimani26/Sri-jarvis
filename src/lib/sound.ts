@@ -119,19 +119,69 @@ export function playNeuralSpeech(
   let staticAudioPath: string | null = null
   if (clean.includes('greetings and welcome back') || clean.includes('Master Sri, greetings')) {
     staticAudioPath = '/audio/welcome.mp3'
-  } else if (clean.includes('J.A.R.V.I.S. Grand Marshal core reporting') || clean.includes('commanding the subordinate')) {
+  } else if (clean.includes('DeepSeek reasoning core primed')) {
+    staticAudioPath = '/audio/agent_deepseek.mp3'
+  } else if (clean.includes('AutoGen roundtable moderator active')) {
+    staticAudioPath = '/audio/agent_autogen.mp3'
+  } else if (clean.includes('CrewAI commander operational')) {
+    staticAudioPath = '/audio/agent_crewai.mp3'
+  } else if (clean.includes('Browser-Use reconnaissance core ready')) {
+    staticAudioPath = '/audio/agent_browser_use.mp3'
+  } else if (clean.includes('MetaGPT software company initialized')) {
+    staticAudioPath = '/audio/agent_metagpt.mp3'
+  } else if (clean.includes('Antigravity Agent Foundry ready')) {
+    staticAudioPath = '/audio/agent_foundry.mp3'
+  } else if (clean.includes('OpenHands autonomous software engineer reporting')) {
+    staticAudioPath = '/audio/agent_openhands.mp3'
+  } else if (clean.includes('Smolagents high-speed code-action runner active')) {
+    staticAudioPath = '/audio/agent_smolagent.mp3'
+  } else if (clean.includes('CAMEL communicative inception society engaged')) {
+    staticAudioPath = '/audio/agent_camel.mp3'
+  } else if (clean.includes('LangGraph stateful cyclical supervisor online')) {
+    staticAudioPath = '/audio/agent_langgraph.mp3'
+  } else if (clean.includes('Aegis online, Master Sri')) {
+    staticAudioPath = '/audio/agent_aegis.mp3'
+  } else if (clean.includes('Vortex operational, Master Sri')) {
+    staticAudioPath = '/audio/agent_vortex.mp3'
+  } else if (clean.includes('Midas at your service, Master Sri')) {
+    staticAudioPath = '/audio/agent_midas.mp3'
+  } else if (clean.includes('Cerebro activated, Master Sri')) {
+    staticAudioPath = '/audio/agent_cerebro.mp3'
+  } else if (clean.includes('Stark OS here, Master Sri')) {
+    staticAudioPath = '/audio/agent_stark_os.mp3'
+  } else if (clean.includes('J.A.R.V.I.S. Grand Marshal core reporting') || clean.includes('commanding the subordinate') || clean.includes('commanding the supreme intelligence swarm')) {
     staticAudioPath = '/audio/rollcall_jarvis.mp3'
-  } else if (clean.includes('I am Aegis') || clean.includes('Aegis online')) {
+  } else if (clean.includes('I am Aegis')) {
     staticAudioPath = '/audio/rollcall_aegis.mp3'
-  } else if (clean.includes('I am Vortex') || clean.includes('Vortex operational')) {
+  } else if (clean.includes('I am Vortex')) {
     staticAudioPath = '/audio/rollcall_vortex.mp3'
-  } else if (clean.includes('I am Midas') || clean.includes('Midas at your service')) {
+  } else if (clean.includes('I am Midas')) {
     staticAudioPath = '/audio/rollcall_midas.mp3'
-  } else if (clean.includes('I am Cerebro') || clean.includes('Cerebro activated')) {
+  } else if (clean.includes('I am Cerebro')) {
     staticAudioPath = '/audio/rollcall_cerebro.mp3'
-  } else if (clean.includes('I am Stark OS') || clean.includes('Stark OS here')) {
+  } else if (clean.includes('I am Stark OS')) {
     staticAudioPath = '/audio/rollcall_stark.mp3'
-  } else if (clean.includes('all agents are live, synchronized')) {
+  } else if (clean.includes('I am DeepSeek')) {
+    staticAudioPath = '/audio/rollcall_deepseek.mp3'
+  } else if (clean.includes('I am AutoGen')) {
+    staticAudioPath = '/audio/rollcall_autogen.mp3'
+  } else if (clean.includes('I am CrewAI')) {
+    staticAudioPath = '/audio/rollcall_crewai.mp3'
+  } else if (clean.includes('I am Browser-Use')) {
+    staticAudioPath = '/audio/rollcall_browser_use.mp3'
+  } else if (clean.includes('I am MetaGPT')) {
+    staticAudioPath = '/audio/rollcall_metagpt.mp3'
+  } else if (clean.includes('I am Agent Foundry')) {
+    staticAudioPath = '/audio/rollcall_foundry.mp3'
+  } else if (clean.includes('I am OpenHands')) {
+    staticAudioPath = '/audio/rollcall_openhands.mp3'
+  } else if (clean.includes('I am Smolagents')) {
+    staticAudioPath = '/audio/rollcall_smolagent.mp3'
+  } else if (clean.includes('I am CAMEL')) {
+    staticAudioPath = '/audio/rollcall_camel.mp3'
+  } else if (clean.includes('I am LangGraph')) {
+    staticAudioPath = '/audio/rollcall_langgraph.mp3'
+  } else if (clean.includes('all 16 Sovereign Agents are fully armed') || clean.includes('all agents are live, synchronized') || clean.includes('all 16 Sovereign Agents')) {
     staticAudioPath = '/audio/rollcall_conclusion.mp3'
   }
 

@@ -236,6 +236,20 @@ export default function App() {
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
+
+  // Global listener to open voice comm with specific agent from anywhere in UI
+  useEffect(() => {
+    const handler = (e: any) => {
+      const agentId = e.detail?.agentId
+      if (agentId) {
+        try { localStorage.setItem('jarvis_initial_agent', agentId) } catch {}
+      }
+      setVoiceModalOpen(true)
+    }
+    window.addEventListener('open-jarvis-voice', handler)
+    return () => window.removeEventListener('open-jarvis-voice', handler)
+  }, [])
+
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
   const [showNewPw, setShowNewPw] = useState(false)
@@ -459,7 +473,16 @@ export default function App() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 pb-24 md:pb-4">
         {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => setVoiceModalOpen(true)} />}
         {activeTab === 'chat' && <AIChat />}
-        {activeTab === 'swarms' && <AgentEcosystem />}
+        {activeTab === 'swarms' && (
+          <AgentEcosystem
+            onOpenVoice={(agentId?: string) => {
+              if (agentId) {
+                try { localStorage.setItem('jarvis_initial_agent', agentId) } catch {}
+              }
+              setVoiceModalOpen(true)
+            }}
+          />
+        )}
         {activeTab === 'cyber' && <CyberThreatDefense />}
           {activeTab === 'apis' && <OmniApiArsenal />}
         {activeTab === 'projects' && <Projects />}

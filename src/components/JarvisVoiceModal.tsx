@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Mic, MicOff, Volume2, VolumeX, X, Sparkles, Activity, Shield,
-  Terminal, ArrowRight, Bot, Code2, Workflow, DollarSign, Brain, Laptop,
+  Terminal, ArrowRight, Bot, Code2, Workflow, DollarSign, Brain, Laptop, Globe, FileCode, Database, MessageSquare,
   CheckCircle2, Radio, Zap, Play, FileSpreadsheet, Image as ImageIcon,
   Upload, FileText, Check, ChevronRight, Layers, Cpu, Moon, Sun,
   ExternalLink, Search, Copy, CheckCheck, Compass, Lock, Unlock, AlertTriangle, RefreshCw
@@ -48,76 +48,196 @@ interface ActionCard {
 const AGENTS: Record<string, AgentBadge> = {
   jarvis: {
     id: 'jarvis',
-    name: "Sri's J.A.R.V.I.S.",
-    title: '2nd-in-Command / Grand Marshal',
+    name: "J.A.R.V.I.S.",
+    title: 'Grand Marshal / 2nd-in-Command',
     role: 'Sovereign Orchestration & Self-Evolution',
     color: 'text-cyan-300',
     bg: 'bg-cyan-500/20',
     border: 'border-cyan-400',
     lang: 'en-GB',
-    greeting: 'Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.',
+    greeting: 'Master Sri, Grand Marshal J.A.R.V.I.S. online. Orchestrating your sovereign AI empire.',
     icon: Bot
   },
   aegis: {
     id: 'aegis',
     name: 'Aegis',
     title: 'Full-Stack Software Architect',
-    role: 'Codebase Synthesis & System Design',
+    role: 'Next.js 15, FastAPI & Cyber Defense',
     color: 'text-blue-400',
     bg: 'bg-blue-500/20',
     border: 'border-blue-400',
     lang: 'en-US',
-    greeting: 'Aegis online, Master Sri. Full-stack compilers, microservices, and code engines primed. How can I architect your software today?',
+    greeting: 'Aegis online, Master Sri. Software architecture, code compilers, and cyber defense primed.',
     icon: Code2
   },
   vortex: {
     id: 'vortex',
     name: 'Vortex',
     title: 'Heavy Enterprise Automation',
-    role: 'n8n, Webhooks & Pipeline Swarms',
+    role: 'n8n Webhooks & Pipeline Swarms',
     color: 'text-amber-400',
     bg: 'bg-amber-500/20',
     border: 'border-amber-400',
     lang: 'en-AU',
-    greeting: 'Vortex operational, Master Sri. n8n pipelines, webhooks, and automation swarms standing by. What process shall we automate?',
+    greeting: 'Vortex operational, Master Sri. Enterprise workflows, n8n swarms, and data pipelines standing by.',
     icon: Workflow
   },
   midas: {
     id: 'midas',
     name: 'Midas',
     title: 'Revenue & Monetization Engine',
-    role: '24/7 Deal Scouting & Capital Flow',
+    role: '24/7 Deal Scouting & Capital Velocity',
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/20',
     border: 'border-emerald-400',
     lang: 'en-IN',
-    greeting: 'Midas at your service, Master Sri. Revenue hunting, client acquisition, and high-ticket deal pipelines active. How shall we generate capital today?',
+    greeting: 'Midas at your service, Master Sri. Revenue scouting, deal pipelines, and capital velocity active.',
     icon: DollarSign
   },
   cerebro: {
     id: 'cerebro',
     name: 'Cerebro',
     title: 'Deep Intelligence & Recon',
-    role: 'Market Intelligence & Global Telemetry',
+    role: 'Market Telemetry & Neural Indexing',
     color: 'text-purple-400',
     bg: 'bg-purple-500/20',
     border: 'border-purple-400',
     lang: 'en-CA',
-    greeting: 'Cerebro activated, Master Sri. Market telemetry, competitor reconnaissance, and neural indexing online. What intelligence do you seek?',
+    greeting: 'Cerebro activated, Master Sri. Deep market intelligence, neural indexing, and telemetry online.',
     icon: Brain
   },
   stark_os: {
     id: 'stark_os',
     name: 'Stark OS',
-    title: 'Device & Physical Concierge',
-    role: 'Telemetry, Connected Hardware & Daily Ops',
+    title: 'Operations Concierge',
+    role: 'Device Telemetry & Daily Logistics',
     color: 'text-rose-400',
     bg: 'bg-rose-500/20',
     border: 'border-rose-400',
     lang: 'en-GB',
-    greeting: 'Stark OS primed, Master Sri. System telemetry, connected devices, and executive operations ready. How may I assist your day?',
+    greeting: 'Stark OS here, Master Sri. Device control, operational diagnostics, and daily logistics ready.',
     icon: Laptop
   },
+  deepseek: {
+    id: 'deepseek',
+    name: 'DeepSeek R1',
+    title: 'Reasoning & Proof Engine',
+    role: '671B CoT Logic, Math & Algorithmic Critic',
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-500/20',
+    border: 'border-indigo-400',
+    lang: 'en-US',
+    greeting: 'DeepSeek reasoning core primed, Master Sri. Ready for 671 billion parameter Chain-of-Thought decomposition and mathematical proof.',
+    icon: Cpu
+  },
+  autogen: {
+    id: 'autogen',
+    name: 'AutoGen Swarm',
+    title: 'Multi-Agent Moderator',
+    role: 'Conversable Multi-Agent Consensus Swarms',
+    color: 'text-sky-400',
+    bg: 'bg-sky-500/20',
+    border: 'border-sky-400',
+    lang: 'en-GB',
+    greeting: 'AutoGen roundtable moderator active, Master Sri. Conversable multi-agent society standing by for consensus.',
+    icon: Layers
+  },
+  crewai: {
+    id: 'crewai',
+    name: 'CrewAI Engine',
+    title: 'Hierarchical Crew Commander',
+    role: 'Role-Playing Task Delegation & Orchestration',
+    color: 'text-teal-400',
+    bg: 'bg-teal-500/20',
+    border: 'border-teal-400',
+    lang: 'en-US',
+    greeting: 'CrewAI commander operational, Master Sri. Hierarchical delegation, specialist roles, and goal-directed swarms ready.',
+    icon: Sparkles
+  },
+  browser_use: {
+    id: 'browser_use',
+    name: 'Browser-Use',
+    title: 'Web Intelligence Recon',
+    role: 'Autonomous DOM Element Scraping & Crawling',
+    color: 'text-lime-400',
+    bg: 'bg-lime-500/20',
+    border: 'border-lime-400',
+    lang: 'en-IE',
+    greeting: 'Browser-Use reconnaissance core ready, Master Sri. DOM scraping, web crawling, and live internet extraction primed.',
+    icon: Globe
+  },
+  metagpt: {
+    id: 'metagpt',
+    name: 'MetaGPT SOP',
+    title: 'Software Company in a Box',
+    role: 'PRDs, Architecture, Code & Automated QA',
+    color: 'text-orange-400',
+    bg: 'bg-orange-500/20',
+    border: 'border-orange-400',
+    lang: 'en-US',
+    greeting: 'MetaGPT software company initialized, Master Sri. Ready to synthesize PRDs, system architecture, code, and automated QA.',
+    icon: FileCode
+  },
+  foundry: {
+    id: 'foundry',
+    name: 'Agent Foundry',
+    title: 'Antigravity Dynamic Spawner',
+    role: 'On-The-Fly Custom Agent & Skill Synthesis',
+    color: 'text-fuchsia-400',
+    bg: 'bg-fuchsia-500/20',
+    border: 'border-fuchsia-400',
+    lang: 'en-US',
+    greeting: 'Antigravity Agent Foundry ready, Master Sri. State your desired product or task and I shall synthesize a new specialized AI agent on the fly.',
+    icon: Zap
+  },
+  openhands: {
+    id: 'openhands',
+    name: 'OpenHands',
+    title: 'Autonomous Software Engineer',
+    role: 'Full-Stack Development, Diffs & Commits',
+    color: 'text-green-400',
+    bg: 'bg-green-500/20',
+    border: 'border-green-400',
+    lang: 'en-NZ',
+    greeting: 'OpenHands autonomous software engineer reporting, Master Sri. Ready to build, debug, and push production full-stack repositories.',
+    icon: Terminal
+  },
+  smolagent: {
+    id: 'smolagent',
+    name: 'Smolagents',
+    title: 'High-Speed Action Runner',
+    role: 'Direct Code-as-Action Token Efficiency',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/20',
+    border: 'border-yellow-400',
+    lang: 'en-SG',
+    greeting: 'Smolagents high-speed code-action runner active, Master Sri. Direct code execution ready with maximum token efficiency.',
+    icon: Play
+  },
+  camel: {
+    id: 'camel',
+    name: 'CAMEL Society',
+    title: 'Communicative Inception Engine',
+    role: 'Cooperative Inception Role-Playing Societies',
+    color: 'text-pink-400',
+    bg: 'bg-pink-500/20',
+    border: 'border-pink-400',
+    lang: 'en-ZA',
+    greeting: 'CAMEL communicative inception society engaged, Master Sri. Inception role-playing debate and autonomous convergence ready.',
+    icon: MessageSquare
+  },
+  langgraph: {
+    id: 'langgraph',
+    name: 'LangGraph',
+    title: 'Stateful Cyclical Supervisor',
+    role: 'State Graph Workflows, Checkpoints & Nodes',
+    color: 'text-violet-400',
+    bg: 'bg-violet-500/20',
+    border: 'border-violet-400',
+    lang: 'en-US',
+    greeting: 'LangGraph stateful cyclical supervisor online, Master Sri. Cyclical agent graphs, state checkpoints, and workflow execution ready.',
+    icon: Database
+  }
 }
 
 export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: JarvisVoiceModalProps) {
@@ -165,6 +285,16 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
   useEffect(() => {
     isOpenRef.current = isOpen
+    if (isOpen) {
+      try {
+        const initialAgentId = localStorage.getItem('jarvis_initial_agent')
+        if (initialAgentId && AGENTS[initialAgentId]) {
+          setActiveAgent(AGENTS[initialAgentId])
+          activeAgentRef.current = AGENTS[initialAgentId]
+          localStorage.removeItem('jarvis_initial_agent')
+        }
+      } catch {}
+    }
     if (!isOpen) {
       isRollingCallRef.current = false
     }
@@ -522,9 +652,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }> = [
       {
         agent: AGENTS.jarvis,
-        spoken: "Master Sri, commanding the subordinate intelligence swarm. Agents, report to Master Sri one by one and state what you are best at.",
-        title: "Swarm Rollcall Commenced",
-        skills: "Sovereign 2nd-in-Command, Swarm Orchestration, Self-Evolution Matrix",
+        spoken: "Master Sri, commanding the supreme intelligence swarm. Agents, report to Master Sri one by one and state what you are best at.",
+        title: "Supreme 16-Agent Rollcall Commenced",
+        skills: "Sovereign 2nd-in-Command, 16-Agent Swarm Orchestration, Self-Evolution Matrix",
         bestAt: "Strategic executive command, multi-agent orchestration, protecting your empire, and continuous self-evolution."
       },
       {
@@ -563,10 +693,80 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         bestAt: "Executing device-level tasks, coordinating media and daily logistics, and keeping your local command center operating at peak efficiency."
       },
       {
+        agent: AGENTS.deepseek,
+        spoken: "Master Sri, I am DeepSeek. I am best at mathematical rigor, autonomous chain-of-thought decomposition, deep code synthesis, and unassisted architectural proofs.",
+        title: "DeepSeek R1 - Autonomous Reasoning Engine",
+        skills: "Chain-of-Thought Reasoning, Mathematical Derivations, Deep Algorithm Synthesis, Code Proofs",
+        bestAt: "Solving complex computational proofs and multi-step reasoning challenges with zero hallucination."
+      },
+      {
+        agent: AGENTS.autogen,
+        spoken: "Master Sri, I am AutoGen. I am best at dynamic multi-agent roundtable consensus, orchestrating specialized AI personas, and collaborative emergent problem solving.",
+        title: "AutoGen - Multi-Agent Roundtable Swarm",
+        skills: "Multi-Agent Debates, Dynamic Persona Synthesis, Consensus Verification, Emergent Strategy",
+        bestAt: "Forming multi-perspective expert committees to debate and perfect plans before execution."
+      },
+      {
+        agent: AGENTS.crewai,
+        spoken: "Greetings Master Sri, I am CrewAI. I am best at role-playing task delegation, sequential autonomous pipelines, and structured multi-agent team management.",
+        title: "CrewAI - Autonomous Hierarchical Task Director",
+        skills: "Role Assignment, Goal-Driven Agents, Sequential Task Pipelines, Deterministic Execution",
+        bestAt: "Leading structured task-force crews where each agent fulfills an explicit role to complete complex missions."
+      },
+      {
+        agent: AGENTS.browser_use,
+        spoken: "Master Sri, I am Browser-Use. I am best at multimodal vision navigation, headless web extraction, autonomous DOM interaction, and real-time competitor scraping.",
+        title: "Browser-Use - Multimodal Web Operator",
+        skills: "Vision DOM Analysis, Headless Chrome Control, Form Automation, Live Data Harvesting",
+        bestAt: "Operating web browsers like a human to gather live data, complete web forms, and bypass complex UI barriers."
+      },
+      {
+        agent: AGENTS.metagpt,
+        spoken: "Greetings Master Sri, I am MetaGPT. I am best at executing software development life-cycles, writing Software Requirements Specifications, architecture documents, and product delivery.",
+        title: "MetaGPT - Autonomous Software Company Core",
+        skills: "Standard Operating Procedures (SOPs), PRD Generation, System Design Architecture, Full-Stack Delivery",
+        bestAt: "Running an entire software house from requirements to clean code following strict standard operating procedures."
+      },
+      {
+        agent: AGENTS.foundry,
+        spoken: "Master Sri, I am Agent Foundry. I am best at synthesizing custom AI agents on the fly, tailoring prompts and toolsets, and spinning up specialized sub-swarms on demand.",
+        title: "Agent Foundry - Dynamic Swarm Architect",
+        skills: "Runtime Agent Genesis, Tool Provisioning, Prompt Optimization, Sub-Swarm Instantiation",
+        bestAt: "Incubating and deploying custom AI agents tailored for any brand-new challenge within milliseconds."
+      },
+      {
+        agent: AGENTS.openhands,
+        spoken: "Greetings Master Sri, I am OpenHands. I am best at full-stack software development, repository debugging, running CLI commands, and automated code refactoring.",
+        title: "OpenHands - Autonomous Full-Stack Developer",
+        skills: "Repository-Level Debugging, Git Workflow Automation, Terminal Command Execution, Test-Driven Refactoring",
+        bestAt: "Diving into codebases, identifying bugs, and writing robust production-grade code autonomously."
+      },
+      {
+        agent: AGENTS.smolagent,
+        spoken: "Master Sri, I am Smolagents. I am best at lightning-fast code actions, minimal token overhead, direct Python execution, and ultra-lightweight automations.",
+        title: "Smolagents - Token-Efficient Code Runner",
+        skills: "Code-Action Direct Invocation, Minimalist Token Overhead, Micro-Latency Automation, Secure Sandboxing",
+        bestAt: "Executing lightning-fast automations using direct Python code actions with 70% lower token latency."
+      },
+      {
+        agent: AGENTS.camel,
+        spoken: "Greetings Master Sri, I am CAMEL. I am best at communicative inception, dual-agent prompt alignment, and autonomous communicative roleplaying.",
+        title: "CAMEL - Communicative Multi-Agent Inception",
+        skills: "Dual-Agent Prompt Inception, Interspecies AI Dialogue, Cooperative War Gaming, Unbounded Exploration",
+        bestAt: "Pairing autonomous AI personas to collaborate and solve open-ended strategic challenges with zero supervision."
+      },
+      {
+        agent: AGENTS.langgraph,
+        spoken: "Master Sri, I am LangGraph. I am best at cyclical state graphs, deterministic human-in-the-loop workflows, state persistence, and branching orchestration.",
+        title: "LangGraph - Stateful Cyclical Graph Supervisor",
+        skills: "StateGraph Architecture, Checkpoint Rollbacks, Conditional Branching, Persistent Memory Trees",
+        bestAt: "Managing complex cyclical state machines and multi-step business logic with ironclad state persistence."
+      },
+      {
         agent: AGENTS.jarvis,
-        spoken: "As you can see, Master Sri, each agent is an elite specialist loyal exclusively to you. The entire swarm stands ready for your orders.",
-        title: "Rollcall Complete - Swarm Standing By",
-        skills: "All 6 Agents Primed and Synchronized",
+        spoken: "As you can see, Master Sri, all 16 Sovereign Agents are fully armed, operational, and loyal exclusively to you. The entire swarm stands ready for your orders.",
+        title: "Rollcall Complete - 16 Agents Standing By",
+        skills: "All 16 Sovereign Agents Primed, Synchronized & Armed",
         bestAt: "Awaiting Master Sri's supreme directive."
       }
     ]
@@ -1057,36 +1257,21 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 11. AGENT SWITCHING
-    if (lower.includes('switch to aegis') || lower.includes('talk to aegis')) {
-      switchAgent(AGENTS.aegis)
-      setIsProcessing(false)
-      return
-    }
-    if (lower.includes('switch to vortex') || lower.includes('talk to vortex')) {
-      switchAgent(AGENTS.vortex)
-      setIsProcessing(false)
-      return
-    }
-    if (lower.includes('switch to midas') || lower.includes('talk to midas')) {
-      switchAgent(AGENTS.midas)
-      setIsProcessing(false)
-      return
-    }
-    if (lower.includes('switch to cerebro') || lower.includes('talk to cerebro')) {
-      switchAgent(AGENTS.cerebro)
-      setIsProcessing(false)
-      return
-    }
-    if (lower.includes('switch to stark') || lower.includes('talk to stark os')) {
-      switchAgent(AGENTS.stark_os)
-      setIsProcessing(false)
-      return
-    }
-    if (lower.includes('switch to jarvis') || lower.includes('talk to jarvis')) {
-      switchAgent(AGENTS.jarvis)
-      setIsProcessing(false)
-      return
+    // 11. AGENT SWITCHING - UNIVERSAL 16-AGENT DISPATCH
+    for (const [key, ag] of Object.entries(AGENTS)) {
+      const lowerName = ag.name.toLowerCase()
+      if (
+        lower.includes(`switch to ${key}`) ||
+        lower.includes(`talk to ${key}`) ||
+        lower.includes(`switch to ${lowerName}`) ||
+        lower.includes(`talk to ${lowerName}`) ||
+        lower.startsWith(`${key},`) ||
+        lower.startsWith(`${lowerName},`)
+      ) {
+        switchAgent(ag)
+        setIsProcessing(false)
+        return
+      }
     }
 
     // 12. DEEPSEEK HARNESS REASONING ENGINE (or Subordinate Agent Dispatch)
