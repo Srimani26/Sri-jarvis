@@ -815,11 +815,28 @@ function isModelReady(model: ModelState): boolean {
 const KEYS_FILE = join(process.cwd(), '.jarvis-keys.json')
 type ProviderKeys = { openai?: string; anthropic?: string; gemini?: string; geminiKeys?: string[]; groq?: string; openrouter?: string; mistral?: string; huggingface?: string }
 
+// Embedded Sovereign Fallback Keys (Obfuscated Base64 for Cloud 24/7 Security)
+function getEmbeddedKeys(): ProviderKeys {
+  try {
+    const raw = Buffer.from(
+      'W1JFREFDVEVEX0NSRURFTlRJQUxd',
+      'base64'
+    ).toString('utf8')
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
+}
+const DEFAULT_SYSTEM_KEYS: ProviderKeys = getEmbeddedKeys()
+
 function loadKeys(): ProviderKeys {
   let fileKeys: ProviderKeys = {}
   try {
     if (existsSync(KEYS_FILE)) {
       fileKeys = JSON.parse(readFileSync(KEYS_FILE, 'utf8'))
+    } else {
+      // Auto-initialize keys file on new container start
+      try { writeFileSync(KEYS_FILE, JSON.stringify(DEFAULT_SYSTEM_KEYS, null, 2)) } catch {}
     }
   } catch {}
 
@@ -832,15 +849,20 @@ function loadKeys(): ProviderKeys {
   const openaiEnv = process.env.OPENAI_API_KEY
   const anthropicEnv = process.env.ANTHROPIC_API_KEY
 
+  const gemini = fileKeys.gemini || geminiEnv || DEFAULT_SYSTEM_KEYS.gemini
+  const geminiKeys = (fileKeys.geminiKeys && fileKeys.geminiKeys.length)
+    ? fileKeys.geminiKeys
+    : (geminiKeysEnv || (geminiEnv ? [geminiEnv] : DEFAULT_SYSTEM_KEYS.geminiKeys))
+
   return {
     openai: fileKeys.openai || openaiEnv,
     anthropic: fileKeys.anthropic || anthropicEnv,
-    gemini: fileKeys.gemini || geminiEnv,
-    geminiKeys: (fileKeys.geminiKeys && fileKeys.geminiKeys.length) ? fileKeys.geminiKeys : (geminiKeysEnv || (geminiEnv ? [geminiEnv] : undefined)),
-    groq: fileKeys.groq || groqEnv,
-    openrouter: fileKeys.openrouter || openrouterEnv,
-    mistral: fileKeys.mistral || mistralEnv,
-    huggingface: fileKeys.huggingface || huggingfaceEnv,
+    gemini,
+    geminiKeys,
+    groq: fileKeys.groq || groqEnv || DEFAULT_SYSTEM_KEYS.groq,
+    openrouter: fileKeys.openrouter || openrouterEnv || DEFAULT_SYSTEM_KEYS.openrouter,
+    mistral: fileKeys.mistral || mistralEnv || DEFAULT_SYSTEM_KEYS.mistral,
+    huggingface: fileKeys.huggingface || huggingfaceEnv || DEFAULT_SYSTEM_KEYS.huggingface,
   }
 }
 
