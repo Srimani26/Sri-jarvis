@@ -4,7 +4,7 @@ import {
   Calendar, Cpu, Workflow, Mic, Shield, Sparkles, Plane, ShoppingBag, Terminal, Activity
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { playJarvisChime } from '@/lib/sound'
+import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
 import { jsonAuthHeaders } from '@/lib/api'
 
 function getTimeGreeting() {
@@ -32,10 +32,9 @@ const PROJECTS = [
 
 const QUICK_ACTIONS = [
   { icon: <Mic className="w-4 h-4" />, label: 'Voice Comm', action: 'voice', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+  { icon: <Bot className="w-4 h-4" />, label: 'Sub-Agents', tab: 'swarms', color: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
   { icon: <Globe className="w-4 h-4" />, label: 'Omni APIs', tab: 'apis', color: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
   { icon: <Shield className="w-4 h-4" />, label: 'Cyber Shield', tab: 'cyber', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
-  { icon: <Bot className="w-4 h-4" />, label: 'AI Chat', tab: 'chat', color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' },
-  { icon: <Bot className="w-4 h-4" />, label: 'Sub-Agents', tab: 'swarms', color: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
   { icon: <Code2 className="w-4 h-4" />, label: 'Code Lab', tab: 'codlab', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
 ]
 
@@ -70,6 +69,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
 
   const handleVoiceClick = () => {
     playJarvisChime('wake')
+    playNeuralSpeech('Greetings Sovereign Master Sri. J.A.R.V.I.S. online. What can I do for you now?', 'en-GB')
     if (onVoiceTrigger) onVoiceTrigger()
   }
 
