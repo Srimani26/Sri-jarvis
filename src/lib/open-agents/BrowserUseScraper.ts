@@ -74,4 +74,90 @@ export class BrowserUseScraper {
       timestamp: new Date().toISOString()
     }
   }
+
+  public static async searchWeb(
+    query: string,
+    aiSummarizer?: (text: string) => Promise<string>
+  ): Promise<{ query: string; results: Array<{ title: string; url: string; snippet: string }>; summary: string }> {
+    const results: Array<{ title: string; url: string; snippet: string }> = []
+    
+    // 1. Tavily API if configured
+    const tavilyKey = process.env.TAVILY_API_KEY
+    if (tavilyKey) {
+      try {
+        const tRes = await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: tavilyKey, query, max_results: 5, search_depth: 'advanced' }),
+          signal: AbortSignal.timeout(10000)
+        })
+        if (tRes.ok) {
+          const tData: any = await tRes.json()
+          if (Array.isArray(tData.results)) {
+            for (const r of tData.results) {
+              results.push({ title: r.title || 'Web Result', url: r.url, snippet: r.content || '' })
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Tavily search fallback:', e)
+      }
+    }
+
+    // 2. DuckDuckGo Zero-Cost Live Web Search Fallback
+    if (results.length === 0) {
+      try {
+        const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          },
+          signal: AbortSignal.timeout(9000)
+        })
+        if (ddgRes.ok) {
+          const html = await ddgRes.text()
+          const snippetRegex = /<a[^>]+class=["']result__snippet["'][^>]*>([\s\S]*?)<\/a>/gi
+          const urlRegex = /<a[^>]+class=["']result__url["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
+          
+          const snippets: string[] = []
+          let sMatch
+          while ((sMatch = snippetRegex.exec(html)) && snippets.length < 5) {
+            snippets.push(sMatch[1].replace(/<[^>]+>/g, '').trim())
+          }
+
+          const links: Array<{ url: string; title: string }> = []
+          let lMatch
+          while ((lMatch = urlRegex.exec(html)) && links.length < 5) {
+            links.push({
+              url: lMatch[1].trim(),
+              title: lMatch[2].replace(/<[^>]+>/g, '').trim()
+            })
+          }
+
+          for (let i = 0; i < Math.max(links.length, snippets.length); i++) {
+            results.push({
+              title: links[i]?.title || `Web Insight ${i + 1}`,
+              url: links[i]?.url || '',
+              snippet: snippets[i] || ''
+            })
+          }
+        }
+      } catch (err) {
+        console.error('DuckDuckGo search fallback error:', err)
+      }
+    }
+
+    let summary = `Master Sri, retrieved ${results.length} live web sources for: "${query}".`
+    if (aiSummarizer && results.length > 0) {
+      try {
+        const rawContext = results.map((r, i) => `[${i+1}] ${r.title} (${r.url}):\n${r.snippet}`).join('\n\n')
+        summary = await aiSummarizer(`Synthesize an executive intelligence summary for Master Sri on query "${query}" based on live web findings:\n\n${rawContext}`)
+      } catch (e) {
+        // preserve base summary
+      }
+    }
+
+    return { query, results, summary }
+  }
+
 }

@@ -839,7 +839,7 @@ async function callDirectGeminiPool(keys: string[], system: string, messages: an
     const key = keys[(geminiKeyIndex + i) % keys.length]
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -864,7 +864,7 @@ async function callDirectGeminiPool(keys: string[], system: string, messages: an
 }
 
 async function callDirectGroq(key: string, system: string, messages: any[]): Promise<string> {
-  const groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b']
+  const groqModels = ['deepseek-r1-distill-llama-70b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768']
   let lastErr = ''
   for (const model of groqModels) {
     try {
@@ -3002,6 +3002,41 @@ app.post('/agents/langgraph/workflow', requireAuth, async (c) => {
       success: true,
       graphState,
       spokenSummary: `Master Sri, LangGraph stateful multi-agent cyclical workflow executed successfully through all nodes.`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+
+// ============================================================================
+// OMNI-INTELLIGENCE LIVE WEB RESEARCH & SEARCH ENGINE
+// ============================================================================
+app.post('/web/search', requireAuth, async (c) => {
+  try {
+    const { query } = await c.req.json()
+    if (!query) return c.json({ error: 'query required' }, 400)
+    const result = await BrowserUseScraper.searchWeb(query, (prompt) => callAI(prompt, []).then(r => r.text))
+    return c.json({
+      success: true,
+      ...result,
+      spokenSummary: `Master Sri, gathered live web intelligence for: "${query}".`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.post('/web/scrape', requireAuth, async (c) => {
+  try {
+    const { url } = await c.req.json()
+    if (!url) return c.json({ error: 'url required' }, 400)
+    const dossier = await BrowserUseScraper.scrapeUrl(url, (prompt) => callAI(prompt, []).then(r => r.text))
+    return c.json({
+      success: true,
+      dossier,
+      spokenSummary: `Master Sri, extracted and analyzed web dossier from ${url}.`
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
