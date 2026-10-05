@@ -2318,6 +2318,81 @@ Do NOT wrap in markdown quotes or backticks. Return RAW CSV ONLY.`
   }
 })
 
+
+// ============================================================================
+// DEEPSEEK HARNESS ENGINE (CHAIN-OF-THOUGHT & REASONING HARNESS)
+// Inspired by deepseek-ai/deepseek-harness
+// ============================================================================
+app.post('/ai/deepseek', requireAuth, async (c) => {
+  try {
+    const { prompt, messages } = await c.req.json()
+    const userPrompt = prompt || (messages && messages[messages.length - 1]?.content) || 'Status report'
+
+    const harnessSystemPrompt = `You are J.A.R.V.I.S. Mark-IV, Sovereign Master Sri's 2nd-in-Command, running the DeepSeek Reasoning Harness.
+Execute your reasoning systematically using Chain-of-Thought inside <think>...</think> tags:
+1. Parse Master Sri's directive and decompose constraints.
+2. Evaluate which subordinate agents (Aegis, Vortex, Midas, Cerebro, Stark OS) execute which phases.
+3. Verify security, technical correctness, and monetization impact.
+Then, outside the <think> tags, provide your concise, authoritative, and regal executive response addressing Master Sri directly as Sire or Master Sri.`
+
+    const chatHistory = (messages || []).map((m: any) => ({ role: m.role, content: m.content }))
+    if (!chatHistory.some((m: any) => m.content === userPrompt)) {
+      chatHistory.push({ role: 'user', content: userPrompt })
+    }
+
+    const aiResult = await callAI(harnessSystemPrompt, chatHistory)
+    const rawText = aiResult.text
+
+    // Extract <think> reasoning if present
+    const thinkMatch = rawText.match(/<think>([\s\S]*?)<\/think>/i)
+    const reasoning = thinkMatch ? thinkMatch[1].trim() : 'Systematic reasoning executed via DeepSeek Harness protocol.'
+    const cleanOutput = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+
+    return c.json({
+      success: true,
+      text: cleanOutput || rawText,
+      reasoning,
+      source: `DeepSeek Harness // ${aiResult.source}`,
+      spokenSummary: cleanOutput.slice(0, 280)
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ============================================================================
+// LINKEDIN CAREER & AUTOMATED JOB APPLICATION PITCH GENERATOR
+// ============================================================================
+app.post('/jobs/apply-pitch', requireAuth, async (c) => {
+  try {
+    const { jobTitle, company, location } = await c.req.json()
+    const targetJob = jobTitle || 'Lead AI Systems Engineer & Full-Stack Architect'
+
+    const pitchPrompt = `You are Aegis and J.A.R.V.I.S., Chief of Staff for Sovereign Master Sri (Srimanikandan K).
+Draft a world-class, high-converting LinkedIn executive application pitch and cover letter for:
+Position: ${targetJob}
+Company: ${company || 'Top Tech Enterprise'}
+Candidate: Srimanikandan K (Founder & Chief Architect of Sri AI Business OS, Full-Stack Next.js 15, FastAPI, Multi-Agent Swarms, Enterprise Automation).
+
+Include:
+1. **Hook**: Direct impact & architectural achievements.
+2. **Core Capabilities**: Multi-agent swarms, cloud infrastructure, AI model pipelines.
+3. **Call to Action**: High-conviction invitation for immediate executive discussion.
+Keep it punchy, professional, and ready to paste into LinkedIn Easy Apply or InMail.`
+
+    const result = await callAI(pitchPrompt, [{ role: 'user', content: `Draft pitch for ${targetJob}` }])
+
+    return c.json({
+      success: true,
+      jobTitle: targetJob,
+      pitch: result.text,
+      spokenSummary: `Master Sri, I have constructed your executive application pitch for ${targetJob}. Ready for submission.`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 app.all('*', (c) =>
   c.json(
     { error: 'Not found', detail: `No API route for ${c.req.method} ${c.req.path}` },

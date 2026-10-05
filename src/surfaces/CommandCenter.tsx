@@ -69,7 +69,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
 
   const handleVoiceClick = () => {
     playJarvisChime('wake')
-    playNeuralSpeech('Greetings Sovereign Master Sri. J.A.R.V.I.S. online. What can I do for you now?', 'en-GB')
+    playNeuralSpeech('Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.', 'en-GB')
     if (onVoiceTrigger) onVoiceTrigger()
   }
 

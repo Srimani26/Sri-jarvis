@@ -3,7 +3,8 @@ import {
   Mic, MicOff, Volume2, VolumeX, X, Sparkles, Activity, Shield,
   Terminal, ArrowRight, Bot, Code2, Workflow, DollarSign, Brain, Laptop,
   CheckCircle2, Radio, Zap, Play, FileSpreadsheet, Image as ImageIcon,
-  Upload, FileText, Check, ChevronRight, Layers, Cpu
+  Upload, FileText, Check, ChevronRight, Layers, Cpu, Moon, Sun,
+  ExternalLink, Search, Copy, CheckCheck, Compass
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
@@ -35,6 +36,14 @@ interface TacticalPlan {
   phases?: Array<{ phase: string; agent: string; desc: string }>
 }
 
+interface ActionCard {
+  type: 'youtube' | 'instagram' | 'linkedin' | 'google' | 'app'
+  title: string
+  query: string
+  url?: string
+  content?: string
+}
+
 const AGENTS: Record<string, AgentBadge> = {
   jarvis: {
     id: 'jarvis',
@@ -45,7 +54,7 @@ const AGENTS: Record<string, AgentBadge> = {
     bg: 'bg-cyan-500/20',
     border: 'border-cyan-400',
     lang: 'en-GB',
-    greeting: 'Greetings, Sovereign Master Sri. J.A.R.V.I.S. standing by. Your command is my directive. How may I serve the empire today?',
+    greeting: 'Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.',
     icon: Bot
   },
   aegis: {
@@ -115,19 +124,26 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [continuousMode, setContinuousMode] = useState(true)
+  const [isSleeping, setIsSleeping] = useState(false) // Rest / Sleep mode
+  const [deepseekMode, setDeepseekMode] = useState(true) // DeepSeek Harness Reasoning
   const [transcript, setTranscript] = useState('')
-  const [jarvisResponse, setJarvisResponse] = useState('Online and standing by, Master Sri. What can I do for you now?')
+  const [jarvisResponse, setJarvisResponse] = useState('Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.')
+  const [deepseekReasoning, setDeepseekReasoning] = useState<string | null>(null)
+  const [showReasoning, setShowReasoning] = useState(false)
   const [activeAgent, setActiveAgent] = useState<AgentBadge>(AGENTS.jarvis)
   const [engineType, setEngineType] = useState<'WebSpeech' | 'Whisper-Turbo'>('WebSpeech')
   const [voiceVolume, setVoiceVolume] = useState<number[]>([25, 45, 30, 70, 50, 85, 40, 60, 35, 55, 45, 65, 30, 50])
   const [currentPlan, setCurrentPlan] = useState<TacticalPlan | null>(null)
   const [isExecutingPlan, setIsExecutingPlan] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [currentAction, setCurrentAction] = useState<ActionCard | null>(null)
+  const [copiedPitch, setCopiedPitch] = useState(false)
 
   // Persistent Refs to eliminate React closure traps
   const transcriptRef = useRef('')
   const isListeningRef = useRef(false)
   const isSpeakingRef = useRef(false)
+  const isSleepingRef = useRef(false)
   const continuousModeRef = useRef(true)
   const recognitionRef = useRef<any>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -138,6 +154,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   useEffect(() => {
     continuousModeRef.current = continuousMode
   }, [continuousMode])
+
+  useEffect(() => {
+    isSleepingRef.current = isSleeping
+  }, [isSleeping])
 
   useEffect(() => {
     activeAgentRef.current = activeAgent
@@ -165,14 +185,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         isSpeakingRef.current = false
         if (onDone) onDone()
 
-        // Continuous Dialogue Loop: automatically re-open microphone for hands-free discussion
-        if (continuousModeRef.current && isOpen) {
+        // Continuous Dialogue Loop: automatically re-open microphone for hands-free discussion or wake word
+        if (isOpen) {
           setTimeout(() => {
             if (!isSpeakingRef.current) {
-              playJarvisChime('wake')
               startListening()
             }
-          }, 400)
+          }, 350)
         }
       },
       () => {
@@ -189,6 +208,26 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     playJarvisChime('wake')
     setJarvisResponse(agent.greeting)
     speakVoice(agent.greeting, agent.lang)
+  }
+
+  // Sleep / Rest Mode Handler
+  const goToSleep = () => {
+    setIsSleeping(true)
+    isSleepingRef.current = true
+    playJarvisChime('wake')
+    const sleepSpeech = "Understood, Master Sri. Entering standby sleep mode. All background systems remain vigilant. Say 'Hey Jarvis' to wake me at any moment, Sire."
+    setJarvisResponse(sleepSpeech)
+    speakVoice(sleepSpeech, 'en-GB')
+  }
+
+  // Wake Up Handler
+  const wakeUp = () => {
+    setIsSleeping(false)
+    isSleepingRef.current = false
+    playJarvisChime('wake')
+    const wakeSpeech = 'Online and awake, Sovereign Master Sri! What can I do for you now?'
+    setJarvisResponse(wakeSpeech)
+    speakVoice(wakeSpeech, 'en-GB')
   }
 
   // Generate & Download Excel Spreadsheet (.csv)
@@ -276,7 +315,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     reader.readAsDataURL(file)
   }
 
-  // Generate a 4-Phase Tactical Plan ("Master, I create a plan and this is process, shall I proceed?")
+  // Generate a 4-Phase Tactical Plan
   const triggerTacticalPlan = async (taskText: string) => {
     setIsProcessing(true)
     playJarvisChime('wake')
@@ -311,7 +350,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       console.error('Plan formulation error', e)
     }
 
-    // Fallback proposal
     const fallbackPlan: TacticalPlan = {
       task: taskText,
       planText: `### Sovereign Tactical Plan\n- **Directive**: ${taskText}\n- **Phase 1**: Aegis constructs core code and data architecture\n- **Phase 2**: Vortex hooks n8n automation and webhooks\n- **Phase 3**: Midas packages client offer for revenue\n- **Phase 4**: J.A.R.V.I.S. synchronizes all systems to Master Sri.`,
@@ -357,23 +395,193 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }
 
-  // Process voice directive with multi-agent intelligence
+  // Process voice directive with DeepSeek reasoning, Action Execution, and Swarm Intelligence
   const processCommand = async (cmd: string) => {
     if (!cmd.trim()) return
     const lower = cmd.toLowerCase().trim()
     setIsProcessing(true)
+
+    // 0. CHECK FOR WAKE WORD IN SLEEP MODE
+    if (isSleepingRef.current) {
+      if (
+        lower.includes('hey jarvis') ||
+        lower.includes('wake up') ||
+        lower.includes('wake jarvis') ||
+        lower === 'jarvis' ||
+        lower.includes('wake up jarvis')
+      ) {
+        wakeUp()
+        setIsProcessing(false)
+        return
+      } else {
+        // Still sleeping, do not process other directives
+        setIsProcessing(false)
+        return
+      }
+    }
+
     playJarvisChime('execute')
 
-    // 1. Check if user is greeting or calling JARVIS
+    // 1. SLEEP / REST DIRECTIVE ("go and rest jarvis")
+    if (
+      lower.includes('go and rest') ||
+      lower.includes('go to rest') ||
+      lower.includes('rest jarvis') ||
+      lower.includes('sleep jarvis') ||
+      lower.includes('stand down') ||
+      lower === 'rest'
+    ) {
+      goToSleep()
+      setIsProcessing(false)
+      return
+    }
+
+    // 2. GREETING DIRECTIVE ("hey jarvis", "wake up")
     if (lower === 'hey jarvis' || lower === 'hello jarvis' || lower === 'jarvis' || lower === 'wake up') {
-      const resp = 'Good day, Sovereign Master Sri. J.A.R.V.I.S. online and standing by. What can I do for you now?'
+      const resp = 'Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.'
       setJarvisResponse(resp)
       speakVoice(resp)
       setIsProcessing(false)
       return
     }
 
-    // 2. Check if user is asking for a plan or task ("can you do this task for me", "plan this", etc.)
+    // 3. YOUTUBE ACTION ("open youtube and play [video]", "play [song] on youtube")
+    if (lower.includes('youtube') || (lower.startsWith('play ') && !lower.includes('excel'))) {
+      let query = cmd
+        .replace(/^(open youtube and play|open youtube|play on youtube|play)/i, '')
+        .replace(/on youtube/i, '')
+        .trim()
+      if (!query) query = 'Iron Man Theme Song AC/DC'
+
+      const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
+      window.open(ytUrl, '_blank')
+
+      setCurrentAction({
+        type: 'youtube',
+        title: 'YouTube Stream',
+        query,
+        url: ytUrl
+      })
+
+      const speech = `Opening YouTube and playing "${query}" for you, Master Sri.`
+      setJarvisResponse(`### Launching YouTube\nPlaying: **${query}**\n[Click here if popup was blocked](${ytUrl})`)
+      speakVoice(speech)
+      setIsProcessing(false)
+      return
+    }
+
+    // 4. INSTAGRAM ACTION ("open insta and search [content]", "open instagram")
+    if (lower.includes('insta') || lower.includes('instagram')) {
+      let query = cmd
+        .replace(/^(open insta and search|open instagram and search|open insta|open instagram|search on instagram)/i, '')
+        .replace(/on instagram|on insta/i, '')
+        .trim()
+
+      const instaUrl = query
+        ? `https://www.instagram.com/explore/tags/${encodeURIComponent(query.replace(/^#/, ''))}/`
+        : 'https://www.instagram.com/'
+      window.open(instaUrl, '_blank')
+
+      setCurrentAction({
+        type: 'instagram',
+        title: 'Instagram Search',
+        query: query || 'Explore Feed',
+        url: instaUrl
+      })
+
+      const speech = query
+        ? `Launching Instagram and searching for "${query}", Master Sri.`
+        : 'Opening Instagram for you, Master Sri.'
+      setJarvisResponse(`### Launching Instagram\nSearching: **${query || 'Home Feed'}**\n[Open Instagram](${instaUrl})`)
+      speakVoice(speech)
+      setIsProcessing(false)
+      return
+    }
+
+    // 5. LINKEDIN JOB SEARCH & APPLICATION PITCH ("open linkedin and search [job] and apply for me")
+    if (lower.includes('linkedin') || (lower.includes('apply') && lower.includes('job'))) {
+      let jobTitle = cmd
+        .replace(/^(open linkedin and search|open linkedin|search on linkedin|find jobs for|apply for)/i, '')
+        .replace(/and apply for me|on linkedin|jobs|job/gi, '')
+        .trim()
+      if (!jobTitle) jobTitle = 'Lead AI Systems Engineer & Full-Stack Architect'
+
+      const linkedinUrl = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(jobTitle)}`
+      window.open(linkedinUrl, '_blank')
+
+      setJarvisResponse(`Searching LinkedIn for "${jobTitle}" and synthesizing executive application pitch...`)
+
+      try {
+        const res = await fetch('/api/jobs/apply-pitch', {
+          method: 'POST',
+          headers: jsonAuthHeaders(),
+          body: JSON.stringify({ jobTitle })
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          setCurrentAction({
+            type: 'linkedin',
+            title: `LinkedIn Career: ${jobTitle}`,
+            query: jobTitle,
+            url: linkedinUrl,
+            content: data.pitch
+          })
+
+          const pitchSpeech = `Master Sri, searching LinkedIn for "${jobTitle}". I have launched the listings and drafted your executive application pitch for immediate submission.`
+          setJarvisResponse(`### LinkedIn Jobs: ${jobTitle}\n[View Jobs on LinkedIn](${linkedinUrl})\n\n**Executive Application Pitch for Master Sri:**\n\n${data.pitch}`)
+          speakVoice(pitchSpeech)
+          setIsProcessing(false)
+          return
+        }
+      } catch {}
+
+      const speech = `Master Sri, launching LinkedIn job search for "${jobTitle}".`
+      setJarvisResponse(`### LinkedIn Jobs\nSearching: **${jobTitle}**\n[View Listings](${linkedinUrl})`)
+      speakVoice(speech)
+      setIsProcessing(false)
+      return
+    }
+
+    // 6. GOOGLE SEARCH ACTION ("google [query]", "search google for [query]")
+    if (lower.startsWith('google ') || lower.startsWith('search google for ')) {
+      const query = cmd.replace(/^(google|search google for)/i, '').trim()
+      const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`
+      window.open(googleUrl, '_blank')
+      const speech = `Executing Google search for "${query}", Master Sri.`
+      setJarvisResponse(`### Google Search\nQuery: **${query}**\n[View Results](${googleUrl})`)
+      speakVoice(speech)
+      setIsProcessing(false)
+      return
+    }
+
+    // 7. INTERNAL APP NAVIGATION ("open code lab", "open cyber shield", etc.)
+    const appRoutes: Record<string, string> = {
+      'code lab': 'codlab',
+      'cyber shield': 'cyber',
+      'cyber defense': 'cyber',
+      'daily planner': 'planner',
+      'omni apis': 'apis',
+      'api arsenal': 'apis',
+      'analytics': 'analytics',
+      'projects': 'projects',
+      'habits': 'habits',
+      'journal': 'journal',
+      'workflows': 'workflows',
+      'command center': 'command',
+    }
+    for (const [key, tab] of Object.entries(appRoutes)) {
+      if (lower.includes(`open ${key}`) || lower.includes(`go to ${key}`)) {
+        onNavigate(tab)
+        const speech = `Opening ${key} for you, Master Sri.`
+        setJarvisResponse(speech)
+        speakVoice(speech)
+        setIsProcessing(false)
+        return
+      }
+    }
+
+    // 8. TACTICAL PLAN PROPOSAL ("can you do this task for me", "plan this", etc.)
     if (
       lower.startsWith('can you do this task') ||
       lower.includes('can you do this task for me') ||
@@ -388,14 +596,14 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 3. Check for Excel / Spreadsheet generation
+    // 9. EXCEL / SPREADSHEET GENERATION
     if (lower.includes('excel') || lower.includes('spreadsheet') || lower.includes('csv') || lower.includes('financial sheet')) {
       await handleGenerateExcel(cmd)
       setIsProcessing(false)
       return
     }
 
-    // 4. Check for direct agent switching commands
+    // 10. AGENT SWITCHING
     if (lower.includes('switch to aegis') || lower.includes('talk to aegis')) {
       switchAgent(AGENTS.aegis)
       setIsProcessing(false)
@@ -427,77 +635,33 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 5. Detect if command delegates to a subordinate agent
-    let targetAgent = activeAgentRef.current
-    if (lower.includes('aegis') || lower.includes('software') || lower.includes('next.js') || lower.includes('fastapi')) {
-      targetAgent = AGENTS.aegis
-    } else if (lower.includes('vortex') || lower.includes('automation') || lower.includes('n8n') || lower.includes('webhook')) {
-      targetAgent = AGENTS.vortex
-    } else if (lower.includes('midas') || lower.includes('revenue') || lower.includes('client') || lower.includes('quote') || lower.includes('monetize')) {
-      targetAgent = AGENTS.midas
-    } else if (lower.includes('cerebro') || lower.includes('intelligence') || lower.includes('market trend') || lower.includes('competitor')) {
-      targetAgent = AGENTS.cerebro
-    } else if (lower.includes('stark os') || lower.includes('device') || lower.includes('concierge')) {
-      targetAgent = AGENTS.stark_os
-    }
-
-    setActiveAgent(targetAgent)
-    activeAgentRef.current = targetAgent
-
-    // Status Report
-    if (lower.includes('status report') || lower.includes('systems nominal') || lower.includes('systems check')) {
-      const resp = 'All systems nominal, Master Sri. Arc Reactor at 100% output. Cyber defense perimeter secure. All 6 subordinate agent swarms stand ready at your command, Sire.'
-      setJarvisResponse(resp)
-      speakVoice(resp)
-      setIsProcessing(false)
-      return
-    }
-
-    // Identity / Viceroy Introduction
-    if (lower.includes('who are you') || lower.includes('introduce yourself') || lower.includes('what can you do')) {
-      const resp = 'I am J.A.R.V.I.S. Mark-IV. Your executive 2nd-in-Command and personal right hand, Sire. You are the Sovereign Commander; I orchestrate your subordinate agents—Aegis, Vortex, Midas, Cerebro, and Stark OS—to write software, automate pipelines, generate revenue, and execute your directives anywhere in the world.'
-      setJarvisResponse(resp)
-      speakVoice(resp)
-      setIsProcessing(false)
-      return
-    }
-
-    // Memory Storage
-    if (lower.includes('remember that') || lower.includes('store in memory') || lower.includes('memorize')) {
-      const fact = cmd.replace(/^(remember that|store in memory|memorize)/i, '').trim()
+    // 11. DEEPSEEK HARNESS REASONING ENGINE (or Subordinate Agent Dispatch)
+    if (deepseekMode && activeAgent.id === 'jarvis') {
       try {
-        await fetch('/api/memory/remember', {
+        const res = await fetch('/api/ai/deepseek', {
           method: 'POST',
           headers: jsonAuthHeaders(),
-          body: JSON.stringify({ fact, category: 'voice_directive', importance: 9 }),
+          body: JSON.stringify({
+            prompt: cmd,
+            messages: [{ role: 'user', content: cmd }]
+          })
         })
-        const resp = `Preserved in cognitive memory, Master Sri: "${fact}". I shall retain this across all operations.`
-        setJarvisResponse(resp)
-        speakVoice(resp)
-      } catch {
-        const fallback = `Registered in memory buffer, Master Sri: "${fact}".`
-        setJarvisResponse(fallback)
-        speakVoice(fallback)
-      }
-      setIsProcessing(false)
-      return
-    }
 
-    // GitHub Analysis
-    if (lower.includes('github') || lower.includes('analyze repo') || lower.includes('repository')) {
-      const match = cmd.match(/github\.com\/([a-zA-Z0-9_\-\/]+)/i)
-      const repoUrl = match ? `https://github.com/${match[1]}` : 'https://github.com/Srimani26/standardroofs-jarvis'
-      const resp = `Analyzing repository ${repoUrl} with Gemini 3.8 Flash, Sire. Routing blueprint to Code Lab.`
-      setJarvisResponse(resp)
-      speakVoice(resp, 'en-GB', () => {
-        onNavigate('codlab')
-        onClose()
-      })
-      setIsProcessing(false)
-      return
+        if (res.ok) {
+          const data = await res.json()
+          setJarvisResponse(data.text)
+          setDeepseekReasoning(data.reasoning || null)
+          speakVoice(data.spokenSummary || data.text)
+          setIsProcessing(false)
+          return
+        }
+      } catch {
+        // Fall through to general chat
+      }
     }
 
     // Delegate to Subordinate Agent Swarm
+    let targetAgent = activeAgentRef.current
     if (targetAgent.id !== 'jarvis') {
       try {
         const res = await fetch('/api/agents/dispatch', {
@@ -519,7 +683,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       } catch {}
     }
 
-    // Default to J.A.R.V.I.S. Core Neural Network via /api/ai/chat
+    // Default to Core AI Network via /api/ai/chat
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -567,7 +731,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         if (audioBlob.size < 100) return
 
         setIsProcessing(true)
-        setJarvisResponse('Transcribing voice with Groq Whisper Turbo (150ms)...')
 
         try {
           const form = new FormData()
@@ -596,7 +759,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       setIsListening(true)
       isListeningRef.current = true
       setEngineType('Whisper-Turbo')
-      setJarvisResponse('Recording audio for Groq Whisper...')
     } catch (err) {
       console.error('MediaRecorder error', err)
       setJarvisResponse('Microphone permission required, Master Sri. Please allow access.')
@@ -630,7 +792,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         setEngineType('WebSpeech')
         setTranscript('')
         transcriptRef.current = ''
-        setJarvisResponse('Listening intently, Master Sri...')
       }
 
       recognition.onresult = (event: any) => {
@@ -641,10 +802,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
 
       recognition.onerror = (e: any) => {
-        console.warn('Speech recognition status:', e.error)
         setIsListening(false)
         isListeningRef.current = false
-
         if (e.error === 'not-allowed' || e.error === 'network') {
           setEngineType('Whisper-Turbo')
         }
@@ -663,7 +822,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       recognitionRef.current = recognition
       recognition.start()
     } catch (e) {
-      console.error('Failed to start WebSpeech, falling back to Whisper', e)
       startWhisperRecording()
     }
   }
@@ -694,8 +852,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   // Lifecycle on modal open/close: Vocal greeting when opening
   useEffect(() => {
     if (isOpen) {
+      setIsSleeping(false)
+      isSleepingRef.current = false
       playJarvisChime('wake')
-      speakVoice('Greetings Sovereign Master Sri. J.A.R.V.I.S. online. All neural swarms stand ready. What can I do for you now?')
+      speakVoice('Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.')
     } else {
       stopNeuralSpeech()
       stopListening()
@@ -704,6 +864,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       isListeningRef.current = false
       isSpeakingRef.current = false
       setCurrentPlan(null)
+      setCurrentAction(null)
     }
   }, [isOpen])
 
@@ -713,10 +874,18 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-2xl animate-in fade-in duration-300">
-      <div className="relative w-full max-w-2xl rounded-3xl border border-cyan-500/50 bg-gradient-to-b from-slate-900/98 via-slate-950/98 to-slate-950 p-5 sm:p-7 shadow-[0_0_80px_rgba(6,182,212,0.3)] overflow-hidden max-h-[92vh] overflow-y-auto">
+      <div className={cn(
+        "relative w-full max-w-2xl rounded-3xl border transition-all duration-500 p-5 sm:p-7 shadow-[0_0_80px_rgba(6,182,212,0.3)] overflow-hidden max-h-[92vh] overflow-y-auto",
+        isSleeping
+          ? "border-indigo-500/40 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950/60 shadow-[0_0_50px_rgba(99,102,241,0.25)]"
+          : "border-cyan-500/50 bg-gradient-to-b from-slate-900/98 via-slate-950/98 to-slate-950"
+      )}>
 
         {/* Ambient Holographic Reactor Aura */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className={cn(
+          "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none transition-all duration-700",
+          isSleeping ? "bg-indigo-500/10" : "bg-cyan-500/10"
+        )} />
 
         {/* Hidden File Input for Vision / Image Upload */}
         <input
@@ -727,21 +896,35 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           onChange={handleImageUpload}
         />
 
-        {/* Top Controls: Continuous Toggle & Tools & Close */}
+        {/* Top Controls: Continuous Toggle & Tools & Sleep & Close */}
         <div className="flex items-center justify-between w-full relative z-20 mb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
             <button
-              onClick={() => setContinuousMode(!continuousMode)}
+              onClick={() => isSleeping ? wakeUp() : goToSleep()}
               className={cn(
                 "px-3 py-1 rounded-full border text-[10px] font-mono tracking-wider flex items-center gap-1.5 transition-all",
-                continuousMode
-                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                isSleeping
+                  ? "bg-indigo-500/20 border-indigo-400 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.3)]"
+                  : "bg-slate-800/80 border-slate-700 text-slate-300 hover:border-indigo-500/40"
+              )}
+              title={isSleeping ? "Tap to wake up JARVIS" : "Put JARVIS into standby sleep mode"}
+            >
+              {isSleeping ? <Sun className="w-3 h-3 text-amber-400" /> : <Moon className="w-3 h-3 text-indigo-400" />}
+              {isSleeping ? 'STANDBY: TAP TO WAKE' : 'REST / STANDBY'}
+            </button>
+
+            <button
+              onClick={() => setDeepseekMode(!deepseekMode)}
+              className={cn(
+                "px-2.5 py-1 rounded-full border text-[10px] font-mono tracking-wider flex items-center gap-1 transition-all",
+                deepseekMode
+                  ? "bg-purple-500/20 border-purple-400 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
                   : "bg-slate-800/60 border-slate-700/60 text-slate-400"
               )}
-              title="Hands-free continuous conversation mode: listens automatically when speech completes"
+              title="DeepSeek-R1 Reasoning Harness: Multi-turn chain-of-thought analysis"
             >
-              <Radio className={cn("w-3 h-3", continuousMode && "animate-pulse text-emerald-400")} />
-              {continuousMode ? 'HANDS-FREE DIALOGUE: ON' : 'PUSH TO TALK'}
+              <Brain className="w-3 h-3 text-purple-400" />
+              DEEPSEEK HARNESS: {deepseekMode ? 'ON' : 'OFF'}
             </button>
 
             <button
@@ -751,7 +934,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               title="Upload photo / roof image / blueprint for Gemini 3.8 Flash Vision"
             >
               <ImageIcon className="w-3 h-3" />
-              {isUploading ? 'ANALYZING...' : 'VISION UPLOAD'}
+              {isUploading ? 'ANALYZING...' : 'VISION'}
             </button>
 
             <button
@@ -775,61 +958,70 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         <div className="flex flex-col items-center text-center space-y-4 relative z-10">
           {/* Header & Clearance */}
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[10px] font-mono tracking-widest uppercase">
+            <div className={cn(
+              "inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-mono tracking-widest uppercase transition-all",
+              isSleeping
+                ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-300"
+                : "bg-cyan-500/15 border-cyan-500/40 text-cyan-300"
+            )}>
               <Zap className="w-3 h-3 text-cyan-400 animate-spin" />
-              SOVEREIGN VICEROY // MULTI-AGENT NEURAL SWARM
+              {isSleeping ? 'STANDBY SLEEP // WAKE WORD: "HEY JARVIS"' : 'SOVEREIGN VICEROY // MULTI-AGENT SWARM ACTIVE'}
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-wider text-white flex items-center justify-center gap-2">
               J.A.R.V.I.S. 2ND-IN-COMMAND
             </h2>
             <p className="text-xs text-slate-400 font-mono">
-              Dedicated Voice Command Interface for Sovereign Master Sri
+              Executive Co-Worker for Sovereign Master Sri (Srimanikandan K)
             </p>
           </div>
 
-          {/* Subordinate Agent Switcher Bar (Click any agent to talk to them) */}
-          <div className="w-full">
-            <div className="text-[10px] font-mono text-slate-400 mb-1.5 flex items-center justify-center gap-1">
-              <Layers className="w-3 h-3 text-cyan-400" />
-              <span>SUBORDINATE AGENT CHANNELS (TAP TO COMMUNICATE):</span>
+          {/* Subordinate Agent Switcher Bar */}
+          {!isSleeping && (
+            <div className="w-full">
+              <div className="text-[10px] font-mono text-slate-400 mb-1.5 flex items-center justify-center gap-1">
+                <Layers className="w-3 h-3 text-cyan-400" />
+                <span>SUBORDINATE AGENTS (CLICK TO SWITCH CHANNEL):</span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 w-full">
+                {Object.values(AGENTS).map((agent) => {
+                  const isCurrent = activeAgent.id === agent.id
+                  const Icon = agent.icon
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => switchAgent(agent)}
+                      className={cn(
+                        "p-2 rounded-xl border flex flex-col items-center gap-1 transition-all text-left",
+                        isCurrent
+                          ? `${agent.bg} ${agent.border} shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-105`
+                          : "bg-slate-900/60 border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100"
+                      )}
+                    >
+                      <Icon className={cn("w-4 h-4", agent.color)} />
+                      <span className={cn("text-[10px] font-bold font-mono truncate w-full text-center", agent.color)}>
+                        {agent.name}
+                      </span>
+                      <span className="text-[8px] text-slate-400 font-mono truncate w-full text-center">
+                        {agent.lang.split('-')[1]}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 w-full">
-              {Object.values(AGENTS).map((agent) => {
-                const isCurrent = activeAgent.id === agent.id
-                const Icon = agent.icon
-                return (
-                  <button
-                    key={agent.id}
-                    onClick={() => switchAgent(agent)}
-                    className={cn(
-                      "p-2 rounded-xl border flex flex-col items-center gap-1 transition-all text-left",
-                      isCurrent
-                        ? `${agent.bg} ${agent.border} shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-105`
-                        : "bg-slate-900/60 border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100"
-                    )}
-                  >
-                    <Icon className={cn("w-4 h-4", agent.color)} />
-                    <span className={cn("text-[10px] font-bold font-mono truncate w-full text-center", agent.color)}>
-                      {agent.name}
-                    </span>
-                    <span className="text-[8px] text-slate-400 font-mono truncate w-full text-center">
-                      {agent.lang.split('-')[1]}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          )}
 
           {/* Central Holographic Reactor Orb */}
           <div
             className="relative group cursor-pointer my-1"
-            onClick={isListening ? stopListening : startListening}
+            onClick={isSleeping ? wakeUp : (isListening ? stopListening : startListening)}
           >
             {/* Outer spinning ring */}
             <div className={cn(
               "w-32 h-32 rounded-full border-2 border-dashed transition-all duration-700 flex items-center justify-center",
-              isListening
+              isSleeping
+                ? "border-indigo-500/50 animate-pulse shadow-[0_0_35px_rgba(99,102,241,0.4)]"
+                : isListening
                 ? "border-cyan-400 animate-spin shadow-[0_0_50px_rgba(6,182,212,0.7)]"
                 : isSpeaking
                 ? "border-amber-400 animate-pulse shadow-[0_0_50px_rgba(251,191,36,0.7)]"
@@ -838,13 +1030,17 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               {/* Inner Core */}
               <div className={cn(
                 "w-24 h-24 rounded-full flex flex-col items-center justify-center transition-all duration-300 border",
-                isListening
+                isSleeping
+                  ? "bg-slate-950 border-indigo-400/50"
+                  : isListening
                   ? "bg-gradient-to-tr from-cyan-600/40 to-blue-500/40 border-cyan-400/90 scale-105"
                   : isSpeaking
                   ? "bg-gradient-to-tr from-amber-600/40 to-cyan-500/40 border-amber-400/90 scale-105"
                   : "bg-slate-900/90 border-cyan-500/40 hover:border-cyan-400"
               )}>
-                {isListening ? (
+                {isSleeping ? (
+                  <Moon className="w-8 h-8 text-indigo-400 animate-pulse" />
+                ) : isListening ? (
                   <Mic className="w-8 h-8 text-cyan-300 animate-pulse" />
                 ) : isSpeaking ? (
                   <Volume2 className="w-8 h-8 text-amber-300 animate-bounce" />
@@ -852,34 +1048,80 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                   <Mic className="w-8 h-8 text-slate-400 group-hover:text-cyan-400 transition-colors" />
                 )}
                 <span className="text-[8px] font-mono font-bold tracking-wider uppercase mt-1 text-slate-200">
-                  {isListening ? 'LISTENING' : isSpeaking ? 'SPEAKING' : 'TAP TO SPEAK'}
+                  {isSleeping ? 'ASLEEP' : isListening ? 'LISTENING' : isSpeaking ? 'SPEAKING' : 'TAP TO SPEAK'}
                 </span>
                 <span className="text-[7px] font-mono text-cyan-400/80">
-                  [{engineType}]
+                  {isSleeping ? '[SAY "HEY JARVIS"]' : `[${engineType}]`}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Animated Audio Equalizer Waveform */}
-          <div className="flex items-center justify-center gap-1.5 h-6 w-full max-w-xs">
-            {voiceVolume.map((vol, i) => (
-              <span
-                key={i}
-                style={{ height: `${vol}%` }}
-                className={cn(
-                  "w-1.5 rounded-full transition-all duration-150",
-                  isListening
-                    ? "bg-gradient-to-t from-cyan-500 to-blue-400"
-                    : isSpeaking
-                    ? "bg-gradient-to-t from-amber-400 to-cyan-400"
-                    : "bg-slate-800 h-2"
-                )}
-              />
-            ))}
-          </div>
+          {/* Equalizer Waveform */}
+          {!isSleeping && (
+            <div className="flex items-center justify-center gap-1.5 h-6 w-full max-w-xs">
+              {voiceVolume.map((vol, i) => (
+                <span
+                  key={i}
+                  style={{ height: `${vol}%` }}
+                  className={cn(
+                    "w-1.5 rounded-full transition-all duration-150",
+                    isListening
+                      ? "bg-gradient-to-t from-cyan-500 to-blue-400"
+                      : isSpeaking
+                      ? "bg-gradient-to-t from-amber-400 to-cyan-400"
+                      : "bg-slate-800 h-2"
+                  )}
+                />
+              ))}
+            </div>
+          )}
 
-          {/* Interactive Tactical Plan Proposal Card ("Master, I create a plan and this is process, shall I proceed?") */}
+          {/* Active Action Card (YouTube, Instagram, LinkedIn Job Pitch) */}
+          {currentAction && (
+            <div className="w-full rounded-2xl border border-cyan-400/50 bg-slate-900/90 p-4 text-left space-y-2.5 animate-in slide-in-from-bottom duration-300">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-cyan-400 uppercase font-bold flex items-center gap-1.5">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  {currentAction.title}
+                </span>
+                {currentAction.url && (
+                  <a
+                    href={currentAction.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[10px] font-mono flex items-center gap-1"
+                  >
+                    Open Link <ArrowRight className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              {currentAction.content && (
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 font-mono max-h-36 overflow-y-auto whitespace-pre-wrap">
+                  {currentAction.content}
+                </div>
+              )}
+
+              {currentAction.content && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(currentAction.content || '')
+                      setCopiedPitch(true)
+                      setTimeout(() => setCopiedPitch(false), 2000)
+                    }}
+                    className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono text-slate-300 flex items-center gap-1.5 transition-all"
+                  >
+                    {copiedPitch ? <CheckCheck className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedPitch ? 'Copied to Clipboard!' : 'Copy Application Pitch'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tactical Plan Proposal Card */}
           {currentPlan && (
             <div className="w-full rounded-2xl border border-cyan-400/60 bg-gradient-to-br from-cyan-950/40 via-slate-900/95 to-slate-950 p-4 text-left space-y-3 shadow-[0_0_40px_rgba(6,182,212,0.25)] animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between">
@@ -910,7 +1152,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                 </div>
               )}
 
-              {/* Action Buttons */}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-cyan-500/30">
                 <button
                   onClick={() => setCurrentPlan(null)}
@@ -927,6 +1168,24 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                   {isExecutingPlan ? 'EXECUTING SWARM...' : 'PROCEED & EXECUTE'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* DeepSeek Reasoning Trace (Expandable) */}
+          {deepseekReasoning && (
+            <div className="w-full text-left">
+              <button
+                onClick={() => setShowReasoning(!showReasoning)}
+                className="text-[10px] font-mono text-purple-400 flex items-center gap-1.5 hover:underline"
+              >
+                <Brain className="w-3 h-3" />
+                {showReasoning ? 'Hide DeepSeek Reasoning Trace' : 'View DeepSeek <think> Reasoning Trace'}
+              </button>
+              {showReasoning && (
+                <div className="mt-1.5 p-3 rounded-xl bg-purple-950/20 border border-purple-500/30 text-xs text-purple-200 font-mono max-h-36 overflow-y-auto whitespace-pre-wrap">
+                  {deepseekReasoning}
+                </div>
+              )}
             </div>
           )}
 
@@ -949,40 +1208,42 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                 {activeAgent.name} Response:
               </span>
               <p className="text-sm text-slate-200 leading-relaxed font-sans whitespace-pre-line">
-                {isProcessing ? 'Synthesizing with neural swarm, Master Sri...' : jarvisResponse}
+                {isProcessing ? 'Synthesizing directive across neural swarms...' : jarvisResponse}
               </p>
             </div>
           </div>
 
-          {/* Preset Vocal Directives */}
-          <div className="w-full space-y-2">
-            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block text-center">
-              Quick Voice Directives
-            </span>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {[
-                'Hey Jarvis, can you do this task for me?',
-                'Generate Excel report',
-                'Status Report',
-                'Switch to Midas',
-                'Switch to Aegis',
-                'Switch to Vortex',
-              ].map((cmd, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setTranscript(cmd)
-                    transcriptRef.current = cmd
-                    processCommand(cmd)
-                  }}
-                  className="px-3 py-1 rounded-xl bg-slate-900/90 hover:bg-cyan-500/20 border border-slate-800 hover:border-cyan-500/40 text-[11px] font-mono text-slate-300 hover:text-cyan-300 transition-all flex items-center gap-1.5"
-                >
-                  <ArrowRight className="w-3 h-3 text-cyan-400" />
-                  {cmd}
-                </button>
-              ))}
+          {/* Quick Voice Directives */}
+          {!isSleeping && (
+            <div className="w-full space-y-2">
+              <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block text-center">
+                Executive Voice Directives
+              </span>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {[
+                  'Play AC/DC on YouTube',
+                  'Open LinkedIn and find AI Lead jobs',
+                  'Open Insta and search AI agents',
+                  'Hey Jarvis, can you do this task for me?',
+                  'Generate Excel report',
+                  'Go and rest, Jarvis',
+                ].map((cmd, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setTranscript(cmd)
+                      transcriptRef.current = cmd
+                      processCommand(cmd)
+                    }}
+                    className="px-3 py-1 rounded-xl bg-slate-900/90 hover:bg-cyan-500/20 border border-slate-800 hover:border-cyan-500/40 text-[11px] font-mono text-slate-300 hover:text-cyan-300 transition-all flex items-center gap-1.5"
+                  >
+                    <ArrowRight className="w-3 h-3 text-cyan-400" />
+                    {cmd}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
