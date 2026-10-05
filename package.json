@@ -18,7 +18,9 @@
     "db:push": "bun x --bun prisma db push",
     "db:reset": "bun x --bun prisma db push --force-reset --accept-data-loss",
     "db:studio": "bun x --bun prisma studio",
-    "build:server": "esbuild server.tsx --bundle --platform=node --format=esm --packages=external --outfile=server.mjs"
+    "build:server": "esbuild server.tsx --bundle --platform=node --format=esm --packages=external --outfile=server.mjs",
+    "tunnel": "node scripts/tunnel.mjs",
+    "dev:remote": "concurrently \"node server.mjs\" \"vite\" \"node scripts/tunnel.mjs\""
   },
   "dependencies": {
     "@prisma/adapter-libsql": "^7.3.0",
@@ -41,7 +43,8 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.15.3",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "untun": "^0.2.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
