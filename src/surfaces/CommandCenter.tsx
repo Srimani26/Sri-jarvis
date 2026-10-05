@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime } from '@/lib/sound'
+import { jsonAuthHeaders } from '@/lib/api'
 
 function getTimeGreeting() {
   const h = new Date().getHours()
@@ -217,6 +218,95 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        
+        {/* 24/7 AUTONOMOUS REVENUE ENGINE & MIDAS RADAR */}
+        <div className="rounded-3xl border border-emerald-500/40 bg-gradient-to-br from-emerald-950/30 via-slate-900/90 to-slate-950 p-6 backdrop-blur-xl shadow-[0_0_50px_rgba(16,185,129,0.15)] space-y-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono tracking-widest uppercase">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                AGENT MIDAS // 24x7 AUTONOMOUS REVENUE ENGINE
+              </div>
+              <h3 className="text-lg font-black tracking-wide text-white flex items-center gap-2">
+                Autonomous Monetization & Opportunity Scout
+              </h3>
+              <p className="text-xs text-slate-400 font-mono">
+                Working 24/7 while Master Sri rests • Formulating high-ticket AI & SaaS offers
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={async () => {
+                  playJarvisChime('wake')
+                  const res = await fetch('/api/revenue/hunt', {
+                    method: 'POST',
+                    headers: jsonAuthHeaders(),
+                    body: JSON.stringify({ focus: 'High-Ticket Automation for Indian & Global B2B' })
+                  })
+                  if (res.ok) {
+                    playJarvisChime('execute')
+                    alert('Master Sri, Midas has finished the revenue scout cycle! Blueprints synchronized.')
+                  }
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs font-mono tracking-wider uppercase transition-all shadow-[0_0_25px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Scout Opportunities Now
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-emerald-500/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">STREAM 01 // B2B AGENCY</span>
+                <span className="text-xs font-bold text-emerald-300">₹75,000 / deal</span>
+              </div>
+              <h4 className="text-xs font-bold text-white">4-Layer Zoho & WhatsApp Automation</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                Turnkey client quotation & lead-capture pipelines for Tamil Nadu manufacturers & contractors.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-emerald-500/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">STREAM 02 // MICRO-SAAS</span>
+                <span className="text-xs font-bold text-emerald-300">₹1,50,000 / mo</span>
+              </div>
+              <h4 className="text-xs font-bold text-white">Standard Roofs AI Estimator</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                Instant industrial roofing quote generator for contractors from satellite measurements.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-emerald-500/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">STREAM 03 // GLOBAL ARBITRAGE</span>
+                <span className="text-xs font-bold text-emerald-300">$2,500 / retainer</span>
+              </div>
+              <h4 className="text-xs font-bold text-white">Autonomous n8n & AI Agent Swarms</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                High-ticket US/UK automation contracts built autonomously by Aegis & Vortex.
+              </p>
+            </div>
+          </div>
+
+          {/* Mobile Gateway & Auto-Update Banner */}
+          <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono text-slate-300">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+              <span>
+                <strong>MOBILE UPLINK:</strong> Add to Home Screen on your iPhone / Android for 24/7 full-screen access.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-cyan-300 text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              Auto-Sync Gateway Active (Zero Reinstall Needed)
             </div>
           </div>
         </div>

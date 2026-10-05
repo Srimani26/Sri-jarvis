@@ -2060,6 +2060,105 @@ app.get('/memory/recent', requireAuth, async (c) => {
   }
 })
 
+
+// ============================================================================
+// 24/7 AUTONOMOUS REVENUE & OPPORTUNITY SCOUT ENGINE (AGENT MIDAS DAEMON)
+// Runs continuously even while Master Sri rests to find monetization vectors
+// ============================================================================
+app.post('/revenue/hunt', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}))
+    const focus = body.focus || 'High-Ticket AI Automation & SaaS for Tamil Nadu, India and Global B2B'
+
+    const scoutPrompt = `You are Midas (Agent-03), Sovereign Commander Master Sri's Revenue & Monetization Engine.
+You work tirelessly 24/7 to discover, formulate, and deliver actionable ways for Master Sri (Srimanikandan K) to earn substantial revenue.
+
+Master Sri's Profile & Assets:
+- Systems Architect & Business Owner (Erode, Tamil Nadu)
+- Flagships: Standard Roofs (industrial roofing & contracting), Sri AI Business OS, 4-Layer Zoho CRM Deluge automation, n8n webhook pipelines, AI Google Ads Performance Auditor.
+- Subordinate Agents Ready to Build: Aegis (Full-Stack SaaS), Vortex (Heavy Enterprise Automation).
+
+Current Target Focus:
+"${focus}"
+
+Perform an aggressive autonomous revenue scouting analysis. Identify 3 distinct, highly profitable monetization opportunities that can be launched immediately:
+
+Format in clean Markdown:
+### 1. HIGH-TICKET SERVICE / CONTRACT OFFER
+- **Target Client Avatar**: (e.g. Industrial Manufacturers, Hospitals, Roofing Contractors, E-Commerce brands in Coimbatore, Chennai, Bangalore, or US/UK)
+- **Problem Solved**: What manual bleeding friction is eliminated
+- **Offer & Price Point**: (e.g. ₹75,000 setup + ₹20,000/mo retainer, or $2,500 USD)
+- **Subordinate Agent Assignment**: Which agent (Vortex/Aegis) builds it
+- **Ready-to-Send Cold WhatsApp / Email Outreach Script**: Full copy-pasteable script for Master Sri.
+
+### 2. MICRO-SAAS / DIGITAL PRODUCT ENGINE
+- **Product Concept**: (e.g. Instant Satellite Roof Quotation Bot, Zoho Deluge webhook toolkit)
+- **Monthly Recurring Revenue (MRR) Potential**: Realistic 30-day projection
+- **Go-to-Market Strategy**: How to acquire the first 10 paying customers without ad spend.
+
+### 3. GLOBAL FREELANCE / B2B ARBITRAGE BLUEPRINT
+- High-ticket Upwork/direct contract angle and winning proposal template.
+
+Conclude with **Grand Marshal J.A.R.V.I.S. Executive Synthesis**: Exactly what Master Sri should execute first upon waking.`
+
+    const result = await callAI(scoutPrompt, [{ role: 'user', content: focus }])
+
+    // Save into cognitive memory permanently
+    await (prisma as any).memory.create({
+      data: {
+        content: `Midas 24/7 Revenue Blueprint: ${result.text.slice(0, 300)}...`,
+        category: 'revenue_opportunity',
+        importance: 10,
+        tags: 'midas,revenue,autonomous'
+      }
+    }).catch(() => {})
+
+    await (prisma as any).activityLog.create({
+      data: {
+        action: 'revenue_scout_completed',
+        details: 'Midas formulated 3 high-yield monetization opportunities',
+        surface: 'revenue_engine'
+      }
+    }).catch(() => {})
+
+    return c.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      focus,
+      source: result.source,
+      report: result.text,
+      spokenSummary: 'Master Sri, Midas has mapped 3 actionable revenue streams. The blueprints and client outreach copy are ready in your Command Center.'
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.get('/revenue/opportunities', requireAuth, async (c) => {
+  try {
+    const opportunities = await (prisma as any).memory.findMany({
+      where: { category: 'revenue_opportunity' },
+      orderBy: { createdAt: 'desc' },
+      take: 15
+    })
+    return c.json({ opportunities })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// System Version & Gateway Auto-Update Telemetry
+app.get('/system/version', (c) => {
+  return c.json({
+    version: '4.5.0-viceroy',
+    build: '2026.10.05-ae08481',
+    status: 'ONLINE_24x7',
+    uptimeSeconds: Math.floor(process.uptime()),
+    commander: 'Master Sri (Srimanikandan K)',
+    gatewaySync: 'AUTOMATIC_ON_GIT_PUSH'
+  })
+})
+
 app.all('*', (c) =>
   c.json(
     { error: 'Not found', detail: `No API route for ${c.req.method} ${c.req.path}` },
