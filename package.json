@@ -23,6 +23,7 @@
     "dev:remote": "concurrently \"node server.mjs\" \"vite\" \"node scripts/tunnel.mjs\""
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@prisma/adapter-libsql": "^7.3.0",
     "@prisma/client": "^7.3.0",
     "@prisma/internals": "^7.3.0",

@@ -1,3 +1,4 @@
+import { SOVEREIGN_TOOLS, executeSovereignTool, handleMCPJsonRpc } from './src/lib/sovereign-mcp'
 import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
 import { createShogoLlmProvider } from '@shogo-ai/sdk'
@@ -2205,7 +2206,7 @@ app.get('/voice/speak', async (c) => {
     }
 
     // Resilient fallback: Google Translate TTS
-    const ttsUrl = https://translate.google.com/translate_tts?ie=UTF-8&q=&tl=&client=tw-ob
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(clean)}&tl=${lang}&client=tw-ob`
     const audioRes = await fetch(ttsUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -2560,6 +2561,83 @@ app.post('/security/verify-voiceprint', requireAuth, async (c) => {
       clearance: 'LEVEL_10_SUPREME',
       spokenConfirmation: 'Sovereign voiceprint confirmed. Welcome Master Sri.'
     })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ============================================================================
+// SOVEREIGN MODEL CONTEXT PROTOCOL (MCP) BRIDGE & ENTERPRISE TOOLS
+// Full MCP JSON-RPC 2.0, Tool Execution, Full-Stack Scaffolding & Web Scraping
+// ============================================================================
+
+app.get('/mcp/manifest', (c) => {
+  return c.json({
+    server: 'Sri-Sovereign-MCP-Bridge',
+    version: '2.5.0-Harness',
+    status: 'ACTIVE_ONLINE',
+    description: 'Master Sri sovereign autonomous tool server and multi-agent execution bridge',
+    tools: SOVEREIGN_TOOLS,
+    endpoints: {
+      jsonrpc: '/api/mcp/jsonrpc',
+      call: '/api/mcp/call',
+      build: '/api/build/fullstack',
+      scrape: '/api/tools/scrape',
+      automation: '/api/automation/pipeline'
+    }
+  })
+})
+
+app.post('/mcp/call', async (c) => {
+  try {
+    const { tool, arguments: args } = await c.req.json()
+    if (!tool) return c.json({ error: 'tool name required' }, 400)
+    const result = await executeSovereignTool(tool, args || {}, (prompt, msgs) => callAI(prompt, msgs))
+    return c.json(result)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.post('/mcp/jsonrpc', async (c) => {
+  try {
+    const rpcReq = await c.req.json()
+    const rpcRes = await handleMCPJsonRpc(rpcReq, (prompt, msgs) => callAI(prompt, msgs))
+    return c.json(rpcRes)
+  } catch (err: any) {
+    return c.json({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32603, message: `Internal server error: ${err.message}` }
+    }, 500)
+  }
+})
+
+app.post('/build/fullstack', async (c) => {
+  try {
+    const { topic, framework, features } = await c.req.json()
+    const result = await executeSovereignTool('build_fullstack_app', { topic, framework, features }, (prompt, msgs) => callAI(prompt, msgs))
+    return c.json(result)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.post('/tools/scrape', async (c) => {
+  try {
+    const { url, extractType } = await c.req.json()
+    const result = await executeSovereignTool('scrape_web', { url, extractType }, (prompt, msgs) => callAI(prompt, msgs))
+    return c.json(result)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.post('/automation/pipeline', async (c) => {
+  try {
+    const { name, trigger, actions } = await c.req.json()
+    const result = await executeSovereignTool('generate_automation', { name, trigger, actions }, (prompt, msgs) => callAI(prompt, msgs))
+    return c.json(result)
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
