@@ -52,6 +52,137 @@ export function playJarvisChime(type: 'wake' | 'execute' | 'alert' = 'wake') {
       gain.connect(ctx.destination)
       osc.start(now)
       osc.stop(now + 0.3)
+    } else if (type === 'alert') {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sawtooth'
+      osc.frequency.setValueAtTime(600, now)
+      osc.frequency.setValueAtTime(900, now + 0.1)
+      gain.gain.setValueAtTime(0.12, now)
+      gain.gain.linearRampToValueAtTime(0.001, now + 0.3)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(now)
+      osc.stop(now + 0.35)
     }
   } catch {}
+}
+
+let activeAudio: HTMLAudioElement | null = null
+
+export function stopNeuralSpeech() {
+  if (activeAudio) {
+    try {
+      activeAudio.pause()
+      activeAudio.currentTime = 0
+    } catch {}
+    activeAudio = null
+  }
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try {
+      window.speechSynthesis.cancel()
+    } catch {}
+  }
+}
+
+/**
+ * Bulletproof Neural Voice Synthesizer
+ * Uses backend Google Neural Audio stream (/api/voice/speak) for true human audio
+ * Gracefully falls back to browser SpeechSynthesis if offline.
+ */
+export function playNeuralSpeech(
+  text: string,
+  lang: string = 'en-GB',
+  onStart?: () => void,
+  onEnd?: () => void,
+  onError?: () => void
+): HTMLAudioElement | null {
+  if (typeof window === 'undefined') return null
+
+  stopNeuralSpeech()
+
+  // Clean out code blocks, URLs, markdown symbols for clean speech
+  const clean = text
+    .replace(/```[\s\S]*?```/g, 'I have generated the production code and synced it to your Command Center, Sire.')
+    .replace(/https?:\/\/[^\s]+/g, 'link provided on screen.')
+    .replace(/[*_#`~>]/g, '')
+    .replace(/\{[\s\S]*?\}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!clean) {
+    if (onEnd) onEnd()
+    return null
+  }
+
+  try {
+    const encoded = encodeURIComponent(clean.slice(0, 320))
+    const audioUrl = `/api/voice/speak?text=${encoded}&lang=${lang}&t=${Date.now()}`
+    const audio = new Audio(audioUrl)
+    activeAudio = audio
+
+    audio.onplay = () => {
+      if (onStart) onStart()
+    }
+
+    audio.onended = () => {
+      activeAudio = null
+      if (onEnd) onEnd()
+    }
+
+    audio.onerror = () => {
+      console.warn('Streaming neural audio failed, falling back to Web Speech')
+      activeAudio = null
+      fallbackWebSpeech(clean, lang, onStart, onEnd, onError)
+    }
+
+    const p = audio.play()
+    if (p !== undefined) {
+      p.catch((err) => {
+        console.warn('Audio play blocked by browser policy:', err)
+        fallbackWebSpeech(clean, lang, onStart, onEnd, onError)
+      })
+    }
+
+    return audio
+  } catch {
+    fallbackWebSpeech(clean, lang, onStart, onEnd, onError)
+    return null
+  }
+}
+
+function fallbackWebSpeech(
+  cleanText: string,
+  lang: string,
+  onStart?: () => void,
+  onEnd?: () => void,
+  onError?: () => void
+) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) {
+    if (onError) onError()
+    return
+  }
+
+  try {
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(cleanText)
+    const voices = window.speechSynthesis.getVoices()
+
+    const voice =
+      voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2))) ||
+      voices.find(v => v.name.includes('Daniel') || v.name.includes('Oliver') || v.name.includes('Ryan') || v.name.includes('George')) ||
+      voices.find(v => v.lang.startsWith('en'))
+
+    if (voice) utterance.voice = voice
+    utterance.rate = 1.0
+    utterance.pitch = 0.98
+
+    utterance.onstart = () => { if (onStart) onStart() }
+    utterance.onend = () => { if (onEnd) onEnd() }
+    utterance.onerror = () => { if (onError) onError() }
+
+    window.speechSynthesis.speak(utterance)
+  } catch {
+    if (onError) onError()
+  }
 }

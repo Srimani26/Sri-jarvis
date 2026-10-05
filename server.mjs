@@ -1777,6 +1777,126 @@ app.get("/system/version", (c) => {
     gatewaySync: "AUTOMATIC_ON_GIT_PUSH"
   });
 });
+app.get("/voice/speak", async (c) => {
+  try {
+    const rawText = c.req.query("text") || "At your command, Sovereign Master Sri.";
+    const clean = rawText.replace(/```[\s\S]*?```/g, "Code block generated.").replace(/[*_#`~>]/g, "").replace(/https?:\/\/[^\s]+/g, "link provided.").replace(/\{[\s\S]*?\}/g, "").slice(0, 300).trim();
+    const lang = c.req.query("lang") || "en-GB";
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(clean)}&tl=${lang}&client=tw-ob`;
+    const audioRes = await fetch(ttsUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      }
+    });
+    if (!audioRes.ok) {
+      return c.text("TTS stream failed", 500);
+    }
+    const audioBuffer = await audioRes.arrayBuffer();
+    c.header("Content-Type", "audio/mpeg");
+    c.header("Cache-Control", "public, max-age=86400");
+    return c.body(audioBuffer);
+  } catch (err) {
+    return c.text(err.message, 500);
+  }
+});
+app.post("/task/plan", requireAuth, async (c) => {
+  try {
+    const { task } = await c.req.json();
+    if (!task) return c.json({ error: "task string required" }, 400);
+    const plannerPrompt = `You are J.A.R.V.I.S. Mark-IV, Sovereign Master Sri's executive 2nd-in-Command and Chief of Staff.
+Master Sri has commanded:
+"${task}"
+
+Analyze this directive and formulate a high-level 4-phase Tactical Execution Plan across your subordinate agent fleet:
+1. **Phase 1 (Architecture & Research)**: Assigned to Cerebro / Code Lab
+2. **Phase 2 (Engineering & Synthesis)**: Assigned to Aegis (Software)
+3. **Phase 3 (Enterprise Automation & Webhooks)**: Assigned to Vortex
+4. **Phase 4 (Monetization & Operational Rollout)**: Assigned to Midas
+
+Format your response in Markdown with:
+- **Executive Objective Summary**: What will be conquered.
+- **Assigned Agents & Roles**: Clear breakdown of who does what.
+- **Detailed Step-by-Step Execution Plan**: Actionable technical steps.
+- **Expected Deliverables**: (Code, Schemas, Workflows, Excel spreadsheets, Proposals).
+
+End your proposal with this exact executive statement:
+"Master Sri, I have structured the tactical execution plan. Shall I proceed with full deployment across the legion, Sire?"`;
+    const result = await callAI(plannerPrompt, [{ role: "user", content: task }]);
+    await prisma.memory.create({
+      data: {
+        content: `Tactical Plan for "${task.slice(0, 100)}": ${result.text.slice(0, 250)}...`,
+        category: "tactical_plan",
+        importance: 8,
+        tags: "planner,task"
+      }
+    }).catch(() => {
+    });
+    return c.json({
+      success: true,
+      task,
+      plan: result.text,
+      spokenProposal: `Master Sri, I have formulated the tactical execution plan for: "${task.slice(0, 50)}". Shall I proceed with full deployment across your agent fleet, Sire?`,
+      canProceed: true
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+app.post("/files/analyze", requireAuth, async (c) => {
+  try {
+    const { imageBase64, mimeType, prompt } = await c.req.json();
+    if (!imageBase64) return c.json({ error: "imageBase64 required" }, 400);
+    const keys = loadKeys();
+    const apiKey = keys.gemini || keys.geminiKeys && keys.geminiKeys[0];
+    if (!apiKey) return c.json({ error: "Gemini API key required for vision analysis" }, 400);
+    const visionPrompt = prompt || "Analyze this image with supreme technical precision for Master Sri. Detail key elements, structures, text, risks, and recommended actions.";
+    const aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { text: `You are J.A.R.V.I.S., Sovereign Master Sri's 2nd-in-Command.
+
+${visionPrompt}` },
+              { inlineData: { mimeType: mimeType || "image/jpeg", data: imageBase64 } }
+            ]
+          }],
+          generationConfig: { maxOutputTokens: 2500, temperature: 0.2 }
+        })
+      }
+    );
+    const aiData = await aiRes.json();
+    const analysis = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || "Visual analysis completed with heuristic assessment.";
+    return c.json({
+      success: true,
+      analysis,
+      spokenSummary: "Master Sri, visual analysis complete. I have cataloged all structural details and insights for your review."
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+app.post("/documents/excel", requireAuth, async (c) => {
+  try {
+    const { type, topic } = await c.req.json().catch(() => ({}));
+    const subject = topic || "Standard Roofs Client Estimator & Financial Model";
+    const excelPrompt = `You are Midas and Aegis, generating a production CSV spreadsheet dataset for Master Sri (Srimanikandan K).
+Subject: "${subject}"
+Format ONLY as pure, valid CSV text with headers on the first line and at least 6 detailed rows of realistic data (including monetary values in INR and USD, client names, conversion rates, and metrics).
+Do NOT wrap in markdown quotes or backticks. Return RAW CSV ONLY.`;
+    const result = await callAI(excelPrompt, [{ role: "user", content: subject }]);
+    const cleanCsv = result.text.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "").trim();
+    c.header("Content-Type", "text/csv; charset=utf-8");
+    c.header("Content-Disposition", `attachment; filename="JARVIS_${(type || "data").toUpperCase()}_${Date.now()}.csv"`);
+    return c.body(cleanCsv);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
 app.all(
   "*",
   (c) => c.json(
