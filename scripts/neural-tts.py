@@ -15,7 +15,7 @@ VOICE_MAP = {
     'en-IN': 'en-IN-PrabhatNeural',
     'cerebro': 'en-CA-LiamNeural',
     'en-CA': 'en-CA-LiamNeural',
-    'stark_os': 'en-GB-AlfieNeural',
+    'stark_os': 'en-GB-ThomasNeural',
 }
 
 async def synthesize(text, voice_key, out_path=None):

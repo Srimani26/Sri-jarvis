@@ -2924,21 +2924,46 @@ app.get("/voice/speak", async (c) => {
     const rawText = c.req.query("text") || "At your command, Sovereign Master Sri.";
     const clean = rawText.replace(/`[\s\S]*?`/g, "Code block generated.").replace(/[*_#~>]/g, "").replace(/https?:\/\/[^\s]+/g, "link provided.").replace(/\{[\s\S]*?\}/g, "").slice(0, 450).trim();
     const lang = c.req.query("lang") || "en-GB";
+    const audioDir = join2(process.cwd(), "public", "audio");
+    let staticFile = null;
     if (clean.includes("greetings and welcome back") || clean.includes("Master Sri, greetings")) {
-      const welcomePath = join2(process.cwd(), "public", "welcome.mp3");
-      if (existsSync(welcomePath)) {
-        c.header("Content-Type", "audio/mpeg");
-        c.header("Cache-Control", "public, max-age=86400");
-        return c.body(readFileSync(welcomePath));
-      }
+      staticFile = join2(process.cwd(), "public", "welcome.mp3");
+    } else if (clean.includes("J.A.R.V.I.S. Grand Marshal core reporting") || clean.includes("commanding the subordinate")) {
+      staticFile = join2(audioDir, "rollcall_jarvis.mp3");
+    } else if (clean.includes("I am Aegis") || clean.includes("Aegis online")) {
+      staticFile = join2(audioDir, "rollcall_aegis.mp3");
+    } else if (clean.includes("I am Vortex") || clean.includes("Vortex operational")) {
+      staticFile = join2(audioDir, "rollcall_vortex.mp3");
+    } else if (clean.includes("I am Midas") || clean.includes("Midas at your service")) {
+      staticFile = join2(audioDir, "rollcall_midas.mp3");
+    } else if (clean.includes("I am Cerebro") || clean.includes("Cerebro activated")) {
+      staticFile = join2(audioDir, "rollcall_cerebro.mp3");
+    } else if (clean.includes("I am Stark OS") || clean.includes("Stark OS here")) {
+      staticFile = join2(audioDir, "rollcall_stark.mp3");
+    } else if (clean.includes("all agents are live, synchronized")) {
+      staticFile = join2(audioDir, "rollcall_conclusion.mp3");
+    }
+    if (staticFile && existsSync(staticFile)) {
+      c.header("Content-Type", "audio/mpeg");
+      c.header("Cache-Control", "public, max-age=86400");
+      return c.body(readFileSync(staticFile));
     }
     try {
       const { execFileSync } = await import("node:child_process");
       const scriptPath = join2(process.cwd(), "scripts", "neural-tts.py");
-      const audioBuffer2 = execFileSync("python", [scriptPath, "--text", clean, "--voice", lang], {
-        maxBuffer: 10 * 1024 * 1024,
-        timeout: 7e3
-      });
+      const pyBin = process.platform === "win32" ? "python" : "python3";
+      let audioBuffer2 = null;
+      try {
+        audioBuffer2 = execFileSync(pyBin, [scriptPath, "--text", clean, "--voice", lang], {
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 8e3
+        });
+      } catch {
+        audioBuffer2 = execFileSync("python", [scriptPath, "--text", clean, "--voice", lang], {
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 8e3
+        });
+      }
       if (audioBuffer2 && audioBuffer2.length > 500) {
         c.header("Content-Type", "audio/mpeg");
         c.header("Cache-Control", "public, max-age=86400");

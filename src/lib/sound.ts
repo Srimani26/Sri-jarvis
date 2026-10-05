@@ -115,9 +115,29 @@ export function playNeuralSpeech(
     return null
   }
 
+  // Match static pre-rendered studio quality audio
+  let staticAudioPath: string | null = null
+  if (clean.includes('greetings and welcome back') || clean.includes('Master Sri, greetings')) {
+    staticAudioPath = '/audio/welcome.mp3'
+  } else if (clean.includes('J.A.R.V.I.S. Grand Marshal core reporting') || clean.includes('commanding the subordinate')) {
+    staticAudioPath = '/audio/rollcall_jarvis.mp3'
+  } else if (clean.includes('I am Aegis') || clean.includes('Aegis online')) {
+    staticAudioPath = '/audio/rollcall_aegis.mp3'
+  } else if (clean.includes('I am Vortex') || clean.includes('Vortex operational')) {
+    staticAudioPath = '/audio/rollcall_vortex.mp3'
+  } else if (clean.includes('I am Midas') || clean.includes('Midas at your service')) {
+    staticAudioPath = '/audio/rollcall_midas.mp3'
+  } else if (clean.includes('I am Cerebro') || clean.includes('Cerebro activated')) {
+    staticAudioPath = '/audio/rollcall_cerebro.mp3'
+  } else if (clean.includes('I am Stark OS') || clean.includes('Stark OS here')) {
+    staticAudioPath = '/audio/rollcall_stark.mp3'
+  } else if (clean.includes('all agents are live, synchronized')) {
+    staticAudioPath = '/audio/rollcall_conclusion.mp3'
+  }
+
   try {
     const encoded = encodeURIComponent(clean.slice(0, 320))
-    const audioUrl = `/api/voice/speak?text=${encoded}&lang=${lang}&t=${Date.now()}`
+    const audioUrl = staticAudioPath || `/api/voice/speak?text=${encoded}&lang=${lang}&t=${Date.now()}`
     const audio = new Audio(audioUrl)
     activeAudio = audio
 
