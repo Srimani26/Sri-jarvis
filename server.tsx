@@ -1,3 +1,13 @@
+// SOVEREIGN ZERO-CRASH SHIELD: Intercept all uncaught exceptions & unhandled rejections
+// Ensures J.A.R.V.I.S. server runtime NEVER shuts down or terminates under any circumstance
+process.on('uncaughtException', (err) => {
+  console.error('🛡️ [SOVEREIGN ZERO-CRASH SHIELD] Intercepted uncaught exception (kept alive):', err?.message || err)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('🛡️ [SOVEREIGN ZERO-CRASH SHIELD] Intercepted unhandled rejection (kept alive):', reason)
+})
+
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Shogo Technologies, Inc.
 /**
