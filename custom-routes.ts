@@ -1,3 +1,4 @@
+import { ensureDatabaseTables } from './src/lib/ensure-db'
 import { SOVEREIGN_TOOLS, executeSovereignTool, handleMCPJsonRpc } from './src/lib/sovereign-mcp'
 import { Hono } from 'hono'
 import {
@@ -327,6 +328,9 @@ async function persistSession(data: { userId: string; token: string; deviceInfo?
 
 // POST /api/auth/register
 app.post('/auth/register', async (c) => {
+  try {
+    await ensureDatabaseTables()
+  } catch {}
   const body = await c.req.json().catch(() => ({}))
   const { username, password, inviteCode } = body as Record<string, unknown>
 
@@ -390,9 +394,29 @@ app.post('/auth/reset-password', async (c) => {
 
 // POST /api/auth/login
 app.post('/auth/login', async (c) => {
+  try {
+    await ensureDatabaseTables()
+  } catch {}
+
   const body = await c.req.json()
   const { username, password, deviceInfo } = body
   if (!username || !password) return c.json({ error: 'Username and password required' }, 400)
+
+  // Auto-bootstrap Sovereign Master Sri if this is a fresh database
+  try {
+    const totalUsers = await (prisma as any).authUser.count()
+    if (totalUsers === 0) {
+      const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
+      const newUser = await (prisma as any).authUser.create({
+        data: { username, passwordHash }
+      })
+      const token = newSessionToken(newUser.id, newUser.username)
+      await persistSession({ userId: newUser.id, token, deviceInfo })
+      return c.json({ token, user: { id: newUser.id, username: newUser.username, twoFactorEnabled: false } })
+    }
+  } catch (initErr) {
+    console.warn('Auto-bootstrap notice:', initErr)
+  }
 
   const user = await (prisma as any).authUser.findUnique({ where: { username } })
   if (!user) return c.json({ error: 'Invalid credentials' }, 401)
@@ -822,11 +846,13 @@ function syncKeysToPool() {
   }
 }
 syncKeysToPool()
+ensureDatabaseTables().catch(() => {})
 
 function saveKeys(keys: ProviderKeys) {
   writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2))
   try { chmodSync(KEYS_FILE, 0o600) } catch {}
   syncKeysToPool()
+ensureDatabaseTables().catch(() => {})
 }
 
 // Direct provider calls — used as extra MoA links when Sri supplies his own key
