@@ -2847,7 +2847,7 @@ Write 2 to 3 natural, conversational, highly professional paragraphs (100 to 180
     } else {
       spokenSummary = `Master Sri, I have executed your directive for ${agent.name}. All technical deliverables, production blueprints, and operational steps have been synchronized to your Command Center. What specific facet would you like to review first?`;
     }
-    spokenSummary = spokenSummary.replace(/[*_#`~>]/g, "").replace(/https?:\/\/[^\s]+/g, "the link on your screen").replace(/\{[\s\S]*?\}/g, "").replace(/\s+/g, " ").trim();
+    spokenSummary = spokenSummary.replace(/\(?FOR NEURAL VOICE SYNTHESIS\)?/gi, "").replace(/###?\s*SPOKEN\s*EXECUTIVE\s*SUMMARY/gi, "").replace(/[*_#`~>]/g, "").replace(/https?:\/\/[^\s]+/g, "the link on your screen").replace(/\{[\s\S]*?\}/g, "").replace(/\s+/g, " ").trim();
     await prisma.activityLog.create({
       data: { action: "agent_dispatched", details: `${agent.name} executed task: ${task.slice(0, 80)}`, surface: "agent_ecosystem" }
     }).catch(() => {

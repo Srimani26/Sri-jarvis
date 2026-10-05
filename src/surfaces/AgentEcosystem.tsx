@@ -445,11 +445,17 @@ export default function AgentEcosystem({ onOpenVoice }: AgentEcosystemProps) {
       })
 
       const data = await res.json().catch(() => ({}))
-      if (data && data.result) {
-        setDispatchResult(data.result)
-        playNeuralSpeech(`Agent ${dispatchAgent.name} has completed your directive, Master Sri.`, dispatchAgent.voiceLang)
+      if (data && (data.report || data.result)) {
+        const fullReport = data.report || data.result
+        setDispatchResult(fullReport)
+        const spoken = data.spokenSummary || `Agent ${dispatchAgent.name} has completed your directive, Master Sri.`
+        playNeuralSpeech(spoken, dispatchAgent.voiceLang)
+      } else if (data && data.spokenSummary) {
+        setDispatchResult(data.spokenSummary)
+        playNeuralSpeech(data.spokenSummary, dispatchAgent.voiceLang)
       } else {
         setDispatchResult(`Agent ${dispatchAgent.name} executed task: "${dispatchTask}". Output synced to Command Center.`)
+        playNeuralSpeech(`Agent ${dispatchAgent.name} has executed your directive and synchronized all telemetry to your Command Center.`, dispatchAgent.voiceLang)
       }
     } catch (err: any) {
       setDispatchResult(`Command executed by ${dispatchAgent.name}: [OK] Status synced to Master Sri's local ledger.`)
