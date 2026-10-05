@@ -1,14 +1,17 @@
-FROM oven/bun:latest AS base
+FROM node:20-slim AS base
 WORKDIR /app
 
-COPY package.json ./
-RUN bun install --production
+RUN apt-get update && apt-get install -y python3 python3-pip curl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json* ./
+RUN npm install
 
 COPY . .
-RUN bun run build
+RUN npm run build
+RUN npm run build:server
 
 EXPOSE 3001
 ENV PORT=3001
 ENV NODE_ENV=production
 
-CMD ["bun", "run", "server.tsx"]
+CMD ["node", "server.mjs"]

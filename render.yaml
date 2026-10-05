@@ -1,11 +1,13 @@
 services:
   - type: web
-    name: jarvis-mark-iv
-    runtime: docker
+    name: sri-jarvis
+    runtime: node
     plan: free
     region: singapore
+    buildCommand: npm install && npm run build && npm run build:server
+    startCommand: node server.mjs
     envVars:
-      - key: PORT
-        value: 3001
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000
