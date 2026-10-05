@@ -25,7 +25,7 @@ import {
   LayoutDashboard, MessageSquare, Layers, Code2, Workflow,
   CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe,
   Menu, X, Settings, Lock, Shield, ShieldAlert, LogOut, Eye, EyeOff, AlertTriangle,
-  ChevronRight, MemoryStick, Link2, Fingerprint, UserRound, Bot
+  ChevronRight, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
