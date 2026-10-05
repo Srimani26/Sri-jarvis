@@ -2168,15 +2168,44 @@ app.get('/voice/speak', async (c) => {
   try {
     const rawText = c.req.query('text') || 'At your command, Sovereign Master Sri.'
     const clean = rawText
-      .replace(/```[\s\S]*?```/g, 'Code block generated.')
-      .replace(/[*_#`~>]/g, '')
+      .replace(/`[\s\S]*?`/g, 'Code block generated.')
+      .replace(/[*_#~>]/g, '')
       .replace(/https?:\/\/[^\s]+/g, 'link provided.')
       .replace(/\{[\s\S]*?\}/g, '')
-      .slice(0, 300)
+      .slice(0, 450)
       .trim()
 
     const lang = c.req.query('lang') || 'en-GB'
-    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(clean)}&tl=${lang}&client=tw-ob`
+
+    // Fast static path for welcome greeting
+    if (clean.includes('greetings and welcome back') || clean.includes('Master Sri, greetings')) {
+      const welcomePath = join(process.cwd(), 'public', 'welcome.mp3')
+      if (existsSync(welcomePath)) {
+        c.header('Content-Type', 'audio/mpeg')
+        c.header('Cache-Control', 'public, max-age=86400')
+        return c.body(readFileSync(welcomePath))
+      }
+    }
+
+    // High-fidelity neural human voice synthesis (edge-tts)
+    try {
+      const { execFileSync } = await import('node:child_process')
+      const scriptPath = join(process.cwd(), 'scripts', 'neural-tts.py')
+      const audioBuffer = execFileSync('python', [scriptPath, '--text', clean, '--voice', lang], {
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 7000
+      })
+      if (audioBuffer && audioBuffer.length > 500) {
+        c.header('Content-Type', 'audio/mpeg')
+        c.header('Cache-Control', 'public, max-age=86400')
+        return c.body(audioBuffer)
+      }
+    } catch (e: any) {
+      console.warn('[TTS] neural-tts fallback to Google TTS:', e?.message)
+    }
+
+    // Resilient fallback: Google Translate TTS
+    const ttsUrl = https://translate.google.com/translate_tts?ie=UTF-8&q=&tl=&client=tw-ob
     const audioRes = await fetch(ttsUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -2196,10 +2225,6 @@ app.get('/voice/speak', async (c) => {
   }
 })
 
-// ============================================================================
-// CHIEF OF STAFF TACTICAL PLANNER & PROPOSAL ENGINE
-// Formulates 4-Phase Multi-Agent Execution Plans before taking action
-// ============================================================================
 app.post('/task/plan', requireAuth, async (c) => {
   try {
     const { task } = await c.req.json()

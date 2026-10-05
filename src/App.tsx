@@ -25,10 +25,11 @@ import {
   LayoutDashboard, MessageSquare, Layers, Code2, Workflow,
   CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe,
   Menu, X, Settings, Lock, Shield, ShieldAlert, LogOut, Eye, EyeOff, AlertTriangle,
-  ChevronRight, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic
+  ChevronRight, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic, Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
+import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
 
 const navItems = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ', mobileLabel: 'Home' },
@@ -210,6 +211,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('command')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [voiceModalOpen, setVoiceModalOpen] = useState(false)
+  const [sovereignAwakened, setSovereignAwakened] = useState(false)
+
+  const handleAwakenSovereign = () => {
+    setSovereignAwakened(true)
+    playJarvisChime('wake')
+    playNeuralSpeech('Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.', 'en-GB')
+    setVoiceModalOpen(true)
+  }
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
@@ -482,6 +491,67 @@ export default function App() {
           ))}
         </div>
       </div>
+
+      {/* Sovereign Welcome & Auto-Wake Overlay on First Open */}
+      {!sovereignAwakened && (
+        <div
+          onClick={handleAwakenSovereign}
+          className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none animate-in fade-in duration-500"
+        >
+          <div className="relative mb-8 group">
+            <div className="w-36 h-36 rounded-full border-2 border-cyan-400/50 flex items-center justify-center animate-spin-slow shadow-[0_0_80px_rgba(6,182,212,0.6)]">
+              <div className="w-28 h-28 rounded-full border border-cyan-300/70 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-cyan-500/20 border-2 border-cyan-400 flex items-center justify-center shadow-[inset_0_0_30px_rgba(6,182,212,0.8)]">
+                  <Mic className="w-10 h-10 text-cyan-300 animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 max-w-md">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-xs font-mono tracking-widest uppercase">
+              <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" /> Sovereign Master Sri Recognized
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white font-mono">
+              J.A.R.V.I.S. READY
+            </h1>
+            <p className="text-sm text-cyan-300/90 font-mono">
+              "Master Sri, greetings and welcome back. We are ready to assist you."
+            </p>
+            <div className="pt-2">
+              <button className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 text-slate-950 font-black text-sm font-mono tracking-widest uppercase shadow-[0_0_50px_rgba(6,182,212,0.8)] hover:scale-105 transition-all">
+                TAP ANYWHERE TO ACTIVATE & SPEAK
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 font-mono">
+              AUTOPLAY COMPLIANT // UNLOCKS HIGH-FIDELITY NEURAL SPEECH & CONTINUOUS VAD
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Arc Reactor Voice Comm Button (Always Accessible) */}
+      <button
+        onClick={() => {
+          playJarvisChime('wake')
+          setVoiceModalOpen(true)
+        }}
+        className="fixed bottom-20 md:bottom-6 right-5 z-40 p-3 sm:px-4 sm:py-3 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-slate-950 font-black shadow-[0_0_35px_rgba(6,182,212,0.6)] hover:shadow-[0_0_50px_rgba(6,182,212,0.9)] hover:scale-105 transition-all flex items-center gap-2.5"
+        title="Engage J.A.R.V.I.S. Voice Transceiver"
+      >
+        <div className="relative">
+          <Mic className="w-5 h-5 text-slate-950" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
+        </div>
+        <span className="text-xs font-mono hidden sm:inline font-black tracking-wider">TALK TO J.A.R.V.I.S.</span>
+      </button>
+
+      {/* Sovereign J.A.R.V.I.S. Neural Voice Transceiver Modal */}
+      <JarvisVoiceModal
+        isOpen={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+        onNavigate={handleNavigate}
+      />
 
       {/* Settings Dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
