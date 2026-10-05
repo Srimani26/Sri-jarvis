@@ -86,7 +86,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono tracking-widest uppercase">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
-              STARK INDUSTRIES // J.A.R.V.I.S. MARK-IV ACTIVE
+              SRI'S J.A.R.V.I.S. MARK-V // SOVEREIGN CYBER GUARDIAN ACTIVE
             </div>
 
             <div>
@@ -96,6 +96,22 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
               <p className="text-xs text-slate-300 mt-1 font-mono">
                 Arc Reactor at {coreOutput}% | All 8 Sub-Agent Swarms Online | 2,001 Public APIs Armed
               </p>
+            </div>
+
+            {/* Cyber Guardian & Self-Evolution Live Status */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono">
+                <Shield className="w-3 h-3 text-emerald-400" />
+                SOVEREIGN BIOMETRIC LOCK: VERIFIED MASTER SRI
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-mono">
+                <Brain className="w-3 h-3 text-purple-400" />
+                DEEPSEEK HARNESS: SELF-EVOLUTION ONLINE
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono">
+                <Activity className="w-3 h-3 text-cyan-400" />
+                24/7 NEVER-SHUTDOWN UPTIME DAEMON: ACTIVE
+              </span>
             </div>
 
             <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
@@ -278,7 +294,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
                 <span className="text-[10px] font-mono text-emerald-400 font-bold">STREAM 02 // MICRO-SAAS</span>
                 <span className="text-xs font-bold text-emerald-300">₹1,50,000 / mo</span>
               </div>
-              <h4 className="text-xs font-bold text-white">Standard Roofs AI Estimator</h4>
+              <h4 className="text-xs font-bold text-white">Sri's Autonomous AI Estimator & B2B Pipeline</h4>
               <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
                 Instant industrial roofing quote generator for contractors from satellite measurements.
               </p>
