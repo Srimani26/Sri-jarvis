@@ -15,7 +15,12 @@ import {
   buildSovereignSwarm,
   Crew,
   BrowserUseScraper,
-  MetaGPTSOPEngine
+  MetaGPTSOPEngine,
+  AutonomousAgentFoundry,
+  OpenHandsAgent,
+  SmolAgentEngine,
+  CamelCommunicativeAgent,
+  LangGraphSupervisor
 } from './src/lib/open-agents'
 
 import { stream } from 'hono/streaming'
@@ -2884,6 +2889,119 @@ app.post('/agents/metagpt/synthesize', requireAuth, async (c) => {
       success: true,
       project,
       spokenSummary: `Master Sri, MetaGPT software synthesis complete for "${appIdea}". PRD, system architecture, and production code synthesized.`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ============================================================================
+// SOVEREIGN AUTONOMOUS AGENT FOUNDRY (ANTIGRAVITY-STYLE DYNAMIC AGENT SPAWNER)
+// Allows J.A.R.V.I.S. to dynamically spawn brand-new agents for any product/task
+// ============================================================================
+app.post('/agents/foundry/spawn', requireAuth, async (c) => {
+  try {
+    const { productOrTask, customInstructions } = await c.req.json()
+    if (!productOrTask) return c.json({ error: 'productOrTask required' }, 400)
+
+    const foundry = new AutonomousAgentFoundry((sys, msgs) => callAI(sys, msgs))
+    const manifest = await foundry.spawnAgentForProduct(productOrTask, customInstructions)
+
+    // Persist into cognitive memory so it is remembered across all sessions
+    await (prisma as any).memory.create({
+      data: {
+        content: `Dynamic Agent Spawned: ${manifest.name} (${manifest.title}) for domain: ${manifest.productDomain}. Skills: ${manifest.skills.map(s => s.name).join(', ')}`,
+        category: 'dynamic_agent',
+        importance: 10,
+        tags: `agent,${manifest.id},${manifest.productDomain}`
+      }
+    }).catch(() => {})
+
+    return c.json({
+      success: true,
+      agent: manifest,
+      spokenSummary: `Master Sri, I have constructed and registered your new autonomous agent: ${manifest.name}, specializing in ${manifest.productDomain}. It is now live in your fleet.`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.get('/agents/foundry/list', requireAuth, (c) => {
+  const agents = AutonomousAgentFoundry.getSpawnedAgents()
+  return c.json({
+    success: true,
+    count: agents.length,
+    agents
+  })
+})
+
+// ============================================================================
+// OPENHANDS AUTONOMOUS SOFTWARE ENGINEERING AGENT
+// ============================================================================
+app.post('/agents/openhands/execute', requireAuth, async (c) => {
+  try {
+    const { task } = await c.req.json()
+    const mission = task || 'Build production-ready Next.js 15 enterprise landing page'
+    const engineer = new OpenHandsAgent((sys, msgs) => callAI(sys, msgs))
+    const result = await engineer.executeSoftwareMission(mission)
+    return c.json({
+      success: true,
+      ...result,
+      spokenSummary: `Master Sri, OpenHands autonomous software engineering mission complete. Code artifacts synthesized and verified.`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ============================================================================
+// SMOLAGENTS CODE-FIRST HIGH-SPEED ACTION RUNNER
+// ============================================================================
+app.post('/agents/smol/action', requireAuth, async (c) => {
+  try {
+    const { query } = await c.req.json()
+    const smol = new SmolAgentEngine((sys, msgs) => callAI(sys, msgs))
+    const result = await smol.runCodeAction(query || 'Calculate compound revenue growth model')
+    return c.json({
+      success: true,
+      ...result
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ============================================================================
+// CAMEL-AI COMMUNICATIVE AGENT SOCIETY (INCEPTION PROMPTING)
+// ============================================================================
+app.post('/agents/camel/society', requireAuth, async (c) => {
+  try {
+    const { objective } = await c.req.json()
+    const camel = new CamelCommunicativeAgent((sys, msgs) => callAI(sys, msgs))
+    const result = await camel.runSocietyConvergence(objective || 'Design high-ticket B2B enterprise AI licensing contract')
+    return c.json({
+      success: true,
+      ...result
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ============================================================================
+// LANGGRAPH SUPERVISOR & STATEFUL CYCLICAL GRAPH WORKFLOW
+// ============================================================================
+app.post('/agents/langgraph/workflow', requireAuth, async (c) => {
+  try {
+    const { mission } = await c.req.json()
+    const supervisor = new LangGraphSupervisor((sys, msgs) => callAI(sys, msgs))
+    const graphState = await supervisor.executeGraph(mission || 'Full enterprise product deployment and monetization pipeline')
+    return c.json({
+      success: true,
+      graphState,
+      spokenSummary: `Master Sri, LangGraph stateful multi-agent cyclical workflow executed successfully through all nodes.`
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
