@@ -2292,19 +2292,39 @@ app.get('/voice/speak', async (c) => {
     let staticFile: string | null = null
     if (clean.includes('greetings and welcome back') || clean.includes('Master Sri, greetings')) {
       staticFile = join(process.cwd(), 'public', 'welcome.mp3')
-    } else if (clean.includes('J.A.R.V.I.S. Grand Marshal core reporting') || clean.includes('commanding the subordinate')) {
+    } else if (clean.includes('J.A.R.V.I.S. Grand Marshal core reporting') || clean.includes('commanding the subordinate') || clean.includes('commanding the supreme intelligence swarm')) {
       staticFile = join(audioDir, 'rollcall_jarvis.mp3')
-    } else if (clean.includes('I am Aegis') || clean.includes('Aegis online')) {
+    } else if (clean.includes('I am Aegis')) {
       staticFile = join(audioDir, 'rollcall_aegis.mp3')
-    } else if (clean.includes('I am Vortex') || clean.includes('Vortex operational')) {
+    } else if (clean.includes('I am Vortex')) {
       staticFile = join(audioDir, 'rollcall_vortex.mp3')
-    } else if (clean.includes('I am Midas') || clean.includes('Midas at your service')) {
+    } else if (clean.includes('I am Midas')) {
       staticFile = join(audioDir, 'rollcall_midas.mp3')
-    } else if (clean.includes('I am Cerebro') || clean.includes('Cerebro activated')) {
+    } else if (clean.includes('I am Cerebro')) {
       staticFile = join(audioDir, 'rollcall_cerebro.mp3')
-    } else if (clean.includes('I am Stark OS') || clean.includes('Stark OS here')) {
+    } else if (clean.includes('I am Stark OS')) {
       staticFile = join(audioDir, 'rollcall_stark.mp3')
-    } else if (clean.includes('all agents are live, synchronized')) {
+    } else if (clean.includes('I am DeepSeek')) {
+      staticFile = join(audioDir, 'rollcall_deepseek.mp3')
+    } else if (clean.includes('I am AutoGen')) {
+      staticFile = join(audioDir, 'rollcall_autogen.mp3')
+    } else if (clean.includes('I am CrewAI')) {
+      staticFile = join(audioDir, 'rollcall_crewai.mp3')
+    } else if (clean.includes('I am Browser-Use')) {
+      staticFile = join(audioDir, 'rollcall_browser_use.mp3')
+    } else if (clean.includes('I am MetaGPT')) {
+      staticFile = join(audioDir, 'rollcall_metagpt.mp3')
+    } else if (clean.includes('I am Agent Foundry')) {
+      staticFile = join(audioDir, 'rollcall_foundry.mp3')
+    } else if (clean.includes('I am OpenHands')) {
+      staticFile = join(audioDir, 'rollcall_openhands.mp3')
+    } else if (clean.includes('I am Smolagents')) {
+      staticFile = join(audioDir, 'rollcall_smolagent.mp3')
+    } else if (clean.includes('I am CAMEL')) {
+      staticFile = join(audioDir, 'rollcall_camel.mp3')
+    } else if (clean.includes('I am LangGraph')) {
+      staticFile = join(audioDir, 'rollcall_langgraph.mp3')
+    } else if (clean.includes('all 16 Sovereign Agents are fully armed') || clean.includes('all agents are live, synchronized') || clean.includes('all 16 Sovereign Agents')) {
       staticFile = join(audioDir, 'rollcall_conclusion.mp3')
     }
 

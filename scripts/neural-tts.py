@@ -16,6 +16,16 @@ VOICE_MAP = {
     'cerebro': 'en-CA-LiamNeural',
     'en-CA': 'en-CA-LiamNeural',
     'stark_os': 'en-GB-ThomasNeural',
+    'deepseek': 'en-US-EricNeural',
+    'autogen': 'en-GB-RyanNeural',
+    'crewai': 'en-US-RogerNeural',
+    'browser_use': 'en-IE-ConnorNeural',
+    'metagpt': 'en-US-GuyNeural',
+    'foundry': 'en-US-SteffanNeural',
+    'openhands': 'en-NZ-MitchellNeural',
+    'smolagent': 'en-SG-WayneNeural',
+    'camel': 'en-ZA-LukeNeural',
+    'langgraph': 'en-US-AndrewNeural'
 }
 
 async def synthesize(text, voice_key, out_path=None):
