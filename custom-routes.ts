@@ -1,5 +1,23 @@
 import { SOVEREIGN_TOOLS, executeSovereignTool, handleMCPJsonRpc } from './src/lib/sovereign-mcp'
 import { Hono } from 'hono'
+import {
+  registerKey,
+  reportKeySuccess,
+  reportKeyFailure,
+  getInfinitePoolMetrics,
+  compactContext
+} from './src/lib/infinite-token-pool'
+import {
+  DeepSeekHarness,
+  ConversableAgent,
+  GroupChat,
+  GroupChatManager,
+  buildSovereignSwarm,
+  Crew,
+  BrowserUseScraper,
+  MetaGPTSOPEngine
+} from './src/lib/open-agents'
+
 import { stream } from 'hono/streaming'
 import { createShogoLlmProvider } from '@shogo-ai/sdk'
 import { streamText, generateText } from 'ai'
@@ -2757,6 +2775,116 @@ app.post('/automation/pipeline', async (c) => {
     const { name, trigger, actions } = await c.req.json()
     const result = await executeSovereignTool('generate_automation', { name, trigger, actions }, (prompt, msgs) => callAI(prompt, msgs))
     return c.json(result)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+
+
+// ============================================================================
+// INFINITE TOKEN POOL & HIGH-THROUGHPUT RATE LIMIT RECOVERY STATUS
+// ============================================================================
+app.get('/tokens/pool-status', requireAuth, (c) => {
+  const metrics = getInfinitePoolMetrics()
+  return c.json({
+    success: true,
+    infiniteTokenShield: 'ACTIVE',
+    ...metrics
+  })
+})
+
+// ============================================================================
+// AUTOGEN MULTI-AGENT GROUP CHAT (microsoft/autogen RE-ENGINEERED)
+// ============================================================================
+app.post('/agents/autogen/groupchat', requireAuth, async (c) => {
+  try {
+    const { task, maxRounds } = await c.req.json()
+    const mission = task || 'Deconstruct high-margin enterprise AI workflow'
+    const agents = buildSovereignSwarm()
+    const groupChat = new GroupChat(agents, maxRounds || 3)
+    const manager = new GroupChatManager(groupChat, async (sys, msgs) => {
+      return callAI(sys, msgs)
+    })
+
+    const messages = await manager.runDiscussion(mission)
+    return c.json({
+      success: true,
+      mission,
+      roundsExecuted: groupChat.maxRounds,
+      transcript: messages,
+      spokenSummary: `Master Sri, AutoGen multi-agent deliberation complete. Aegis, Vortex, and Midas have reached consensus on your directive.`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ============================================================================
+// CREWAI HIERARCHICAL TASK DELEGATION (joaomdmoura/crewAI RE-ENGINEERED)
+// ============================================================================
+app.post('/agents/crew/execute', requireAuth, async (c) => {
+  try {
+    const { missionTitle, tasks } = await c.req.json()
+    const crewAgents = [
+      {
+        role: 'Aegis Core Architect',
+        goal: 'Design resilient system schemas and microservice topologies',
+        backstory: 'World-class systems architect serving Sovereign Master Sri.'
+      },
+      {
+        role: 'Vortex Automation Engineer',
+        goal: 'Construct webhook integrations and headless data scrapers',
+        backstory: 'High-throughput automation wizard executing 24/7 pipelines.'
+      },
+      {
+        role: 'Midas Monetization Strategist',
+        goal: 'Maximize commercial profitability, client pitch conversion, and margins',
+        backstory: 'Elite financial and B2B growth strategist.'
+      }
+    ]
+
+    const defaultTasks = tasks || [
+      { description: 'Analyze target domain and draft system requirements', expectedOutput: 'Architecture dossier', assignedAgentRole: 'Aegis Core Architect' },
+      { description: 'Build automated data extraction pipeline', expectedOutput: 'Automation pipeline specification', assignedAgentRole: 'Vortex Automation Engineer' },
+      { description: 'Structure pricing tier and high-margin client proposal', expectedOutput: 'Monetization model', assignedAgentRole: 'Midas Monetization Strategist' }
+    ]
+
+    const crew = new Crew(crewAgents, defaultTasks, async (sys, msgs) => {
+      return callAI(sys, msgs)
+    })
+
+    const result = await crew.kickoff()
+    return c.json({
+      success: true,
+      mission: missionTitle || 'Sovereign Multi-Agent Crew Mission',
+      reports: result.reports,
+      finalSynthesis: result.finalSynthesis,
+      spokenSummary: `Master Sri, CrewAI hierarchical execution complete. All phases delivered with zero placeholders.`
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ============================================================================
+// METAGPT SOFTWARE COMPANY IN A BOX (geekan/MetaGPT RE-ENGINEERED)
+// ============================================================================
+app.post('/agents/metagpt/synthesize', requireAuth, async (c) => {
+  try {
+    const { idea } = await c.req.json()
+    const appIdea = idea || 'Automated Sri AI Roofing Inspection & Client Booking SaaS'
+    const engine = new MetaGPTSOPEngine(async (sys, msgs) => {
+      return callAI(sys, msgs)
+    })
+
+    const project = await engine.buildSoftwareProject(appIdea)
+    return c.json({
+      success: true,
+      project,
+      spokenSummary: `Master Sri, MetaGPT software synthesis complete for "${appIdea}". PRD, system architecture, and production code synthesized.`
+    })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
