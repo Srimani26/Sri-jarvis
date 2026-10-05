@@ -1,6 +1,9 @@
 // server.tsx
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import { join as join3 } from "node:path";
 
 // src/lib/sovereign-mcp.ts
 import { execFile } from "child_process";
@@ -3248,11 +3251,19 @@ app2.use("*", async (c, next) => {
   if (c.req.method === "OPTIONS") return c.text("", 204);
   await next();
 });
-app2.get("/health", (c) => c.json({ ok: true, timestamp: (/* @__PURE__ */ new Date()).toISOString() }));
+app2.get("/health", (c) => c.json({ ok: true, timestamp: (/* @__PURE__ */ new Date()).toISOString(), cloudStatus: "ONLINE_24x7" }));
 app2.route("/api", custom_routes_default);
 var tools = createToolsHandlers({});
 app2.post("/api/tools/execute", (c) => tools.execute(c.req.raw));
 app2.get("/api/tools/schemas", (c) => tools.list(c.req.raw));
+app2.use("/*", serveStatic({ root: "./dist" }));
+app2.get("*", (c) => {
+  const indexPath = join3(process.cwd(), "dist", "index.html");
+  if (existsSync2(indexPath)) {
+    return c.html(readFileSync2(indexPath, "utf-8"));
+  }
+  return c.text("J.A.R.V.I.S. Sovereign Cloud Engine Active", 200);
+});
 var port = Number(process.env.PORT) || 3005;
-console.log(`\u26A1 J.A.R.V.I.S. API Server running on http://localhost:${port}`);
+console.log(`\u26A1 J.A.R.V.I.S. Cloud Server running on http://localhost:${port}`);
 serve({ port, fetch: app2.fetch });
