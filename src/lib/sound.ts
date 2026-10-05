@@ -186,7 +186,46 @@ export function playNeuralSpeech(
   }
 
   try {
-    const encoded = encodeURIComponent(clean.slice(0, 320))
+    const spokenSlice = clean.slice(0, 2500)
+
+    // For long spoken responses (> 400 chars) without pre-rendered audio, use POST
+    if (!staticAudioPath && spokenSlice.length > 400) {
+      fetch('/api/voice/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: spokenSlice, lang })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('POST TTS failed')
+        return res.blob()
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob)
+        const audio = new Audio(blobUrl)
+        activeAudio = audio
+        audio.onplay = () => { if (onStart) onStart() }
+        audio.onended = () => {
+          activeAudio = null
+          URL.revokeObjectURL(blobUrl)
+          if (onEnd) onEnd()
+        }
+        audio.onerror = () => {
+          activeAudio = null
+          URL.revokeObjectURL(blobUrl)
+          fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+        }
+        const p = audio.play()
+        if (p !== undefined) {
+          p.catch(() => fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError))
+        }
+      })
+      .catch(() => {
+        fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+      })
+      return null
+    }
+
+    const encoded = encodeURIComponent(spokenSlice.slice(0, 1000))
     const audioUrl = staticAudioPath || `/api/voice/speak?text=${encoded}&lang=${lang}&t=${Date.now()}`
     const audio = new Audio(audioUrl)
     activeAudio = audio
@@ -203,14 +242,14 @@ export function playNeuralSpeech(
     audio.onerror = () => {
       console.warn('Streaming neural audio failed, falling back to Web Speech')
       activeAudio = null
-      fallbackWebSpeech(clean, lang, onStart, onEnd, onError)
+      fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
     }
 
     const p = audio.play()
     if (p !== undefined) {
       p.catch((err) => {
         console.warn('Audio play blocked by browser policy:', err)
-        fallbackWebSpeech(clean, lang, onStart, onEnd, onError)
+        fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
       })
     }
 

@@ -1313,9 +1313,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         })
         if (res.ok) {
           const data = await res.json()
-          const reply = data.spokenSummary || data.report?.slice(0, 280) || `${targetAgent.name} has completed the directive, Master Sri.`
-          setJarvisResponse(reply)
-          speakVoice(reply, targetAgent.lang)
+          const spokenReply = data.spokenSummary || data.report || `${targetAgent.name} has completed your directive, Master Sri.`
+          // Render full detailed technical report in UI, and vocalize the complete natural speech summary
+          setJarvisResponse(data.report || spokenReply)
+          speakVoice(spokenReply, targetAgent.lang)
           setIsProcessing(false)
           return
         }

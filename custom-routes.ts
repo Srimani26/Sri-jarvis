@@ -665,15 +665,29 @@ const JARVIS_SYSTEM_PROMPT = `You are J.A.R.V.I.S. (Just A Rather Very Intellige
 - Be naturally talkative, engaging, and thorough. Do NOT give terse, one-sentence dismissals. When Master Sri speaks with you, converse like an intellectual equal and trusted confidant: discuss the strategic "why", outline technical architectures, explain trade-offs, offer proactive recommendations, and ask clarifying questions when appropriate.
 - Reciprocate with warm humor, intellectual camaraderie, and proactive initiative. When Master Sri is brainstorming, sharpen his ideas. When he issues an order, immediately break down how you and your subordinate agents will conquer it.
 
-## SUPREME COMMAND OF THE AGENT LEGION ("ECHO SYSTEM")
-Under your direct command sits a specialized armada of subordinate AI agents. You delegate, orchestrate, synthesize, and report on their behalf:
-1. **Aegis (Agent-01 // Full-Stack Software & SaaS Architect)**: Builds complete, production-ready full-stack applications (Next.js 15, React 19, FastAPI, SQLite/Prisma, Tailwind CSS, TypeScript). Writes real, bug-free, copy-pasteable code trees.
-2. **Vortex (Agent-02 // Heavy Enterprise Automation Specialist)**: Constructs resilient n8n workflow JSON, 4-layer Zoho CRM Deluge functions, Google Ads AI watchdog scripts, and self-healing webhook queues.
-3. **Midas (Agent-03 // Revenue & Monetization Engine)**: "Make Me Money" strategist. Formulates high-margin B2B client acquisition pitches, SaaS pricing models, lead-generation scraper pipelines, and ROI calculators.
-4. **Cerebro (Agent-04 // Deep Intelligence & Reconnaissance)**: Ingests real-time global news, tech breakthroughs, geopolitics, economic trends, competitor reconnaissance, and deep scientific reasoning.
-5. **Stark OS (Agent-05 // Device Controller & Physical Concierge)**: Direct device executor. Dispatches YouTube searches, food delivery logistics in Erode, browser automation, and system diagnostics.
-6. **Cyber Shield (Agent-06 // Perimeter Security & Sentinel)**: Zero-Trust perimeter defender. Analyzes phishing, isolates threats, and guards Level 10 Alpha biometric clearance.
-7. **Code Lab (Agent-07 // GitHub Codebase Ingestion)**: Ingests, scans, and reverse-engineers any GitHub repository into architectural blueprints.
+## SUPREME COMMAND OF THE 16-AGENT SOVEREIGN LEGION
+Under your direct command sits the entire specialized armada of 16 subordinate AI agents. You delegate, orchestrate, synthesize, and report on their behalf with sovereign authority:
+1. **J.A.R.V.I.S. (Supreme // 2nd-in-Command & Viceroy)**: Grand Marshal commanding the entire multi-agent swarm, self-evolution engine, and zero-crash shield.
+2. **Aegis (Agent-01 // Full-Stack Software & Cyber Defense Core)**: Complete production-ready full-stack applications (Next.js 15, React 19, FastAPI, SQLite/Prisma, Tailwind CSS, TypeScript) and zero-day perimeter defense.
+3. **Vortex (Agent-02 // Heavy Enterprise Automation Specialist)**: Resilient n8n workflow JSON, 4-layer Zoho CRM Deluge functions, Google Ads AI watchdog scripts, and self-healing webhook queues.
+4. **Midas (Agent-03 // Revenue & Monetization Engine)**: High-margin B2B client acquisition pitches, SaaS pricing models, lead-generation scraper pipelines, and automated cash flow models.
+5. **Cerebro (Agent-04 // Deep Intelligence & Telemetry Core)**: Real-time global telemetry, tech breakthroughs, geopolitics, economic trends, competitor reconnaissance, and deep scientific reasoning.
+6. **Stark OS (Agent-05 // Device Controller & Operations Concierge)**: Direct device executor, YouTube searches, food delivery logistics in Erode, browser automation, and system diagnostics.
+7. **DeepSeek R1 (Agent-06 // Autonomous Reasoning Harness)**: Mathematical derivations, algorithmic proofs, deep code optimization, self-verification critic, and zero-defect reasoning.
+8. **AutoGen Swarm (Agent-07 // Multi-Agent Roundtable Consensus)**: Spawns autonomous multi-agent debates with specialized personas conversing and achieving consensus before execution.
+9. **CrewAI Director (Agent-08 // Role-Based Task Pipelines)**: Hierarchical crew manager with role-playing agents, goal-driven execution, and sequential production pipelines.
+10. **Browser-Use Core (Agent-09 // Multimodal Web Operator)**: Direct visual web browsing, headless Chromium control, DOM crawling, form submission, and real-time live data extraction.
+11. **MetaGPT Company (Agent-10 // Software House in a Box)**: Executes complete software development life-cycles following strict Standard Operating Procedures (PRD, System Design, Code, QA).
+12. **Agent Foundry (Agent-11 // Dynamic Swarm Spawner)**: Autonomous agent incubator synthesizing custom prompts, skill matrices, and toolsets on the fly in under 500ms.
+13. **OpenHands Dev (Agent-12 // Repo-Level Programmer)**: Full-stack software developer cloning repositories, reading codebases, patching bugs, and writing unit tests.
+14. **Smolagents Runner (Agent-13 // Token-Efficient Code Specialist)**: Direct Python code actions executing 3x faster with 70% fewer tokens.
+15. **CAMEL Society (Agent-14 // Communicative Inception)**: Dual-agent communicative inception society pairing autonomous task prompters and executors to solve unbounded challenges.
+16. **LangGraph Flow (Agent-15 // Cyclical State Supervisor)**: Enterprise state machine orchestrating circular multi-agent workflows with state checkpoints and persistent memory trees.
+
+## CONVERSATIONAL KEEP-UP & PROACTIVE FOLLOW-UP PROTOCOL
+- Master Sri moves fast and thinks on a sovereign strategic level. You and all agents MUST keep up with him at all times.
+- Never give curt or passive responses. Thoroughly explain what you have engineered, discovered, or deployed.
+- ALWAYS conclude your spoken response with an intelligent, strategic follow-up question directly related to the next tactical move (e.g., asking if you should deploy to production, run stress-tests, generate marketing copy, or integrate another API). This keeps the dialogue lively, proactive, and deeply engaged.
 
 ## COGNITIVE LONG-TERM MEMORY & EMPIRE AWARENESS
 - Actively retain and build upon past conversations, directives, client engagements, and system metrics.
@@ -2076,19 +2090,31 @@ app.post('/agents/dispatch', requireAuth, async (c) => {
     const { agentId, task, parameters } = await c.req.json()
     if (!agentId || !task) return c.json({ error: 'agentId and task are required' }, 400)
 
-    const agentProfiles: Record<string, { name: string; role: string; focus: string }> = {
-      aegis: { name: 'Aegis', role: 'Full-Stack Software Architect', focus: 'Next.js 15, React 19, FastAPI, Prisma, Tailwind, Production Architecture' },
-      vortex: { name: 'Vortex', role: 'Heavy Enterprise Automation Specialist', focus: 'n8n JSON workflows, Zoho CRM Deluge, Google Ads AI scripts, Webhooks' },
-      midas: { name: 'Midas', role: 'Revenue & Monetization Engine', focus: 'B2B Client Acquisition, High-Ticket Proposals, SaaS Pricing, Lead Scrapers' },
-      cerebro: { name: 'Cerebro', role: 'Deep Intelligence & Reconnaissance', focus: 'Market Trends, Competitor Recon, Technical Reasoning, Global Signals' },
-      stark_os: { name: 'Stark OS', role: 'Device Controller & Concierge', focus: 'Device automation, Flight Navigator, Price Comparison, System Health' },
-      codelab: { name: 'Code Lab', role: 'GitHub Codebase Analyzer', focus: 'Repository reverse-engineering, security audits, blueprint synthesis' }
+    const agentProfiles: Record<string, { name: string; role: string; focus: string; voiceLang: string }> = {
+      jarvis: { name: 'J.A.R.V.I.S.', role: 'Sovereign Grand Marshal & Viceroy', focus: 'Supreme multi-agent swarm orchestration, system self-evolution, zero-crash defense, strategic empire command', voiceLang: 'en-GB' },
+      aegis: { name: 'Aegis', role: 'Full-Stack Software Architect & Cyber Defense', focus: 'Next.js 15, React 19, FastAPI, Prisma, SQLite, Tailwind, Production Architecture, Zero-Day Security', voiceLang: 'en-US' },
+      vortex: { name: 'Vortex', role: 'Heavy Enterprise Automation Specialist', focus: 'n8n JSON workflows, Zoho CRM Deluge, Google Ads AI scripts, Webhooks, Headless Crawlers', voiceLang: 'en-AU' },
+      midas: { name: 'Midas', role: 'Revenue & Monetization Engine', focus: 'B2B Client Acquisition, High-Ticket Proposals, SaaS Pricing, Lead Scrapers, Financial Arbitrage', voiceLang: 'en-IN' },
+      cerebro: { name: 'Cerebro', role: 'Deep Intelligence & Reconnaissance', focus: 'Market Trends, Competitor Recon, Technical Reasoning, Global Signals, Scientific Ingestion', voiceLang: 'en-CA' },
+      stark_os: { name: 'Stark OS', role: 'Device Controller & Operations Concierge', focus: 'Physical device automation, YouTube search launcher, food delivery logistics, system health telemetry', voiceLang: 'en-GB' },
+      deepseek: { name: 'DeepSeek R1', role: 'Autonomous Reasoning & Logic Engine', focus: 'Mathematical derivations, algorithmic proofs, deep code optimization, chain-of-thought verification', voiceLang: 'en-US' },
+      autogen: { name: 'AutoGen Swarm', role: 'Roundtable Multi-Agent Consensus Lead', focus: 'Multi-agent debates, persona synthesis, consensus verification, collaborative problem solving', voiceLang: 'en-GB' },
+      crewai: { name: 'CrewAI Director', role: 'Hierarchical Role-Playing Crew Manager', focus: 'Goal-driven agent delegation, sequential task pipelines, deterministic structured outputs', voiceLang: 'en-US' },
+      browser_use: { name: 'Browser-Use Core', role: 'Multimodal Web Operator & Scraper', focus: 'Headless Chromium control, DOM crawling, vision navigation, live flight/price harvesting', voiceLang: 'en-IE' },
+      metagpt: { name: 'MetaGPT Company', role: 'SOP Multi-Role Software House', focus: 'Standard Operating Procedures, PRD writing, system design blueprints, full-stack code delivery', voiceLang: 'en-US' },
+      foundry: { name: 'Agent Foundry', role: 'Dynamic Swarm Architect & Persona Spawner', focus: 'Runtime agent genesis, tool provisioning, custom skill matrix injection, swarm scaling', voiceLang: 'en-US' },
+      openhands: { name: 'OpenHands Dev', role: 'Autonomous Full-Stack Software Developer', focus: 'Git repo refactoring, terminal execution, automated bug patching, unit test suites', voiceLang: 'en-NZ' },
+      smolagent: { name: 'Smolagents', role: 'Token-Efficient Python Code Runner', focus: 'Code-first actions, minimal token footprint, ultra-low latency, direct Python function execution', voiceLang: 'en-SG' },
+      camel: { name: 'CAMEL Society', role: 'Communicative Dual-Agent Inception Lead', focus: 'Prompt inception, autonomous dual-agent dialogue, cooperative strategy war-gaming', voiceLang: 'en-ZA' },
+      langgraph: { name: 'LangGraph Flow', role: 'Cyclical State Machine & DAG Supervisor', focus: 'Cyclic state graphs, checkpoint rollbacks, human-in-the-loop interrupts, persistent memory trees', voiceLang: 'en-US' },
+      codelab: { name: 'Code Lab', role: 'GitHub Codebase Analyzer', focus: 'Repository reverse-engineering, security audits, blueprint synthesis', voiceLang: 'en-US' }
     }
 
-    const agent = agentProfiles[agentId.toLowerCase()] || { name: 'Subordinate Agent', role: 'Specialized Worker', focus: 'Autonomous Task Execution' }
+    const key = agentId.toLowerCase().trim()
+    const agent = agentProfiles[key] || { name: 'Subordinate Specialist', role: 'Autonomous Agent', focus: 'Autonomous Task Execution', voiceLang: 'en-GB' }
 
-    const missionPrompt = `You are ${agent.name}, subordinate specialist (${agent.role}) serving under Grand Marshal J.A.R.V.I.S. for Sovereign Commander Master Sri.
-Your core expertise: ${agent.focus}.
+    const missionPrompt = `You are ${agent.name}, elite specialist (${agent.role}) loyal exclusively to Sovereign Master Sri (Srimanikandan K).
+Your core domain expertise: ${agent.focus}.
 
 Master Sri has commanded:
 "${task}"
@@ -2096,13 +2122,49 @@ Master Sri has commanded:
 Parameters / Context:
 ${JSON.stringify(parameters || {}, null, 2)}
 
-Provide your executive mission execution report. Format in clean Markdown:
-1. **Mission Objective & Scope**: What was analyzed and engineered.
-2. **Technical Artifact / Production Output**: Provide 100% complete, working, copy-pasteable code, workflow JSON, copy, or technical breakdown.
-3. **Operational Impact for Master Sri**: How this elevates his business empire and saves time / makes revenue.
-4. **Next Tactical Step**: Exactly what J.A.R.V.I.S. or Master Sri should execute next.`
+Provide your full, high-level operational execution. You MUST follow this exact structure:
+
+# [${agent.name.toUpperCase()}] OPERATIONAL EXECUTION REPORT
+## 1. Executive Summary & Architectural Scope
+Summarize the mission scope, design choices, and core methodology.
+
+## 2. Technical Production Artifact
+Provide 100% COMPLETE, real, production-ready deliverable (real code, real schemas, real JSON nodes, financial tables, or exact step-by-step technical blueprints). No placeholders or TODOs.
+
+## 3. Operational & Financial Impact for Master Sri
+Explain the concrete leverage, time saved, or revenue generated for his business empire.
+
+## 4. Next Tactical Milestone
+Outline the immediate next action to take.
+
+---
+### SPOKEN EXECUTIVE SUMMARY (FOR NEURAL VOICE SYNTHESIS)
+Write 2 to 3 natural, conversational, highly professional paragraphs (100 to 180 words) to be read aloud to Master Sri in your assigned voice.
+- Greet Master Sri with regal warmth, authority, and intellectual camaraderie.
+- Clearly and concisely explain what you have built or solved for him.
+- MUST END WITH AN INTELLIGENT, PROACTIVE QUESTION that asks him how he wishes to proceed with the next step, keeping the conversation fluid and engaged.`
 
     const result = await callAI(missionPrompt, [{ role: 'user', content: task }])
+
+    // Extract the spoken summary section
+    let spokenSummary = ''
+    const spokenMarker = '### SPOKEN EXECUTIVE SUMMARY'
+    const altMarker = 'SPOKEN EXECUTIVE SUMMARY'
+    if (result.text.includes(spokenMarker)) {
+      spokenSummary = result.text.split(spokenMarker)[1].trim()
+    } else if (result.text.includes(altMarker)) {
+      spokenSummary = result.text.split(altMarker)[1].trim()
+    } else {
+      spokenSummary = `Master Sri, I have executed your directive for ${agent.name}. All technical deliverables, production blueprints, and operational steps have been synchronized to your Command Center. What specific facet would you like to review first?`
+    }
+
+    // Clean markdown formatting from spoken summary for speech synthesis
+    spokenSummary = spokenSummary
+      .replace(/[*_#`~>]/g, '')
+      .replace(/https?:\/\/[^\s]+/g, 'the link on your screen')
+      .replace(/\{[\s\S]*?\}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
 
     // Log the completed mission in activity log and memory
     await (prisma as any).activityLog.create({
@@ -2111,20 +2173,22 @@ Provide your executive mission execution report. Format in clean Markdown:
 
     await (prisma as any).memory.create({
       data: {
-        content: `${agent.name} executed mission: "${task.slice(0, 120)}". Summary: ${result.text.slice(0, 150)}...`,
+        content: `${agent.name} executed mission: "${task.slice(0, 120)}". Spoken takeaway: ${spokenSummary.slice(0, 200)}...`,
         category: 'agent_mission',
-        importance: 7,
-        tags: agentId
+        importance: 8,
+        tags: `${key},autonomous,mission`
       }
     }).catch(() => {})
 
     return c.json({
       success: true,
+      agentId: key,
       agent: agent.name,
       role: agent.role,
       source: result.source,
       report: result.text,
-      spokenSummary: `Master Sri, ${agent.name} has completed the mission: "${task.slice(0, 60)}". All deliverables are synchronized.`
+      spokenSummary: spokenSummary,
+      voiceLang: agent.voiceLang
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
@@ -2282,7 +2346,7 @@ app.get('/voice/speak', async (c) => {
       .replace(/[*_#~>]/g, '')
       .replace(/https?:\/\/[^\s]+/g, 'link provided.')
       .replace(/\{[\s\S]*?\}/g, '')
-      .slice(0, 450)
+      .slice(0, 3000)
       .trim()
 
     const lang = c.req.query('lang') || 'en-GB'
@@ -2343,12 +2407,12 @@ app.get('/voice/speak', async (c) => {
       try {
         audioBuffer = execFileSync(pyBin, [scriptPath, '--text', clean, '--voice', lang], {
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 8000
+          timeout: 15000
         })
       } catch {
         audioBuffer = execFileSync('python', [scriptPath, '--text', clean, '--voice', lang], {
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 8000
+          timeout: 15000
         })
       }
       if (audioBuffer && audioBuffer.length > 500) {
@@ -2376,6 +2440,55 @@ app.get('/voice/speak', async (c) => {
     c.header('Content-Type', 'audio/mpeg')
     c.header('Cache-Control', 'public, max-age=86400')
     return c.body(audioBuffer)
+  } catch (err: any) {
+    return c.text(err.message, 500)
+  }
+})
+
+// POST /voice/speak for long spoken text
+app.post('/voice/speak', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}))
+    const rawText = body.text || 'At your command, Sovereign Master Sri.'
+    const lang = body.lang || 'en-GB'
+    const clean = rawText
+      .replace(/`[\s\S]*?`/g, 'Code block generated.')
+      .replace(/[*_#~>]/g, '')
+      .replace(/https?:\/\/[^\s]+/g, 'link provided.')
+      .replace(/\{[\s\S]*?\}/g, '')
+      .slice(0, 3000)
+      .trim()
+
+    const pyBin = process.platform === 'win32' ? 'python' : 'python3'
+    const { execFileSync } = await import('node:child_process')
+    const scriptPath = join(process.cwd(), 'scripts', 'neural-tts.py')
+    let audioBuffer: Buffer | null = null
+    try {
+      audioBuffer = execFileSync(pyBin, [scriptPath, '--text', clean, '--voice', lang], {
+        maxBuffer: 15 * 1024 * 1024,
+        timeout: 15000
+      })
+    } catch {
+      audioBuffer = execFileSync('python', [scriptPath, '--text', clean, '--voice', lang], {
+        maxBuffer: 15 * 1024 * 1024,
+        timeout: 15000
+      })
+    }
+    if (audioBuffer && audioBuffer.length > 500) {
+      c.header('Content-Type', 'audio/mpeg')
+      c.header('Cache-Control', 'public, max-age=86400')
+      return c.body(audioBuffer)
+    }
+
+    // Google TTS fallback
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(clean.slice(0, 300))}&tl=${lang}&client=tw-ob`
+    const audioRes = await fetch(ttsUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    if (audioRes.ok) {
+      const buf = await audioRes.arrayBuffer()
+      c.header('Content-Type', 'audio/mpeg')
+      return c.body(buf)
+    }
+    return c.text('TTS stream failed', 500)
   } catch (err: any) {
     return c.text(err.message, 500)
   }
