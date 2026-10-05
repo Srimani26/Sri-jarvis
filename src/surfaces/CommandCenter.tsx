@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Zap, TrendingUp, Clock, Bot, Code2, Globe, Mail, BarChart3, Target, ArrowUpRight,
-  Calendar, Cpu, Workflow, Mic, Shield, Sparkles, Plane, ShoppingBag, Terminal, Activity
+  Calendar, Cpu, Workflow, Mic, Shield, Sparkles, Plane, ShoppingBag, Terminal, Activity, Brain
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
