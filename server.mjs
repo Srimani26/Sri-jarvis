@@ -524,6 +524,135 @@ ${res.text}`;
   }
 };
 
+// src/lib/open-agents/BrowserUseScraper.ts
+var BrowserUseScraper = class {
+  static async scrapeUrl(targetUrl, aiSummarizer) {
+    const res = await fetch(targetUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      },
+      signal: AbortSignal.timeout(9e3)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to reach target host`);
+    const html = await res.text();
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].replace(/\s+/g, " ").trim() : targetUrl;
+    const headings = [];
+    for (const match of html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)) {
+      const clean = match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      if (clean && clean.length > 3 && headings.length < 15) headings.push(clean);
+    }
+    const paragraphs = [];
+    for (const match of html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
+      const clean = match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      if (clean && clean.length > 30 && paragraphs.length < 10) paragraphs.push(clean);
+    }
+    const links = [];
+    for (const match of html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+      const href = match[1];
+      const text = match[2].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      if (text && href && (href.startsWith("http") || href.startsWith("/")) && links.length < 12) {
+        links.push({ text, href });
+      }
+    }
+    const rawContent = `Title: ${title}
+Headings: ${headings.join(" | ")}
+Content: ${paragraphs.join("\n")}`;
+    let summary = rawContent.slice(0, 500);
+    if (aiSummarizer) {
+      try {
+        summary = await aiSummarizer(rawContent.slice(0, 3e3));
+      } catch {
+      }
+    }
+    return {
+      url: targetUrl,
+      title,
+      headings,
+      keyParagraphs: paragraphs,
+      links,
+      tables: [],
+      executiveSummary: summary,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  static async searchWeb(query, aiSummarizer) {
+    const results = [];
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    if (tavilyKey) {
+      try {
+        const tRes = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ api_key: tavilyKey, query, max_results: 5, search_depth: "advanced" }),
+          signal: AbortSignal.timeout(1e4)
+        });
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          if (Array.isArray(tData.results)) {
+            for (const r of tData.results) {
+              results.push({ title: r.title || "Web Result", url: r.url, snippet: r.content || "" });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Tavily search fallback:", e);
+      }
+    }
+    if (results.length === 0) {
+      try {
+        const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+          },
+          signal: AbortSignal.timeout(9e3)
+        });
+        if (ddgRes.ok) {
+          const html = await ddgRes.text();
+          const snippetRegex = /<a[^>]+class=["']result__snippet["'][^>]*>([\s\S]*?)<\/a>/gi;
+          const urlRegex = /<a[^>]+class=["']result__url["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+          const snippets = [];
+          let sMatch;
+          while ((sMatch = snippetRegex.exec(html)) && snippets.length < 5) {
+            snippets.push(sMatch[1].replace(/<[^>]+>/g, "").trim());
+          }
+          const links = [];
+          let lMatch;
+          while ((lMatch = urlRegex.exec(html)) && links.length < 5) {
+            links.push({
+              url: lMatch[1].trim(),
+              title: lMatch[2].replace(/<[^>]+>/g, "").trim()
+            });
+          }
+          for (let i = 0; i < Math.max(links.length, snippets.length); i++) {
+            results.push({
+              title: links[i]?.title || `Web Insight ${i + 1}`,
+              url: links[i]?.url || "",
+              snippet: snippets[i] || ""
+            });
+          }
+        }
+      } catch (err) {
+        console.error("DuckDuckGo search fallback error:", err);
+      }
+    }
+    let summary = `Master Sri, retrieved ${results.length} live web sources for: "${query}".`;
+    if (aiSummarizer && results.length > 0) {
+      try {
+        const rawContext = results.map((r, i) => `[${i + 1}] ${r.title} (${r.url}):
+${r.snippet}`).join("\n\n");
+        summary = await aiSummarizer(`Synthesize an executive intelligence summary for Master Sri on query "${query}" based on live web findings:
+
+${rawContext}`);
+      } catch (e) {
+      }
+    }
+    return { query, results, summary };
+  }
+};
+
 // src/lib/open-agents/MetaGPTSOPEngine.ts
 var MetaGPTSOPEngine = class {
   aiCaller;
@@ -1469,7 +1598,7 @@ async function callDirectGeminiPool(keys, system, messages) {
     const key = keys[(geminiKeyIndex + i) % keys.length];
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1493,7 +1622,7 @@ async function callDirectGeminiPool(keys, system, messages) {
   throw new Error(`Gemini Pool exhausted: ${errors.join(", ")}`);
 }
 async function callDirectGroq(key, system, messages) {
-  const groqModels = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"];
+  const groqModels = ["deepseek-r1-distill-llama-70b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
   let lastErr = "";
   for (const model of groqModels) {
     try {
@@ -3221,6 +3350,34 @@ app.post("/agents/langgraph/workflow", requireAuth, async (c) => {
       success: true,
       graphState,
       spokenSummary: `Master Sri, LangGraph stateful multi-agent cyclical workflow executed successfully through all nodes.`
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+app.post("/web/search", requireAuth, async (c) => {
+  try {
+    const { query } = await c.req.json();
+    if (!query) return c.json({ error: "query required" }, 400);
+    const result = await BrowserUseScraper.searchWeb(query, (prompt) => callAI(prompt, []).then((r) => r.text));
+    return c.json({
+      success: true,
+      ...result,
+      spokenSummary: `Master Sri, gathered live web intelligence for: "${query}".`
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+app.post("/web/scrape", requireAuth, async (c) => {
+  try {
+    const { url } = await c.req.json();
+    if (!url) return c.json({ error: "url required" }, 400);
+    const dossier = await BrowserUseScraper.scrapeUrl(url, (prompt) => callAI(prompt, []).then((r) => r.text));
+    return c.json({
+      success: true,
+      dossier,
+      spokenSummary: `Master Sri, extracted and analyzed web dossier from ${url}.`
     });
   } catch (err) {
     return c.json({ error: err.message }, 500);
