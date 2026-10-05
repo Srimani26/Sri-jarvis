@@ -216,7 +216,7 @@ export default function App() {
   const handleAwakenSovereign = () => {
     setSovereignAwakened(true)
     playJarvisChime('wake')
-    playNeuralSpeech('Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.', 'en-GB')
+    // Open voice modal which initiates a single, clear neural greeting without voice collision
     setVoiceModalOpen(true)
   }
   const [settingsOpen, setSettingsOpen] = useState(false)

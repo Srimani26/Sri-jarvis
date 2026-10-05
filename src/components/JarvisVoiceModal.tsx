@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
+import { processOfflineCommand } from '@/lib/offline-core'
 
 interface JarvisVoiceModalProps {
   isOpen: boolean
@@ -159,6 +160,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const conversationHistoryRef = useRef<Array<{ role: string; content: string }>>([])
   const lastActiveRef = useRef<number>(Date.now())
+  const isRollingCallRef = useRef(false)
+  const isOpenRef = useRef(isOpen)
+
+  useEffect(() => {
+    isOpenRef.current = isOpen
+    if (!isOpen) {
+      isRollingCallRef.current = false
+    }
+  }, [isOpen])
 
   useEffect(() => {
     continuousModeRef.current = continuousMode
@@ -494,6 +504,114 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   }
 
   // Process voice directive with DeepSeek reasoning, Action Execution, and Swarm Intelligence
+  // Multi-Agent Sequential Rollcall: each agent introduces themselves one by one in sequence
+  const runAgentRollcall = async () => {
+    if (isRollingCallRef.current) return
+    isRollingCallRef.current = true
+    setIsProcessing(true)
+    isProcessingRef.current = true
+    stopListening()
+    stopNeuralSpeech()
+
+    const rollcallQueue: Array<{
+      agent: AgentBadge
+      spoken: string
+      title: string
+      skills: string
+      bestAt: string
+    }> = [
+      {
+        agent: AGENTS.jarvis,
+        spoken: "Master Sri, commanding the subordinate intelligence swarm. Agents, report to Master Sri one by one and state what you are best at.",
+        title: "Swarm Rollcall Commenced",
+        skills: "Sovereign 2nd-in-Command, Swarm Orchestration, Self-Evolution Matrix",
+        bestAt: "Strategic executive command, multi-agent orchestration, protecting your empire, and continuous self-evolution."
+      },
+      {
+        agent: AGENTS.aegis,
+        spoken: "Master Sri, I am Aegis. I am best at full-stack software architecture, engineering bulletproof web applications in Next.js and TypeScript, and impenetrable zero-day cyber security defense.",
+        title: "Aegis - Full-Stack Software & Cyber Defense Core",
+        skills: "Next.js 15, React 19, TypeScript, Prisma, SQLite, FastAPI, Zero-Trust Perimeter Defense",
+        bestAt: "Engineering production-grade full-stack web and SaaS applications from scratch, and defending your systems against cyber attacks."
+      },
+      {
+        agent: AGENTS.vortex,
+        spoken: "Greetings Master Sri, I am Vortex. I am best at enterprise workflow automation, high-speed web scraping, n8n data orchestration, and executing multi-step internet pipelines without breaking.",
+        title: "Vortex - Heavy Enterprise Automation Specialist",
+        skills: "n8n Workflows, Autonomous Web Scraping, REST APIs, Webhooks, WhatsApp/Email Bots, Headless Crawlers",
+        bestAt: "Building automated workflows that extract data, trigger business pipelines, and eliminate repetitive tasks 24/7."
+      },
+      {
+        agent: AGENTS.midas,
+        spoken: "Master Sri, I am Midas. I am best at revenue generation, high-ticket deal prospecting, monetization strategy, market arbitrage, and engineering automated cash flow for your business empire.",
+        title: "Midas - Revenue & Monetization Engine",
+        skills: "Deal Scouting, B2B High-Ticket Outreach, SaaS Pricing Strategy, Financial Arbitrage, Automated Invoicing",
+        bestAt: "Finding money-making opportunities, calculating financial models, and bringing in high-value clients for your business."
+      },
+      {
+        agent: AGENTS.cerebro,
+        spoken: "Greetings Master Sri, I am Cerebro. I am best at deep intelligence, competitor reconnaissance, market telemetry, complex algorithmic problem-solving, and neural data synthesis.",
+        title: "Cerebro - Deep Intelligence & Telemetry Core",
+        skills: "Global Market Telemetry, Competitor Reconnaissance, Scientific Literature Synthesis, Neural Indexing",
+        bestAt: "Deep research, uncovering market secrets, analyzing global trends, and delivering actionable intelligence."
+      },
+      {
+        agent: AGENTS.stark_os,
+        spoken: "Master Sri, I am Stark OS. I am best at device hardware telemetry, physical workflow coordination, system diagnostics, and managing your executive day-to-day operations seamlessly.",
+        title: "Stark OS - Device Controller & Operations Concierge",
+        skills: "Hardware Telemetry, Connected Devices, YouTube/Media Automation, Daily Operating System Concierge",
+        bestAt: "Executing device-level tasks, coordinating media and daily logistics, and keeping your local command center operating at peak efficiency."
+      },
+      {
+        agent: AGENTS.jarvis,
+        spoken: "As you can see, Master Sri, each agent is an elite specialist loyal exclusively to you. The entire swarm stands ready for your orders.",
+        title: "Rollcall Complete - Swarm Standing By",
+        skills: "All 6 Agents Primed and Synchronized",
+        bestAt: "Awaiting Master Sri's supreme directive."
+      }
+    ]
+
+    for (let i = 0; i < rollcallQueue.length; i++) {
+      if (!isRollingCallRef.current || !isOpenRef.current) break
+
+      const item = rollcallQueue[i]
+      setActiveAgent(item.agent)
+      activeAgentRef.current = item.agent
+      playJarvisChime('wake')
+
+      const formattedResponse = `### [${item.agent.name}] ${item.title}\n**Role**: ${item.agent.role}\n**Primary Skills**: ${item.skills}\n**Best At**: ${item.bestAt}`
+      setJarvisResponse(formattedResponse)
+
+      await new Promise<void>((resolve) => {
+        speakVoice(item.spoken, item.agent.lang, () => {
+          setTimeout(resolve, 450)
+        })
+      })
+    }
+
+    isRollingCallRef.current = false
+    setIsProcessing(false)
+    isProcessingRef.current = false
+  }
+
+  // Helper: Client-Side Mood & Cognitive State Sensing
+  const analyzeMoodAndTone = (input: string): string => {
+    const l = input.toLowerCase()
+    if (l.includes('tired') || l.includes('exhausted') || l.includes('sleepy') || l.includes('resting')) {
+      return '[Context: Master Sri is fatigued or resting. Keep response calm, reassuring, highly autonomous, and concise.]'
+    }
+    if (l.includes('urgent') || l.includes('asap') || l.includes('quick') || l.includes('fast')) {
+      return '[Context: Master Sri requires urgent execution. Deliver decisive, high-impact results immediately.]'
+    }
+    if (l.includes('money') || l.includes('revenue') || l.includes('profit') || l.includes('deal') || l.includes('client')) {
+      return '[Context: Master Sri is focused on monetization. Maximize ROI and high-ticket client acquisition logic.]'
+    }
+    if (l.includes('error') || l.includes('bug') || l.includes('broken') || l.includes('issue')) {
+      return '[Context: Technical hurdle encountered. Provide root-cause diagnosis and tutor him on bulletproof remediation.]'
+    }
+    return ''
+  }
+
   const processCommand = async (cmd: string) => {
     if (!cmd.trim()) return
     const lower = cmd.toLowerCase().trim()
@@ -536,6 +654,42 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
 
     playJarvisChime('execute')
+
+    // 0.9 MULTI-AGENT SEQUENTIAL ROLLCALL ("hi other agents", "introduce yourselves", "meet the swarm")
+    if (
+      lower.includes('other agent') ||
+      lower.includes('other agents') ||
+      lower.includes('introduce yourselves') ||
+      lower.includes('meet the swarm') ||
+      lower.includes('who are you all') ||
+      lower.includes('what are you best at') ||
+      lower.includes('what are your capabilities') ||
+      lower.includes('agents report') ||
+      lower.includes('swarm rollcall') ||
+      lower.includes('all agents speak') ||
+      lower.includes('introduce the team') ||
+      lower.includes('hi agents') ||
+      lower.includes('hello agents') ||
+      lower.includes('what kind of things they are in best')
+    ) {
+      await runAgentRollcall()
+      return
+    }
+
+    // 0.95 SINGLE AGENT DIRECT CAPABILITY INQUIRY ("what is aegis best at", etc.)
+    if (lower.includes('best at') || lower.includes('what do you do') || lower.includes('capabilities of')) {
+      for (const [key, ag] of Object.entries(AGENTS)) {
+        if (lower.includes(key) || lower.includes(ag.name.toLowerCase())) {
+          setActiveAgent(ag)
+          activeAgentRef.current = ag
+          const reply = `Master Sri, as ${ag.name}, I am best at ${ag.role}. My title is ${ag.title}. Command me and I shall execute with extreme precision.`
+          setJarvisResponse(`### [${ag.name}] Supreme Specialization\n**Role**: ${ag.role}\n**Title**: ${ag.title}\n\n${reply}`)
+          speakVoice(reply, ag.lang)
+          setIsProcessing(false)
+          return
+        }
+      }
+    }
 
     // 1. SLEEP / REST DIRECTIVE ("go and rest jarvis")
     if (
@@ -953,9 +1107,11 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         speakVoice(fallback)
       }
     } catch {
-      const fallback = `At your command, Master Sri. Directive: "${cmd}" synchronized across neural clusters.`
-      setJarvisResponse(fallback)
-      speakVoice(fallback)
+      // Offline Core: If network or base station is down (e.g. PC shut down), process on device!
+      const offlineResult = processOfflineCommand(cmd)
+      const offlineMsg = `### [Autonomous Mobile Core (Offline)]\n${offlineResult.reply}`
+      setJarvisResponse(offlineMsg)
+      speakVoice(offlineResult.reply)
     } finally {
       setIsProcessing(false)
     }
@@ -998,7 +1154,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             setTranscript('Hearing Master Sri speak...')
           } else if (hasSpoken) {
             if (!silenceStart) silenceStart = Date.now()
-            else if (Date.now() - silenceStart > 1300) {
+            else if (Date.now() - silenceStart > 700) {
               // 1.3 seconds of silence after speaking -> auto-stop and process!
               if (recorder.state === 'recording') {
                 recorder.stop()
@@ -1127,13 +1283,14 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         // Silence Debounce / VAD: Automatically dispatch when Master Sri pauses speaking
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
         if (combined.length > 0) {
+          const timeoutMs = (finalText.trim().length > 0 && interimText.trim().length === 0) ? 450 : 650
           silenceTimerRef.current = setTimeout(() => {
             const captured = transcriptRef.current.trim()
             if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
               stopListening()
               processCommand(captured)
             }
-          }, 1300)
+          }, timeoutMs)
         }
       }
 
@@ -1387,9 +1544,20 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           {/* Subordinate Agent Switcher Bar */}
           {!isSleeping && (
             <div className="w-full">
-              <div className="text-[10px] font-mono text-slate-400 mb-1.5 flex items-center justify-center gap-1">
-                <Layers className="w-3 h-3 text-cyan-400" />
-                <span>SUBORDINATE AGENTS (CLICK TO SWITCH CHANNEL):</span>
+              <div className="flex items-center justify-between mb-1.5 px-1">
+                <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-cyan-400" />
+                  <span>SUBORDINATE AGENTS:</span>
+                </div>
+                <button
+                  onClick={() => runAgentRollcall()}
+                  disabled={isProcessing}
+                  className="px-2 py-0.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-[10px] font-mono text-cyan-300 font-bold flex items-center gap-1 transition-all"
+                  title="Command all agents to report and declare their capabilities one by one"
+                >
+                  <Radio className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
+                  <span>SWARM ROLLCALL</span>
+                </button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 w-full">
                 {Object.values(AGENTS).map((agent) => {
