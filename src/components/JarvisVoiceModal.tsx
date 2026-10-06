@@ -1389,6 +1389,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         headers: jsonAuthHeaders(),
         body: JSON.stringify({
           messages: conversationHistoryRef.current,
+          agentId: activeAgent?.id !== 'jarvis' ? activeAgent?.id : undefined,
           model: 'gemini-3.8-flash',
         }),
       })

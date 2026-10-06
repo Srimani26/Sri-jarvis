@@ -158,7 +158,7 @@ export type DailySummaryGroupByOutputType = {
   _max: DailySummaryMaxAggregateOutputType | null
 }
 
-type GetDailySummaryGroupByPayload<T extends DailySummaryGroupByArgs> = Prisma.PrismaPromise<
+export type GetDailySummaryGroupByPayload<T extends DailySummaryGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<DailySummaryGroupByOutputType, T['by']> &
       {

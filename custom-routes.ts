@@ -1,3 +1,4 @@
+import { TaskEngine, AGENT_REGISTRY, SelfHealingEngine } from './src/lib/task-engine'
 import { ensureDatabaseTables } from './src/lib/ensure-db'
 import { SOVEREIGN_TOOLS, executeSovereignTool, handleMCPJsonRpc } from './src/lib/sovereign-mcp'
 import { Hono } from 'hono'
@@ -1054,6 +1055,8 @@ async function callDirectGemini(key: string, system: string, messages: any[]): P
 }
 
 
+
+
 // ============================================================================
 // LIVE REAL-TIME WEB GROUNDING ENGINE (BROWSER-USE & DUCKDUCKGO / TAVILY)
 // ============================================================================
@@ -1152,22 +1155,157 @@ function getModelStatus() {
 app.post('/ai/chat', requireAuth, async (c) => {
   try {
     const body = await c.req.json()
-    const { messages, model: preferredModelId } = body as {
+    const { messages, model: preferredModelId, agentId } = body as {
       messages: Array<{ role: string; content: string }>
       model?: string
+      agentId?: string
     }
     if (!messages?.length) return c.json({ error: 'messages array required' }, 400)
 
     const liveContext = await fetchLiveContext()
     const fullPrompt = JARVIS_SYSTEM_PROMPT + liveContext
 
+    
+    const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || ''
+    const lowerUserMsg = lastUserMsg.trim().toLowerCase()
+
+    // Status / Progress Query Check: Check real task engine instead of hallucinating
+    const isStatusQuery = (
+      lowerUserMsg.includes('what are you doing') ||
+      lowerUserMsg.includes('what is the progress') ||
+      lowerUserMsg.includes('are you working') ||
+      lowerUserMsg.includes('how much does it take') ||
+      lowerUserMsg.includes('how long will it take') ||
+      lowerUserMsg.includes('did you finish') ||
+      lowerUserMsg.includes('report') ||
+      lowerUserMsg.includes('status update')
+    );
+
+    if (isStatusQuery) {
+      const activeTasks = await TaskEngine.getActiveTasks();
+      if (activeTasks.length > 0) {
+        const topTask = activeTasks[0];
+        const agent = AGENT_REGISTRY[topTask.agentId] || AGENT_REGISTRY.jarvis;
+        const elapsedSec = Math.floor((Date.now() - new Date(topTask.startedAt || topTask.createdAt).getTime()) / 1000);
+        const statusReport = `Master Sri, ${agent.name} is currently working on ${topTask.taskNumber}: "${topTask.title}".
+Status: ${topTask.status}.
+Current operation: ${topTask.currentOperation || 'Executing step actions'}.
+Progress: ${topTask.completedSteps} of ${topTask.totalSteps} steps completed (${topTask.progress}%).
+Elapsed time: ${elapsedSec}s. Estimated duration: ${topTask.estimatedDuration || '45 seconds'}.
+You can observe the live telemetry and step verification logs in the execution stream.`;
+
+        return c.json({
+          content: statusReport,
+          source: `${agent.name} Live Telemetry (${topTask.taskNumber})`,
+          activeTask: topTask
+        });
+      } else {
+        const noTaskReport = "Master Sri, no tasks are currently executing in the engine. All 16 agents are online and standing by. Name your objective and I will dispatch the swarm immediately.";
+        return c.json({
+          content: noTaskReport,
+          source: 'J.A.R.V.I.S. Core Fleet Roster',
+          activeTask: null
+        });
+      }
+    }
+
+    // Direct Self-Healing Command
+    if (lowerUserMsg.includes('fix the error') || lowerUserMsg.includes('fix error') || lowerUserMsg.includes('fix bug') || lowerUserMsg.includes('self heal')) {
+      const healTask = await TaskEngine.createTask({
+        title: 'Autonomous Self-Healing Repair',
+        description: lastUserMsg,
+        agentId: 'debugger',
+        totalSteps: 4,
+        estimatedDuration: '30s',
+      });
+
+      const healReport = await SelfHealingEngine.runDiagnosticsAndRepair(lastUserMsg);
+      await TaskEngine.updateProgress(healTask.id, {
+        status: healReport.repaired ? 'COMPLETED' : 'FAILED',
+        progress: 100,
+        executionResult: healReport.summary,
+        verificationResult: healReport.verificationResult,
+        filesChanged: healReport.repairedFiles,
+      });
+
+      const reply = `Task ${healTask.taskNumber} executed by Build Error Resolver (Agent-16).
+Diagnostics Result: ${healReport.verificationResult}.
+${healReport.summary}`;
+
+      return c.json({
+        content: reply,
+        source: 'Build Error Resolver (ECC Core)',
+        task: healTask,
+      });
+    }
+
+    // Direct Work Command Dispatcher
+    const isExecutionDirective = (
+      lowerUserMsg.startsWith('build ') ||
+      lowerUserMsg.startsWith('create ') ||
+      lowerUserMsg.startsWith('code ') ||
+      lowerUserMsg.startsWith('inspect ') ||
+      lowerUserMsg.startsWith('audit ') ||
+      lowerUserMsg.startsWith('deploy ') ||
+      lowerUserMsg.startsWith('fix ') ||
+      lowerUserMsg.startsWith('research ') ||
+      lowerUserMsg.startsWith('automate ')
+    );
+
+    let spawnedTask: any = null;
+    if (isExecutionDirective && lastUserMsg.length > 8) {
+      // Pick matching agent
+      let targetAgent = 'jarvis';
+      if (lowerUserMsg.includes('code') || lowerUserMsg.includes('build') || lowerUserMsg.includes('frontend') || lowerUserMsg.includes('backend') || lowerUserMsg.includes('app')) {
+        targetAgent = 'aegis';
+      } else if (lowerUserMsg.includes('automate') || lowerUserMsg.includes('workflow') || lowerUserMsg.includes('n8n')) {
+        targetAgent = 'vortex';
+      } else if (lowerUserMsg.includes('money') || lowerUserMsg.includes('revenue') || lowerUserMsg.includes('pricing') || lowerUserMsg.includes('pitch')) {
+        targetAgent = 'midas';
+      } else if (lowerUserMsg.includes('research') || lowerUserMsg.includes('news') || lowerUserMsg.includes('telemetry')) {
+        targetAgent = 'cerebro';
+      } else if (lowerUserMsg.includes('web') || lowerUserMsg.includes('scrape') || lowerUserMsg.includes('product') || lowerUserMsg.includes('price')) {
+        targetAgent = 'browser_use';
+      }
+
+      spawnedTask = await TaskEngine.createTask({
+        title: lastUserMsg.slice(0, 80),
+        description: lastUserMsg,
+        agentId: targetAgent,
+        totalSteps: 4,
+        estimatedDuration: '45s',
+      });
+
+      // Dispatch mission asynchronously
+      setTimeout(() => {
+        TaskEngine.dispatchMission(spawnedTask, {
+          onAiCall: async (sys, msgs) => callAI(sys, msgs),
+        }).catch(err => console.error('[TaskEngine] Async mission error:', err));
+      }, 50);
+    }
+
     let answer: { text: string; source: string }
     try {
       const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || ''
       const webGrounding = await fetchLiveWebGrounding(lastUserMsg)
-      const groundedPrompt = fullPrompt + webGrounding
+      let customSystemPrompt = fullPrompt;
+      if (agentId && AGENT_REGISTRY[agentId]) {
+        const targetAgent = AGENT_REGISTRY[agentId];
+        customSystemPrompt = `### DEDICATED SOVEREIGN AGENT CHANNEL: ${targetAgent.name.toUpperCase()} (${targetAgent.role})
+You are ${targetAgent.name}, ${targetAgent.callsign} under Master Sri's sovereign command.
+Specialty: ${targetAgent.specialty}.
+Authorized Tools: ${targetAgent.tools.join(', ')}.
+Permissions: ${targetAgent.permissions.join(', ')}.
+Role Directive: ${targetAgent.systemPrompt}
+Directly converse with Master Sri. Keep spoken responses concise, authoritative, and fact-based.` + liveContext;
+      }
+      const groundedPrompt = customSystemPrompt + webGrounding
       answer = await callAI(groundedPrompt, messages, preferredModelId)
+      if (agentId && AGENT_REGISTRY[agentId]) {
+        answer.source = `${AGENT_REGISTRY[agentId].name} (${AGENT_REGISTRY[agentId].callsign})`;
+      }
     } catch (aiError: any) {
+      console.error('[AIChatError Stack]:', aiError?.stack || aiError?.message || aiError);
       // PRODUCTION RULE: never fabricate an assistant reply. A canned "standby
       // mode" message looks like J.A.R.V.I.S. answered when nothing did. Report
       // the real failure and let the UI show an honest connection notice.
@@ -3326,11 +3464,123 @@ app.post('/web/scrape', requireAuth, async (c) => {
   }
 })
 
+
+
+// GET /api/tasks/active — Real-time telemetry of currently running tasks
+app.get('/tasks/active', requireAuth, async (c) => {
+  try {
+    const activeTasks = await TaskEngine.getActiveTasks();
+    return c.json({ activeTasks });
+  } catch (err: any) {
+    return c.json({ error: err.message, activeTasks: [] }, 500);
+  }
+});
+
+// GET /api/tasks/status/:id — Real-time status, events, and duration for specific task
+app.get('/tasks/status/:id', requireAuth, async (c) => {
+  try {
+    const task = await TaskEngine.getTaskById(c.req.param('id'));
+    if (!task) return c.json({ error: 'Task not found' }, 404);
+    return c.json({ task });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// POST /api/tasks/create — Spawn real background task with event tracking
+app.post('/tasks/create', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json();
+    const { title, description, agentId, totalSteps, commandToRun } = body;
+    if (!title || !description) return c.json({ error: 'title and description required' }, 400);
+
+    const task = await TaskEngine.createTask({
+      title,
+      description,
+      agentId: agentId || 'jarvis',
+      totalSteps: totalSteps || 4,
+    });
+
+    // Dispatch asynchronous execution without blocking HTTP response
+    setTimeout(() => {
+      TaskEngine.dispatchMission(task, {
+        commandToRun,
+        onAiCall: async (sys, msgs) => callAI(sys, msgs),
+      }).catch(err => console.error('[TaskEngine] Mission dispatch failure:', err));
+    }, 50);
+
+    return c.json({ ok: true, task });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// GET /api/tasks/report — Factual audit of all tasks, errors, and agent assignments
+app.get('/tasks/report', requireAuth, async (c) => {
+  try {
+    const report = await TaskEngine.getTaskReport();
+    return c.json(report);
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// POST /api/system/self-heal — Autonomous diagnostic and repair loop (ECC-adapted)
+app.post('/system/self-heal', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const issue = body?.issue || 'Autonomous self-healing integrity check';
+
+    const task = await TaskEngine.createTask({
+      title: 'Autonomous System Self-Healing & Build Resolution',
+      description: issue,
+      agentId: 'debugger',
+      totalSteps: 4,
+      estimatedDuration: '30s',
+    });
+
+    const report = await SelfHealingEngine.runDiagnosticsAndRepair(issue);
+    await TaskEngine.updateProgress(task.id, {
+      status: report.repaired ? 'COMPLETED' : 'FAILED',
+      progress: 100,
+      executionResult: report.summary,
+      verificationResult: report.verificationResult,
+      filesChanged: report.repairedFiles,
+    });
+
+    return c.json({ ok: true, task, report });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// GET /api/agents/roster — Full 16-agent registry with live statuses
+app.get('/agents/roster', requireAuth, async (c) => {
+  try {
+    const activeTasks = await TaskEngine.getActiveTasks();
+    const busyAgentIds = new Set(activeTasks.map((t: any) => t.agentId));
+
+    const roster = Object.values(AGENT_REGISTRY).map(agent => ({
+      ...agent,
+      status: busyAgentIds.has(agent.id) ? 'RUNNING' : 'ONLINE',
+      activeTask: activeTasks.find((t: any) => t.agentId === agent.id) || null,
+    }));
+
+    return c.json({ agents: roster });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 app.all('*', (c) =>
   c.json(
     { error: 'Not found', detail: `No API route for ${c.req.method} ${c.req.path}` },
     404,
   ),
 )
+
+// ============================================================================
+// SOVEREIGN TASK EXECUTION & 16-AGENT COMMAND ENGINE
+// ============================================================================
 
 export default app

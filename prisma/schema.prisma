@@ -181,3 +181,45 @@ model SystemEvent {
 }
 
 // End of JARVIS schema — Standard Roofs AI Assistant
+
+model AgentTask {
+  id                 String      @id @default(cuid())
+  taskNumber         String      @unique
+  title              String
+  description        String
+  agentId            String      @map("agent_id")
+  status             String      @default("QUEUED")
+  progress           Int         @default(0)
+  currentOperation   String?     @map("current_operation")
+  totalSteps         Int         @default(1) @map("total_steps")
+  completedSteps     Int         @default(0) @map("completed_steps")
+  estimatedDuration  String?     @map("estimated_duration")
+  executionResult    String?     @map("execution_result")
+  verificationResult String?     @map("verification_result")
+  errorDetails       String?     @map("error_details")
+  filesChanged       String?     @map("files_changed")
+  commandsRun        String?     @map("commands_run")
+  startedAt          DateTime?   @map("started_at")
+  completedAt        DateTime?   @map("completed_at")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+  events             TaskEvent[]
+
+  @@index([status])
+  @@index([agentId])
+  @@map("agent_tasks")
+}
+
+model TaskEvent {
+  id        String    @id @default(cuid())
+  taskId    String    @map("task_id")
+  eventType String    @map("event_type")
+  message   String
+  metadata  String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  task      AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([eventType])
+  @@map("task_events")
+}
