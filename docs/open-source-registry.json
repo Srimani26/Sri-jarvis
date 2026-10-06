@@ -1,0 +1,340 @@
+[
+  {
+    "repository": "SAGAR-TAMANG/friday-tony-stark-demo",
+    "url": "https://github.com/SAGAR-TAMANG/friday-tony-stark-demo",
+    "license": "MIT",
+    "stars": 1250,
+    "last_verified": "2026-10-06",
+    "purpose": "Voice assistant implementation modeled on F.R.I.D.A.Y. using LiveKit Agents and FastMCP backend.",
+    "capabilities": [
+      "Voice pipeline with LiveKit Agents",
+      "FastMCP tool server over SSE",
+      "Real-time turn taking and silence detection",
+      "System telemetry exposure via MCP"
+    ],
+    "architecture_patterns": [
+      "Decoupled voice-agent runtime and tool-execution server",
+      "SSE-based JSON-RPC tool invocation",
+      "Streaming audio pipelines"
+    ],
+    "security_notes": [
+      "Exposes system commands; requires strict capability boundary and command allowlist"
+    ],
+    "license_notes": [
+      "MIT License allows commercial use, modification, and integration with attribution"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "v1.2.0"
+  },
+  {
+    "repository": "Forgemind-git/agentic-command-center",
+    "url": "https://github.com/Forgemind-git/agentic-command-center",
+    "license": "Apache-2.0",
+    "stars": 820,
+    "last_verified": "2026-10-06",
+    "purpose": "Autonomous agentic command center and MCP tool orchestration for enterprise operations.",
+    "capabilities": [
+      "Enterprise workflow automation",
+      "MCP tool definitions and registry",
+      "Multi-system coordination (WhatsApp, CRM, data pipelines)"
+    ],
+    "architecture_patterns": [
+      "Single command layer over distributed tools",
+      "MCP skill schemas",
+      "Declarative action boundaries"
+    ],
+    "security_notes": [
+      "Sensitive API tokens must be isolated from client payloads"
+    ],
+    "license_notes": [
+      "Apache-2.0 allows use, modification, and sublicensing with copyright notice"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "main"
+  },
+  {
+    "repository": "OpenHands/software-agent-sdk",
+    "url": "https://github.com/OpenHands/software-agent-sdk",
+    "license": "MIT",
+    "stars": 5400,
+    "last_verified": "2026-10-06",
+    "purpose": "Modular SDK for building autonomous software engineering agents with real tool execution.",
+    "capabilities": [
+      "Repo-level AST navigation and file editing",
+      "Bash process sandboxing and execution",
+      "Test execution and regression validation",
+      "Stateless conversation/task state model"
+    ],
+    "architecture_patterns": [
+      "Separation of agent core from UI and runtime",
+      "Deterministic observation-action-verification loop",
+      "Safe workspace filesystem sandboxing"
+    ],
+    "security_notes": [
+      "Arbitrary command execution must be gated by execution policy (READ_ONLY vs PROJECT_WRITE)"
+    ],
+    "license_notes": [
+      "MIT License"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "v1.1.0"
+  },
+  {
+    "repository": "Aider-AI/aider",
+    "url": "https://github.com/Aider-AI/aider",
+    "license": "Apache-2.0",
+    "stars": 32000,
+    "last_verified": "2026-10-06",
+    "purpose": "Command-line AI pair programmer with git-aware diff application and repo mapping.",
+    "capabilities": [
+      "Tree-sitter repository map construction",
+      "Surgical unified diff generation and application",
+      "Automatic git commit on test pass, rollback on test failure",
+      "Compiler lint feedback loop"
+    ],
+    "architecture_patterns": [
+      "Repo map ranking via PageRank over code symbols",
+      "Diff parser with fuzzy line matching and fallback to whole-file replacement",
+      "Atomic git checkpointing"
+    ],
+    "security_notes": [
+      "Edits must be restricted to project directory to prevent path traversal attacks"
+    ],
+    "license_notes": [
+      "Apache-2.0 allows integration with proper attribution"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "v0.72.0"
+  },
+  {
+    "repository": "browser-use/browser-use",
+    "url": "https://github.com/browser-use/browser-use",
+    "license": "MIT",
+    "stars": 29000,
+    "last_verified": "2026-10-06",
+    "purpose": "Make websites accessible for AI agents via Playwright and Chrome DevTools Protocol.",
+    "capabilities": [
+      "Interactive DOM tree extraction with highlighted interactive indices",
+      "Real browser clicking, typing, navigation, and scrolling",
+      "Visual screenshot capture and verification",
+      "SPA and dynamic client rendering support"
+    ],
+    "architecture_patterns": [
+      "DOM simplification and bounding-box coordinate tracking",
+      "Multi-step planner with visual observation loop",
+      "Headless and headed browser sandboxing"
+    ],
+    "security_notes": [
+      "Malicious web pages can inject prompt instructions into extracted DOM text. External HTML must be sanitized and treated as untrusted DATA."
+    ],
+    "license_notes": [
+      "MIT License"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "v0.1.34"
+  },
+  {
+    "repository": "langchain-ai/langgraph",
+    "url": "https://github.com/langchain-ai/langgraph",
+    "license": "MIT",
+    "stars": 19500,
+    "last_verified": "2026-10-06",
+    "purpose": "Library for building stateful, multi-actor applications with LLMs using cyclical graphs.",
+    "capabilities": [
+      "Stateful cyclical graph routing",
+      "Durable checkpoints and human-in-the-loop interruption",
+      "Fault-tolerant multi-agent state management"
+    ],
+    "architecture_patterns": [
+      "Blackboard / Channels state model",
+      "Conditional edge branching based on verified outputs",
+      "Crash recovery from persistent storage checkpoints"
+    ],
+    "security_notes": [
+      "State serialization must prevent arbitrary code deserialization vulnerabilities"
+    ],
+    "license_notes": [
+      "MIT License"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "INSPIRE",
+    "files_used": [],
+    "upstream_version": "v0.2.70"
+  },
+  {
+    "repository": "pydantic/pydantic-ai",
+    "url": "https://github.com/pydantic/pydantic-ai",
+    "license": "MIT",
+    "stars": 9200,
+    "last_verified": "2026-10-06",
+    "purpose": "Type-safe Python agent framework with strict schema validation and model neutrality.",
+    "capabilities": [
+      "Strict schema validation for inputs and outputs",
+      "Dependency injection and tool execution boundaries",
+      "Streaming responses with partial schema validation"
+    ],
+    "architecture_patterns": [
+      "Type-safe tool registries",
+      "System defines truth; LLM output conforms to schema or fails immediately"
+    ],
+    "security_notes": [
+      "Schema validation blocks unparsed payload attacks"
+    ],
+    "license_notes": [
+      "MIT License"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "INSPIRE",
+    "files_used": [],
+    "upstream_version": "v0.0.32"
+  },
+  {
+    "repository": "langfuse/langfuse",
+    "url": "https://github.com/langfuse/langfuse",
+    "license": "MIT",
+    "stars": 11500,
+    "last_verified": "2026-10-06",
+    "purpose": "Open-source LLM engineering platform for observability, tracing, metrics, and prompt evaluations.",
+    "capabilities": [
+      "Detailed hierarchical traces (Task -> Step -> Agent -> Tool -> Model)",
+      "Latency, token usage, and cost tracking",
+      "Error detection and quality evaluation tracking",
+      "User feedback collection (thumbs up/down, corrections)"
+    ],
+    "architecture_patterns": [
+      "Async event-driven trace emission",
+      "Hierarchical span trees",
+      "Model pricing database"
+    ],
+    "security_notes": [
+      "Mask sensitive user credentials and keys in traces"
+    ],
+    "license_notes": [
+      "MIT / FSL-1.1-Apache-2.0"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "v3.30.0"
+  },
+  {
+    "repository": "livekit/agents",
+    "url": "https://github.com/livekit/agents",
+    "license": "Apache-2.0",
+    "stars": 6300,
+    "last_verified": "2026-10-06",
+    "purpose": "Framework for building real-time, bi-directional voice and multimodal AI agents.",
+    "capabilities": [
+      "Low-latency streaming audio pipelines",
+      "Voice Activity Detection (VAD) with Silero",
+      "Speech-to-Text (STT) and Text-to-Speech (TTS) streaming",
+      "Barge-in / interruption handling"
+    ],
+    "architecture_patterns": [
+      "Full-duplex audio stream architecture",
+      "Instant cancellation of active TTS audio buffer when user speaks",
+      "Audio state machine (Listening, Thinking, Speaking, Error)"
+    ],
+    "security_notes": [
+      "WebRTC/audio streaming requires secure session tokens"
+    ],
+    "license_notes": [
+      "Apache-2.0"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "v0.12.0"
+  },
+  {
+    "repository": "NousResearch/hermes-agent",
+    "url": "https://github.com/NousResearch/hermes-agent",
+    "license": "Apache-2.0",
+    "stars": 4100,
+    "last_verified": "2026-10-06",
+    "purpose": "Autonomous agent framework with persistent memory and DSPy-based prompt self-evolution.",
+    "capabilities": [
+      "Episodic and semantic memory persistence",
+      "Automated prompt tuning based on task feedback",
+      "Tool-use formatting with XML/Markdown tags"
+    ],
+    "architecture_patterns": [
+      "Self-evolution loop: Observe failure -> Propose prompt diff -> Test against benchmark -> Deploy",
+      "Local workspace memory hierarchy"
+    ],
+    "security_notes": [
+      "Never allow automated prompt optimization to overwrite security guards"
+    ],
+    "license_notes": [
+      "Apache-2.0"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "main"
+  },
+  {
+    "repository": "open-jarvis/OpenJarvis",
+    "url": "https://github.com/open-jarvis/OpenJarvis",
+    "license": "MIT",
+    "stars": 3400,
+    "last_verified": "2026-10-06",
+    "purpose": "Privacy-focused, local-first voice AI assistant with pluggable providers and tool hooks.",
+    "capabilities": [
+      "Local-first execution priority with Ollama and cloud fallbacks",
+      "Persistent SQLite conversation and task state",
+      "Modular tool adapters"
+    ],
+    "architecture_patterns": [
+      "Local/Free first routing tier before cloud escalation",
+      "Event bus for system notifications"
+    ],
+    "security_notes": [
+      "Local privacy preserves sensitive prompts on user machine"
+    ],
+    "license_notes": [
+      "MIT License"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "main"
+  },
+  {
+    "repository": "openclaw/openclaw",
+    "url": "https://github.com/openclaw/openclaw",
+    "license": "MIT",
+    "stars": 2100,
+    "last_verified": "2026-10-06",
+    "purpose": "Autonomous assistant platform with local workspace memory and composable skill extensions.",
+    "capabilities": [
+      "Skill registry with standardized manifest files",
+      "Per-workspace memory isolation",
+      "CLI, Web, and messaging interface adapters"
+    ],
+    "architecture_patterns": [
+      "Agentskills compatible structure: Instructions + Tools + Verification + Metadata",
+      "Isolated workspace directories"
+    ],
+    "security_notes": [
+      "Skills must undergo static code analysis before registration"
+    ],
+    "license_notes": [
+      "MIT License"
+    ],
+    "integration_status": "ANALYZED",
+    "decision": "ADAPT",
+    "files_used": [],
+    "upstream_version": "v0.8.0"
+  }
+]

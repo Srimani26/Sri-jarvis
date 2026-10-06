@@ -19,6 +19,8 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import customRoutes from './custom-routes'
+import { CrashRecovery } from './src/kernel/CrashRecovery'
+import { AutonomousScheduler } from './src/scheduler/AutonomousScheduler'
 import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
 
 const app = new Hono()
@@ -57,5 +59,19 @@ app.get('*', (c) => {
 
 const port = Number(process.env.PORT) || 3005
 console.log(`⚡ J.A.R.V.I.S. Cloud Server running on http://localhost:${port}`)
+
+// Autonomous Crash Recovery: inspect and safely recover in-flight tasks from prior runs
+CrashRecovery.recoverInterruptedTasks().catch((err) => {
+  console.error('⚠️ [CrashRecovery] Boot recovery failed:', err?.message || err)
+})
+
+// 24/7 Autonomous Scheduler: Boot background health monitor
+AutonomousScheduler.scheduleJob({
+  title: 'Autonomous System Health Audit',
+  cronExpression: '*/30 * * * *',
+  agentId: 'jarvis',
+  toolName: 'system_health',
+  toolArgs: {},
+})
 
 serve({ port, fetch: app.fetch })

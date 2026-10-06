@@ -26,6 +26,11 @@
     "src/**/*",
     "*.config.ts"
   ],
+  "exclude": [
+    "src/generated/*.ts",
+    "node_modules",
+    "dist"
+  ],
   "watchOptions": {
     "excludeDirectories": [
       "**/node_modules",
