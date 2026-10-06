@@ -49,6 +49,23 @@ export class QuotaManager {
     }
   }
 
+  public static resetProvider(provider: ProviderType): void {
+    const rec = this.getRecord(provider);
+    rec.state = 'HEALTHY';
+    rec.rateLimitHits = 0;
+    rec.timeoutCount = 0;
+    rec.authFailures = 0;
+    rec.resetAt = undefined;
+    rec.lastError = undefined;
+    rec.backoffMs = this.INITIAL_BACKOFF_MS;
+  }
+
+  public static resetAll(): void {
+    for (const provider of this.quotas.keys()) {
+      this.resetProvider(provider);
+    }
+  }
+
   public static getRecord(provider: ProviderType): ProviderQuotaRecord {
     let rec = this.quotas.get(provider);
     if (!rec) {

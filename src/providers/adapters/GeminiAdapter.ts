@@ -42,7 +42,7 @@ export class GeminiAdapter implements ProviderAdapter {
       throw new Error('PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set');
     }
 
-    const model = options?.model || 'gemini-2.5-flash';
+    const model = options?.model || 'gemini-3.1-flash-lite';
     const contents = messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
@@ -127,7 +127,7 @@ export class GeminiAdapter implements ProviderAdapter {
     }
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${this.apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

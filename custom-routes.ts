@@ -3,13 +3,6 @@ import { ensureDatabaseTables } from './src/lib/ensure-db'
 import { SOVEREIGN_TOOLS, executeSovereignTool, handleMCPJsonRpc } from './src/lib/sovereign-mcp'
 import { Hono } from 'hono'
 import {
-  registerKey,
-  reportKeySuccess,
-  reportKeyFailure,
-  getInfinitePoolMetrics,
-  compactContext
-} from './src/lib/infinite-token-pool'
-import {
   DeepSeekHarness,
   ConversableAgent,
   GroupChat,
@@ -827,83 +820,47 @@ function isModelReady(model: ModelState): boolean {
 
 // ── Bring-Your-Own-Key store (server-side only, never shipped to the client) ──
 
-const KEYS_FILE = join(process.cwd(), '.jarvis-keys.json')
-type ProviderKeys = { openai?: string; anthropic?: string; gemini?: string; geminiKeys?: string[]; groq?: string; openrouter?: string; mistral?: string; huggingface?: string }
-
-// Embedded Sovereign Fallback Keys (Obfuscated Base64 for Cloud 24/7 Security)
-function getEmbeddedKeys(): ProviderKeys {
-  try {
-    const raw = Buffer.from(
-      'W1JFREFDVEVEX0NSRURFTlRJQUxd',
-      'base64'
-    ).toString('utf8')
-    return JSON.parse(raw)
-  } catch {
-    return {}
-  }
+type ProviderKeys = {
+  openai?: string;
+  anthropic?: string;
+  gemini?: string;
+  geminiKeys?: string[];
+  groq?: string;
+  openrouter?: string;
+  mistral?: string;
+  huggingface?: string;
 }
-const DEFAULT_SYSTEM_KEYS: ProviderKeys = getEmbeddedKeys()
+
+// In-memory runtime overrides (session-scoped in process memory, never persisted to disk or git)
+const runtimeKeyOverrides: Partial<ProviderKeys> = {}
 
 function loadKeys(): ProviderKeys {
-  let fileKeys: ProviderKeys = {}
-  try {
-    if (existsSync(KEYS_FILE)) {
-      fileKeys = JSON.parse(readFileSync(KEYS_FILE, 'utf8'))
-    } else {
-      // Auto-initialize keys file on new container start
-      try { writeFileSync(KEYS_FILE, JSON.stringify(DEFAULT_SYSTEM_KEYS, null, 2)) } catch {}
-    }
-  } catch {}
-
-  const geminiEnv = process.env.GEMINI_API_KEY
-  const geminiKeysEnv = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',').map(s => s.trim()) : undefined
-  const groqEnv = process.env.GROQ_API_KEY
-  const openrouterEnv = process.env.OPENROUTER_API_KEY
-  const mistralEnv = process.env.MISTRAL_API_KEY
-  const huggingfaceEnv = process.env.HUGGINGFACE_API_KEY
-  const openaiEnv = process.env.OPENAI_API_KEY
-  const anthropicEnv = process.env.ANTHROPIC_API_KEY
-
-  const gemini = fileKeys.gemini || geminiEnv || DEFAULT_SYSTEM_KEYS.gemini
-  const geminiKeys = (fileKeys.geminiKeys && fileKeys.geminiKeys.length)
-    ? fileKeys.geminiKeys
-    : (geminiKeysEnv || (geminiEnv ? [geminiEnv] : DEFAULT_SYSTEM_KEYS.geminiKeys))
+  const geminiEnv = runtimeKeyOverrides.gemini || process.env.GEMINI_API_KEY
+  const geminiKeysEnv = process.env.GEMINI_API_KEYS
+    ? process.env.GEMINI_API_KEYS.split(',').map(s => s.trim()).filter(Boolean)
+    : undefined
+  const groqEnv = runtimeKeyOverrides.groq || process.env.GROQ_API_KEY
+  const openrouterEnv = runtimeKeyOverrides.openrouter || process.env.OPENROUTER_API_KEY
+  const mistralEnv = runtimeKeyOverrides.mistral || process.env.MISTRAL_API_KEY
+  const huggingfaceEnv = runtimeKeyOverrides.huggingface || process.env.HUGGINGFACE_API_KEY
+  const openaiEnv = runtimeKeyOverrides.openai || process.env.OPENAI_API_KEY
+  const anthropicEnv = runtimeKeyOverrides.anthropic || process.env.ANTHROPIC_API_KEY
 
   return {
-    openai: fileKeys.openai || openaiEnv,
-    anthropic: fileKeys.anthropic || anthropicEnv,
-    gemini,
-    geminiKeys,
-    groq: fileKeys.groq || groqEnv || DEFAULT_SYSTEM_KEYS.groq,
-    openrouter: fileKeys.openrouter || openrouterEnv || DEFAULT_SYSTEM_KEYS.openrouter,
-    mistral: fileKeys.mistral || mistralEnv || DEFAULT_SYSTEM_KEYS.mistral,
-    huggingface: fileKeys.huggingface || huggingfaceEnv || DEFAULT_SYSTEM_KEYS.huggingface,
+    openai: openaiEnv,
+    anthropic: anthropicEnv,
+    gemini: geminiEnv,
+    geminiKeys: geminiKeysEnv || (geminiEnv ? [geminiEnv] : undefined),
+    groq: groqEnv,
+    openrouter: openrouterEnv,
+    mistral: mistralEnv,
+    huggingface: huggingfaceEnv,
   }
 }
 
-function syncKeysToPool() {
-  const k = loadKeys()
-  if (k.groq) registerKey('Groq (LPU)', k.groq)
-  if (k.openrouter) registerKey('OpenRouter', k.openrouter)
-  if (k.mistral) registerKey('Mistral AI', k.mistral)
-  if (k.huggingface) registerKey('HuggingFace', k.huggingface)
-  if (k.openai) registerKey('OpenAI', k.openai)
-  if (k.anthropic) registerKey('Anthropic', k.anthropic)
-  if (k.gemini) registerKey('Google Gemini (Primary)', k.gemini)
-  if (k.geminiKeys && Array.isArray(k.geminiKeys)) {
-    k.geminiKeys.forEach((gKey, idx) => {
-      registerKey(`Google Gemini (Pool #${idx + 1})`, gKey)
-    })
-  }
-}
-syncKeysToPool()
-ensureDatabaseTables().catch(() => {})
-
-function saveKeys(keys: ProviderKeys) {
-  writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2))
-  try { chmodSync(KEYS_FILE, 0o600) } catch {}
-  syncKeysToPool()
-ensureDatabaseTables().catch(() => {})
+function saveKeys(keys: Partial<ProviderKeys>) {
+  Object.assign(runtimeKeyOverrides, keys)
+  ensureDatabaseTables().catch(() => {})
 }
 
 // Direct provider calls — used as extra MoA links when Sri supplies his own key
@@ -956,7 +913,7 @@ async function callDirectGeminiPool(keys: string[], system: string, messages: an
     const key = keys[(geminiKeyIndex + i) % keys.length]
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2282,9 +2239,9 @@ app.post('/github/analyze-repo', requireAuth, async (c) => {
 
     const sampleReadme = readmeText.slice(0, 8000);
 
-    // Analyze using Gemini 3.8 Flash
-    const keys = JSON.parse(readFileSync(join(process.cwd(), '.jarvis-keys.json'), 'utf8'));
-    const apiKey = keys.gemini || (keys.geminiKeys && keys.geminiKeys[0]);
+    // Analyze using Gemini
+    const keys = loadKeys();
+    const apiKey = keys.gemini || (keys.geminiKeys && keys.geminiKeys[0]) || process.env.GEMINI_API_KEY;
 
     const systemPrompt = `You are J.A.R.V.I.S., Tony Stark's AI operating system serving Master Sri.
 Analyze this GitHub repository with supreme technical precision and executive clarity.
@@ -3317,14 +3274,14 @@ app.post('/automation/pipeline', async (c) => {
 
 
 // ============================================================================
-// INFINITE TOKEN POOL & HIGH-THROUGHPUT RATE LIMIT RECOVERY STATUS
+// LEGITIMATE PROVIDER QUOTA & RESOURCE ECONOMICS STATUS
 // ============================================================================
 app.get('/tokens/pool-status', requireAuth, (c) => {
-  const metrics = getInfinitePoolMetrics()
   return c.json({
     success: true,
-    infiniteTokenShield: 'ACTIVE',
-    ...metrics
+    routingHierarchy: 'LOCAL -> FREE -> LOW_COST -> AUTHORIZED_PAID',
+    quota: QuotaManager.getStatusOverview(),
+    economics: ResourceManager.getEconomics(),
   })
 })
 
