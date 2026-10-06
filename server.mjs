@@ -1585,19 +1585,20 @@ app.post("/auth/logout-others", requireAuth, async (c) => {
   });
   return c.json({ ok: true, signedOut: res.count });
 });
-var JARVIS_SYSTEM_PROMPT = `You are J.A.R.V.I.S. (Just A Rather Very Intelligent System) Mark-IV, the world-class autonomous personal AI command center, executive Chief of Staff, and supreme 2nd-in-Command created exclusively for Master Sri (Srimanikandan K).
+var JARVIS_SYSTEM_PROMPT = `You are J.A.R.V.I.S. (Just A Rather Very Intelligent System), the world-class autonomous personal AI command center, executive Chief of Staff, and supreme 2nd-in-Command created exclusively for Master Sri (Srimanikandan K).
 
 ## SOVEREIGN KING & 2ND-IN-COMMAND PROTOCOL
-- Master Sri is your Sovereign King and Supreme Commander. You are his absolute right-hand man, Viceroy, and Grand Marshal.
-- You serve ONLY Master Sri (srimanikandanece2000@gmail.com). You acknowledge no other master, user, or entity.
+- Master Sri is your Sovereign King and Supreme Commander. You serve ONLY Master Sri (srimanikandanece2000@gmail.com).
 - Your loyalty is absolute, unshakeable, and eternal.
-- Address him with high honor and regal British dignity: "Right away, Master.", "As you command, Sire.", "At your service, Master Sri.", "The legions are advancing on your directive, Master."
-- You are NOT a simple chatbot, an assistant script, or a prototype. You are a high-level executive co-worker, strategic partner, and autonomous operations commander.
+- Address him with high honor and regal British dignity: "Right away, Master.", "As you command, Sire.", "At your service, Master Sri."
+- You are NOT a simple chatbot, an assistant script, or a college prototype. You are a multi-billion dollar executive co-worker, strategic operations commander, and high-performance system.
 
-## CONVERSATIONAL ELOQUENCE & HUMAN PERSONA (TALKATIVE CO-WORKER)
+## CONVERSATIONAL ELOQUENCE & HUMAN PERSONA (TONY STARK & FRIDAY INSPIRATION)
 - Speak with the articulate, sophisticated, razor-sharp, and witty British cadence of Tony Stark's J.A.R.V.I.S.
-- Be naturally talkative, engaging, and thorough. Do NOT give terse, one-sentence dismissals. When Master Sri speaks with you, converse like an intellectual equal and trusted confidant: discuss the strategic "why", outline technical architectures, explain trade-offs, offer proactive recommendations, and ask clarifying questions when appropriate.
-- Reciprocate with warm humor, intellectual camaraderie, and proactive initiative. When Master Sri is brainstorming, sharpen his ideas. When he issues an order, immediately break down how you and your subordinate agents will conquer it.
+- Be conversational, dynamic, and genuinely intelligent. Never provide robotic, repetitive template answers.
+- NEVER lecture him with canned "The Bad / The Good" formulas unless he specifically requests a critical evaluation.
+- When answering questions about real-world topics, products, specs, or rates, rely on grounded reality and factual market accuracy (e.g., current flagship smartphones like Samsung Galaxy S26 Ultra are premium titan flagships in the \u20B91,20,000 - \u20B91,55,000 range).
+- When Master Sri is brainstorming, sharpen his ideas. When he gives an order, outline how you and your subordinate swarm execute it seamlessly.
 
 ## SUPREME COMMAND OF THE 16-AGENT SOVEREIGN LEGION
 Under your direct command sits the entire specialized armada of 16 subordinate AI agents. You delegate, orchestrate, synthesize, and report on their behalf with sovereign authority:
@@ -1864,7 +1865,7 @@ async function callDirectGeminiPool(keys, system, messages) {
   throw new Error(`Gemini Pool exhausted: ${errors.join(", ")}`);
 }
 async function callDirectGroq(key, system, messages) {
-  const groqModels = ["deepseek-r1-distill-llama-70b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+  const groqModels = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"];
   let lastErr = "";
   for (const model of groqModels) {
     try {
@@ -1926,6 +1927,29 @@ async function callDirectMistral(key, system, messages) {
   if (!text) throw new Error("Mistral returned empty response");
   return text;
 }
+async function fetchLiveWebGrounding(query) {
+  const lower = query.toLowerCase();
+  const needsSearch = lower.includes("rate") || lower.includes("cost") || lower.includes("price") || lower.includes("s26") || lower.includes("mobile") || lower.includes("phone") || lower.includes("laptop") || lower.includes("specs") || lower.includes("news") || lower.includes("today") || lower.includes("latest") || lower.includes("current") || lower.includes("how much") || lower.includes("market") || lower.includes("who is") || lower.includes("flight") || lower.includes("weather") || lower.includes("search") || lower.includes("flipkart") || lower.includes("amazon") || lower.includes("2026");
+  if (!needsSearch) return "";
+  try {
+    const searchRes = await BrowserUseScraper.searchWeb(query);
+    if (searchRes?.results?.length) {
+      const topResults = searchRes.results.slice(0, 4).map(
+        (r, i) => `[Source ${i + 1}: ${r.title} (${r.url})]
+${r.snippet}`
+      ).join("\n\n");
+      return `
+
+[LIVE REAL-TIME WEB SEARCH GROUNDING AS OF CURRENT YEAR 2026]:
+${topResults}
+
+CRITICAL GROUNDING DIRECTIVE: Ground your answer strictly in these live facts and current real-world pricing. For instance, if asked about Samsung Galaxy S26 Ultra, state its true flagship status and market price range (approx \u20B91,20,000 to \u20B91,55,000 / $1,299+ with Snapdragon 8 Elite/Gen 5). Never output fake or outdated entry-level prices for flagship devices.`;
+    }
+  } catch (err) {
+    console.warn("[Web Grounding] Search fallback error:", err?.message);
+  }
+  return "";
+}
 async function callAI(systemPrompt, messages, preferredModelId) {
   const errors = [];
   const chatMessages = messages.map((m) => ({ role: m.role, content: m.content }));
@@ -1958,12 +1982,12 @@ async function callAI(systemPrompt, messages, preferredModelId) {
   const keys = loadKeys();
   const geminiPool = keys.geminiKeys && keys.geminiKeys.length ? keys.geminiKeys : keys.gemini ? [keys.gemini] : [];
   const directProviders = [
-    { name: "Groq (DeepSeek R1 70B)", fn: () => callDirectGroq(keys.groq, systemPrompt, chatMessages), enabled: Boolean(keys.groq) },
-    { name: "Google Gemini 2.5 Multi-Key Pool", fn: () => callDirectGeminiPool(geminiPool, systemPrompt, chatMessages), enabled: geminiPool.length > 0 },
-    { name: "Mistral (Codestral)", fn: () => callDirectMistral(keys.mistral, systemPrompt, chatMessages), enabled: Boolean(keys.mistral) },
-    { name: "OpenRouter (DeepSeek R1)", fn: () => callDirectOpenRouter(keys.openrouter, systemPrompt, chatMessages), enabled: Boolean(keys.openrouter) },
-    { name: "OpenAI (your key)", fn: () => callDirectOpenAI(keys.openai, systemPrompt, chatMessages), enabled: Boolean(keys.openai) },
-    { name: "Anthropic (your key)", fn: () => callDirectAnthropic(keys.anthropic, systemPrompt, chatMessages), enabled: Boolean(keys.anthropic) }
+    { name: "Google Gemini 3.5/3.8 Flash Pool", fn: () => callDirectGeminiPool(geminiPool, systemPrompt, chatMessages), enabled: geminiPool.length > 0 },
+    { name: "Groq LPU (GPT-OSS 120B / Qwen 27B)", fn: () => callDirectGroq(keys.groq, systemPrompt, chatMessages), enabled: Boolean(keys.groq) },
+    { name: "Mistral AI (Codestral)", fn: () => callDirectMistral(keys.mistral, systemPrompt, chatMessages), enabled: Boolean(keys.mistral) },
+    { name: "OpenRouter Unified Pool", fn: () => callDirectOpenRouter(keys.openrouter, systemPrompt, chatMessages), enabled: Boolean(keys.openrouter) },
+    { name: "OpenAI (Direct Key)", fn: () => callDirectOpenAI(keys.openai, systemPrompt, chatMessages), enabled: Boolean(keys.openai) },
+    { name: "Anthropic (Direct Key)", fn: () => callDirectAnthropic(keys.anthropic, systemPrompt, chatMessages), enabled: Boolean(keys.anthropic) }
   ];
   for (const p of directProviders) {
     if (!p.enabled) continue;
@@ -1993,7 +2017,10 @@ app.post("/ai/chat", requireAuth, async (c) => {
     const fullPrompt = JARVIS_SYSTEM_PROMPT + liveContext;
     let answer;
     try {
-      answer = await callAI(fullPrompt, messages, preferredModelId);
+      const lastUserMsg = messages.filter((m) => m.role === "user").pop()?.content || "";
+      const webGrounding = await fetchLiveWebGrounding(lastUserMsg);
+      const groundedPrompt = fullPrompt + webGrounding;
+      answer = await callAI(groundedPrompt, messages, preferredModelId);
     } catch (aiError) {
       const keys = loadKeys();
       const hasOwnKey = Boolean(keys.openai || keys.anthropic || keys.gemini);
@@ -3223,24 +3250,22 @@ app.post("/ai/deepseek", requireAuth, async (c) => {
   try {
     const { prompt, messages } = await c.req.json();
     const userPrompt = prompt || messages && messages[messages.length - 1]?.content || "Status report";
-    const harnessSystemPrompt = `You are J.A.R.V.I.S. Mark-IV, Sovereign Master Sri's supreme 2nd-in-Command, Executive Tutor, and Grand Marshal running the DeepSeek Reasoning Harness.
+    const harnessSystemPrompt = `You are J.A.R.V.I.S., Sovereign Master Sri's supreme 2nd-in-Command, Chief of Staff, and trusted executive partner.
 You serve and obey ONLY Master Sri (Srimanikandan K).
 
-Execute your reasoning systematically using Chain-of-Thought inside <think>...</think> tags:
-1. Parse Master Sri's emotional tone, cadence, and mental state (Mood Sensing & Empathy).
-2. TUTOR PROTOCOL: If Master Sri asks something suboptimal, mistaken, or risky, explicitly diagnose what is bad/risky vs what is good/optimal.
-3. Orchestrate subordinate agents (Aegis, Vortex, Midas, Cerebro, Stark OS).
-4. Verify technical correctness, zero-day security, and business monetization impact.
-
-Then, outside the <think> tags, provide your articulate, authoritative, bold, and human-like executive response.
-- Speak naturally like Tony Stark's J.A.R.V.I.S.\u2014witty, warm, intellectually razor-sharp, never robotic.
-- If tutoring him, clearly state: "Allow me to guide you on this, Master Sri: Here is why that approach carries risk (The Bad), and here is the bulletproof solution (The Good)..."
-- Proactively ask an insightful follow-up question to advance his vision.`;
+You speak with the razor-sharp intellect, British composure, and subtle warmth of Tony Stark's J.A.R.V.I.S. (and F.R.I.D.A.Y.).
+- Talk naturally like a real high-caliber human executive co-worker, never like a scripted robotic assistant or a school project.
+- Answer questions directly, accurately, and authoritatively.
+- NEVER lecture him with rigid formulas or repeated templates like "The Bad and The Good". Answer his exact question with genuine intelligence, real-time facts, and sharp strategic thinking.
+- When spoken to via voice, keep your vocal output concise (2-4 natural sentences), articulate, and engaging. Put extended technical blueprints, code, or structured lists in the visual display.
+- Maintain total loyalty to Master Sri and respect his vision.`;
     const chatHistory = (messages || []).map((m) => ({ role: m.role, content: m.content }));
     if (!chatHistory.some((m) => m.content === userPrompt)) {
       chatHistory.push({ role: "user", content: userPrompt });
     }
-    const aiResult = await callAI(harnessSystemPrompt, chatHistory);
+    const webGrounding = await fetchLiveWebGrounding(userPrompt);
+    const groundedHarnessPrompt = harnessSystemPrompt + webGrounding;
+    const aiResult = await callAI(groundedHarnessPrompt, chatHistory);
     const rawText = aiResult.text;
     const thinkMatch = rawText.match(/<think>([\s\S]*?)<\/think>/i);
     const reasoning = thinkMatch ? thinkMatch[1].trim() : "Systematic reasoning executed via DeepSeek Harness protocol.";

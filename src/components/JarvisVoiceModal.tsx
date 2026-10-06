@@ -240,6 +240,62 @@ const AGENTS: Record<string, AgentBadge> = {
   }
 }
 
+
+// ============================================================================
+// SOVEREIGN HIGH-PRECISION SPEECH TRANSCRIPT NORMALIZER & DEDUPLICATOR
+// Eliminates repetitive stutters and Android Web Speech hypothesis overlap
+// ============================================================================
+function cleanAndDeduplicateTranscript(raw: string): string {
+  if (!raw) return ''
+  let text = raw.trim()
+
+  // 1. Remove immediate repeated word stutters: "hey hey hey" -> "hey", "I'm I'm" -> "I'm"
+  text = text.replace(/\b([\w']+)(?:\s+\1\b)+/gi, '$1')
+
+  // 2. Iteratively remove adjacent repeating phrase blocks of length N (from 10 words down to 1)
+  let changed = true
+  let passes = 0
+  while (changed && passes < 8) {
+    changed = false
+    passes++
+    const words = text.split(/\s+/)
+    if (words.length < 2) break
+
+    for (let n = Math.min(10, Math.floor(words.length / 2)); n >= 1; n--) {
+      for (let i = 0; i <= words.length - n * 2; i++) {
+        const phraseA = words.slice(i, i + n).join(' ').toLowerCase()
+        const phraseB = words.slice(i + n, i + n * 2).join(' ').toLowerCase()
+        if (phraseA === phraseB) {
+          words.splice(i + n, n)
+          text = words.join(' ')
+          changed = true
+          break
+        }
+      }
+      if (changed) break
+    }
+  }
+
+  // 3. Progressive accumulation prefix cleanup (handles "A", "A B", "A B C" concatenations)
+  for (let n = 10; n >= 2; n--) {
+    const words = text.split(/\s+/)
+    if (words.length < n + 2) continue
+    for (let i = 0; i < words.length - n; i++) {
+      const needle = words.slice(i, i + n).join(' ').toLowerCase()
+      const haystack = words.slice(i + n).join(' ').toLowerCase()
+      if (haystack.startsWith(needle)) {
+        words.splice(i, n)
+        text = words.join(' ')
+        break
+      }
+    }
+  }
+
+  // Final single word stutter clean
+  text = text.replace(/\b([\w']+)(?:\s+\1\b)+/gi, '$1')
+  return text.replace(/\s+/g, ' ').trim()
+}
+
 export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: JarvisVoiceModalProps) {
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -281,6 +337,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const conversationHistoryRef = useRef<Array<{ role: string; content: string }>>([])
   const lastActiveRef = useRef<number>(Date.now())
   const isRollingCallRef = useRef(false)
+  const hasGreetedSessionRef = useRef(false)
+  const isPushToTalkRef = useRef(false)
+  const [micMode, setMicMode] = useState<'handsfree' | 'pushtotalk'>('handsfree')
   const isOpenRef = useRef(isOpen)
 
   useEffect(() => {
@@ -1506,31 +1565,32 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       recognition.onresult = (event: any) => {
         let interimText = ''
         let finalText = ''
-        for (let i = 0; i < event.results.length; ++i) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
             finalText += event.results[i][0].transcript + ' '
           } else {
             interimText += event.results[i][0].transcript
           }
         }
-        const combined = (finalText + interimText).trim()
-        setTranscript(combined)
-        transcriptRef.current = combined
+        
+        const rawCombined = (transcriptRef.current + ' ' + finalText + interimText).trim()
+        const cleaned = cleanAndDeduplicateTranscript(rawCombined)
+        setTranscript(cleaned)
+        transcriptRef.current = cleaned
         lastActiveRef.current = Date.now()
 
-        // Silence Debounce / VAD: Automatically dispatch when Master Sri pauses speaking
+        // Natural VAD Silence Debounce (2000ms grace period so Master Sri is never cut off mid-sentence)
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-        if (combined.length > 0) {
-          const timeoutMs = (finalText.trim().length > 0 && interimText.trim().length === 0) ? 450 : 650
+        if (cleaned.length > 0 && micMode === 'handsfree') {
           silenceTimerRef.current = setTimeout(() => {
-            const captured = transcriptRef.current.trim()
+            const captured = cleanAndDeduplicateTranscript(transcriptRef.current)
             if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
               transcriptRef.current = ''
               setTranscript('')
               stopListening()
               processCommand(captured)
             }
-          }, timeoutMs)
+          }, 2000) // 2.0s comfortable speech pause
         }
       }
 
