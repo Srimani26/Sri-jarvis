@@ -25,7 +25,16 @@ import {
   LangGraphSupervisor
 } from './src/lib/open-agents'
 
-import { stream } from 'hono/streaming'
+import { stream, streamSSE } from 'hono/streaming'
+import { TaskStore } from './src/kernel/TaskStore'
+import { EventStream } from './src/kernel/EventStream'
+import { CrashRecovery } from './src/kernel/CrashRecovery'
+import { AgentRegistry } from './src/agents/AgentRegistry'
+import { AgentRuntime } from './src/agents/AgentRuntime'
+import { MissionOrchestrator } from './src/orchestrator/MissionOrchestrator'
+import { WorkerRegistry } from './src/workers/WorkerRegistry'
+import { TelemetryHub } from './src/observability/TelemetryHub'
+import { AutonomousScheduler } from './src/scheduler/AutonomousScheduler'
 import { createShogoLlmProvider } from '@shogo-ai/sdk'
 import { streamText, generateText } from 'ai'
 import { prisma } from './src/lib/db'
@@ -3469,7 +3478,7 @@ app.post('/web/scrape', requireAuth, async (c) => {
 // GET /api/tasks/active — Real-time telemetry of currently running tasks
 app.get('/tasks/active', requireAuth, async (c) => {
   try {
-    const activeTasks = await TaskEngine.getActiveTasks();
+    const activeTasks = await TaskStore.getActiveTasks();
     return c.json({ activeTasks });
   } catch (err: any) {
     return c.json({ error: err.message, activeTasks: [] }, 500);
@@ -3479,12 +3488,58 @@ app.get('/tasks/active', requireAuth, async (c) => {
 // GET /api/tasks/status/:id — Real-time status, events, and duration for specific task
 app.get('/tasks/status/:id', requireAuth, async (c) => {
   try {
-    const task = await TaskEngine.getTaskById(c.req.param('id'));
+    const task = await TaskStore.getTask(c.req.param('id'));
     if (!task) return c.json({ error: 'Task not found' }, 404);
     return c.json({ task });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
+});
+
+// GET /api/tasks/:id/stream — Live SSE stream for a specific task
+app.get('/tasks/:id/stream', async (c) => {
+  const taskId = c.req.param('id');
+  return streamSSE(c, async (stream) => {
+    const initialTask = await TaskStore.getTask(taskId);
+    if (initialTask) {
+      await stream.writeSSE({
+        event: 'TASK_SNAPSHOT',
+        data: JSON.stringify(initialTask),
+        id: `snap_${Date.now()}`
+      });
+    }
+
+    const unsubscribe = EventStream.subscribe(taskId, (chunk) => {
+      stream.write(chunk).catch(() => {});
+    });
+
+    stream.onAbort(() => {
+      unsubscribe();
+    });
+
+    while (!stream.aborted) {
+      await stream.sleep(12000);
+      await stream.writeSSE({ event: 'ping', data: 'heartbeat' });
+    }
+  });
+});
+
+// GET /api/tasks/stream — Global live SSE event stream (Cockpit view)
+app.get('/tasks/stream', async (c) => {
+  return streamSSE(c, async (stream) => {
+    const unsubscribe = EventStream.subscribeGlobal((chunk) => {
+      stream.write(chunk).catch(() => {});
+    });
+
+    stream.onAbort(() => {
+      unsubscribe();
+    });
+
+    while (!stream.aborted) {
+      await stream.sleep(12000);
+      await stream.writeSSE({ event: 'ping', data: 'cockpit_heartbeat' });
+    }
+  });
 });
 
 // POST /api/tasks/create — Spawn real background task with event tracking
@@ -3494,7 +3549,7 @@ app.post('/tasks/create', requireAuth, async (c) => {
     const { title, description, agentId, totalSteps, commandToRun } = body;
     if (!title || !description) return c.json({ error: 'title and description required' }, 400);
 
-    const task = await TaskEngine.createTask({
+    const task = await TaskStore.createTask({
       title,
       description,
       agentId: agentId || 'jarvis',
@@ -3515,11 +3570,128 @@ app.post('/tasks/create', requireAuth, async (c) => {
   }
 });
 
+// POST /api/tasks/:id/cancel — Cancel an in-flight task
+app.post('/tasks/:id/cancel', requireAuth, async (c) => {
+  try {
+    const taskId = c.req.param('id');
+    const task = await TaskStore.updateTask(taskId, {
+      status: 'CANCELLED',
+      currentOperation: 'Task cancelled by Master Sri',
+    });
+    return c.json({ ok: true, task });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 // GET /api/tasks/report — Factual audit of all tasks, errors, and agent assignments
 app.get('/tasks/report', requireAuth, async (c) => {
   try {
-    const report = await TaskEngine.getTaskReport();
+    const report = await TaskStore.getTaskReport();
     return c.json(report);
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// POST /api/tasks/recovery/run — Trigger autonomous crash recovery
+app.post('/tasks/recovery/run', requireAuth, async (c) => {
+  try {
+    const recoveryReport = await CrashRecovery.recoverInterruptedTasks();
+    return c.json({ ok: true, recoveryReport });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// SPECIALIST AGENT WORKFORCE ROUTES
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/agents — List all 20 registered specialist agents with capabilities & telemetry
+app.get('/agents', requireAuth, async (c) => {
+  try {
+    const agents = AgentRegistry.listAgents();
+    return c.json({ agents });
+  } catch (err: any) {
+    return c.json({ error: err.message, agents: [] }, 500);
+  }
+});
+
+// GET /api/agents/:id — Get details of a specific specialist agent
+app.get('/agents/:id', requireAuth, async (c) => {
+  try {
+    const agent = AgentRegistry.getAgent(c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+    return c.json({ agent });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// POST /api/agents/dispatch — Dispatch task directly to a specialist agent
+app.post('/agents/dispatch', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json();
+    const { agentId, objective, inputData, policyCeiling } = body;
+    if (!agentId || !objective) {
+      return c.json({ error: 'agentId and objective required' }, 400);
+    }
+
+    const task = await TaskStore.createTask({
+      title: objective.slice(0, 100),
+      description: objective,
+      agentId,
+      totalSteps: 3,
+    });
+
+    // Execute in background
+    setTimeout(async () => {
+      try {
+        await AgentRuntime.executeAgentTask({
+          taskId: task.id,
+          agentId,
+          objective,
+          inputData,
+          policyCeiling,
+        });
+      } catch (execErr: any) {
+        console.error(`[AgentRuntime] Background dispatch error:`, execErr?.message);
+      }
+    }, 20);
+
+    return c.json({ ok: true, taskId: task.id, taskNumber: task.taskNumber });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// POST /api/agents/pipeline — Execute a sequential multi-agent pipeline
+app.post('/agents/pipeline', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json();
+    const { title, pipeline } = body;
+    if (!Array.isArray(pipeline) || pipeline.length === 0) {
+      return c.json({ error: 'pipeline array required' }, 400);
+    }
+
+    const task = await TaskStore.createTask({
+      title: title || 'Multi-Agent Pipeline Execution',
+      description: `Pipeline with ${pipeline.length} specialist stages`,
+      agentId: pipeline[0]?.agentId || 'jarvis',
+      totalSteps: pipeline.length,
+    });
+
+    // Execute pipeline in background
+    setTimeout(async () => {
+      try {
+        await AgentRuntime.executePipeline(task.id, pipeline);
+      } catch (pipelineErr: any) {
+        console.error(`[AgentRuntime] Pipeline error:`, pipelineErr?.message);
+      }
+    }, 20);
+
+    return c.json({ ok: true, taskId: task.id, taskNumber: task.taskNumber });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
@@ -3567,6 +3739,98 @@ app.get('/agents/roster', requireAuth, async (c) => {
     }));
 
     return c.json({ agents: roster });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 16: CANONICAL MISSION ORCHESTRATION & WORKER ROUTES
+// ═══════════════════════════════════════════════════════════════════
+
+// POST /api/missions/execute — Canonical end-to-end mission execution
+app.post('/missions/execute', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json();
+    const { objective, context, policyCeiling, requiredCapabilities, preferredAgentId, toolsToRun } = body;
+    if (!objective) return c.json({ error: 'objective required' }, 400);
+
+    const result = await MissionOrchestrator.executeMission({
+      objective,
+      context,
+      policyCeiling,
+      requiredCapabilities,
+      preferredAgentId,
+      toolsToRun,
+      caller: 'API_CLIENT',
+    });
+
+    return c.json({ ok: true, mission: result });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// GET /api/missions/:id — Get mission status and dossier
+app.get('/missions/:id', requireAuth, async (c) => {
+  try {
+    const missionId = c.req.param('id');
+    const cached = MissionOrchestrator.getMission(missionId);
+    if (cached) return c.json({ mission: cached });
+
+    const task = await TaskStore.getTask(missionId);
+    if (!task) return c.json({ error: 'Mission not found' }, 404);
+    return c.json({ mission: task });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// GET /api/workers — List all registered worker nodes
+app.get('/workers', requireAuth, async (c) => {
+  try {
+    const workers = WorkerRegistry.listWorkers();
+    return c.json({ workers });
+  } catch (err: any) {
+    return c.json({ error: err.message, workers: [] }, 500);
+  }
+});
+
+// POST /api/workers/register — Register a new worker node (Local PC, Ollama, etc.)
+app.post('/workers/register', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { id, name, capabilities, health } = body;
+    if (!id || !name || !Array.isArray(capabilities)) {
+      return c.json({ error: 'id, name, and capabilities array required' }, 400);
+    }
+
+    const worker = WorkerRegistry.registerWorker({ id, name, capabilities, health });
+    return c.json({ ok: true, worker });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// POST /api/workers/heartbeat — Heartbeat keep-alive ping
+app.post('/workers/heartbeat', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { workerId, health } = body;
+    if (!workerId) return c.json({ error: 'workerId required' }, 400);
+
+    const success = WorkerRegistry.recordHeartbeat(workerId, health);
+    return c.json({ ok: success });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// GET /api/telemetry — Aggregated system telemetry from TelemetryHub
+app.get('/telemetry', requireAuth, async (c) => {
+  try {
+    const metrics = TelemetryHub.getSystemMetrics();
+    return c.json({ ok: true, metrics });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
