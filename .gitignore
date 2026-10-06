@@ -4,7 +4,9 @@ dist/
 *.db
 *.db-shm
 *.db-wal
-memory/
+/memory/
+!src/memory/
+!src/memory/**
 .env
 .jarvis-invite
 .jarvis-keys.json
