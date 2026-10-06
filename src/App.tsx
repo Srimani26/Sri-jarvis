@@ -211,18 +211,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('command')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [voiceModalOpen, setVoiceModalOpen] = useState(false)
-  // Auto-Welcome within 1.8 seconds of opening the Command Center
-  const [autoWelcomeTriggered, setAutoWelcomeTriggered] = useState(false)
-  useEffect(() => {
-    if (token && !autoWelcomeTriggered) {
-      setAutoWelcomeTriggered(true)
-      const timer = setTimeout(() => {
-        playJarvisChime('wake')
-        playNeuralSpeech('Master Sri, greetings and welcome back. All systems are operational and we stand ready to assist you.')
-      }, 1800)
-      return () => clearTimeout(timer)
-    }
-  }, [token, autoWelcomeTriggered])
+  // Auto-welcome managed exclusively by voice transceiver
 
   const [sovereignAwakened, setSovereignAwakened] = useState(false)
 

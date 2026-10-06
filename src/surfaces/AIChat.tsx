@@ -126,6 +126,29 @@ function renderMarkdown(text: string) {
   })
 }
 
+
+function cleanAndDeduplicateTranscript(raw: string): string {
+  if (!raw) return ''
+  let text = raw.trim().replace(/\b([\w']+)(?:\s+\1\b)+/gi, '$1')
+  for (let pass = 0; pass < 6; pass++) {
+    const words = text.split(/\s+/)
+    if (words.length < 2) break
+    let changed = false
+    for (let n = Math.min(8, Math.floor(words.length / 2)); n >= 1; n--) {
+      for (let i = 0; i <= words.length - n * 2; i++) {
+        if (words.slice(i, i + n).join(' ').toLowerCase() === words.slice(i + n, i + n * 2).join(' ').toLowerCase()) {
+          words.splice(i + n, n)
+          text = words.join(' ')
+          changed = true
+          break
+        }
+      }
+      if (changed) break
+    }
+  }
+  return text.replace(/\s+/g, ' ').trim()
+}
+
 export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -559,7 +582,7 @@ export default function AIChat() {
       </div>
 
       {/* Messages Feed */}
-      <div className="relative min-h-[420px] max-h-[580px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-4 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
+      <div className="relative min-h-[380px] max-h-[62vh] sm:max-h-[600px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-4 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -736,18 +759,20 @@ export default function AIChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Action Directives */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      {/* Sleek Horizontal Quick Directive Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
+        <span className="text-[10px] font-mono text-cyan-400 font-bold shrink-0 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" />
+          <span>DIRECTIVES:</span>
+        </span>
         {QUICK_ACTIONS.map((action, i) => (
           <button
             key={i}
             onClick={() => sendMessage(action.query)}
-            className="flex flex-col items-start p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/40 hover:bg-slate-900/70 transition-all text-left group cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-cyan-500/10 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-all text-[11px] font-mono whitespace-nowrap shrink-0 shadow-sm"
           >
-            <span className="text-base mb-1">{action.icon}</span>
-            <span className="text-[11px] font-mono font-bold text-slate-200 group-hover:text-cyan-300 transition-colors">
-              {action.label}
-            </span>
+            <span>{action.icon}</span>
+            <span>{action.label}</span>
           </button>
         ))}
       </div>
@@ -765,7 +790,7 @@ export default function AIChat() {
               sendMessage(input)
             }
           }}
-          placeholder="Command J.A.R.V.I.S... (e.g. 'Hey Jarvis look for flights Mumbai to Miami', 'Analyze Flipkart vs Amazon mobiles', 'Build full-stack app')"
+          placeholder="Command J.A.R.V.I.S... (e.g. 'What is the rate of Samsung S26 Ultra', 'Scaffold full-stack app', 'Export n8n automation')..."
           className="w-full bg-transparent px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none resize-none font-mono"
         />
 
