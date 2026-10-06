@@ -64,7 +64,9 @@ export const ModelName = {
   ActivityLog: 'ActivityLog',
   DailySummary: 'DailySummary',
   UserSession: 'UserSession',
-  SystemEvent: 'SystemEvent'
+  SystemEvent: 'SystemEvent',
+  AgentTask: 'AgentTask',
+  TaskEvent: 'TaskEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -251,6 +253,44 @@ export const SystemEventScalarFieldEnum = {
 } as const
 
 export type SystemEventScalarFieldEnum = (typeof SystemEventScalarFieldEnum)[keyof typeof SystemEventScalarFieldEnum]
+
+
+export const AgentTaskScalarFieldEnum = {
+  id: 'id',
+  taskNumber: 'taskNumber',
+  title: 'title',
+  description: 'description',
+  agentId: 'agentId',
+  status: 'status',
+  progress: 'progress',
+  currentOperation: 'currentOperation',
+  totalSteps: 'totalSteps',
+  completedSteps: 'completedSteps',
+  estimatedDuration: 'estimatedDuration',
+  executionResult: 'executionResult',
+  verificationResult: 'verificationResult',
+  errorDetails: 'errorDetails',
+  filesChanged: 'filesChanged',
+  commandsRun: 'commandsRun',
+  startedAt: 'startedAt',
+  completedAt: 'completedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AgentTaskScalarFieldEnum = (typeof AgentTaskScalarFieldEnum)[keyof typeof AgentTaskScalarFieldEnum]
+
+
+export const TaskEventScalarFieldEnum = {
+  id: 'id',
+  taskId: 'taskId',
+  eventType: 'eventType',
+  message: 'message',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type TaskEventScalarFieldEnum = (typeof TaskEventScalarFieldEnum)[keyof typeof TaskEventScalarFieldEnum]
 
 
 export const SortOrder = {

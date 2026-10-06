@@ -162,7 +162,8 @@ export default function AIChat() {
   })
   const [models, setModels] = useState<Array<{ id: string; name: string; healthy: boolean }>>([])
   const [selectedModel, setSelectedModel] = useState('auto')
-  const [selectedAgent, setSelectedAgent] = useState<'all' | 'aegis' | 'vortex' | 'midas' | 'cerebro' | 'skynet' | 'omnibuy' | 'stark'>('all')
+  const [selectedAgent, setSelectedAgent] = useState<string>('all')
+  const [activeTasks, setActiveTasks] = useState<any[]>([])
   const [moaMode, setMoaMode] = useState(true)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -267,6 +268,23 @@ export default function AIChat() {
       timestamp: new Date(),
       source: 'J.A.R.V.I.S. Core',
     }])
+  }, [])
+
+  
+  // Real-time task execution polling
+  useEffect(() => {
+    let mounted = true
+    const pollActiveTasks = async () => {
+      try {
+        const res = await fetch('/api/tasks/active', { headers: authHeaders() })
+        if (!res.ok) return
+        const data = await res.json()
+        if (mounted) setActiveTasks(data.activeTasks || [])
+      } catch {}
+    }
+    pollActiveTasks()
+    const interval = setInterval(pollActiveTasks, 2500)
+    return () => { mounted = false; clearInterval(interval) }
   }, [])
 
   // Send message implementation
@@ -394,6 +412,7 @@ export default function AIChat() {
               content: idx === newMessages.length - 1 ? promptPayload : msg.content,
             })),
           model: selectedModel === 'auto' ? undefined : selectedModel,
+          agentId: selectedAgent !== 'all' ? selectedAgent : undefined,
         }),
       })
 
@@ -758,6 +777,39 @@ export default function AIChat() {
 
         <div ref={messagesEndRef} />
       </div>
+
+      
+      {/* 16-Agent Dedicated Channel Selector */}
+      <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none px-1">
+        <span className="text-[10px] font-mono text-slate-400 font-bold shrink-0">CHANNEL:</span>
+        {[
+          { id: 'all', name: 'Fleet Swarm', icon: '⚡' },
+          { id: 'aegis', name: 'Aegis (Dev)', icon: '🛡️' },
+          { id: 'vortex', name: 'Vortex (n8n)', icon: '🌀' },
+          { id: 'midas', name: 'Midas (Revenue)', icon: '💰' },
+          { id: 'cerebro', name: 'Cerebro (Intel)', icon: '🌐' },
+          { id: 'stark_os', name: 'Stark OS', icon: '⚙️' },
+          { id: 'deepseek_r1', name: 'DeepSeek R1', icon: '🧠' },
+          { id: 'browser_use', name: 'Browser-Use', icon: '🔍' },
+          { id: 'openhands', name: 'OpenHands', icon: '💻' },
+          { id: 'debugger', name: 'Build Error Resolver', icon: '🔧' },
+        ].map((agent) => (
+          <button
+            key={agent.id}
+            onClick={() => setSelectedAgent(agent.id)}
+            className={cn(
+              "flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium transition-all shrink-0 border",
+              selectedAgent === agent.id
+                ? "bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+                : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+            )}
+          >
+            <span>{agent.icon}</span>
+            <span>{agent.name}</span>
+          </button>
+        ))}
+      </div>
+
 
       {/* Sleek Horizontal Quick Directive Pills */}
       <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">

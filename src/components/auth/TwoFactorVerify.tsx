@@ -11,7 +11,7 @@ interface TwoFactorVerifyProps {
    * against this session — without it every code is rejected.
    */
   tempToken: string
-  onSuccess: (token: string) => void
+  onSuccess: (token: string, user: { username: string }) => void
   onBack: () => void
   /** Called after 2FA is turned off via the recovery form. */
   onRecovered: (message: string) => void
@@ -71,7 +71,7 @@ export function TwoFactorVerify({ username, tempToken, onSuccess, onBack, onReco
         return
       }
       if (!data?.token) throw new Error('Server returned no session token')
-      onSuccess(data.token)
+      onSuccess(data.token, data.user || { username })
     } catch (err: any) {
       setError(err?.message || 'Verification failed')
       setToken('')

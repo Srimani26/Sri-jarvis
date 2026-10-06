@@ -165,7 +165,7 @@ export type SystemEventGroupByOutputType = {
   _max: SystemEventMaxAggregateOutputType | null
 }
 
-type GetSystemEventGroupByPayload<T extends SystemEventGroupByArgs> = Prisma.PrismaPromise<
+export type GetSystemEventGroupByPayload<T extends SystemEventGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<SystemEventGroupByOutputType, T['by']> &
       {

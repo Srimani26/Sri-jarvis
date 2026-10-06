@@ -183,14 +183,6 @@ function ConnectionsView() {
               <a key={r.name} href={r.url} target="_blank" rel="noopener"
                 className="block bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 hover:border-cyan-500/30 transition-all">
                 <div className="flex items-center gap-2">
-            <button
-              onClick={() => setVoiceModalOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-300 text-xs font-mono font-bold transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse"
-              title="Voice Comm with J.A.R.V.I.S."
-            >
-              <Mic className="w-3.5 h-3.5 text-cyan-300" />
-              <span>VOICE COMM</span>
-            </button>
                   <p className="text-sm font-medium text-white">{r.name}</p>
                   {r.language && <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">{r.language}</span>}
                   {r.stars > 0 && <span className="text-[10px] text-amber-400">★ {r.stars}</span>}

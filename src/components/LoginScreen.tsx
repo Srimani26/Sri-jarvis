@@ -136,7 +136,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         username={username}
         tempToken={tempToken}
         onSuccess={(token, user) => onLogin(token, user.username)}
-        onCancel={() => {
+        onBack={() => {
+          setTwofaStep('none')
+          setTempToken('')
+        }}
+        onRecovered={(message) => {
+          setError(message)
           setTwofaStep('none')
           setTempToken('')
         }}

@@ -213,7 +213,7 @@ export type MemoryGroupByOutputType = {
   _max: MemoryMaxAggregateOutputType | null
 }
 
-type GetMemoryGroupByPayload<T extends MemoryGroupByArgs> = Prisma.PrismaPromise<
+export type GetMemoryGroupByPayload<T extends MemoryGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<MemoryGroupByOutputType, T['by']> &
       {

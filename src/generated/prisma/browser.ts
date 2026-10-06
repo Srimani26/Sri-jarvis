@@ -87,3 +87,13 @@ export type UserSession = Prisma.UserSessionModel
  * 
  */
 export type SystemEvent = Prisma.SystemEventModel
+/**
+ * Model AgentTask
+ * 
+ */
+export type AgentTask = Prisma.AgentTaskModel
+/**
+ * Model TaskEvent
+ * 
+ */
+export type TaskEvent = Prisma.TaskEventModel
