@@ -35,6 +35,17 @@ import { ProviderRegistry } from './src/providers/ProviderRegistry'
 import { createShogoLlmProvider } from '@shogo-ai/sdk'
 import { streamText, generateText } from 'ai'
 import { prisma, validateDatabaseConnectivity, getEnvironmentClassification, getDurabilityClassification } from './src/lib/db'
+import { CloudInfrastructureManager } from './src/infrastructure/CloudInfrastructureManager'
+import { WorkerFabric } from './src/workers/WorkerFabric'
+import { ConversationOS } from './src/voice/ConversationOS'
+import { AgentCouncil } from './src/council/AgentCouncil'
+import { AdvancedComputerUse } from './src/browser/AdvancedComputerUse'
+import { SelfDiagnosisEngine } from './src/repair/SelfDiagnosisEngine'
+import { CyberDefenseLayer } from './src/security/CyberDefenseLayer'
+import { PersonalKnowledgeEngine } from './src/memory/PersonalKnowledgeEngine'
+import { ControlledEvolutionHarness } from './src/evolution/ControlledEvolutionHarness'
+import { LongRunningRuntime } from './src/runtime/LongRunningRuntime'
+import { DisasterRecoveryManager } from './src/infrastructure/DisasterRecoveryManager'
 import { readFileSync, writeFileSync, existsSync, chmodSync } from 'fs'
 import { join } from 'path'
 import { randomBytes } from 'crypto'
@@ -4029,6 +4040,129 @@ app.get('/workers/register', (c) => {
       health: 'string (HEALTHY | DEGRADED)',
     },
   });
+});
+
+// GET /api/health/infrastructure — Phase 19 Cloud Infrastructure & Storage Durability
+app.get('/health/infrastructure', async (c) => {
+  try {
+    const status = await CloudInfrastructureManager.getInfrastructureStatus();
+    return c.json({ ok: true, infrastructure: status });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/health/fabric — Phase 20 Distributed Worker Fabric
+app.get('/health/fabric', (c) => {
+  try {
+    const summary = WorkerFabric.getFabricSummary();
+    return c.json({ ok: true, fabric: summary });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/voice/conversation — Phase 21 Tactical Voice ConversationOS
+app.post('/voice/conversation', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const transcript = body?.transcript || '';
+    if (!transcript) return c.json({ ok: false, error: 'transcript is required' }, 400);
+    const reply = ConversationOS.processUserSpeech(transcript);
+    return c.json({ ok: true, response: reply });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/council/deliberate — Phase 22 MoA & Agent Council
+app.post('/council/deliberate', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const topic = body?.topic || 'System Operation';
+    const proposal = body?.proposal || '';
+    if (!proposal) return c.json({ ok: false, error: 'proposal is required' }, 400);
+    const deliberation = await AgentCouncil.deliberate(topic, proposal);
+    return c.json({ ok: true, deliberation });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/browser/computer-use — Phase 23 Advanced Browser & Computer Use
+app.post('/browser/computer-use', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const result = await AdvancedComputerUse.executeAction(body);
+    return c.json({ ok: result.success, result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/repair/diagnose — Phase 24 Autonomous Self-Diagnosis & Repair
+app.post('/repair/diagnose', async (c) => {
+  try {
+    const report = await SelfDiagnosisEngine.executeAutonomousSelfRepair();
+    return c.json({ ok: true, report });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/security/audit — Phase 25 Cybersecurity Defense Layer
+app.post('/security/audit', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const content = body?.content || '';
+    const audit = CyberDefenseLayer.auditContent(content);
+    return c.json({ ok: true, audit });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/memory/personal/search — Phase 26 Personal Knowledge & RAG
+app.get('/memory/personal/search', (c) => {
+  try {
+    const query = c.req.query('q') || '';
+    const results = PersonalKnowledgeEngine.search(query);
+    return c.json({ ok: true, total: results.length, results });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/evolution/benchmark — Phase 27 Controlled Self-Evolution Harness
+app.post('/evolution/benchmark', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const result = await ControlledEvolutionHarness.evaluateCandidate(body);
+    return c.json({ ok: true, result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/runtime/missions — Phase 28 Long-Running Runtime
+app.get('/runtime/missions/:missionId', (c) => {
+  try {
+    const missionId = c.req.param('missionId');
+    const mission = LongRunningRuntime.getMission(missionId);
+    return c.json({ ok: Boolean(mission), mission });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/disaster-recovery/manifest — Phase 29 Disaster Recovery & Hardening
+app.post('/disaster-recovery/manifest', async (c) => {
+  try {
+    const manifest = await DisasterRecoveryManager.generateEmergencyRecoveryManifest();
+    return c.json({ ok: true, manifest });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
 });
 
 app.all('*', (c) =>
