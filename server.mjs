@@ -11,6 +11,7 @@ import { promisify } from "node:util";
 
 // src/lib/db.ts
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 // src/generated/prisma/client.ts
 import * as path from "node:path";
@@ -74,15 +75,69 @@ globalThis["__dirname"] = path.dirname(fileURLToPath(import.meta.url));
 var PrismaClient = getPrismaClientClass();
 
 // src/lib/db.ts
+import pg from "pg";
 var globalForPrisma = globalThis;
-var adapter = new PrismaLibSql({
-  url: process.env.DATABASE_URL || "file:./dev.db"
-});
+var rawDbUrl = process.env.DATABASE_URL || "file:./dev.db";
+var isPostgres = rawDbUrl.startsWith("postgres://") || rawDbUrl.startsWith("postgresql://");
+var adapter;
+if (isPostgres) {
+  const pool = globalForPrisma.pgPool ?? new pg.Pool({ connectionString: rawDbUrl });
+  if (process.env.NODE_ENV !== "production") globalForPrisma.pgPool = pool;
+  adapter = new PrismaPg(pool);
+} else {
+  const cleanUrl = rawDbUrl.replace(/([?&])connection_limit=\d+(&?)/, "$1").replace(/[?&]$/, "");
+  adapter = new PrismaLibSql({
+    url: cleanUrl
+  });
+}
 var prisma = globalForPrisma.prisma ?? new PrismaClient({
   adapter,
   log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
 });
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+function getEnvironmentClassification() {
+  if (process.env.NODE_ENV === "production") {
+    if (process.env.RENDER_GIT_BRANCH === "staging" || process.env.STAGE === "staging") {
+      return "STAGING";
+    }
+    return "PRODUCTION";
+  }
+  return "LOCAL_DEVELOPMENT";
+}
+function getDurabilityClassification() {
+  if (isPostgres) {
+    return "PRODUCTION_DURABLE";
+  }
+  return "NOT_PRODUCTION_DURABLE";
+}
+async function validateDatabaseConnectivity() {
+  const startTime = Date.now();
+  const env = getEnvironmentClassification();
+  const durability = getDurabilityClassification();
+  const provider = isPostgres ? "postgresql" : "sqlite";
+  try {
+    await prisma.$queryRawUnsafe("SELECT 1");
+    const latencyMs = Date.now() - startTime;
+    return {
+      provider,
+      environment: env,
+      durability,
+      status: "CONNECTED",
+      latencyMs,
+      details: isPostgres ? "Connected to Managed PostgreSQL. Data and task states are persistent across restarts." : "Running on SQLite. Note: On container-restart platforms (e.g., Render Free), storage is NOT production-durable."
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - startTime;
+    return {
+      provider,
+      environment: env,
+      durability,
+      status: "DISCONNECTED",
+      latencyMs,
+      details: `Database connection error: ${err?.message || err}`
+    };
+  }
+}
 
 // src/lib/task-engine.ts
 var execAsync = promisify(exec);
@@ -2923,12 +2978,27 @@ var QuotaManager = class {
     rec.state = "AUTH_FAILED";
     rec.lastError = error;
   }
+  static recordQuotaExhaustion(provider, resetInSeconds) {
+    const rec = this.getRecord(provider);
+    rec.rateLimitHits++;
+    rec.state = "QUOTA_EXHAUSTED";
+    rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
+    rec.resetAt = Date.now() + (resetInSeconds ? resetInSeconds * 1e3 : rec.backoffMs);
+  }
+  static recordOutage(provider, error) {
+    const rec = this.getRecord(provider);
+    rec.timeoutCount++;
+    rec.lastError = error;
+    rec.state = "OUTAGE";
+    rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
+    rec.resetAt = Date.now() + 6e4;
+  }
   static isProviderAvailable(provider) {
     const rec = this.getRecord(provider);
     if (rec.state === "DISABLED" || rec.state === "AUTH_FAILED" || rec.state === "OFFLINE") {
       return false;
     }
-    if (rec.state === "RATE_LIMITED") {
+    if (rec.state === "RATE_LIMITED" || rec.state === "QUOTA_EXHAUSTED" || rec.state === "OUTAGE") {
       if (rec.resetAt && Date.now() >= rec.resetAt) {
         rec.state = "DEGRADED";
         return true;
@@ -3053,16 +3123,52 @@ var ModelRouter = class {
     return activeList.length > 0 ? activeList : allModels;
   }
   /**
-   * Execute prompt completion with automatic multi-tier failover
+   * Classify upstream provider failure into deterministic failure types
+   */
+  static classifyFailure(msg) {
+    const lower = msg.toLowerCase();
+    if (lower.includes("quota") || lower.includes("insufficient_quota") || lower.includes("credit exhausted")) {
+      return "QUOTA_EXHAUSTED";
+    }
+    if (lower.includes("429") || lower.includes("rate limit")) {
+      return "HTTP_429_RATE_LIMIT";
+    }
+    if (lower.includes("auth") || lower.includes("unauthorized") || lower.includes("invalid_api_key") || lower.includes("forbidden") || lower.includes("401") || lower.includes("403")) {
+      return "AUTH_FAILED";
+    }
+    if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("abort")) {
+      return "TIMEOUT";
+    }
+    if (lower.includes("econnrefused") || lower.includes("enotfound") || lower.includes("network") || lower.includes("fetch failed")) {
+      return "NETWORK_ERROR";
+    }
+    if (lower.includes("malformed") || lower.includes("invalid json") || lower.includes("unexpected token") || lower.includes("empty response")) {
+      return "MALFORMED_RESPONSE";
+    }
+    if (lower.includes("invalid model") || lower.includes("model_not_found") || lower.includes("model") && (lower.includes("not found") || lower.includes("does not exist"))) {
+      return "INVALID_MODEL";
+    }
+    if (lower.includes("502") || lower.includes("503") || lower.includes("504") || lower.includes("unavailable") || lower.includes("bad gateway")) {
+      return "PROVIDER_UNAVAILABLE";
+    }
+    return "PROVIDER_OUTAGE";
+  }
+  /**
+   * Execute prompt completion with automatic multi-tier failover & observable evidence
    */
   static async executeWithFailover(request, messages, invoker) {
     const candidates = this.route(request);
-    const errors = [];
+    const attemptedModels = [];
+    const failureHistory = [];
     for (const candidate of candidates) {
+      attemptedModels.push(candidate.id);
       const startTime = Date.now();
       try {
         const text = await invoker(candidate, messages);
         const durationMs = Date.now() - startTime;
+        if (typeof text !== "string" || text.trim().length === 0) {
+          throw new Error("Provider returned malformed empty response");
+        }
         const promptChars = messages.reduce((acc, m) => acc + m.content.length, 0);
         const promptTokens = Math.ceil(promptChars / 4);
         const completionTokens = Math.ceil(text.length / 4);
@@ -3078,25 +3184,52 @@ var ModelRouter = class {
             completionTokens,
             estimatedCostUsd: Number(estimatedCost.toFixed(6))
           },
-          latencyMs: durationMs
+          latencyMs: durationMs,
+          failoverOccurred: attemptedModels.length > 1,
+          attemptedModels,
+          failureHistory: failureHistory.length > 0 ? failureHistory : void 0
         };
       } catch (err) {
         const durationMs = Date.now() - startTime;
         const msg = err?.message || String(err);
-        errors.push({ model: candidate.id, error: msg });
+        const failureType = this.classifyFailure(msg);
+        failureHistory.push({
+          model: candidate.id,
+          provider: candidate.provider,
+          failureType,
+          error: msg
+        });
         ProviderLearner.recordExecution(request.taskType, candidate.provider, candidate.id, false, durationMs);
-        if (/429|rate limit/i.test(msg)) {
-          QuotaManager.recordRateLimit(candidate.provider);
-        } else if (/timeout/i.test(msg)) {
-          QuotaManager.recordTimeout(candidate.provider, msg);
-        } else if (/auth|unauthorized|invalid.*key/i.test(msg)) {
-          QuotaManager.recordAuthFailure(candidate.provider, msg);
+        switch (failureType) {
+          case "HTTP_429_RATE_LIMIT":
+            QuotaManager.recordRateLimit(candidate.provider);
+            break;
+          case "QUOTA_EXHAUSTED":
+            QuotaManager.recordQuotaExhaustion(candidate.provider);
+            break;
+          case "TIMEOUT":
+            QuotaManager.recordTimeout(candidate.provider, msg);
+            break;
+          case "AUTH_FAILED":
+            QuotaManager.recordAuthFailure(candidate.provider, msg);
+            break;
+          case "PROVIDER_UNAVAILABLE":
+          case "PROVIDER_OUTAGE":
+          case "NETWORK_ERROR":
+            QuotaManager.recordOutage(candidate.provider, msg);
+            break;
+          case "INVALID_MODEL":
+            ProviderRegistry.setModelHealth(candidate.id, false);
+            break;
+          case "MALFORMED_RESPONSE":
+            QuotaManager.recordTimeout(candidate.provider, "Malformed response received");
+            break;
         }
         ProviderRegistry.recordProviderFailure(candidate.provider);
       }
     }
     throw new Error(
-      `All candidate models failed failover chain: ${errors.map((e) => `[${e.model}: ${e.error}]`).join(" -> ")}`
+      `All candidate models failed failover chain: ${failureHistory.map((e) => `[${e.model} (${e.failureType}): ${e.error}]`).join(" -> ")}`
     );
   }
 };
@@ -3368,6 +3501,16 @@ ${data.objective}
 ### 2. STATUS
 **${data.status}**
 
+${data.realityAudit ? `### 2.1 REALITY EXECUTION BREAKDOWN
+- **Requested**: ${data.realityAudit.requested.join("; ") || "None"}
+- **Planned**: ${data.realityAudit.planned.join("; ") || "None"}
+- **Attempted**: ${data.realityAudit.attempted.join("; ") || "None"}
+- **Executed**: ${data.realityAudit.executed.join("; ") || "None"}
+- **Verified**: ${data.realityAudit.verified.join("; ") || "None"}
+- **Failed**: ${data.realityAudit.failed.join("; ") || "None"}
+- **Recovered**: ${data.realityAudit.recovered.join("; ") || "None"}
+- **Not Executed**: ${data.realityAudit.notExecuted.join("; ") || "None"}
+` : ""}
 ### 3. WHAT J.A.R.V.I.S. DID
 ${data.whatJarvisDid.map((item, idx) => `${idx + 1}. ${item}`).join("\n")}
 
@@ -7815,6 +7958,126 @@ app.get("/telemetry", requireAuth, async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
+app.get("/health", async (c) => {
+  return c.json({
+    ok: true,
+    status: "operational",
+    system: "J.A.R.V.I.S. (Just A Rather Very Intelligent System)",
+    version: "2.5.0-mark5",
+    commit: "195a40c",
+    phase: "Phase 18 Production Foundation",
+    environment: getEnvironmentClassification(),
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+});
+app.get("/health/version", async (c) => {
+  return c.json({
+    system: "J.A.R.V.I.S. Mark-V",
+    version: "2.5.0-mark5",
+    commit: "195a40c",
+    builtAt: "2026-10-06T18:00:00Z",
+    environment: getEnvironmentClassification(),
+    durability: getDurabilityClassification(),
+    nodeVersion: process.version,
+    platform: process.platform,
+    uptimeSeconds: Math.floor(process.uptime())
+  });
+});
+app.get("/health/database", async (c) => {
+  try {
+    const diag = await validateDatabaseConnectivity();
+    return c.json({ ok: diag.status === "CONNECTED", diagnostics: diag });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.get("/health/providers", async (c) => {
+  try {
+    const models = ProviderRegistry.listModels();
+    const quotas = QuotaManager.getStatusOverview();
+    return c.json({
+      ok: true,
+      totalModels: models.length,
+      models: models.map((m) => ({
+        id: m.id,
+        name: m.name,
+        provider: m.provider,
+        tier: m.tier,
+        healthy: m.healthy
+      })),
+      quotas
+    });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.get("/health/workers", async (c) => {
+  try {
+    const workers = WorkerRegistry.listWorkers();
+    return c.json({
+      ok: true,
+      totalWorkers: workers.length,
+      workers
+    });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.get("/health/scheduler", async (c) => {
+  try {
+    const stats = AutonomousScheduler.getStats();
+    const jobs = AutonomousScheduler.listJobs();
+    return c.json({
+      ok: true,
+      stats,
+      jobs: jobs.map((j) => ({
+        id: j.id,
+        name: j.name,
+        type: j.type,
+        targetAgentId: j.targetAgentId,
+        enabled: j.enabled,
+        runCount: j.runCount,
+        nextRunAt: j.nextRunAt
+      }))
+    });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.get("/health/resources", async (c) => {
+  try {
+    const resources = ResourceRegistry.listAll();
+    return c.json({
+      ok: true,
+      totalResources: resources.length,
+      resources: resources.map((r) => ({
+        id: r.id,
+        name: r.name,
+        provider: r.provider,
+        type: r.type,
+        costClass: r.costClass,
+        classification: r.classification,
+        health: r.health,
+        authStatus: r.authStatus
+      }))
+    });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.get("/workers/register", (c) => {
+  return c.json({
+    protocol: "J.A.R.V.I.S. Worker Node Protocol v1",
+    method: "POST",
+    description: "Register distributed workstation or cloud worker node",
+    requiredFields: {
+      id: "string (unique worker id)",
+      name: "string (human readable name)",
+      capabilities: 'string[] (e.g. ["terminal_exec", "coding", "local_ollama"])',
+      health: "string (HEALTHY | DEGRADED)"
+    }
+  });
+});
 app.all(
   "*",
   (c) => c.json(
@@ -7861,6 +8124,11 @@ app2.get("*", (c) => {
 });
 var port = Number(process.env.PORT) || 3005;
 console.log(`\u26A1 J.A.R.V.I.S. Cloud Server running on http://localhost:${port}`);
+validateDatabaseConnectivity().then((diag) => {
+  console.log(`\u{1F5C4}\uFE0F [Database] Provider: ${diag.provider} | Env: ${diag.environment} | Durability: ${diag.durability} | Status: ${diag.status} (${diag.latencyMs}ms)`);
+}).catch((err) => {
+  console.error("\u26A0\uFE0F [Database] Startup connectivity check failed:", err?.message || err);
+});
 CrashRecovery.recoverInterruptedTasks().catch((err) => {
   console.error("\u26A0\uFE0F [CrashRecovery] Boot recovery failed:", err?.message || err);
 });

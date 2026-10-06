@@ -9,8 +9,10 @@ export type ProviderQuotaState =
   | 'HEALTHY'
   | 'DEGRADED'
   | 'RATE_LIMITED'
+  | 'QUOTA_EXHAUSTED'
   | 'AUTH_FAILED'
   | 'OFFLINE'
+  | 'OUTAGE'
   | 'DISABLED';
 
 export interface ProviderQuotaRecord {
@@ -121,12 +123,29 @@ export class QuotaManager {
     rec.lastError = error;
   }
 
+  public static recordQuotaExhaustion(provider: ProviderType, resetInSeconds?: number): void {
+    const rec = this.getRecord(provider);
+    rec.rateLimitHits++;
+    rec.state = 'QUOTA_EXHAUSTED';
+    rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
+    rec.resetAt = Date.now() + (resetInSeconds ? resetInSeconds * 1000 : rec.backoffMs);
+  }
+
+  public static recordOutage(provider: ProviderType, error?: string): void {
+    const rec = this.getRecord(provider);
+    rec.timeoutCount++;
+    rec.lastError = error;
+    rec.state = 'OUTAGE';
+    rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
+    rec.resetAt = Date.now() + 60000; // 1 min probe
+  }
+
   public static isProviderAvailable(provider: ProviderType): boolean {
     const rec = this.getRecord(provider);
     if (rec.state === 'DISABLED' || rec.state === 'AUTH_FAILED' || rec.state === 'OFFLINE') {
       return false;
     }
-    if (rec.state === 'RATE_LIMITED') {
+    if (rec.state === 'RATE_LIMITED' || rec.state === 'QUOTA_EXHAUSTED' || rec.state === 'OUTAGE') {
       if (rec.resetAt && Date.now() >= rec.resetAt) {
         rec.state = 'DEGRADED'; // Probe state
         return true;

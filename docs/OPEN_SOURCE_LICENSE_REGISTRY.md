@@ -1,7 +1,12 @@
 # J.A.R.V.I.S. MARK-V — Open-Source License & Attribution Registry
 
-**Registry Version**: 1.0 (Phase 17)  
-**Compliance Policy**: Complete adherence to Open Source Initiative (OSI) approved licenses, preservation of copyright notices, and formal recording of architectural adaptations.
+**Registry Version**: 2.0 (Phase 18 Production Foundation)  
+**Compliance Policy**: Complete adherence to Open Source Initiative (OSI) approved licenses, preservation of copyright notices, and formal recording of architectural adaptations.  
+**Related Documents**:
+- Root [LICENSE](../LICENSE)
+- Root [COPYRIGHT](../COPYRIGHT)
+- Root [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md)
+- Provenance & Audit: [IP_OWNERSHIP.md](IP_OWNERSHIP.md)
 
 ---
 

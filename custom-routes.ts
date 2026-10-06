@@ -34,7 +34,7 @@ import { QuotaManager } from './src/providers/QuotaManager'
 import { ProviderRegistry } from './src/providers/ProviderRegistry'
 import { createShogoLlmProvider } from '@shogo-ai/sdk'
 import { streamText, generateText } from 'ai'
-import { prisma } from './src/lib/db'
+import { prisma, validateDatabaseConnectivity, getEnvironmentClassification, getDurabilityClassification } from './src/lib/db'
 import { readFileSync, writeFileSync, existsSync, chmodSync } from 'fs'
 import { join } from 'path'
 import { randomBytes } from 'crypto'
@@ -3889,6 +3889,146 @@ app.get('/telemetry', requireAuth, async (c) => {
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 18: SYSTEM REALITY & HEALTH VERIFICATION ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/health — Top-level system reality status
+app.get('/health', async (c) => {
+  return c.json({
+    ok: true,
+    status: 'operational',
+    system: 'J.A.R.V.I.S. (Just A Rather Very Intelligent System)',
+    version: '2.5.0-mark5',
+    commit: '195a40c',
+    phase: 'Phase 18 Production Foundation',
+    environment: getEnvironmentClassification(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// GET /api/health/version — Explicit build and commit verification
+app.get('/health/version', async (c) => {
+  return c.json({
+    system: 'J.A.R.V.I.S. Mark-V',
+    version: '2.5.0-mark5',
+    commit: '195a40c',
+    builtAt: '2026-10-06T18:00:00Z',
+    environment: getEnvironmentClassification(),
+    durability: getDurabilityClassification(),
+    nodeVersion: process.version,
+    platform: process.platform,
+    uptimeSeconds: Math.floor(process.uptime()),
+  });
+});
+
+// GET /api/health/database — Verifiable database connectivity & durability
+app.get('/health/database', async (c) => {
+  try {
+    const diag = await validateDatabaseConnectivity();
+    return c.json({ ok: diag.status === 'CONNECTED', diagnostics: diag });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/health/providers — Active AI models, circuit breakers & quota health
+app.get('/health/providers', async (c) => {
+  try {
+    const models = ProviderRegistry.listModels();
+    const quotas = QuotaManager.getStatusOverview();
+    return c.json({
+      ok: true,
+      totalModels: models.length,
+      models: models.map((m) => ({
+        id: m.id,
+        name: m.name,
+        provider: m.provider,
+        tier: m.tier,
+        healthy: m.healthy,
+      })),
+      quotas,
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/health/workers — Active distributed worker nodes & heartbeats
+app.get('/health/workers', async (c) => {
+  try {
+    const workers = WorkerRegistry.listWorkers();
+    return c.json({
+      ok: true,
+      totalWorkers: workers.length,
+      workers,
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/health/scheduler — 24/7 autonomous scheduler jobs & queue stats
+app.get('/health/scheduler', async (c) => {
+  try {
+    const stats = AutonomousScheduler.getStats();
+    const jobs = AutonomousScheduler.listJobs();
+    return c.json({
+      ok: true,
+      stats,
+      jobs: jobs.map((j) => ({
+        id: j.id,
+        name: j.name,
+        type: j.type,
+        targetAgentId: j.targetAgentId,
+        enabled: j.enabled,
+        runCount: j.runCount,
+        nextRunAt: j.nextRunAt,
+      })),
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/health/resources — Unified resource registry
+app.get('/health/resources', async (c) => {
+  try {
+    const resources = ResourceRegistry.listAll();
+    return c.json({
+      ok: true,
+      totalResources: resources.length,
+      resources: resources.map((r) => ({
+        id: r.id,
+        name: r.name,
+        provider: r.provider,
+        type: r.type,
+        costClass: r.costClass,
+        classification: r.classification,
+        health: r.health,
+        authStatus: r.authStatus,
+      })),
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/workers/register — Informational endpoint for worker registration schema
+app.get('/workers/register', (c) => {
+  return c.json({
+    protocol: 'J.A.R.V.I.S. Worker Node Protocol v1',
+    method: 'POST',
+    description: 'Register distributed workstation or cloud worker node',
+    requiredFields: {
+      id: 'string (unique worker id)',
+      name: 'string (human readable name)',
+      capabilities: 'string[] (e.g. ["terminal_exec", "coding", "local_ollama"])',
+      health: 'string (HEALTHY | DEGRADED)',
+    },
+  });
 });
 
 app.all('*', (c) =>

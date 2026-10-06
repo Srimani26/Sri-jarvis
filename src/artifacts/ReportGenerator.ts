@@ -3,9 +3,21 @@
  * Generates the formal, structured post-mission report for Master Sri.
  */
 
+export interface ExecutionRealityAudit {
+  requested: string[];
+  planned: string[];
+  attempted: string[];
+  executed: string[];
+  verified: string[];
+  failed: string[];
+  recovered: string[];
+  notExecuted: string[];
+}
+
 export interface FinalTaskReportData {
   objective: string;
   status: 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  realityAudit?: ExecutionRealityAudit;
   whatJarvisDid: string[];
   agentsUsed: string[];
   toolsUsed: string[];
@@ -38,6 +50,20 @@ ${data.objective}
 ### 2. STATUS
 **${data.status}**
 
+${
+  data.realityAudit
+    ? `### 2.1 REALITY EXECUTION BREAKDOWN
+- **Requested**: ${data.realityAudit.requested.join('; ') || 'None'}
+- **Planned**: ${data.realityAudit.planned.join('; ') || 'None'}
+- **Attempted**: ${data.realityAudit.attempted.join('; ') || 'None'}
+- **Executed**: ${data.realityAudit.executed.join('; ') || 'None'}
+- **Verified**: ${data.realityAudit.verified.join('; ') || 'None'}
+- **Failed**: ${data.realityAudit.failed.join('; ') || 'None'}
+- **Recovered**: ${data.realityAudit.recovered.join('; ') || 'None'}
+- **Not Executed**: ${data.realityAudit.notExecuted.join('; ') || 'None'}
+`
+    : ''
+}
 ### 3. WHAT J.A.R.V.I.S. DID
 ${data.whatJarvisDid.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}
 

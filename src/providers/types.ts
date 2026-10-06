@@ -58,6 +58,17 @@ export interface LLMMessage {
   content: string;
 }
 
+export type ProviderFailureType =
+  | 'HTTP_429_RATE_LIMIT'
+  | 'QUOTA_EXHAUSTED'
+  | 'AUTH_FAILED'
+  | 'TIMEOUT'
+  | 'NETWORK_ERROR'
+  | 'MALFORMED_RESPONSE'
+  | 'PROVIDER_UNAVAILABLE'
+  | 'INVALID_MODEL'
+  | 'PROVIDER_OUTAGE';
+
 export interface LLMCompletionResponse {
   text: string;
   model: string;
@@ -68,4 +79,13 @@ export interface LLMCompletionResponse {
     estimatedCostUsd: number;
   };
   latencyMs: number;
+  failoverOccurred?: boolean;
+  attemptedModels?: string[];
+  failureHistory?: Array<{
+    model: string;
+    provider: ProviderType;
+    failureType: ProviderFailureType;
+    error: string;
+  }>;
 }
+

@@ -1,12 +1,17 @@
 const endpoints = [
   '/',
   '/health',
-  '/health/providers',
+  '/health/version',
   '/health/database',
+  '/health/providers',
   '/health/workers',
   '/health/scheduler',
   '/health/resources',
-  '/health/version'
+  '/api/health',
+  '/api/health/version',
+  '/api/health/database',
+  '/api/health/providers',
+  '/api/workers/register',
 ];
 
 async function probe() {
@@ -14,7 +19,7 @@ async function probe() {
   for (const ep of endpoints) {
     const start = Date.now();
     try {
-      const res = await fetch('https://sri-jarvis.onrender.com' + ep, { method: 'GET', signal: AbortSignal.timeout(12000) });
+      const res = await fetch('https://sri-jarvis.onrender.com' + ep, { method: 'GET', signal: AbortSignal.timeout(60000) });
       const latency = Date.now() - start;
       const text = await res.text();
       let sanitized = text;

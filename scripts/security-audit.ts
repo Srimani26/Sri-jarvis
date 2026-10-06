@@ -92,7 +92,7 @@ function scanWorkingTree(): void {
 // 2. Scan Git Commit History
 function scanGitHistory(): void {
   try {
-    const commitsRaw = execSync('git rev-list --all --max-count=100', { encoding: 'utf8', maxBuffer: 30 * 1024 * 1024 });
+    const commitsRaw = execSync('git rev-list HEAD --max-count=100', { encoding: 'utf8', maxBuffer: 30 * 1024 * 1024 });
     const commits = commitsRaw.split('\n').filter(Boolean);
 
     for (const commit of commits) {

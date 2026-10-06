@@ -21,6 +21,7 @@ import { join } from 'node:path'
 import customRoutes from './custom-routes'
 import { CrashRecovery } from './src/kernel/CrashRecovery'
 import { AutonomousScheduler } from './src/scheduler/AutonomousScheduler'
+import { validateDatabaseConnectivity } from './src/lib/db'
 import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
 
 const app = new Hono()
@@ -65,6 +66,13 @@ app.get('*', (c) => {
 
 const port = Number(process.env.PORT) || 3005
 console.log(`⚡ J.A.R.V.I.S. Cloud Server running on http://localhost:${port}`)
+
+// Validate database connectivity and durability on boot
+validateDatabaseConnectivity().then((diag) => {
+  console.log(`🗄️ [Database] Provider: ${diag.provider} | Env: ${diag.environment} | Durability: ${diag.durability} | Status: ${diag.status} (${diag.latencyMs}ms)`)
+}).catch((err) => {
+  console.error('⚠️ [Database] Startup connectivity check failed:', err?.message || err)
+})
 
 // Autonomous Crash Recovery: inspect and safely recover in-flight tasks from prior runs
 CrashRecovery.recoverInterruptedTasks().catch((err) => {

@@ -1,0 +1,58 @@
+================================================================================
+J.A.R.V.I.S. (Just A Rather Very Intelligent System)
+COPYRIGHT & INTELLECTUAL PROPERTY NOTICE
+================================================================================
+
+Product Name:     J.A.R.V.I.S. (Just A Rather Very Intelligent System)
+Author / Creator: Srimani Kandan
+Copyright:        Copyright © 2026 Srimani Kandan. All Rights Reserved.
+
+PRIMARY COPYRIGHT NOTICE:
+-------------------------
+Original software architecture, autonomous agent workforce designs, execution
+kernel, task state machines, telemetry collectors, and custom user interface
+surfaces contained in this repository are:
+
+Copyright © 2026 Srimani Kandan.
+All Rights Reserved.
+
+THIRD-PARTY COPYRIGHT ACKNOWLEDGMENTS:
+--------------------------------------
+This repository integrates and relies upon various open-source software packages,
+runtimes, specifications, and external AI services. The copyright and intellectual
+property in each of those third-party works are retained in full by their respective
+owners and authors:
+
+1. Hono Web Framework:
+   Copyright © 2021-present Yusuke Wada and Hono contributors (MIT License)
+
+2. Prisma ORM:
+   Copyright © Prisma Data, Inc. (Apache-2.0 License)
+
+3. Model Context Protocol (MCP) TypeScript SDK:
+   Copyright © Anthropic, PBC. (MIT License)
+
+4. Meta Llama 3 Model Family:
+   Copyright © Meta Platforms, Inc. (Llama 3 Community License)
+
+5. Google Gemini SDK & API:
+   Copyright © Google LLC (Apache-2.0 / Google API Terms of Service)
+
+6. Groq Inference SDK & LPU:
+   Copyright © Groq, Inc. (MIT / Groq Terms of Service)
+
+7. Anthropic Claude & API:
+   Copyright © Anthropic, PBC. (Anthropic Commercial Terms of Service)
+
+8. OpenAI API & Whisper:
+   Copyright © OpenAI, LLC (MIT / OpenAI Terms of Use)
+
+9. React, Lucide, Tailwind CSS, Radix UI, MobX, Recharts:
+   Copyright © respective open-source project maintainers (MIT License)
+
+For detailed provenance, license texts, modifications, and legal classifications,
+see:
+  - LICENSE
+  - THIRD_PARTY_LICENSES.md
+  - docs/IP_OWNERSHIP.md
+  - docs/OPEN_SOURCE_LICENSE_REGISTRY.md
