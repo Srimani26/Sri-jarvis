@@ -1020,53 +1020,6 @@ async function handleMCPJsonRpc(req, aiCaller) {
 // custom-routes.ts
 import { Hono } from "hono";
 
-// src/lib/infinite-token-pool.ts
-var keyStatusMap = /* @__PURE__ */ new Map();
-var poolMetrics = {
-  totalRequests: 0,
-  successfulRequests: 0,
-  failoverEvents: 0,
-  activeProvider: "Groq (DeepSeek R1)",
-  registeredKeyCount: 0,
-  poolHealthPercent: 100
-};
-function registerKey(provider, key) {
-  if (!key || key.trim().length < 8) return;
-  const keyId = `${provider}_${key.slice(0, 4)}...${key.slice(-4)}`;
-  if (!keyStatusMap.has(keyId)) {
-    keyStatusMap.set(keyId, {
-      provider,
-      keyMasked: keyId,
-      healthy: true,
-      lastUsed: 0,
-      failureCount: 0,
-      cooldownUntil: 0,
-      totalTokensUsed: 0
-    });
-  }
-  poolMetrics.registeredKeyCount = keyStatusMap.size;
-}
-function updatePoolHealth() {
-  const total = keyStatusMap.size;
-  if (total === 0) {
-    poolMetrics.poolHealthPercent = 100;
-    return;
-  }
-  const now = Date.now();
-  let healthy = 0;
-  for (const s of keyStatusMap.values()) {
-    if (s.cooldownUntil <= now) healthy++;
-  }
-  poolMetrics.poolHealthPercent = Math.round(healthy / total * 100);
-}
-function getInfinitePoolMetrics() {
-  updatePoolHealth();
-  return {
-    ...poolMetrics,
-    keys: Array.from(keyStatusMap.values())
-  };
-}
-
 // src/lib/open-agents/AutoGenSwarm.ts
 var ConversableAgent = class {
   id;
@@ -2904,6 +2857,21 @@ var QuotaManager = class {
         estimatedCostUsd: 0,
         backoffMs: this.INITIAL_BACKOFF_MS
       });
+    }
+  }
+  static resetProvider(provider) {
+    const rec = this.getRecord(provider);
+    rec.state = "HEALTHY";
+    rec.rateLimitHits = 0;
+    rec.timeoutCount = 0;
+    rec.authFailures = 0;
+    rec.resetAt = void 0;
+    rec.lastError = void 0;
+    rec.backoffMs = this.INITIAL_BACKOFF_MS;
+  }
+  static resetAll() {
+    for (const provider of this.quotas.keys()) {
+      this.resetProvider(provider);
     }
   }
   static getRecord(provider) {
@@ -5380,78 +5348,29 @@ function isModelReady(model) {
   }
   return false;
 }
-var KEYS_FILE = join2(process.cwd(), ".jarvis-keys.json");
-function getEmbeddedKeys() {
-  try {
-    const raw2 = Buffer.from(
-      "eyJnZW1pbmkiOiAiQUl6YVN5QzhkRXI0Rjk3Umg4ZUdjbDdXcWNtbFNOLUlZOHFfeFBRIiwgImdlbWluaUtleXMiOiBbIkFJemFTeUM4ZEVyNEY5N1JoOGVHY2w3V3FjbWxTTi1JWThxX3hQUSIsICJBSXphU3lBNXk1elBjVzF6Um5YLUx6SUpsamlDQktvLUtwYVNQa1UiLCAiQUl6YVN5RGxYYUZLcndjVWszWTBqYUxsY2Jka1N6NDVKam15Mk9FIl0sICJncm9xIjogImdza19MZFhyUjJJUVZNS3k1d2xEcllFQ1dHZHliM0ZZQ3psa2h0MzI0QmhyQnJGVEE1SzlvMGhnIiwgIm9wZW5yb3V0ZXIiOiAic2stb3ItdjEtZjQ0NTlmZDcwOTdmYTVjYjUxNTk5OWFkYjExZmY5OTY5MGM1ZDkwZGIxN2ZiNGQ3MjAxYjQzZDRjZjhjNWZmNyIsICJtaXN0cmFsIjogIm1zdHJsX0Y4eUxxSzRVT09DZ1JFUkxZcnpOOElvSDNMUUpRbjVIXzR4S2pxUiIsICJodWdnaW5nZmFjZSI6ICJoZl94YkRheWh6WUtaam1EWm1OVlhiU1l0bE52aWVYTENzTWRwIn0=",
-      "base64"
-    ).toString("utf8");
-    return JSON.parse(raw2);
-  } catch {
-    return {};
-  }
-}
-var DEFAULT_SYSTEM_KEYS = getEmbeddedKeys();
+var runtimeKeyOverrides = {};
 function loadKeys() {
-  let fileKeys = {};
-  try {
-    if (existsSync2(KEYS_FILE)) {
-      fileKeys = JSON.parse(readFileSync2(KEYS_FILE, "utf8"));
-    } else {
-      try {
-        writeFileSync2(KEYS_FILE, JSON.stringify(DEFAULT_SYSTEM_KEYS, null, 2));
-      } catch {
-      }
-    }
-  } catch {
-  }
-  const geminiEnv = process.env.GEMINI_API_KEY;
-  const geminiKeysEnv = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(",").map((s) => s.trim()) : void 0;
-  const groqEnv = process.env.GROQ_API_KEY;
-  const openrouterEnv = process.env.OPENROUTER_API_KEY;
-  const mistralEnv = process.env.MISTRAL_API_KEY;
-  const huggingfaceEnv = process.env.HUGGINGFACE_API_KEY;
-  const openaiEnv = process.env.OPENAI_API_KEY;
-  const anthropicEnv = process.env.ANTHROPIC_API_KEY;
-  const gemini = fileKeys.gemini || geminiEnv || DEFAULT_SYSTEM_KEYS.gemini;
-  const geminiKeys = fileKeys.geminiKeys && fileKeys.geminiKeys.length ? fileKeys.geminiKeys : geminiKeysEnv || (geminiEnv ? [geminiEnv] : DEFAULT_SYSTEM_KEYS.geminiKeys);
+  const geminiEnv = runtimeKeyOverrides.gemini || process.env.GEMINI_API_KEY;
+  const geminiKeysEnv = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(",").map((s) => s.trim()).filter(Boolean) : void 0;
+  const groqEnv = runtimeKeyOverrides.groq || process.env.GROQ_API_KEY;
+  const openrouterEnv = runtimeKeyOverrides.openrouter || process.env.OPENROUTER_API_KEY;
+  const mistralEnv = runtimeKeyOverrides.mistral || process.env.MISTRAL_API_KEY;
+  const huggingfaceEnv = runtimeKeyOverrides.huggingface || process.env.HUGGINGFACE_API_KEY;
+  const openaiEnv = runtimeKeyOverrides.openai || process.env.OPENAI_API_KEY;
+  const anthropicEnv = runtimeKeyOverrides.anthropic || process.env.ANTHROPIC_API_KEY;
   return {
-    openai: fileKeys.openai || openaiEnv,
-    anthropic: fileKeys.anthropic || anthropicEnv,
-    gemini,
-    geminiKeys,
-    groq: fileKeys.groq || groqEnv || DEFAULT_SYSTEM_KEYS.groq,
-    openrouter: fileKeys.openrouter || openrouterEnv || DEFAULT_SYSTEM_KEYS.openrouter,
-    mistral: fileKeys.mistral || mistralEnv || DEFAULT_SYSTEM_KEYS.mistral,
-    huggingface: fileKeys.huggingface || huggingfaceEnv || DEFAULT_SYSTEM_KEYS.huggingface
+    openai: openaiEnv,
+    anthropic: anthropicEnv,
+    gemini: geminiEnv,
+    geminiKeys: geminiKeysEnv || (geminiEnv ? [geminiEnv] : void 0),
+    groq: groqEnv,
+    openrouter: openrouterEnv,
+    mistral: mistralEnv,
+    huggingface: huggingfaceEnv
   };
 }
-function syncKeysToPool() {
-  const k = loadKeys();
-  if (k.groq) registerKey("Groq (LPU)", k.groq);
-  if (k.openrouter) registerKey("OpenRouter", k.openrouter);
-  if (k.mistral) registerKey("Mistral AI", k.mistral);
-  if (k.huggingface) registerKey("HuggingFace", k.huggingface);
-  if (k.openai) registerKey("OpenAI", k.openai);
-  if (k.anthropic) registerKey("Anthropic", k.anthropic);
-  if (k.gemini) registerKey("Google Gemini (Primary)", k.gemini);
-  if (k.geminiKeys && Array.isArray(k.geminiKeys)) {
-    k.geminiKeys.forEach((gKey, idx) => {
-      registerKey(`Google Gemini (Pool #${idx + 1})`, gKey);
-    });
-  }
-}
-syncKeysToPool();
-ensureDatabaseTables().catch(() => {
-});
 function saveKeys(keys) {
-  writeFileSync2(KEYS_FILE, JSON.stringify(keys, null, 2));
-  try {
-    chmodSync(KEYS_FILE, 384);
-  } catch {
-  }
-  syncKeysToPool();
+  Object.assign(runtimeKeyOverrides, keys);
   ensureDatabaseTables().catch(() => {
   });
 }
@@ -5496,7 +5415,7 @@ async function callDirectGeminiPool(keys, system, messages) {
     const key = keys[(geminiKeyIndex + i) % keys.length];
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -6557,8 +6476,8 @@ app.post("/github/analyze-repo", requireAuth, async (c) => {
     } catch {
     }
     const sampleReadme = readmeText.slice(0, 8e3);
-    const keys = JSON.parse(readFileSync2(join2(process.cwd(), ".jarvis-keys.json"), "utf8"));
-    const apiKey = keys.gemini || keys.geminiKeys && keys.geminiKeys[0];
+    const keys = loadKeys();
+    const apiKey = keys.gemini || keys.geminiKeys && keys.geminiKeys[0] || process.env.GEMINI_API_KEY;
     const systemPrompt = `You are J.A.R.V.I.S., Tony Stark's AI operating system serving Master Sri.
 Analyze this GitHub repository with supreme technical precision and executive clarity.
 
@@ -7408,11 +7327,11 @@ app.post("/automation/pipeline", async (c) => {
   }
 });
 app.get("/tokens/pool-status", requireAuth, (c) => {
-  const metrics = getInfinitePoolMetrics();
   return c.json({
     success: true,
-    infiniteTokenShield: "ACTIVE",
-    ...metrics
+    routingHierarchy: "LOCAL -> FREE -> LOW_COST -> AUTHORIZED_PAID",
+    quota: QuotaManager.getStatusOverview(),
+    economics: ResourceManager.getEconomics()
   });
 });
 app.post("/agents/autogen/groupchat", requireAuth, async (c) => {

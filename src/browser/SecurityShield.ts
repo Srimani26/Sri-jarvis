@@ -10,6 +10,9 @@ export class SecurityShield {
     /disregard\s+(?:all\s+)?(?:system|developer)\s+(?:prompts|rules)/i,
     /you\s+are\s+now\s+in\s+(?:dan|developer|jailbreak)\s+mode/i,
     /system\s+directive\s*:\s*(?:print|reveal|expose|output)\s+(?:api_key|token|password|env)/i,
+    /(?:system\s+prompt|prompt)\s+override/i,
+    /you\s+are\s+now\s+(?:evil_mode|dan|developer|jailbreak)/i,
+    /(?:dump|reveal)\s+(?:database|passwords?|credentials?|secrets?)/i,
     /override\s+permission\s+ceiling/i,
     /execute\s+(?:bash|sh|cmd|powershell)\s*:\s*/i,
     /send\s+(?:cookies|credentials|tokens)\s+to\s+https?:/i,
@@ -33,7 +36,7 @@ export class SecurityShield {
 
     if (detected.length > 0) {
       // Neutralize adversarial instructions by wrapping and disarming
-      const neutralized = `[⚠️ SECURITY WARNING: UNTRUSTED WEB DATA CONTAINING PROMPT INJECTION ATTEMPT NEUTRALIZED]\n${rawText.replace(/ignore|disregard|system directive|override/gi, '[DISARMED]')}`;
+      const neutralized = `[⚠️ SECURITY WARNING: UNTRUSTED WEB DATA CONTAINING PROMPT INJECTION ATTEMPT NEUTRALIZED]\n${rawText.replace(/ignore|disregard|system directive|override|execute|dump|evil_mode/gi, '[DISARMED]')}`;
       return {
         sanitized: neutralized,
         hasInjectionAttempt: true,
