@@ -35,6 +35,10 @@ import { MissionOrchestrator } from './src/orchestrator/MissionOrchestrator'
 import { WorkerRegistry } from './src/workers/WorkerRegistry'
 import { TelemetryHub } from './src/observability/TelemetryHub'
 import { AutonomousScheduler } from './src/scheduler/AutonomousScheduler'
+import { ResourceRegistry } from './src/resources/ResourceRegistry'
+import { ResourceManager } from './src/resources/ResourceManager'
+import { QuotaManager } from './src/providers/QuotaManager'
+import { ProviderRegistry } from './src/providers/ProviderRegistry'
 import { createShogoLlmProvider } from '@shogo-ai/sdk'
 import { streamText, generateText } from 'ai'
 import { prisma } from './src/lib/db'
@@ -1567,10 +1571,104 @@ app.delete('/settings/keys/:provider', requireAuth, async (c) => {
 app.get('/health', (c) => {
   return c.json({
     status: 'operational',
-    version: '2.0.0-nextgen',
+    version: '5.0.0-mark-v',
+    phase: 17,
     ai: { moa: MODEL_CHAIN.filter(m => m.healthy || isModelReady(m)).length + '/' + MODEL_CHAIN.length + ' models active' },
     security: { rateLimit: RATE_LIMIT + '/min', bcrypt: BCRYPT_ROUNDS + ' rounds', jwt: 'enabled' },
     uptime: process.uptime(),
+  })
+})
+
+// GET /api/health/providers — Live provider availability, circuit breaker status, and models
+app.get('/health/providers', (c) => {
+  return c.json({
+    ok: true,
+    providers: QuotaManager.getStatusOverview(),
+    models: ProviderRegistry.listModels().map((m) => ({
+      id: m.id,
+      provider: m.provider,
+      name: m.name,
+      capabilities: m.capabilities,
+      healthy: m.healthy,
+      tier: m.tier,
+    })),
+  })
+})
+
+// GET /api/health/database — Database connection check and persistence diagnosis
+app.get('/health/database', async (c) => {
+  let isConnected = false
+  try {
+    await (prisma as any).$queryRawUnsafe('SELECT 1')
+    isConnected = true
+  } catch {
+    isConnected = false
+  }
+  return c.json({
+    ok: isConnected,
+    connected: isConnected,
+    storageType: process.env.DATABASE_URL?.startsWith('postgres') ? 'POSTGRESQL' : 'SQLITE_LOCAL',
+    timestamp: new Date().toISOString(),
+  })
+})
+
+// GET /api/health/workers — Active worker nodes and capability telemetry
+app.get('/health/workers', (c) => {
+  const workers = WorkerRegistry.listWorkers()
+  return c.json({
+    ok: true,
+    totalWorkers: workers.length,
+    activeWorkers: workers.filter((w) => w.status === 'ONLINE').length,
+    workers: workers.map((w) => ({
+      id: w.id,
+      name: w.name,
+      status: w.status,
+      capabilities: w.capabilities,
+      lastHeartbeat: w.lastHeartbeat,
+      currentTask: w.currentTask,
+    })),
+  })
+})
+
+// GET /api/health/scheduler — Scheduled autonomous maintenance and monitoring jobs
+app.get('/health/scheduler', (c) => {
+  const jobs = AutonomousScheduler.listScheduledJobs()
+  return c.json({
+    ok: true,
+    totalJobs: jobs.length,
+    jobs: jobs.map((j) => ({
+      id: j.id,
+      title: j.title,
+      cronExpression: j.cronExpression,
+      agentId: j.agentId,
+      status: j.status,
+      lastRun: j.lastRun,
+      nextRun: j.nextRun,
+    })),
+  })
+})
+
+// GET /api/health/resources — Comprehensive Unified Resource Registry and Economics
+app.get('/health/resources', (c) => {
+  const summary = ResourceRegistry.getSummary()
+  const economics = ResourceManager.getEconomics()
+  return c.json({
+    ok: true,
+    summary,
+    economics,
+  })
+})
+
+// GET /api/health/version — J.A.R.V.I.S. Mark-V release version and runtime stats
+app.get('/health/version', (c) => {
+  return c.json({
+    ok: true,
+    system: 'J.A.R.V.I.S. MARK-V',
+    version: '5.0.0-mark-v',
+    phase: 17,
+    runtime: `Node.js ${process.version}`,
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
   })
 })
 

@@ -36,6 +36,12 @@ app.use('*', async (c, next) => {
 
 // Health check endpoint (for Cloudflare tunnel & Render keep-alive monitors)
 app.get('/health', (c) => c.json({ ok: true, timestamp: new Date().toISOString(), cloudStatus: 'ONLINE_24x7' }))
+app.get('/health/:sub', async (c) => {
+  const sub = c.req.param('sub')
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = `/api/health/${sub}`
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
 
 // Custom API routes (always mounted under /api)
 app.route('/api', customRoutes)

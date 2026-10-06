@@ -1,9 +1,12 @@
 /**
- * J.A.R.V.I.S. MARK-V Intelligent Model Router & Failover Engine
- * Free-First / Local-First capability router with automated graceful failover.
+ * J.A.R.V.I.S. MARK-V Intelligent Model Router V2 & Failover Engine
+ * Free-First / Local-First capability router with automated graceful failover,
+ * dynamic quota checking, and operational performance learning.
  */
 
 import { ProviderRegistry } from './ProviderRegistry';
+import { QuotaManager } from './QuotaManager';
+import { ProviderLearner } from './ProviderLearner';
 import {
   CostTier,
   LLMCompletionResponse,
@@ -25,7 +28,12 @@ export class ModelRouter {
    */
   public static route(request: ModelRouteRequest): ModelMetadata[] {
     const allModels = ProviderRegistry.listModels();
-    const healthyModels = allModels.filter((m) => m.healthy);
+    
+    // Filter healthy models that are not actively rate limited or circuit-broken
+    const healthyModels = allModels.filter((m) => {
+      if (!m.healthy) return false;
+      return QuotaManager.isProviderAvailable(m.provider);
+    });
 
     // Filter by capabilities
     const candidates = healthyModels.filter((model) => {
@@ -53,15 +61,24 @@ export class ModelRouter {
       }
     });
 
+    const activeList = candidates.length > 0 ? candidates : healthyModels;
+
+    // Check empirical learning data
+    const bestLearned = ProviderLearner.getBestModelForTask(request.taskType);
+
     // Sort by Free-First / Local-First priority: LOCAL (1) -> FREE (2) -> LOW_COST (3) -> PAID (4)
-    candidates.sort((a, b) => {
+    activeList.sort((a, b) => {
+      // If a model has proven superior empirical success for this task, boost it
+      if (bestLearned && a.id === bestLearned.model && bestLearned.successRate >= 0.9) return -1;
+      if (bestLearned && b.id === bestLearned.model && bestLearned.successRate >= 0.9) return 1;
+
       const tierDiff = TIER_PRIORITY[a.tier] - TIER_PRIORITY[b.tier];
       if (tierDiff !== 0) return tierDiff;
       // Secondary sort: lower latency
       return a.avgLatencyMs - b.avgLatencyMs;
     });
 
-    return candidates.length > 0 ? candidates : healthyModels;
+    return activeList.length > 0 ? activeList : allModels;
   }
 
   /**
@@ -89,6 +106,10 @@ export class ModelRouter {
           (promptTokens / 1000) * candidate.costPer1kInputTokens +
           (completionTokens / 1000) * candidate.costPer1kOutputTokens;
 
+        // Record operational success in QuotaManager & ProviderLearner
+        QuotaManager.recordSuccess(candidate.provider, promptTokens + completionTokens, estimatedCost);
+        ProviderLearner.recordExecution(request.taskType, candidate.provider, candidate.id, true, durationMs);
+
         return {
           text,
           model: candidate.id,
@@ -101,7 +122,22 @@ export class ModelRouter {
           latencyMs: durationMs,
         };
       } catch (err: any) {
-        errors.push({ model: candidate.id, error: err?.message || String(err) });
+        const durationMs = Date.now() - startTime;
+        const msg = err?.message || String(err);
+        errors.push({ model: candidate.id, error: msg });
+
+        // Record failure in ProviderLearner
+        ProviderLearner.recordExecution(request.taskType, candidate.provider, candidate.id, false, durationMs);
+
+        // Classify failure for QuotaManager and circuit breaker
+        if (/429|rate limit/i.test(msg)) {
+          QuotaManager.recordRateLimit(candidate.provider);
+        } else if (/timeout/i.test(msg)) {
+          QuotaManager.recordTimeout(candidate.provider, msg);
+        } else if (/auth|unauthorized|invalid.*key/i.test(msg)) {
+          QuotaManager.recordAuthFailure(candidate.provider, msg);
+        }
+
         // Mark failure on circuit breaker
         ProviderRegistry.recordProviderFailure(candidate.provider);
       }

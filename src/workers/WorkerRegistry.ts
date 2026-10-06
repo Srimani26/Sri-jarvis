@@ -1,21 +1,32 @@
 /**
  * J.A.R.V.I.S. Mark-V — Worker Node Registry & Capability Scheduler
- * Phase 16: Distributed & Local Execution Worker Management
+ * Phase 17: Distributed PC Worker, Local Execution & Heartbeat Management
  */
 
-export type WorkerStatus = 'ONLINE' | 'OFFLINE' | 'BUSY';
+export type WorkerStatus = 'ONLINE' | 'OFFLINE' | 'BUSY' | 'DEGRADED';
 
 export type WorkerCapability =
+  | 'LOCAL_LLM'
+  | 'LOCAL_BROWSER'
+  | 'WORKSPACE_FILES'
+  | 'TERMINAL'
+  | 'LOCAL_STT'
+  | 'LOCAL_TTS'
   | 'local_inference'
   | 'browser_automation'
   | 'local_filesystem'
   | 'gpu_compute'
-  | 'coding_worker';
+  | 'coding_worker'
+  | string;
 
 export interface WorkerHealth {
   cpuUsagePercent?: number;
   freeMemoryMB?: number;
   activeTasksCount: number;
+  os?: string;
+  hostname?: string;
+  ollamaRunning?: boolean;
+  browserAvailable?: boolean;
 }
 
 export interface WorkerNode {
@@ -25,6 +36,7 @@ export interface WorkerNode {
   capabilities: WorkerCapability[];
   lastHeartbeat: number;
   health: WorkerHealth;
+  currentTask?: string;
 }
 
 export class WorkerRegistry {
@@ -40,7 +52,6 @@ export class WorkerRegistry {
     capabilities: WorkerCapability[];
     health?: Partial<WorkerHealth>;
   }): WorkerNode {
-    const existing = this.workers.get(params.id);
     const worker: WorkerNode = {
       id: params.id,
       name: params.name,
@@ -82,10 +93,11 @@ export class WorkerRegistry {
   /**
    * Mark a worker as busy processing a task
    */
-  public static markBusy(workerId: string): void {
+  public static markBusy(workerId: string, taskId?: string): void {
     const worker = this.workers.get(workerId);
     if (worker) {
       worker.status = 'BUSY';
+      worker.currentTask = taskId;
       worker.health.activeTasksCount += 1;
     }
   }
@@ -97,8 +109,18 @@ export class WorkerRegistry {
     const worker = this.workers.get(workerId);
     if (worker) {
       worker.status = 'ONLINE';
+      worker.currentTask = undefined;
       worker.health.activeTasksCount = Math.max(0, worker.health.activeTasksCount - 1);
     }
+  }
+
+  /**
+   * Check if a specific worker holds a capability token
+   */
+  public static hasCapability(workerId: string, capability: string): boolean {
+    const worker = this.getWorker(workerId);
+    if (!worker) return false;
+    return worker.capabilities.includes(capability);
   }
 
   /**
@@ -128,7 +150,7 @@ export class WorkerRegistry {
     let offlineCount = 0;
 
     for (const worker of this.workers.values()) {
-      if (worker.status !== 'OFFLINE' && now - worker.lastHeartbeat > ttlMs) {
+      if (worker.status !== 'OFFLINE' && now - worker.lastHeartbeat >= ttlMs) {
         worker.status = 'OFFLINE';
         offlineCount++;
       }
