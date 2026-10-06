@@ -1,0 +1,15 @@
+node_modules
+.git
+.gitignore
+.env
+.jarvis-invite
+.jarvis-keys.json
+.jarvis-secret
+dev.db
+*.db
+*.db-shm
+*.db-wal
+/memory/
+.test-artifacts
+.quarantine
+workers/**/dist/
