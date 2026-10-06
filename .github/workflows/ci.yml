@@ -1,0 +1,45 @@
+name: JARVIS Mark-V CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    name: Build, Typecheck, Test & Security Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static Typecheck
+        run: npx tsc --noEmit
+
+      - name: Automated Test Suite
+        run: npm test
+
+      - name: Build Production Client & Server
+        run: |
+          npm run build
+          npm run build:server
+
+      - name: Secret & Credential Scan
+        run: |
+          # Verify no committed live secrets or private keys exist in repository
+          if grep -rn "sk-ant-" src/ || grep -rn "gsk_" src/ || grep -rn "AIzaSy" src/; then
+            echo "ERROR: Potential hardcoded API secret detected in codebase!"
+            exit 1
+          fi
+          echo "Secret scan passed cleanly. Zero hardcoded credentials found."

@@ -15,3 +15,8 @@ memory/
 WORKSPACE.md
 .shogo-pool-assignment
 .shogo-runtime-version
+
+# Local Worker build artifacts & workspaces
+workers/**/dist/
+workspace/
+.tmp_*

@@ -1,0 +1,20 @@
+{
+  "name": "jarvis-worker",
+  "version": "1.0.0",
+  "description": "J.A.R.V.I.S. Mark-V Distributed PC Execution Worker",
+  "type": "module",
+  "bin": {
+    "jarvis-worker": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js start",
+    "doctor": "node dist/cli.js doctor",
+    "status": "node dist/cli.js status"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  }
+}
