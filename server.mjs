@@ -9836,7 +9836,26 @@ app2.use("*", async (c, next) => {
   if (c.req.method === "OPTIONS") return c.text("", 204);
   await next();
 });
-app2.get("/health", (c) => c.json({ ok: true, timestamp: (/* @__PURE__ */ new Date()).toISOString(), cloudStatus: "ONLINE_24x7" }));
+app2.get("/health", async (c) => {
+  const dbDiag = await validateDatabaseConnectivity().catch(() => ({ provider: "unknown", status: "ERROR", durable: false }));
+  return c.json({
+    ok: true,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    cloudStatus: "ONLINE_24x7",
+    commit: process.env.RENDER_GIT_COMMIT || "3284f46",
+    render: {
+      gitCommit: process.env.RENDER_GIT_COMMIT || null,
+      gitBranch: process.env.RENDER_GIT_BRANCH || null,
+      serviceId: process.env.RENDER_SERVICE_ID || null,
+      instanceId: process.env.RENDER_INSTANCE_ID || null
+    },
+    database: {
+      provider: dbDiag.provider,
+      status: dbDiag.status,
+      durable: dbDiag.durable
+    }
+  });
+});
 app2.get("/health/:sub", async (c) => {
   const sub = c.req.param("sub");
   const newUrl = new URL(c.req.url);
