@@ -32,6 +32,7 @@ import { ResourceRegistry } from './src/resources/ResourceRegistry'
 import { ResourceManager } from './src/resources/ResourceManager'
 import { QuotaManager } from './src/providers/QuotaManager'
 import { ProviderRegistry } from './src/providers/ProviderRegistry'
+import { CapabilityRegistry } from './src/providers/CapabilityRegistry'
 import { createShogoLlmProvider } from '@shogo-ai/sdk'
 import { streamText, generateText } from 'ai'
 import { prisma, validateDatabaseConnectivity, getEnvironmentClassification, getDurabilityClassification } from './src/lib/db'
@@ -4458,6 +4459,25 @@ app.post('/disaster-recovery/manifest', async (c) => {
   } catch (err: any) {
     return c.json({ ok: false, error: err?.message || err }, 500);
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// CAPABILITY-BASED PROVIDER REGISTRY & INTELLIGENT ROUTING
+// ═══════════════════════════════════════════════════════════════════
+app.get('/providers/registry', (c) => {
+  return c.json({ ok: true, providers: CapabilityRegistry.getPublicSummary() });
+});
+
+app.post('/providers/health/:id', async (c) => {
+  const id = c.req.param('id') as any;
+  const health = await CapabilityRegistry.checkProviderHealth(id);
+  return c.json({ ok: health.healthy, providerId: id, ...health });
+});
+
+app.post('/providers/route', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const decision = CapabilityRegistry.routeTask(body.taskType || 'chat', body.capabilities || []);
+  return c.json({ ok: true, decision });
 });
 
 app.all('*', (c) =>

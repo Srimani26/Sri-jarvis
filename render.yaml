@@ -1,13 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 Srimani Kandan. J.A.R.V.I.S. Operating System.
+# Production Infrastructure Blueprint for Render Cloud
+
 services:
   - type: web
     name: sri-jarvis
     runtime: node
-    plan: free
+    plan: starter # PRODUCTION REQUIREMENT: Starter plan prevents spin-down, cold-start latency, and memory exhaustion
     region: singapore
-    buildCommand: npm install && npm run build && npm run build:server
+    buildCommand: npm install --include=dev && npm run build && npm run build:server
     startCommand: node server.mjs
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jarvis-postgres
+          property: connectionString
+      - key: RUNTIME_AUTH_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false # Set securely in Render dashboard secrets
+      - key: GROQ_API_KEY
+        sync: false # Set securely in Render dashboard secrets
+      - key: OPENAI_API_KEY
+        sync: false # Set securely in Render dashboard secrets
+      - key: ANTHROPIC_API_KEY
+        sync: false # Set securely in Render dashboard secrets
+
+databases:
+  - name: jarvis-postgres
+    plan: starter # Managed persistent PostgreSQL for durable task states, events, memories, and auth
+    region: singapore
+    databaseName: jarvis_production
+    user: jarvis_admin
