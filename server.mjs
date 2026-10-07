@@ -6277,6 +6277,7 @@ import qrcode from "qrcode";
 import { getServerToolsClient } from "@shogo-ai/sdk/tools";
 function loadJwtSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.RUNTIME_AUTH_SECRET) return process.env.RUNTIME_AUTH_SECRET;
   const secretFile = join4(process.cwd(), ".jarvis-secret");
   try {
     if (existsSync4(secretFile)) {

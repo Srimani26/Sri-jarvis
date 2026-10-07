@@ -56,6 +56,7 @@ import { randomBytes } from 'crypto'
 // the other local secrets on first boot.
 function loadJwtSecret(): string {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET
+  if (process.env.RUNTIME_AUTH_SECRET) return process.env.RUNTIME_AUTH_SECRET
   const secretFile = join(process.cwd(), '.jarvis-secret')
   try {
     if (existsSync(secretFile)) {
