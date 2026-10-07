@@ -537,4 +537,12 @@ export class MissionOrchestrator {
       updates
     };
   }
+
+  /**
+   * Dispatch mission through canonical execution pipeline (alias for executeMission)
+   */
+  public static async dispatchMission(request: MissionRequest): Promise<MissionResult> {
+    return this.executeMission(request);
+  }
 }
+

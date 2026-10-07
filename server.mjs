@@ -3625,20 +3625,20 @@ var AgentRegistry = class {
     this.agents.set(agent.id, agent);
   }
   static canUseTool(agentId, toolName) {
-    const agent = this.agents.get(agentId);
+    const agent = this.getAgent(agentId);
     if (!agent) return false;
     if (agent.allowedTools.includes("*")) return true;
     return agent.allowedTools.includes(toolName);
   }
   static isPermissionAllowed(agentId, requestedPolicy) {
-    const agent = this.agents.get(agentId);
+    const agent = this.getAgent(agentId);
     if (!agent) return false;
     const agentCeiling = POLICY_LEVELS[agent.maxPermission] || 1;
     const requestedLevel = POLICY_LEVELS[requestedPolicy] || 1;
     return requestedLevel <= agentCeiling;
   }
   static recordTelemetry(agentId, durationMs, success) {
-    const agent = this.agents.get(agentId);
+    const agent = this.getAgent(agentId);
     if (!agent) return;
     const t = agent.telemetry;
     t.invocations++;
@@ -7490,6 +7490,12 @@ var MissionOrchestrator = class {
       spokenSummary,
       updates
     };
+  }
+  /**
+   * Dispatch mission through canonical execution pipeline (alias for executeMission)
+   */
+  static async dispatchMission(request) {
+    return this.executeMission(request);
   }
 };
 

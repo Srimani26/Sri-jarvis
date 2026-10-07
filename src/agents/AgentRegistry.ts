@@ -523,14 +523,14 @@ export class AgentRegistry {
   }
 
   public static canUseTool(agentId: string, toolName: string): boolean {
-    const agent = this.agents.get(agentId);
+    const agent = this.getAgent(agentId);
     if (!agent) return false;
     if (agent.allowedTools.includes('*')) return true;
     return agent.allowedTools.includes(toolName);
   }
 
   public static isPermissionAllowed(agentId: string, requestedPolicy: ExecutionPolicy): boolean {
-    const agent = this.agents.get(agentId);
+    const agent = this.getAgent(agentId);
     if (!agent) return false;
     const agentCeiling = POLICY_LEVELS[agent.maxPermission] || 1;
     const requestedLevel = POLICY_LEVELS[requestedPolicy] || 1;
@@ -538,7 +538,7 @@ export class AgentRegistry {
   }
 
   public static recordTelemetry(agentId: string, durationMs: number, success: boolean): void {
-    const agent = this.agents.get(agentId);
+    const agent = this.getAgent(agentId);
     if (!agent) return;
     const t = agent.telemetry;
     t.invocations++;
