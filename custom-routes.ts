@@ -2163,60 +2163,57 @@ app.get('/tools/flights', requireAuth, async (c) => {
   }
 })
 
-// GET /api/tools/products — E-Commerce Amazon vs Flipkart Mobile Intelligence
+// GET /api/tools/products — E-Commerce Amazon vs Flipkart Live Intelligence
 app.get('/tools/products', requireAuth, async (c) => {
   try {
-    const category = (c.req.query('category') || 'mobile').trim().toLowerCase()
-    const amazonUrl = `https://www.amazon.in/s?k=${encodeURIComponent(category + ' best smartphones 2026')}`
-    const flipkartUrl = `https://www.flipkart.com/search?q=${encodeURIComponent(category + ' 5G smartphones')}`
+    const rawQuery = (c.req.query('q') || c.req.query('query') || c.req.query('category') || 'smartphones').trim()
+    const { ECommerceReconEngine } = await import('./src/services/ECommerceReconEngine')
+    const recon = await ECommerceReconEngine.analyzeDeals(rawQuery, (sys, msgs) => callAI(sys, msgs))
 
-    const recommendations = [
-      {
-        name: 'OnePlus 12 (16GB RAM, 512GB)',
-        processor: 'Snapdragon 8 Gen 3',
-        display: '6.82" 2K 120Hz ProXDR AMOLED',
-        camera: '50MP Sony LYT-808 + 64MP 3x Periscope',
-        battery: '5400 mAh + 100W SUPERVOOC',
-        amazonPrice: '₹64,999',
-        flipkartPrice: '₹64,999',
-        verdict: '👑 MASTER SRI PICK: Ultimate all-rounder for performance, AI workflows, and battery life.',
-        amazonLink: amazonUrl,
-        flipkartLink: flipkartUrl,
-      },
-      {
-        name: 'Samsung Galaxy S24 Ultra 5G',
-        processor: 'Snapdragon 8 Gen 3 for Galaxy',
-        display: '6.8" Dynamic AMOLED 2X Flat 120Hz',
-        camera: '200MP Quad Telephoto + Galaxy AI suite',
-        battery: '5000 mAh + 45W Fast Charging',
-        amazonPrice: '₹1,29,999',
-        flipkartPrice: '₹1,29,999',
-        verdict: '🏆 TITAN TIER: Absolute peak camera and built-in S-Pen for business contracts.',
-        amazonLink: amazonUrl,
-        flipkartLink: flipkartUrl,
-      },
-      {
-        name: 'iQOO Neo 9 Pro 5G',
-        processor: 'Snapdragon 8 Gen 2 + Supercomputing Chip Q1',
-        display: '6.78" 144Hz 1.5K AMOLED',
-        camera: '50MP Sony IMX920 Flagship Sensor',
-        battery: '5160 mAh + 120W FlashCharge',
-        amazonPrice: '₹34,999',
-        flipkartPrice: '₹35,499',
-        verdict: '⚡ VALUE CHAMPION: Unbeatable speed and charging speed under ₹35,000.',
-        amazonLink: amazonUrl,
-        flipkartLink: flipkartUrl,
-      },
-    ]
+    // Map deals to backward-compatible recommendations structure
+    const recommendations = recon.deals.map(d => ({
+      name: d.productName,
+      processor: d.comparison.keySpecs[0] || 'High Performance Architecture',
+      display: d.comparison.keySpecs[1] || 'Super Retina / AMOLED Display',
+      camera: d.comparison.keySpecs[2] || 'Multi-lens Flagship System',
+      battery: d.comparison.keySpecs[3] || 'All-Day Battery Life',
+      amazonPrice: d.amazon.price,
+      flipkartPrice: d.flipkart.price,
+      verdict: d.comparison.verdict,
+      amazonLink: d.amazon.url,
+      flipkartLink: d.flipkart.url,
+      rating: d.amazon.rating,
+      dealWinner: d.comparison.dealWinner,
+      cheaperPlatform: d.comparison.cheaperPlatform,
+      qualityScore: d.comparison.qualityScore,
+    }))
 
     return c.json({
       status: 'SUCCESS',
-      category,
+      query: rawQuery,
+      category: rawQuery,
       recommendations,
-      platforms: { amazon: amazonUrl, flipkart: flipkartUrl },
+      deals: recon.deals,
+      overallWinner: recon.overallWinner,
+      executiveSummary: recon.executiveSummary,
+      spokenSummary: recon.spokenSummary,
+      platforms: recon.platforms,
     })
   } catch (error: any) {
     return c.json({ error: error.message }, 500)
+  }
+})
+
+// POST /api/ecommerce/compare — Real Multi-Platform Shopping Intelligence
+app.post('/ecommerce/compare', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}))
+    const query = body?.query || body?.product || 'iPhone 16 vs Samsung S24'
+    const { ECommerceReconEngine } = await import('./src/services/ECommerceReconEngine')
+    const result = await ECommerceReconEngine.analyzeDeals(query, (sys, msgs) => callAI(sys, msgs))
+    return c.json({ ok: true, data: result })
+  } catch (error: any) {
+    return c.json({ ok: false, error: error.message }, 500)
   }
 })
 

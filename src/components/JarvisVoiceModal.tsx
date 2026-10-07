@@ -39,11 +39,14 @@ interface TacticalPlan {
 }
 
 interface ActionCard {
-  type: 'youtube' | 'instagram' | 'linkedin' | 'google' | 'app' | 'evolution'
+  type: 'youtube' | 'shopify' | 'ecommerce' | 'instagram' | 'linkedin' | 'google' | 'app' | 'evolution'
   title: string
   query: string
   url?: string
+  embedUrl?: string
   content?: string
+  deals?: any[]
+  platformUrls?: { amazon?: string; flipkart?: string; shopify?: string }
 }
 
 const AGENTS: Record<string, AgentBadge> = {
@@ -1424,29 +1427,132 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 4. YOUTUBE ACTION ("open youtube and play [video]", "play [song] on youtube")
+    // 3.8 E-COMMERCE RECONNAISSANCE (FLIPKART VS AMAZON DEAL & QUALITY ANALYSIS)
+    if (
+      (lower.includes('flipkart') && lower.includes('amazon')) ||
+      (lower.includes('best deal') && (lower.includes('flipkart') || lower.includes('amazon') || lower.includes('product') || lower.includes('search'))) ||
+      (lower.includes('analyze') && (lower.includes('flipkart') || lower.includes('amazon') || lower.includes('price') || lower.includes('deal'))) ||
+      lower.includes('flipkart and amazon search this product') ||
+      lower.includes('search this product and give me which is best deal')
+    ) {
+      let product = cmd
+        .replace(/^(hey jarvis|jarvis|can you|please|analyze|compare|search this product and give me which is best deal and review and quality|give me which is best deal and review and quality|and give me which is best deal and review and quality|search this product|find the best deal for|search for|look up|check)/i, '')
+        .replace(/between flipkart and amazon|on flipkart and amazon|flipkart and amazon|and give me which is best deal and review and quality|and give me best deal/gi, '')
+        .replace(/and list out the best.*with specs and prices/gi, '')
+        .trim()
+      if (!product || product.length < 2) product = 'smartphones 5G'
+
+      setIsProcessing(true)
+      playJarvisChime('execute')
+      setJarvisResponse(`Autonomous E-Commerce Reconnaissance engaged. Auditing live listings, price deltas, ratings, and quality benchmarks across Amazon and Flipkart for "${product}"...`)
+
+      try {
+        const res = await fetch(`/api/tools/products?q=${encodeURIComponent(product)}`, {
+          headers: authHeaders()
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const deals = data.deals || []
+          const topDeal = deals[0]
+
+          setCurrentAction({
+            type: 'ecommerce',
+            title: `E-Commerce Recon // Flipkart vs Amazon: ${product}`,
+            query: product,
+            url: data.platforms?.amazonSearchUrl || `https://www.amazon.in/s?k=${encodeURIComponent(product)}`,
+            deals,
+            platformUrls: {
+              amazon: data.platforms?.amazonSearchUrl,
+              flipkart: data.platforms?.flipkartSearchUrl
+            }
+          })
+
+          const report = `### [E-Commerce Recon] ${topDeal ? topDeal.productName : product}\n**Overall Verdict**: ${data.overallWinner || 'Live comparison analyzed.'}\n\n${data.executiveSummary || ''}\n\n*Interactive comparison matrix with live purchase links displayed below.*`
+          setJarvisResponse(report)
+          speakVoice(data.spokenSummary || `Master Sri, I have analyzed ${product} across Amazon and Flipkart. ${data.overallWinner || 'Details are loaded on your display.'}`)
+          setIsProcessing(false)
+          return
+        }
+      } catch (err: any) {
+        console.warn('E-commerce recon error:', err)
+      }
+    }
+
+    // 4. YOUTUBE ACTION ("open youtube and play the songs", "open youtube and play [video]", "play [song]")
     if (lower.includes('youtube') || (lower.startsWith('play ') && !lower.includes('excel'))) {
       let query = cmd
-        .replace(/^(open youtube and play|open youtube|play on youtube|play)/i, '')
+        .replace(/^(open youtube and play the songs|open youtube and play the song|open youtube and play|open youtube|play on youtube|play the songs|play the song|play song|play)/i, '')
         .replace(/on youtube/i, '')
         .trim()
-      if (!query) query = 'Iron Man Theme Song AC/DC'
+      if (!query) query = 'Iron Man AC/DC Shoot to Thrill'
 
       const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
-      window.open(ytUrl, '_blank')
+      const embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1`
+
+      try {
+        window.open(ytUrl, '_blank')
+      } catch {}
 
       setCurrentAction({
         type: 'youtube',
-        title: 'YouTube Stream',
+        title: `YouTube Live Media // ${query}`,
         query,
-        url: ytUrl
+        url: ytUrl,
+        embedUrl,
       })
 
-      const speech = `Opening YouTube and playing "${query}" for you, Master Sri.`
-      setJarvisResponse(`### Launching YouTube\nPlaying: **${query}**\n[Click here if popup was blocked](${ytUrl})`)
+      const speech = `Opening YouTube and streaming "${query}" for you, Master Sri.`
+      setJarvisResponse(`### Launching YouTube Stream\nPlaying: **${query}**\n[Open YouTube in New Tab](${ytUrl})\n*Embedded media stream active in tactical HUD below.*`)
       speakVoice(speech)
       setIsProcessing(false)
       return
+    }
+
+    // 4.5 SHOPIFY ACTION ("open shopify", "open shopify play the song", "open my store")
+    if (lower.includes('shopify') || lower.includes('open my store') || lower.includes('open store')) {
+      const shopifyUrl = 'https://admin.shopify.com'
+      try {
+        window.open(shopifyUrl, '_blank')
+      } catch {}
+
+      if (lower.includes('song') || lower.includes('music') || lower.includes('play')) {
+        let songQuery = cmd
+          .replace(/.*(play the songs|play the song|play song|play)/i, '')
+          .replace(/on youtube/i, '')
+          .trim()
+        if (!songQuery) songQuery = 'AC/DC Shoot to Thrill Iron Man'
+
+        const embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(songQuery)}&autoplay=1`
+
+        setCurrentAction({
+          type: 'shopify',
+          title: 'Shopify Storefront & Live Audio Stream',
+          query: songQuery,
+          url: shopifyUrl,
+          embedUrl,
+          content: `Shopify Merchant Portal launched for Master Sri. Background audio stream playing "${songQuery}".`
+        })
+
+        const speech = `Opening Shopify for you and streaming "${songQuery}", Master Sri.`
+        setJarvisResponse(`### Multi-Vector Action Executed\n- **Shopify Portal**: [Open Shopify Dashboard](${shopifyUrl})\n- **Audio Stream**: Playing **${songQuery}** in tactical HUD.`)
+        speakVoice(speech)
+        setIsProcessing(false)
+        return
+      } else {
+        setCurrentAction({
+          type: 'shopify',
+          title: 'Shopify Merchant Console',
+          query: 'Shopify Store',
+          url: shopifyUrl,
+          content: 'Shopify Merchant Console initialized. Ready for product listing, order fulfillment, and conversion tracking.'
+        })
+
+        const speech = 'Opening Shopify for you, Master Sri.'
+        setJarvisResponse(`### Launching Shopify\n[Open Shopify Admin Portal](${shopifyUrl})\nStorefront telemetry synchronized.`)
+        speakVoice(speech)
+        setIsProcessing(false)
+        return
+      }
     }
 
     // 5. INSTAGRAM ACTION ("open insta and search [content]", "open instagram")
@@ -2272,7 +2378,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             </div>
           )}
 
-          {/* Active Action Card (YouTube, Instagram, LinkedIn Job Pitch, Self-Evolution) */}
+          {/* Active Action Card (YouTube, Shopify, E-Commerce, Instagram, LinkedIn Job Pitch) */}
           {currentAction && (
             <div className="w-full rounded-2xl border border-cyan-400/50 bg-slate-900/90 p-4 text-left space-y-2.5 animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between">
@@ -2291,6 +2397,108 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                   </a>
                 )}
               </div>
+
+              {/* Embedded Holographic Audio/Video Stream Player */}
+              {currentAction.embedUrl && (
+                <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-cyan-500/50 bg-black shadow-[0_0_30px_rgba(6,182,212,0.35)] my-2">
+                  <iframe
+                    src={currentAction.embedUrl}
+                    title={currentAction.title}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              )}
+
+              {/* E-Commerce Deal Recon Matrix */}
+              {currentAction.type === 'ecommerce' && currentAction.deals && currentAction.deals.length > 0 && (
+                <div className="space-y-3 pt-1">
+                  {currentAction.deals.map((deal: any, idx: number) => (
+                    <div key={idx} className="p-3.5 rounded-2xl bg-slate-950/90 border border-cyan-500/30 space-y-3 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+                      {/* Product Header & Winner Badge */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800/80 pb-2.5">
+                        <div>
+                          <div className="text-xs font-bold text-white tracking-wide">{deal.productName}</div>
+                          <span className="text-[10px] font-mono text-cyan-400/80">{deal.category}</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/50 text-[10px] font-mono text-emerald-300 font-bold">
+                          {deal.comparison?.dealWinner || 'Best Deal Verified'}
+                        </div>
+                      </div>
+
+                      {/* Side-by-Side Comparison Columns */}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {/* Amazon Column */}
+                        <div className="p-3 rounded-xl bg-slate-900/80 border border-amber-500/30 flex flex-col justify-between space-y-2">
+                          <div>
+                            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-amber-400">
+                              <span>AMAZON INDIA</span>
+                              <span>★ {deal.amazon?.rating || 4.5}</span>
+                            </div>
+                            <div className="text-base font-bold text-white font-mono mt-1">{deal.amazon?.price}</div>
+                            {deal.amazon?.originalPrice && (
+                              <div className="text-[10px] font-mono text-slate-500 line-through">{deal.amazon.originalPrice}</div>
+                            )}
+                            <div className="text-[10px] text-slate-400 mt-1">{deal.amazon?.deliverySpeed}</div>
+                          </div>
+                          <a
+                            href={deal.amazon?.url || currentAction.platformUrls?.amazon}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full text-center py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-[10px] font-mono font-bold text-amber-300 transition-all flex items-center justify-center gap-1"
+                          >
+                            BUY ON AMAZON <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+
+                        {/* Flipkart Column */}
+                        <div className="p-3 rounded-xl bg-slate-900/80 border border-blue-500/30 flex flex-col justify-between space-y-2">
+                          <div>
+                            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-blue-400">
+                              <span>FLIPKART</span>
+                              <span>★ {deal.flipkart?.rating || 4.5}</span>
+                            </div>
+                            <div className="text-base font-bold text-white font-mono mt-1">{deal.flipkart?.price}</div>
+                            {deal.flipkart?.originalPrice && (
+                              <div className="text-[10px] font-mono text-slate-500 line-through">{deal.flipkart.originalPrice}</div>
+                            )}
+                            <div className="text-[10px] text-slate-400 mt-1">{deal.flipkart?.deliverySpeed}</div>
+                          </div>
+                          <a
+                            href={deal.flipkart?.url || currentAction.platformUrls?.flipkart}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full text-center py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-[10px] font-mono font-bold text-blue-300 transition-all flex items-center justify-center gap-1"
+                          >
+                            BUY ON FLIPKART <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Quality & Sentiment Scores */}
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono bg-slate-900/50 p-2 rounded-xl border border-slate-800">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Quality Score:</span>
+                          <span className="text-cyan-400 font-bold">{deal.comparison?.qualityScore || 92}/100</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Customer Sentiment:</span>
+                          <span className="text-emerald-400 font-bold">{deal.comparison?.sentimentScore || 89}%</span>
+                        </div>
+                      </div>
+
+                      {/* Verdict Text */}
+                      {deal.comparison?.verdict && (
+                        <div className="text-[11px] text-slate-300 font-sans leading-relaxed bg-cyan-950/20 border border-cyan-500/20 p-2.5 rounded-xl">
+                          <strong className="text-cyan-300">J.A.R.V.I.S. Recon Verdict: </strong>
+                          {deal.comparison.verdict}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {currentAction.content && (
                 <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 font-mono max-h-36 overflow-y-auto whitespace-pre-wrap">

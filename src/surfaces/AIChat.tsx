@@ -45,9 +45,10 @@ interface Message {
   flightData?: FlightDeal[]
   productData?: ProductRec[]
   actionTriggered?: {
-    type: 'youtube' | 'food' | 'flight' | 'product'
+    type: 'youtube' | 'food' | 'flight' | 'product' | 'shopify'
     label: string
     url?: string
+    embedUrl?: string
   }
 }
 
@@ -321,26 +322,64 @@ export default function AIChat() {
       } catch {}
     }
 
-    // 3. E-Commerce Mobile Comparison (Flipkart vs Amazon)
+    // 3. E-Commerce Multi-Platform Recon (Flipkart vs Amazon)
     let productData: ProductRec[] | undefined = undefined
-    if (lower.includes('mobile') || lower.includes('phone') || lower.includes('flipkart') || lower.includes('amazon')) {
-      if (lower.includes('buy') || lower.includes('best') || lower.includes('analyze') || lower.includes('comparison')) {
-        playJarvisChime('execute')
-        try {
-          const res = await fetch('/api/tools/products?category=mobile', { headers: authHeaders() })
-          const json = await res.json()
-          if (json?.recommendations) productData = json.recommendations
-        } catch {}
+    if (
+      (lower.includes('flipkart') && lower.includes('amazon')) ||
+      (lower.includes('best deal') && (lower.includes('flipkart') || lower.includes('amazon') || lower.includes('product') || lower.includes('search'))) ||
+      (lower.includes('analyze') && (lower.includes('flipkart') || lower.includes('amazon') || lower.includes('price') || lower.includes('mobile') || lower.includes('phone') || lower.includes('laptop'))) ||
+      lower.includes('flipkart and amazon search this product') ||
+      lower.includes('search this product and give me which is best deal')
+    ) {
+      let product = text
+        .replace(/^(hey jarvis|jarvis|can you|please|analyze|compare|search this product and give me which is best deal and review and quality|search this product|find the best deal for|look up|check)/i, '')
+        .replace(/between flipkart and amazon|on flipkart and amazon|flipkart and amazon|and give me which is best deal and review and quality|and give me best deal/gi, '')
+        .replace(/and list out the best.*with specs and prices/gi, '')
+        .trim()
+      if (!product || product.length < 2) product = 'smartphones 5G'
+
+      playJarvisChime('execute')
+      try {
+        const res = await fetch(`/api/tools/products?q=${encodeURIComponent(product)}`, { headers: authHeaders() })
+        const json = await res.json()
+        if (json?.recommendations) productData = json.recommendations
+      } catch {}
+    }
+
+    // 4. Direct Device Action: YouTube & Music Stream
+    let actionTriggered: any = null
+    if (lower.includes('youtube') || (lower.startsWith('play ') && !lower.includes('excel'))) {
+      const q = text.replace(/open|youtube|search|play the songs|play the song|play song|play|for|can you|please|jarvis/gi, '').trim() || 'Iron Man Theme Song AC/DC'
+      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+      const embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(q)}&autoplay=1`
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } catch {}
+      actionTriggered = {
+        type: 'youtube',
+        label: `Playing: "${q}"`,
+        url,
+        embedUrl
       }
     }
 
-    // 4. Direct Device Action: YouTube
-    let actionTriggered: any = null
-    if (lower.includes('youtube') && (lower.includes('open') || lower.includes('search') || lower.includes('play'))) {
-      const q = text.replace(/open|youtube|search|play|for|can you|please|jarvis/gi, '').trim() || 'AI autonomous swarms'
-      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
-      window.open(url, '_blank', 'noopener,noreferrer')
-      actionTriggered = { type: 'youtube', label: `Opened YouTube search for: "${q}"`, url }
+    // 4.5 Direct Device Action: Shopify Portal
+    if (lower.includes('shopify') || lower.includes('open my store') || lower.includes('open store')) {
+      const url = 'https://admin.shopify.com'
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } catch {}
+      let embedUrl: string | undefined = undefined
+      if (lower.includes('song') || lower.includes('music') || lower.includes('play')) {
+        const songQ = text.replace(/.*(play the songs|play the song|play song|play)/i, '').replace(/on youtube/i, '').trim() || 'AC/DC Shoot to Thrill'
+        embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(songQ)}&autoplay=1`
+      }
+      actionTriggered = {
+        type: 'shopify',
+        label: embedUrl ? `Opened Shopify & Streaming Music` : `Opened Shopify Store Console`,
+        url,
+        embedUrl
+      }
     }
 
     // 5. Direct Device Action: Food Order in Erode
@@ -689,17 +728,19 @@ export default function AIChat() {
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                     <div className="flex items-center gap-2 text-amber-400">
                       <ShoppingCart className="w-4 h-4" />
-                      <span className="font-bold text-xs font-mono">E-COMMERCE RECON // FLIPKART VS AMAZON BEST MOBILES</span>
+                      <span className="font-bold text-xs font-mono">E-COMMERCE RECON // FLIPKART VS AMAZON PRODUCT DEALS</span>
                     </div>
-                    <span className="text-[10px] font-mono text-cyan-400 font-bold">2026 BENCHMARK</span>
+                    <span className="text-[10px] font-mono text-cyan-400 font-bold">2026 LIVE BENCHMARK</span>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3">
-                    {msg.productData.map((rec, pidx) => (
-                      <div key={pidx} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between">
+                    {msg.productData.map((rec: any, pidx) => (
+                      <div key={pidx} className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800/80 pb-2">
                           <h4 className="text-xs font-bold text-white">{rec.name}</h4>
-                          <span className="text-xs font-mono font-bold text-emerald-400">{rec.amazonPrice}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                            {rec.dealWinner || `★ ${rec.rating || 4.5} Rating`}
+                          </span>
                         </div>
                         <p className="text-[11px] font-mono text-cyan-300/90">{rec.verdict}</p>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-mono text-slate-400">
@@ -734,21 +775,34 @@ export default function AIChat() {
               )}
 
               {msg.actionTriggered && (
-                <div className="mt-2 p-2 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 flex items-center justify-between text-[11px] font-mono">
-                  <div className="flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>{msg.actionTriggered.label}</span>
+                <div className="mt-2 space-y-2">
+                  <div className="p-2.5 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 flex items-center justify-between text-[11px] font-mono">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{msg.actionTriggered.label}</span>
+                    </div>
+                    {msg.actionTriggered.url && (
+                      <a
+                        href={msg.actionTriggered.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 underline"
+                      >
+                        <span>Open Link</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
-                  {msg.actionTriggered.url && (
-                    <a
-                      href={msg.actionTriggered.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 underline"
-                    >
-                      <span>Open Link</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                  {msg.actionTriggered.embedUrl && (
+                    <div className="w-full aspect-video rounded-xl overflow-hidden border border-cyan-500/50 bg-black shadow-[0_0_25px_rgba(6,182,212,0.3)]">
+                      <iframe
+                        src={msg.actionTriggered.embedUrl}
+                        title={msg.actionTriggered.label}
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
                   )}
                 </div>
               )}

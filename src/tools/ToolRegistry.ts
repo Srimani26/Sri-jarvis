@@ -656,6 +656,36 @@ export class ToolRegistry {
         };
       },
     });
+
+    // 25. ecommerce_recon
+    this.registerTool({
+      name: 'ecommerce_recon',
+      description: 'Analyze and compare products, live prices, deals, and ratings across Flipkart and Amazon India',
+      category: 'BROWSER',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Product name or category to search and compare' },
+        },
+        required: ['query'],
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const { ECommerceReconEngine } = await import('../services/ECommerceReconEngine');
+        const result = await ECommerceReconEngine.analyzeDeals(args.query);
+        return {
+          tool: 'ecommerce_recon',
+          success: true,
+          output: result,
+        };
+      },
+    });
   }
 
   public static registerTool(tool: ToolDefinition): void {
