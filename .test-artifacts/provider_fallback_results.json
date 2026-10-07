@@ -1,0 +1,137 @@
+{
+  "timestamp": "2026-10-07T06:49:56.278Z",
+  "providerAudit": [
+    {
+      "id": "gemini",
+      "name": "Google Gemini Pro / Flash",
+      "priority": 1,
+      "capabilities": [
+        "coding",
+        "reasoning",
+        "fast",
+        "vision",
+        "audio",
+        "tools"
+      ],
+      "configured": true,
+      "health": "HEALTHY",
+      "reachability": "Configured",
+      "testedStatus": "VERIFIED"
+    },
+    {
+      "id": "groq",
+      "name": "Groq LPUs (Llama 3 / Whisper)",
+      "priority": 2,
+      "capabilities": [
+        "fast",
+        "coding",
+        "audio",
+        "tools"
+      ],
+      "configured": true,
+      "health": "HEALTHY",
+      "reachability": "Configured",
+      "testedStatus": "VERIFIED"
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter Multi-Model Gateway",
+      "priority": 3,
+      "capabilities": [
+        "coding",
+        "reasoning",
+        "fast",
+        "vision",
+        "tools"
+      ],
+      "configured": false,
+      "health": "UNCONFIGURED",
+      "reachability": "Unconfigured",
+      "testedStatus": "NOT RUNTIME VERIFIED (NO CREDENTIAL IN RUNTIME)"
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic Claude (Sonnet / Opus)",
+      "priority": 4,
+      "capabilities": [
+        "coding",
+        "reasoning",
+        "vision",
+        "tools"
+      ],
+      "configured": false,
+      "health": "UNCONFIGURED",
+      "reachability": "Unconfigured",
+      "testedStatus": "NOT RUNTIME VERIFIED (NO CREDENTIAL IN RUNTIME)"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI GPT-4o / Whisper",
+      "priority": 5,
+      "capabilities": [
+        "coding",
+        "reasoning",
+        "vision",
+        "audio",
+        "tools"
+      ],
+      "configured": false,
+      "health": "UNCONFIGURED",
+      "reachability": "Unconfigured",
+      "testedStatus": "NOT RUNTIME VERIFIED (NO CREDENTIAL IN RUNTIME)"
+    },
+    {
+      "id": "shogo",
+      "name": "Shogo AI Enterprise LLM Gateway",
+      "priority": 1,
+      "capabilities": [
+        "coding",
+        "reasoning",
+        "fast",
+        "tools"
+      ],
+      "configured": false,
+      "health": "UNCONFIGURED",
+      "reachability": "Unconfigured",
+      "testedStatus": "NOT RUNTIME VERIFIED (NO CREDENTIAL IN RUNTIME)"
+    },
+    {
+      "id": "ollama",
+      "name": "Local Ollama Instance",
+      "priority": 6,
+      "capabilities": [
+        "fast",
+        "coding",
+        "tools"
+      ],
+      "configured": false,
+      "health": "UNCONFIGURED",
+      "reachability": "Unconfigured",
+      "testedStatus": "NOT RUNTIME VERIFIED (NO CREDENTIAL IN RUNTIME)"
+    }
+  ],
+  "normalRouting": {
+    "selectedPrimary": "Google Gemini Pro / Flash",
+    "primaryId": "gemini",
+    "fallbackChain": [
+      "groq",
+      "ollama"
+    ],
+    "reason": "Selected Google Gemini Pro / Flash based on capabilities [coding], priority 1, and health HEALTHY"
+  },
+  "simulatedFailure": {},
+  "failoverRouting": {
+    "selectedPrimary": "Groq LPUs (Llama 3 / Whisper)",
+    "primaryId": "groq",
+    "reason": "Selected Groq LPUs (Llama 3 / Whisper) based on capabilities [coding], priority 2, and health HEALTHY",
+    "isDifferentFromNormal": true,
+    "cascadedToSecondary": true,
+    "verdict": "PASS: Automated failover successfully engaged Groq"
+  },
+  "recoveryVerification": {
+    "restoredHealthState": "HEALTHY",
+    "restoredPrimaryId": "gemini",
+    "recoveredSuccessfully": true,
+    "verdict": "PASS: Primary provider resumed priority position"
+  }
+}

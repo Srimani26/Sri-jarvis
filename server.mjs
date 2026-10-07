@@ -8694,6 +8694,81 @@ app.post("/voice/speak", async (c) => {
     return c.text(err.message, 500);
   }
 });
+app.post("/voice/transcribe", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!file || typeof file === "string") {
+      return c.json({ ok: false, error: "No audio file provided", text: "" }, 400);
+    }
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const base64Audio = buffer.toString("base64");
+    const mimeType = file.type || "audio/webm";
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (geminiKey) {
+      try {
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      inlineData: {
+                        mimeType: mimeType.split(";")[0] || "audio/webm",
+                        data: base64Audio
+                      }
+                    },
+                    {
+                      text: "Transcribe this spoken human audio verbatim into accurate English text. Return ONLY the transcribed text and nothing else. No punctuation commentary, no preamble."
+                    }
+                  ]
+                }
+              ]
+            }),
+            signal: AbortSignal.timeout(15e3)
+          }
+        );
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json();
+          const transcribedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+          if (transcribedText) {
+            return c.json({ ok: true, text: transcribedText, provider: "gemini-1.5-flash" });
+          }
+        }
+      } catch (geminiErr) {
+        console.warn("[STT] Gemini transcription attempt failed:", geminiErr);
+      }
+    }
+    const groqKey = process.env.GROQ_API_KEY;
+    if (groqKey) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file, "voice.webm");
+        formData.append("model", "whisper-large-v3");
+        const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}` },
+          body: formData,
+          signal: AbortSignal.timeout(15e3)
+        });
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          return c.json({ ok: true, text: groqData.text?.trim() || "", provider: "groq-whisper" });
+        }
+      } catch (groqErr) {
+        console.warn("[STT] Groq transcription attempt failed:", groqErr);
+      }
+    }
+    return c.json({ ok: false, error: "NO_ACTIVE_STT_PROVIDER_RESPONSE", text: "" }, 502);
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || String(err), text: "" }, 500);
+  }
+});
 app.post("/task/plan", requireAuth, async (c) => {
   try {
     const { task } = await c.req.json();
