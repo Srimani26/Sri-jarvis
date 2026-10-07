@@ -20,6 +20,9 @@ WORKSPACE.md
 
 # Local Worker build artifacts & workspaces
 workers/**/dist/
-workspace/
+/workspace/
+/workspaces/
+!src/workspace/
+!src/workspace/**
 .tmp_*
 data/

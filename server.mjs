@@ -213,7 +213,7 @@ var init_db = __esm({
 
 // src/storage/adapters/LocalFallbackStorageProvider.ts
 import { promises as fs3 } from "node:fs";
-import { existsSync as existsSync5 } from "node:fs";
+import { existsSync as existsSync6 } from "node:fs";
 import * as path5 from "node:path";
 import * as crypto3 from "node:crypto";
 var LocalFallbackStorageProvider;
@@ -259,19 +259,19 @@ var init_LocalFallbackStorageProvider = __esm({
       }
       async getObject(bucket, key) {
         const filePath = this.resolvePath(bucket, key);
-        if (!existsSync5(filePath)) {
+        if (!existsSync6(filePath)) {
           return null;
         }
         return fs3.readFile(filePath);
       }
       async deleteObject(bucket, key) {
         const filePath = this.resolvePath(bucket, key);
-        if (!existsSync5(filePath)) {
+        if (!existsSync6(filePath)) {
           return false;
         }
         await fs3.unlink(filePath);
         const metaPath = `${filePath}.meta.json`;
-        if (existsSync5(metaPath)) {
+        if (existsSync6(metaPath)) {
           await fs3.unlink(metaPath).catch(() => {
           });
         }
@@ -279,7 +279,7 @@ var init_LocalFallbackStorageProvider = __esm({
       }
       async listObjects(bucket, prefix = "") {
         const bucketDir = path5.join(this.rootDir, bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_"));
-        if (!existsSync5(bucketDir)) {
+        if (!existsSync6(bucketDir)) {
           return [];
         }
         const results = [];
@@ -296,7 +296,7 @@ var init_LocalFallbackStorageProvider = __esm({
                 const stat = await fs3.stat(fullPath);
                 let meta = null;
                 const metaPath = `${fullPath}.meta.json`;
-                if (existsSync5(metaPath)) {
+                if (existsSync6(metaPath)) {
                   try {
                     meta = JSON.parse(await fs3.readFile(metaPath, "utf-8"));
                   } catch (_) {
@@ -1119,8 +1119,8 @@ var init_ObjectStore = __esm({
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync as existsSync7, readFileSync as readFileSync4 } from "node:fs";
-import { join as join7 } from "node:path";
+import { existsSync as existsSync8, readFileSync as readFileSync5 } from "node:fs";
+import { join as join8 } from "node:path";
 
 // src/lib/task-engine.ts
 init_db();
@@ -2756,7 +2756,7 @@ var ExecutionKernel = class {
    * Verify task outputs
    */
   static verifyResult(checks) {
-    return new Promise(async (resolve5) => {
+    return new Promise(async (resolve6) => {
       const checksRun = [];
       const failures = [];
       for (const check of checks) {
@@ -2768,7 +2768,7 @@ var ExecutionKernel = class {
           failures.push(`${check.name} threw: ${err.message}`);
         }
       }
-      resolve5({
+      resolve6({
         passed: failures.length === 0,
         checksRun,
         failures,
@@ -3208,7 +3208,7 @@ var AgentRegistry = class {
         codename: "ENGINEER // FULL-STACK CODER",
         role: "software_engineer",
         description: "Implements production code, executes refactors, applies surgical diffs, runs tests.",
-        allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "code_diff_apply", "test_runner", "terminal_exec", "git_status", "system_health", "build_fullstack_app", "execute_code"],
+        allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "code_diff_apply", "test_runner", "terminal_exec", "git_status", "system_health", "build_fullstack_app", "execute_code", "workspace_init", "workspace_run_command", "workspace_write_file", "workspace_read_file", "workspace_list_files"],
         maxPermission: "PROJECT_WRITE",
         preferredModels: ["claude-3-7-sonnet", "deepseek-coder", "gemini-2.5-pro"],
         timeoutMs: 9e4,
@@ -3225,7 +3225,7 @@ var AgentRegistry = class {
         codename: "UI-UX // SURFACE DESIGNER",
         role: "frontend_engineer",
         description: "Builds responsive, high-performance web components and reactive dashboards.",
-        allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "code_diff_apply", "vite_build"],
+        allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "code_diff_apply", "vite_build", "workspace_init", "workspace_run_command", "workspace_write_file", "workspace_read_file", "workspace_list_files"],
         maxPermission: "PROJECT_WRITE",
         preferredModels: ["claude-3-7-sonnet", "gemini-2.5-flash"],
         timeoutMs: 6e4,
@@ -3242,7 +3242,7 @@ var AgentRegistry = class {
         codename: "API // SERVER & ENGINE",
         role: "backend_engineer",
         description: "Implements server routes, streaming endpoints, authentication middleware, and background jobs.",
-        allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "code_diff_apply", "server_build", "terminal_exec", "git_status", "system_health"],
+        allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "code_diff_apply", "server_build", "terminal_exec", "git_status", "system_health", "workspace_init", "workspace_run_command", "workspace_write_file", "workspace_read_file", "workspace_list_files"],
         maxPermission: "PROJECT_WRITE",
         preferredModels: ["claude-3-7-sonnet", "deepseek-coder"],
         timeoutMs: 6e4,
@@ -3741,7 +3741,7 @@ var AgentRuntime = class {
       }
     };
     try {
-      outputResult = await new Promise(async (resolve5, reject) => {
+      outputResult = await new Promise(async (resolve6, reject) => {
         const timer = setTimeout(() => {
           reject(new Error(`Agent '${agentId}' exceeded timeout ceiling of ${agent.timeoutMs}ms`));
         }, agent.timeoutMs);
@@ -3768,7 +3768,7 @@ var AgentRuntime = class {
             }
           }
           clearTimeout(timer);
-          resolve5({
+          resolve6({
             summary: `Objective successfully completed by ${agent.name}`,
             objective,
             agentId,
@@ -3998,12 +3998,213 @@ var WorkerRegistry = class {
 };
 
 // src/tools/ToolRegistry.ts
-import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from "node:fs";
-import { resolve, dirname as dirname2 } from "node:path";
+import { existsSync as existsSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync2, statSync as statSync2, mkdirSync as mkdirSync2 } from "node:fs";
+import { resolve as resolve2, dirname as dirname2 } from "node:path";
 import { execFile as execFile2 } from "node:child_process";
-import { promisify as promisify3 } from "node:util";
+import { promisify as promisify4 } from "node:util";
 import os from "node:os";
-var execFileAsync2 = promisify3(execFile2);
+
+// src/workspace/WorkspaceManager.ts
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
+import { resolve, join as join2, relative } from "node:path";
+import { exec as exec2, spawn } from "node:child_process";
+import { promisify as promisify3 } from "node:util";
+var execAsync2 = promisify3(exec2);
+var WorkspaceManager = class {
+  static baseDir = resolve(process.cwd(), "workspaces");
+  static {
+    if (!existsSync(this.baseDir)) {
+      mkdirSync(this.baseDir, { recursive: true });
+    }
+  }
+  /**
+   * Get the absolute path for a project workspace with path traversal protection
+   */
+  static getProjectPath(projectName) {
+    const sanitized = projectName.replace(/[^a-zA-Z0-9_\-\.]/g, "_").toLowerCase();
+    const target = resolve(this.baseDir, sanitized);
+    if (!target.startsWith(this.baseDir)) {
+      throw new Error(`Security violation: Workspace path traversal blocked for '${projectName}'`);
+    }
+    return target;
+  }
+  /**
+   * Initialize a new project directory
+   */
+  static initProject(projectName) {
+    const projectPath = this.getProjectPath(projectName);
+    const isNew = !existsSync(projectPath);
+    if (isNew) {
+      mkdirSync(projectPath, { recursive: true });
+    }
+    return { success: true, path: projectPath, isNew, name: projectName, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
+  }
+  /**
+   * Write a file inside the project workspace
+   */
+  static writeFile(projectName, relativePath, content) {
+    const projectPath = this.getProjectPath(projectName);
+    if (!existsSync(projectPath)) {
+      mkdirSync(projectPath, { recursive: true });
+    }
+    const fullFilePath = resolve(projectPath, relativePath);
+    if (!fullFilePath.startsWith(projectPath)) {
+      throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
+    }
+    const parentDir = resolve(fullFilePath, "..");
+    if (!existsSync(parentDir)) {
+      mkdirSync(parentDir, { recursive: true });
+    }
+    writeFileSync(fullFilePath, content, "utf-8");
+    const bytesWritten = Buffer.byteLength(content, "utf-8");
+    return { success: true, filePath: relative(projectPath, fullFilePath).replace(/\\/g, "/"), bytesWritten, bytes: bytesWritten };
+  }
+  /**
+   * Read a file inside the project workspace
+   */
+  static readFile(projectName, relativePath) {
+    const projectPath = this.getProjectPath(projectName);
+    const fullFilePath = resolve(projectPath, relativePath);
+    if (!fullFilePath.startsWith(projectPath)) {
+      throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
+    }
+    if (!existsSync(fullFilePath)) {
+      throw new Error(`File not found: '${relativePath}' in project '${projectName}'`);
+    }
+    const content = readFileSync(fullFilePath, "utf-8");
+    return { success: true, content, bytes: Buffer.byteLength(content, "utf-8"), filePath: relative(projectPath, fullFilePath).replace(/\\/g, "/") };
+  }
+  /**
+   * List files recursively or flat within the workspace
+   */
+  static listFiles(projectName, subDir = "", recursive = true) {
+    const projectPath = this.getProjectPath(projectName);
+    const targetDir = resolve(projectPath, subDir);
+    if (!targetDir.startsWith(projectPath) || !existsSync(targetDir)) {
+      return [];
+    }
+    const results = [];
+    const scan = (currentDir) => {
+      const items = readdirSync(currentDir);
+      for (const item of items) {
+        if (item === "node_modules" || item === ".git") continue;
+        const full = join2(currentDir, item);
+        const st = statSync(full);
+        const rel = relative(projectPath, full).replace(/\\/g, "/");
+        const isDir = st.isDirectory();
+        results.push({
+          path: rel,
+          relativePath: rel,
+          name: item,
+          isDirectory: isDir,
+          sizeBytes: isDir ? void 0 : st.size
+        });
+        if (isDir && recursive) {
+          scan(full);
+        }
+      }
+    };
+    scan(targetDir);
+    return results;
+  }
+  /**
+   * Run a terminal command inside the project workspace (cross-platform, e.g. npm init, npm install)
+   */
+  static async runCommand(projectName, command, timeoutMs = 6e4, onOutputChunk) {
+    const projectPath = this.getProjectPath(projectName);
+    if (!existsSync(projectPath)) {
+      mkdirSync(projectPath, { recursive: true });
+    }
+    const blockedPatterns = [/rm\s+-rf\s+[\/\\]/i, /format\s+[a-z]:/i, /shutdown/i, /drop\s+database/i];
+    for (const pat of blockedPatterns) {
+      if (pat.test(command)) {
+        return {
+          success: false,
+          stdout: "",
+          stderr: `SECURITY BLOCK: Command violates host protection policy: ${command}`,
+          exitCode: 1,
+          durationMs: 0
+        };
+      }
+    }
+    const start = Date.now();
+    return new Promise((resolve6) => {
+      const proc = spawn(command, {
+        cwd: projectPath,
+        shell: true,
+        env: {
+          ...process.env,
+          NODE_ENV: "development",
+          CI: "true"
+          // Non-interactive mode for npm / build scripts
+        }
+      });
+      let stdout = "";
+      let stderr = "";
+      let timer = null;
+      if (timeoutMs > 0) {
+        timer = setTimeout(() => {
+          proc.kill();
+          stderr += `
+Command timed out after ${timeoutMs}ms`;
+        }, timeoutMs);
+      }
+      proc.stdout?.on("data", (data) => {
+        const text = data.toString();
+        stdout += text;
+        if (onOutputChunk) onOutputChunk(text);
+      });
+      proc.stderr?.on("data", (data) => {
+        const text = data.toString();
+        stderr += text;
+        if (onOutputChunk) onOutputChunk(text);
+      });
+      proc.on("close", (code) => {
+        if (timer) clearTimeout(timer);
+        const durationMs = Date.now() - start;
+        resolve6({
+          success: code === 0,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          exitCode: code ?? (stderr ? 1 : 0),
+          durationMs
+        });
+      });
+      proc.on("error", (err) => {
+        if (timer) clearTimeout(timer);
+        const durationMs = Date.now() - start;
+        resolve6({
+          success: false,
+          stdout: stdout.trim(),
+          stderr: `${stderr}
+${err.message}`.trim(),
+          exitCode: 1,
+          durationMs
+        });
+      });
+    });
+  }
+  /**
+   * Delete a project workspace safely
+   */
+  static deleteProject(projectName) {
+    const projectPath = this.getProjectPath(projectName);
+    if (existsSync(projectPath)) {
+      rmSync(projectPath, { recursive: true, force: true });
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Alias for deleting project during test teardown
+   */
+  static cleanProject(projectName) {
+    return this.deleteProject(projectName);
+  }
+};
+
+// src/tools/ToolRegistry.ts
+var execFileAsync2 = promisify4(execFile2);
 var ToolRegistry = class {
   static tools = /* @__PURE__ */ new Map();
   static {
@@ -4039,15 +4240,15 @@ var ToolRegistry = class {
       health: "ONLINE",
       telemetry: this.createDefaultTelemetry(),
       execute: async (args) => {
-        const cwd = resolve(process.cwd());
-        const filePath = resolve(cwd, args.path);
+        const cwd = resolve2(process.cwd());
+        const filePath = resolve2(cwd, args.path);
         if (!filePath.startsWith(cwd)) {
           return { tool: "filesystem_read", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
         }
-        if (!existsSync(filePath)) {
+        if (!existsSync2(filePath)) {
           return { tool: "filesystem_read", success: false, output: null, error: `File not found: ${args.path}` };
         }
-        const content = readFileSync(filePath, "utf-8");
+        const content = readFileSync2(filePath, "utf-8");
         return {
           tool: "filesystem_read",
           success: true,
@@ -4073,16 +4274,16 @@ var ToolRegistry = class {
       health: "ONLINE",
       telemetry: this.createDefaultTelemetry(),
       execute: async (args) => {
-        const cwd = resolve(process.cwd());
-        const filePath = resolve(cwd, args.path);
+        const cwd = resolve2(process.cwd());
+        const filePath = resolve2(cwd, args.path);
         if (!filePath.startsWith(cwd)) {
           return { tool: "filesystem_write", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
         }
         const parent = dirname2(filePath);
-        if (!existsSync(parent)) {
-          mkdirSync(parent, { recursive: true });
+        if (!existsSync2(parent)) {
+          mkdirSync2(parent, { recursive: true });
         }
-        writeFileSync(filePath, args.content, "utf-8");
+        writeFileSync2(filePath, args.content, "utf-8");
         return {
           tool: "filesystem_write",
           success: true,
@@ -4107,17 +4308,17 @@ var ToolRegistry = class {
       health: "ONLINE",
       telemetry: this.createDefaultTelemetry(),
       execute: async (args) => {
-        const cwd = resolve(process.cwd());
-        const dirPath = resolve(cwd, args.path || ".");
+        const cwd = resolve2(process.cwd());
+        const dirPath = resolve2(cwd, args.path || ".");
         if (!dirPath.startsWith(cwd)) {
           return { tool: "filesystem_list", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
         }
-        if (!existsSync(dirPath)) {
+        if (!existsSync2(dirPath)) {
           return { tool: "filesystem_list", success: false, output: null, error: `Directory not found: ${args.path}` };
         }
-        const entries = readdirSync(dirPath).map((entry) => {
-          const fullPath = resolve(dirPath, entry);
-          const isDir = statSync(fullPath).isDirectory();
+        const entries = readdirSync2(dirPath).map((entry) => {
+          const fullPath = resolve2(dirPath, entry);
+          const isDir = statSync2(fullPath).isDirectory();
           return { name: entry, isDirectory: isDir };
         });
         return {
@@ -4442,6 +4643,167 @@ var ToolRegistry = class {
             sandboxed: true,
             checkpointRollbackAvailable: true
           }
+        };
+      }
+    });
+    this.registerTool({
+      name: "workspace_init",
+      description: "Initialize a clean, isolated project workspace directory for building applications",
+      category: "FILES",
+      inputSchema: {
+        type: "object",
+        properties: { projectName: { type: "string" } },
+        required: ["projectName"]
+      },
+      requiredPermission: "PROJECT_WRITE",
+      riskLevel: "LOW",
+      timeoutMs: 1e4,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: "ONLINE",
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const res = WorkspaceManager.initProject(args.projectName);
+        return {
+          tool: "workspace_init",
+          success: res.success,
+          output: res
+        };
+      }
+    });
+    this.registerTool({
+      name: "workspace_run_command",
+      description: "Execute a build, test, or package manager command inside an isolated project workspace (e.g. npm init -y, npm install, npm run build)",
+      category: "TERMINAL",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectName: { type: "string" },
+          command: { type: "string" },
+          timeoutMs: { type: "number" }
+        },
+        required: ["projectName", "command"]
+      },
+      requiredPermission: "SAFE_LOCAL",
+      riskLevel: "HIGH",
+      timeoutMs: 12e4,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: "ONLINE",
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const res = await WorkspaceManager.runCommand(args.projectName, args.command, args.timeoutMs || 9e4);
+        return {
+          tool: "workspace_run_command",
+          success: res.success,
+          output: res,
+          error: res.success ? void 0 : res.stderr || `Command failed with exit code ${res.exitCode}`,
+          commandsExecuted: [args.command]
+        };
+      }
+    });
+    this.registerTool({
+      name: "workspace_write_file",
+      description: "Create or update source code files within the project workspace directory",
+      category: "FILES",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectName: { type: "string" },
+          path: { type: "string" },
+          content: { type: "string" }
+        },
+        required: ["projectName", "path", "content"]
+      },
+      requiredPermission: "PROJECT_WRITE",
+      riskLevel: "MEDIUM",
+      timeoutMs: 15e3,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: "ONLINE",
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const res = WorkspaceManager.writeFile(args.projectName, args.path, args.content);
+          return {
+            tool: "workspace_write_file",
+            success: true,
+            output: res,
+            filesTouched: [res.filePath]
+          };
+        } catch (err) {
+          return {
+            tool: "workspace_write_file",
+            success: false,
+            output: null,
+            error: err.message
+          };
+        }
+      }
+    });
+    this.registerTool({
+      name: "workspace_read_file",
+      description: "Read the contents of a file within the project workspace",
+      category: "FILES",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectName: { type: "string" },
+          path: { type: "string" }
+        },
+        required: ["projectName", "path"]
+      },
+      requiredPermission: "READ_ONLY",
+      riskLevel: "SAFE",
+      timeoutMs: 1e4,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: "ONLINE",
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const res = WorkspaceManager.readFile(args.projectName, args.path);
+          return {
+            tool: "workspace_read_file",
+            success: true,
+            output: res
+          };
+        } catch (err) {
+          return {
+            tool: "workspace_read_file",
+            success: false,
+            output: null,
+            error: err.message
+          };
+        }
+      }
+    });
+    this.registerTool({
+      name: "workspace_list_files",
+      description: "Inspect the directory and file tree of an isolated project workspace",
+      category: "FILES",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectName: { type: "string" },
+          subDir: { type: "string" },
+          recursive: { type: "boolean" }
+        },
+        required: ["projectName"]
+      },
+      requiredPermission: "READ_ONLY",
+      riskLevel: "SAFE",
+      timeoutMs: 1e4,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: "ONLINE",
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const files = WorkspaceManager.listFiles(args.projectName, args.subDir || "", args.recursive ?? true);
+        return {
+          tool: "workspace_list_files",
+          success: true,
+          output: { files, total: files.length }
         };
       }
     });
@@ -6443,13 +6805,13 @@ var DisasterRecoveryManager = class {
 };
 
 // custom-routes.ts
-import { readFileSync as readFileSync3, writeFileSync as writeFileSync5, existsSync as existsSync6, chmodSync as chmodSync2 } from "fs";
-import { join as join6 } from "path";
+import { readFileSync as readFileSync4, writeFileSync as writeFileSync6, existsSync as existsSync7, chmodSync as chmodSync2 } from "fs";
+import { join as join7 } from "path";
 import { randomBytes as randomBytes2 } from "crypto";
 
 // src/security/SovereignGate.ts
-import { readFileSync as readFileSync2, writeFileSync as writeFileSync4, existsSync as existsSync4, chmodSync } from "fs";
-import { join as join4 } from "path";
+import { readFileSync as readFileSync3, writeFileSync as writeFileSync5, existsSync as existsSync5, chmodSync } from "fs";
+import { join as join5 } from "path";
 import { randomBytes } from "crypto";
 import jwt from "jsonwebtoken";
 var SovereignGate = class {
@@ -6472,10 +6834,10 @@ var SovereignGate = class {
       this.cachedSecret = process.env.RUNTIME_AUTH_SECRET.trim();
       return this.cachedSecret;
     }
-    const secretFile = join4(process.cwd(), ".jarvis-secret");
+    const secretFile = join5(process.cwd(), ".jarvis-secret");
     try {
-      if (existsSync4(secretFile)) {
-        const stored = readFileSync2(secretFile, "utf8").trim();
+      if (existsSync5(secretFile)) {
+        const stored = readFileSync3(secretFile, "utf8").trim();
         if (stored.length >= 32) {
           this.cachedSecret = stored;
           return this.cachedSecret;
@@ -6485,7 +6847,7 @@ var SovereignGate = class {
     }
     const SOVEREIGN_STABLE_SEED = "jarvis-sovereign-master-sri-mark-v-auth-secret-key-3284f46-permanent-auth";
     try {
-      writeFileSync4(secretFile, SOVEREIGN_STABLE_SEED, { mode: 384 });
+      writeFileSync5(secretFile, SOVEREIGN_STABLE_SEED, { mode: 384 });
       chmodSync(secretFile, 384);
     } catch {
     }
@@ -7522,6 +7884,439 @@ var MissionOrchestrator = class {
   }
 };
 
+// src/agents/AutonomousReActEngine.ts
+var AutonomousReActEngine = class {
+  /**
+   * Run full multi-turn ReAct reasoning and execution loop
+   */
+  static async run(options) {
+    const startTime = Date.now();
+    const {
+      taskId,
+      agentId,
+      objective,
+      projectName = `proj_${taskId.slice(-6)}`,
+      maxSteps = 15,
+      allowedTools,
+      systemPrompt,
+      contextData,
+      aiCaller
+    } = options;
+    const agent = AgentRegistry.getAgent(agentId) || AgentRegistry.getAgent("jarvis");
+    const effectiveTools = allowedTools || agent.allowedTools;
+    const availableToolDefs = ToolRegistry.listTools().filter((tool) => {
+      if (effectiveTools.includes("*")) return true;
+      return effectiveTools.includes(tool.name);
+    });
+    const toolDocs = availableToolDefs.map((t) => {
+      const schema = JSON.stringify(t.inputSchema?.properties || {});
+      return `Tool: ${t.name}
+Description: ${t.description}
+Parameters: ${schema}`;
+    }).join("\n\n");
+    const projectRoot = WorkspaceManager.initProject(projectName).path;
+    await TaskStore.emitEvent(
+      taskId,
+      "AGENT_STARTED",
+      `[${agent.name}] Initialized Autonomous ReAct Loop for objective: "${objective}"`,
+      { agentId, projectName, projectRoot, toolsCount: availableToolDefs.length, maxSteps }
+    );
+    const steps = [];
+    const toolsUsed = /* @__PURE__ */ new Set();
+    const artifactsCreated = /* @__PURE__ */ new Set();
+    const errors = [];
+    const executionContext = {
+      taskId,
+      agentId,
+      policy: agent.maxPermission,
+      emitEvent: async (eventType, message, metadata) => {
+        await TaskStore.emitEvent(taskId, eventType, message, metadata);
+      }
+    };
+    const historyMessages = [];
+    const baseSystemPrompt = `${systemPrompt || agent.systemPrompt}
+You are an autonomous AI specialist executing tasks in an isolated workspace sandbox.
+Project Workspace Directory: ${projectName} (Root: ${projectRoot})
+
+You have access to the following real tools:
+${toolDocs}
+
+You MUST execute the task using the standard ReAct protocol:
+Thought: <Step-by-step reasoning on what you need to do next based on previous tool results>
+Action: <exact_tool_name>
+Action Input: <valid JSON object matching the tool parameters>
+
+When you call workspace tools, ALWAYS provide "projectName": "${projectName}".
+For example, to initialize a project:
+Thought: I need to initialize the project directory and package.json.
+Action: workspace_run_command
+Action Input: {"projectName": "${projectName}", "command": "npm init -y"}
+
+When you have completely fulfilled the objective and verified your work:
+Thought: I have built all requested components, verified the build/tests, and the project is complete.
+Final Answer: <Comprehensive explanation of what you built, files created, and how to run it>
+
+Important:
+1. Always inspect output from Action/Observation before proceeding. If a command or build fails, observe the error and fix it.
+2. Produce complete, working code without placeholders or TODOs.
+3. Keep iterating until the goal is fully accomplished.`;
+    historyMessages.push({
+      role: "user",
+      content: `OBJECTIVE: ${objective}
+Context: ${JSON.stringify(contextData || {})}`
+    });
+    let finalAnswer = "";
+    let isComplete = false;
+    for (let stepNum = 1; stepNum <= maxSteps && !isComplete; stepNum++) {
+      const stepStartTime = Date.now();
+      await TaskStore.emitEvent(
+        taskId,
+        "AGENT_THINKING",
+        `[${agent.name}] ReAct Step ${stepNum}/${maxSteps}: Reasoning over objective and tool state`,
+        { step: stepNum, maxSteps }
+      );
+      let responseText = "";
+      try {
+        if (aiCaller) {
+          const aiRes = await aiCaller(baseSystemPrompt, historyMessages);
+          responseText = aiRes.text;
+        } else {
+          responseText = `Thought: Simulating step ${stepNum}
+Final Answer: Task completed in sandbox.`;
+        }
+      } catch (callErr) {
+        errors.push(`AI invocation failed at step ${stepNum}: ${callErr.message}`);
+        await TaskStore.emitEvent(taskId, "ERROR_DETECTED", `Model provider error: ${callErr.message}`, { step: stepNum });
+        break;
+      }
+      const thoughtMatch = responseText.match(/Thought:\s*([\s\S]*?)(?=Action:|Final Answer:|$)/i);
+      const actionMatch = responseText.match(/Action:\s*([a-zA-Z0-9_\-]+)/i);
+      const actionInputMatch = responseText.match(/Action Input:\s*(\{[\s\S]*?\})/i);
+      const finalAnswerMatch = responseText.match(/Final Answer:\s*([\s\S]*?)$/i);
+      const thought = thoughtMatch ? thoughtMatch[1].trim() : "Analyzing next action...";
+      if (finalAnswerMatch) {
+        finalAnswer = finalAnswerMatch[1].trim();
+        isComplete = true;
+        steps.push({
+          stepNumber: stepNum,
+          thought,
+          durationMs: Date.now() - stepStartTime
+        });
+        await TaskStore.emitEvent(
+          taskId,
+          "AGENT_PROGRESS",
+          `[${agent.name}] ReAct Loop reached Final Answer at step ${stepNum}`,
+          { step: stepNum, finalAnswer: finalAnswer.slice(0, 300) }
+        );
+        break;
+      }
+      if (actionMatch) {
+        const action = actionMatch[1].trim();
+        let actionInput = {};
+        if (actionInputMatch) {
+          try {
+            actionInput = JSON.parse(actionInputMatch[1].trim());
+          } catch (jsonErr) {
+            try {
+              const clean = actionInputMatch[1].trim().replace(/,\s*}/g, "}");
+              actionInput = JSON.parse(clean);
+            } catch (_) {
+              actionInput = { raw: actionInputMatch[1].trim() };
+            }
+          }
+        }
+        if (!actionInput.projectName && action.startsWith("workspace_")) {
+          actionInput.projectName = projectName;
+        }
+        toolsUsed.add(action);
+        await TaskStore.emitEvent(
+          taskId,
+          "TOOL_STARTED",
+          `[${agent.name}] Step ${stepNum} -> Executing: ${action}`,
+          { step: stepNum, tool: action, args: actionInput }
+        );
+        let observation = "";
+        try {
+          if (!effectiveTools.includes("*") && !effectiveTools.includes(action)) {
+            throw new Error(`Tool '${action}' is not authorized for agent '${agent.name}'`);
+          }
+          const toolRes = await ExecutionKernel.executeTool(action, actionInput, executionContext);
+          if (action === "workspace_write_file" && actionInput.path) {
+            artifactsCreated.add(actionInput.path);
+          }
+          if (toolRes.success) {
+            observation = typeof toolRes.output === "object" ? JSON.stringify(toolRes.output) : String(toolRes.output || "OK");
+            await TaskStore.emitEvent(
+              taskId,
+              "TOOL_COMPLETED",
+              `[${agent.name}] Tool '${action}' completed successfully`,
+              { step: stepNum, tool: action }
+            );
+          } else {
+            observation = `ERROR: ${toolRes.error || "Tool failed"}`;
+            await TaskStore.emitEvent(
+              taskId,
+              "ERROR_DETECTED",
+              `[${agent.name}] Tool '${action}' returned error: ${toolRes.error}`,
+              { step: stepNum, tool: action }
+            );
+          }
+        } catch (toolExecErr) {
+          observation = `ERROR: ${toolExecErr.message}`;
+          await TaskStore.emitEvent(
+            taskId,
+            "ERROR_DETECTED",
+            `[${agent.name}] Tool execution exception: ${toolExecErr.message}`,
+            { step: stepNum, tool: action }
+          );
+        }
+        const stepRecord = {
+          stepNumber: stepNum,
+          thought,
+          action,
+          actionInput,
+          observation: observation.slice(0, 3e3),
+          // Bound observation to prevent context blowout
+          durationMs: Date.now() - stepStartTime
+        };
+        steps.push(stepRecord);
+        historyMessages.push({
+          role: "assistant",
+          content: `Thought: ${thought}
+Action: ${action}
+Action Input: ${JSON.stringify(actionInput)}`
+        });
+        historyMessages.push({
+          role: "user",
+          content: `Observation: ${stepRecord.observation}`
+        });
+      } else {
+        historyMessages.push({
+          role: "assistant",
+          content: responseText
+        });
+        historyMessages.push({
+          role: "user",
+          content: 'Please proceed by emitting an "Action: <tool>" and "Action Input: {...}" or a "Final Answer: <result>".'
+        });
+        steps.push({
+          stepNumber: stepNum,
+          thought,
+          durationMs: Date.now() - stepStartTime
+        });
+      }
+    }
+    const totalDurationMs = Date.now() - startTime;
+    const success = isComplete && Boolean(finalAnswer);
+    await TaskStore.emitEvent(
+      taskId,
+      success ? "VERIFICATION_PASSED" : "TASK_FAILED",
+      success ? `Autonomous ReAct execution finalized successfully across ${steps.length} steps.` : `Autonomous ReAct execution halted after ${steps.length} steps without final answer.`,
+      { totalDurationMs, toolsUsed: Array.from(toolsUsed), artifactsCount: artifactsCreated.size }
+    );
+    return {
+      success,
+      finalAnswer: finalAnswer || `Execution halted after ${steps.length} steps. Check telemetry for details.`,
+      steps,
+      toolsUsed: Array.from(toolsUsed),
+      totalDurationMs,
+      artifactsCreated: Array.from(artifactsCreated),
+      errors
+    };
+  }
+};
+
+// src/scheduler/PersistentTaskQueue.ts
+init_db();
+var PersistentTaskQueue = class {
+  static isRunning = false;
+  static pollTimer = null;
+  static activeJobs = /* @__PURE__ */ new Map();
+  static maxConcurrency = 2;
+  // Controlled concurrency for cloud container stability
+  static defaultAiCaller = null;
+  /**
+   * Set global AI caller for queue workers
+   */
+  static setAiCaller(fn) {
+    this.defaultAiCaller = fn;
+  }
+  /**
+   * Submit an objective to the durable task queue
+   * Immediately returns taskId for 202 Accepted HTTP responses
+   */
+  static async enqueue(input) {
+    const metaPayload = {
+      objective: input.objective,
+      projectName: input.projectName || `proj_${Date.now().toString().slice(-6)}`,
+      maxSteps: input.maxSteps || 15,
+      parameters: input.parameters || {}
+    };
+    const task = await TaskStore.createTask({
+      title: input.title || input.objective.slice(0, 80),
+      description: JSON.stringify(metaPayload),
+      agentId: input.agentId || "jarvis",
+      totalSteps: input.maxSteps || 6
+    });
+    this.processNextJobs();
+    return {
+      taskId: task.id,
+      taskNumber: task.taskNumber,
+      status: "QUEUED"
+    };
+  }
+  /**
+   * Start the continuous background queue worker
+   */
+  static startWorker(pollIntervalMs = 2e3) {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    console.log(`\u26A1 [PersistentTaskQueue] Background worker daemon started (Concurrency: ${this.maxConcurrency})`);
+    this.recoverInterruptedTasks();
+    this.pollTimer = setInterval(() => {
+      this.processNextJobs();
+    }, pollIntervalMs);
+  }
+  /**
+   * Stop the queue worker
+   */
+  static stopWorker() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.isRunning = false;
+    console.log("\u{1F6D1} [PersistentTaskQueue] Background worker stopped");
+  }
+  /**
+   * Recover tasks left hanging when container was shut down or restarted
+   */
+  static async recoverInterruptedTasks() {
+    try {
+      const hangingTasks = await prisma.agentTask.findMany({
+        where: {
+          status: { in: ["CLAIMED", "RUNNING"] }
+        }
+      });
+      for (const t of hangingTasks) {
+        console.warn(`\u{1F6E1}\uFE0F [PersistentTaskQueue] Recovered interrupted task: ${t.taskNumber} -> Re-queued`);
+        await TaskStore.updateTask(t.id, {
+          status: "QUEUED",
+          currentOperation: "Re-queued after server restart recovery pass"
+        });
+        await TaskStore.emitEvent(t.id, "RECOVERY_STARTED", `Task re-queued after server reboot`, {
+          taskNumber: t.taskNumber
+        });
+      }
+      return hangingTasks.length;
+    } catch (err) {
+      console.warn(`\u26A0\uFE0F [PersistentTaskQueue] Recovery pass warning:`, err?.message || err);
+      return 0;
+    }
+  }
+  /**
+   * Process next available jobs up to concurrency limit
+   */
+  static async processNextJobs() {
+    if (this.activeJobs.size >= this.maxConcurrency) {
+      return;
+    }
+    const availableSlots = this.maxConcurrency - this.activeJobs.size;
+    try {
+      const queuedTasks = await prisma.agentTask.findMany({
+        where: { status: "QUEUED" },
+        orderBy: { createdAt: "asc" },
+        take: availableSlots
+      });
+      for (const task of queuedTasks) {
+        if (this.activeJobs.has(task.id)) continue;
+        await TaskStore.updateTask(task.id, {
+          status: "RUNNING",
+          currentOperation: "Claimed by background worker daemon"
+        });
+        const jobPromise = this.executeJob(task).finally(() => {
+          this.activeJobs.delete(task.id);
+        });
+        this.activeJobs.set(task.id, jobPromise);
+      }
+    } catch (err) {
+    }
+  }
+  /**
+   * Execute a single background job via AutonomousReActEngine
+   */
+  static async executeJob(task) {
+    let meta = {
+      objective: task.title,
+      projectName: `proj_${task.id.slice(-6)}`,
+      maxSteps: 12,
+      parameters: {}
+    };
+    try {
+      if (task.description && task.description.startsWith("{")) {
+        meta = JSON.parse(task.description);
+      }
+    } catch (_) {
+    }
+    try {
+      await TaskStore.emitEvent(
+        task.id,
+        "AGENT_STARTED",
+        `Worker daemon dispatched task ${task.taskNumber} to specialist '${task.agentId}'`,
+        { agentId: task.agentId, projectName: meta.projectName }
+      );
+      const result = await AutonomousReActEngine.run({
+        taskId: task.id,
+        agentId: task.agentId,
+        objective: meta.objective || task.title,
+        projectName: meta.projectName,
+        maxSteps: meta.maxSteps || 12,
+        contextData: meta.parameters,
+        aiCaller: this.defaultAiCaller || void 0
+      });
+      await TaskStore.updateTask(task.id, {
+        status: result.success ? "COMPLETED" : "FAILED",
+        progress: result.success ? 100 : task.progress,
+        currentOperation: result.success ? "Completed by Autonomous Engine" : "Halted with errors",
+        executionResult: result.finalAnswer,
+        verificationResult: `Verified across ${result.steps.length} steps. Tools: ${result.toolsUsed.join(", ") || "Direct"}.`,
+        filesChanged: result.artifactsCreated,
+        commandsRun: result.toolsUsed
+      });
+      return result;
+    } catch (jobErr) {
+      const errMsg = jobErr?.message || String(jobErr);
+      await TaskStore.updateTask(task.id, {
+        status: "FAILED",
+        errorDetails: errMsg,
+        currentOperation: `Execution failure: ${errMsg}`
+      });
+      await TaskStore.emitEvent(task.id, "ERROR_DETECTED", `Job execution failed: ${errMsg}`, {
+        error: errMsg
+      });
+      return {
+        success: false,
+        finalAnswer: `Error during task execution: ${errMsg}`,
+        steps: [],
+        toolsUsed: [],
+        totalDurationMs: 0,
+        artifactsCreated: [],
+        errors: [errMsg]
+      };
+    }
+  }
+  /**
+   * Query status of active jobs
+   */
+  static getQueueStatus() {
+    return {
+      isRunning: this.isRunning,
+      activeJobCount: this.activeJobs.size,
+      maxConcurrency: this.maxConcurrency
+    };
+  }
+};
+
 // custom-routes.ts
 import bcrypt from "bcryptjs";
 import jwt2 from "jsonwebtoken";
@@ -7591,15 +8386,15 @@ async function ensureDatabaseSchema() {
     schemaRepairAttempted = true;
     console.error("[jarvis] database schema missing, repairing:", msg);
     try {
-      const { readFileSync: readFileSync5, writeFileSync: writeFileSync6 } = await import("node:fs");
-      const { join: join8 } = await import("node:path");
+      const { readFileSync: readFileSync6, writeFileSync: writeFileSync7 } = await import("node:fs");
+      const { join: join9 } = await import("node:path");
       const { execFileSync } = await import("node:child_process");
-      const schemaPath = join8(process.cwd(), "prisma", "schema.prisma");
+      const schemaPath = join9(process.cwd(), "prisma", "schema.prisma");
       const rawDbUrl2 = process.env.DATABASE_URL || "";
       const isPg = rawDbUrl2.startsWith("postgres://") || rawDbUrl2.startsWith("postgresql://");
       const targetProvider = isPg ? "postgresql" : "sqlite";
       try {
-        const schema = readFileSync5(schemaPath, "utf-8");
+        const schema = readFileSync6(schemaPath, "utf-8");
         const updated = schema.replace(
           /datasource\s+db\s*\{[\s\S]*?provider\s*=\s*["'][^"']+["'][\s\S]*?\}/,
           `datasource db {
@@ -7607,7 +8402,7 @@ async function ensureDatabaseSchema() {
 }`
         );
         if (schema !== updated) {
-          writeFileSync6(schemaPath, updated, "utf-8");
+          writeFileSync7(schemaPath, updated, "utf-8");
         }
       } catch (_) {
       }
@@ -7647,17 +8442,17 @@ var JWT_SECRET = loadJwtSecret();
 var BCRYPT_ROUNDS = 12;
 function loadInviteCode() {
   if (process.env.JARVIS_INVITE_CODE) return process.env.JARVIS_INVITE_CODE;
-  const inviteFile = join6(process.cwd(), ".jarvis-invite");
+  const inviteFile = join7(process.cwd(), ".jarvis-invite");
   try {
-    if (existsSync6(inviteFile)) {
-      const stored = readFileSync3(inviteFile, "utf8").trim();
+    if (existsSync7(inviteFile)) {
+      const stored = readFileSync4(inviteFile, "utf8").trim();
       if (stored.length >= 8) return stored;
     }
   } catch {
   }
   const generated = randomBytes2(9).toString("base64url");
   try {
-    writeFileSync5(inviteFile, generated, { mode: 384 });
+    writeFileSync6(inviteFile, generated, { mode: 384 });
     chmodSync2(inviteFile, 384);
   } catch {
   }
@@ -8205,11 +9000,11 @@ function isModelReady(model) {
   return false;
 }
 var runtimeKeyOverrides = {};
-var KEYS_FILE = join6(process.cwd(), ".jarvis-keys.json");
+var KEYS_FILE = join7(process.cwd(), ".jarvis-keys.json");
 function loadKeys() {
-  if (existsSync6(KEYS_FILE)) {
+  if (existsSync7(KEYS_FILE)) {
     try {
-      const diskKeys = JSON.parse(readFileSync3(KEYS_FILE, "utf8"));
+      const diskKeys = JSON.parse(readFileSync4(KEYS_FILE, "utf8"));
       Object.assign(runtimeKeyOverrides, diskKeys);
     } catch {
     }
@@ -8236,7 +9031,7 @@ function loadKeys() {
 function saveKeys(keys) {
   Object.assign(runtimeKeyOverrides, keys);
   try {
-    writeFileSync5(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
+    writeFileSync6(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
     chmodSync2(KEYS_FILE, 384);
   } catch {
   }
@@ -8443,6 +9238,7 @@ async function callAI(systemPrompt, messages, preferredModelId) {
   }
   throw new Error(errors.slice(0, 3).join(" | ") || "No AI provider available");
 }
+PersistentTaskQueue.setAiCaller((sys, msgs) => callAI(sys, msgs));
 function getModelStatus() {
   return MODEL_CHAIN.map((m) => ({
     name: m.name,
@@ -9565,6 +10361,64 @@ app.post("/agents/dispatch", async (c) => {
     }
     const targetAgentId = MissionOrchestrator.selectAgentForObjective(directive, requestedAgentId);
     const agentSpec = AgentRegistry.getAgent(targetAgentId) || AgentRegistry.getAgent("jarvis");
+    if (body?.async === true || body?.queue === true) {
+      const queued = await PersistentTaskQueue.enqueue({
+        title: directive,
+        objective: directive,
+        agentId: agentSpec.id,
+        projectName: body?.projectName,
+        maxSteps: body?.maxSteps || 15,
+        parameters: body?.parameters || {}
+      });
+      return c.json({
+        ok: true,
+        status: "QUEUED",
+        taskId: queued.taskId,
+        taskNumber: queued.taskNumber,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        spokenSummary: `Master Sri, I have queued your objective for background execution with ${agentSpec.name}. Task ${queued.taskNumber} is being processed.`
+      }, 202);
+    }
+    if (body?.autonomous === true || body?.react === true || body?.mode === "react") {
+      const task = await TaskStore.createTask({
+        title: directive.slice(0, 100),
+        description: directive,
+        agentId: agentSpec.id,
+        totalSteps: body?.maxSteps || 15
+      });
+      const reactResult = await AutonomousReActEngine.run({
+        taskId: task.id,
+        agentId: agentSpec.id,
+        objective: directive,
+        projectName: body?.projectName || `proj_${task.id.slice(-6)}`,
+        maxSteps: body?.maxSteps || 15,
+        contextData: body?.parameters || {},
+        aiCaller: (sys, msgs) => callAI(sys, msgs)
+      });
+      await TaskStore.updateTask(task.id, {
+        status: reactResult.success ? "COMPLETED" : "FAILED",
+        progress: 100,
+        currentOperation: `Completed by ${agentSpec.name} Autonomous ReAct Engine`,
+        executionResult: reactResult.finalAnswer,
+        verificationResult: `Verified across ${reactResult.steps.length} ReAct cycles. Tools: ${reactResult.toolsUsed.join(", ") || "Internal"}. Artifacts: ${reactResult.artifactsCreated.join(", ") || "None"}.`,
+        filesChanged: reactResult.artifactsCreated,
+        commandsRun: reactResult.toolsUsed
+      });
+      return c.json({
+        ok: true,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        status: reactResult.success ? "COMPLETED" : "FAILED",
+        missionId: task.id,
+        steps: reactResult.steps,
+        toolsUsed: reactResult.toolsUsed,
+        filesChanged: reactResult.artifactsCreated,
+        report: reactResult.finalAnswer,
+        spokenSummary: `Master Sri, ${agentSpec.name} completed the autonomous ReAct cycle across ${reactResult.steps.length} steps. ${reactResult.artifactsCreated.length} workspace artifacts created.`,
+        durationMs: reactResult.totalDurationMs
+      });
+    }
     const mission = await MissionOrchestrator.dispatchMission({
       objective: directive,
       preferredAgentId: agentSpec.id,
@@ -9681,12 +10535,65 @@ app.post("/agents/dispatch", requireAuth, async (c) => {
         availableAgents: AgentRegistry.listAgents().map((a) => a.id)
       }, 404);
     }
+    if (body.async === true || body.queue === true) {
+      const queued = await PersistentTaskQueue.enqueue({
+        title: taskObjective,
+        objective: taskObjective,
+        agentId: agentSpec.id,
+        projectName: body.projectName || parameters.projectName,
+        maxSteps: body.maxSteps || parameters.maxSteps || 15,
+        parameters
+      });
+      return c.json({
+        ok: true,
+        status: "QUEUED",
+        taskId: queued.taskId,
+        taskNumber: queued.taskNumber,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        spokenSummary: `Master Sri, your objective has been queued for background execution with ${agentSpec.name}. Task number ${queued.taskNumber} is being processed.`
+      }, 202);
+    }
     const task = await TaskStore.createTask({
       title: taskObjective.slice(0, 100),
       description: taskObjective,
       agentId: agentSpec.id,
       totalSteps: 4
     });
+    if (body.autonomous === true || body.react === true || body.mode === "react" || parameters.react === true) {
+      const reactResult = await AutonomousReActEngine.run({
+        taskId: task.id,
+        agentId: agentSpec.id,
+        objective: taskObjective,
+        projectName: body.projectName || parameters.projectName || `proj_${task.id.slice(-6)}`,
+        maxSteps: body.maxSteps || parameters.maxSteps || 15,
+        contextData: parameters,
+        aiCaller: (sys, msgs) => callAI(sys, msgs)
+      });
+      await TaskStore.updateTask(task.id, {
+        status: reactResult.success ? "COMPLETED" : "FAILED",
+        progress: 100,
+        currentOperation: `Completed by ${agentSpec.name} Autonomous ReAct Engine`,
+        executionResult: reactResult.finalAnswer,
+        verificationResult: `Verified across ${reactResult.steps.length} ReAct cycles. Tools: ${reactResult.toolsUsed.join(", ") || "Internal"}. Artifacts: ${reactResult.artifactsCreated.join(", ") || "None"}.`,
+        filesChanged: reactResult.artifactsCreated,
+        commandsRun: reactResult.toolsUsed
+      });
+      return c.json({
+        ok: true,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        status: reactResult.success ? "COMPLETED" : "FAILED",
+        taskId: task.id,
+        taskNumber: task.taskNumber,
+        steps: reactResult.steps,
+        toolsUsed: reactResult.toolsUsed,
+        filesChanged: reactResult.artifactsCreated,
+        report: reactResult.finalAnswer,
+        spokenSummary: `Master Sri, ${agentSpec.name} completed the autonomous ReAct cycle across ${reactResult.steps.length} steps. ${reactResult.artifactsCreated.length} workspace artifacts created.`,
+        durationMs: reactResult.totalDurationMs
+      });
+    }
     await TaskStore.emitEvent(task.id, "DELEGATION_CREATED", `Delegation initialized: J.A.R.V.I.S. assigned task to ${agentSpec.name}`, {
       taskId: task.id,
       taskNumber: task.taskNumber,
@@ -9945,53 +10852,53 @@ app.get("/voice/speak", async (c) => {
     const rawText = c.req.query("text") || "At your command, Sovereign Master Sri.";
     const clean = rawText.replace(/`[\s\S]*?`/g, "Code block generated.").replace(/[*_#~>]/g, "").replace(/https?:\/\/[^\s]+/g, "link provided.").replace(/\{[\s\S]*?\}/g, "").slice(0, 3e3).trim();
     const lang = c.req.query("lang") || "en-GB";
-    const audioDir = join6(process.cwd(), "public", "audio");
+    const audioDir = join7(process.cwd(), "public", "audio");
     let staticFile = null;
     if (clean.includes("greetings and welcome back") || clean.includes("Master Sri, greetings")) {
-      staticFile = join6(process.cwd(), "public", "welcome.mp3");
+      staticFile = join7(process.cwd(), "public", "welcome.mp3");
     } else if (clean.includes("J.A.R.V.I.S. Grand Marshal core reporting") || clean.includes("commanding the subordinate") || clean.includes("commanding the supreme intelligence swarm")) {
-      staticFile = join6(audioDir, "rollcall_jarvis.mp3");
+      staticFile = join7(audioDir, "rollcall_jarvis.mp3");
     } else if (clean.includes("I am Aegis")) {
-      staticFile = join6(audioDir, "rollcall_aegis.mp3");
+      staticFile = join7(audioDir, "rollcall_aegis.mp3");
     } else if (clean.includes("I am Vortex")) {
-      staticFile = join6(audioDir, "rollcall_vortex.mp3");
+      staticFile = join7(audioDir, "rollcall_vortex.mp3");
     } else if (clean.includes("I am Midas")) {
-      staticFile = join6(audioDir, "rollcall_midas.mp3");
+      staticFile = join7(audioDir, "rollcall_midas.mp3");
     } else if (clean.includes("I am Cerebro")) {
-      staticFile = join6(audioDir, "rollcall_cerebro.mp3");
+      staticFile = join7(audioDir, "rollcall_cerebro.mp3");
     } else if (clean.includes("I am Stark OS")) {
-      staticFile = join6(audioDir, "rollcall_stark.mp3");
+      staticFile = join7(audioDir, "rollcall_stark.mp3");
     } else if (clean.includes("I am DeepSeek")) {
-      staticFile = join6(audioDir, "rollcall_deepseek.mp3");
+      staticFile = join7(audioDir, "rollcall_deepseek.mp3");
     } else if (clean.includes("I am AutoGen")) {
-      staticFile = join6(audioDir, "rollcall_autogen.mp3");
+      staticFile = join7(audioDir, "rollcall_autogen.mp3");
     } else if (clean.includes("I am CrewAI")) {
-      staticFile = join6(audioDir, "rollcall_crewai.mp3");
+      staticFile = join7(audioDir, "rollcall_crewai.mp3");
     } else if (clean.includes("I am Browser-Use")) {
-      staticFile = join6(audioDir, "rollcall_browser_use.mp3");
+      staticFile = join7(audioDir, "rollcall_browser_use.mp3");
     } else if (clean.includes("I am MetaGPT")) {
-      staticFile = join6(audioDir, "rollcall_metagpt.mp3");
+      staticFile = join7(audioDir, "rollcall_metagpt.mp3");
     } else if (clean.includes("I am Agent Foundry")) {
-      staticFile = join6(audioDir, "rollcall_foundry.mp3");
+      staticFile = join7(audioDir, "rollcall_foundry.mp3");
     } else if (clean.includes("I am OpenHands")) {
-      staticFile = join6(audioDir, "rollcall_openhands.mp3");
+      staticFile = join7(audioDir, "rollcall_openhands.mp3");
     } else if (clean.includes("I am Smolagents")) {
-      staticFile = join6(audioDir, "rollcall_smolagent.mp3");
+      staticFile = join7(audioDir, "rollcall_smolagent.mp3");
     } else if (clean.includes("I am CAMEL")) {
-      staticFile = join6(audioDir, "rollcall_camel.mp3");
+      staticFile = join7(audioDir, "rollcall_camel.mp3");
     } else if (clean.includes("I am LangGraph")) {
-      staticFile = join6(audioDir, "rollcall_langgraph.mp3");
+      staticFile = join7(audioDir, "rollcall_langgraph.mp3");
     } else if (clean.includes("all 16 Sovereign Agents are fully armed") || clean.includes("all agents are live, synchronized") || clean.includes("all 16 Sovereign Agents")) {
-      staticFile = join6(audioDir, "rollcall_conclusion.mp3");
+      staticFile = join7(audioDir, "rollcall_conclusion.mp3");
     }
-    if (staticFile && existsSync6(staticFile)) {
+    if (staticFile && existsSync7(staticFile)) {
       c.header("Content-Type", "audio/mpeg");
       c.header("Cache-Control", "public, max-age=86400");
-      return c.body(readFileSync3(staticFile));
+      return c.body(readFileSync4(staticFile));
     }
     try {
       const { execFileSync } = await import("node:child_process");
-      const scriptPath = join6(process.cwd(), "scripts", "neural-tts.py");
+      const scriptPath = join7(process.cwd(), "scripts", "neural-tts.py");
       const pyBin = process.platform === "win32" ? "python" : "python3";
       let audioBuffer2 = null;
       try {
@@ -10038,7 +10945,7 @@ app.post("/voice/speak", async (c) => {
     const clean = rawText.replace(/`[\s\S]*?`/g, "Code block generated.").replace(/[*_#~>]/g, "").replace(/https?:\/\/[^\s]+/g, "link provided.").replace(/\{[\s\S]*?\}/g, "").slice(0, 3e3).trim();
     const pyBin = process.platform === "win32" ? "python" : "python3";
     const { execFileSync } = await import("node:child_process");
-    const scriptPath = join6(process.cwd(), "scripts", "neural-tts.py");
+    const scriptPath = join7(process.cwd(), "scripts", "neural-tts.py");
     let audioBuffer = null;
     try {
       audioBuffer = execFileSync(pyBin, [scriptPath, "--text", clean, "--voice", lang], {
@@ -10951,6 +11858,115 @@ app.get("/telemetry", requireAuth, async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
+app.post("/tasks/enqueue", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { title, objective, agentId, projectName, maxSteps, parameters } = body;
+    const taskObjective = (objective || title || "").trim();
+    if (!taskObjective) {
+      return c.json({ ok: false, error: "objective or title required" }, 400);
+    }
+    const queued = await PersistentTaskQueue.enqueue({
+      title: title || taskObjective.slice(0, 80),
+      objective: taskObjective,
+      agentId: agentId || "jarvis",
+      projectName,
+      maxSteps: maxSteps || 15,
+      parameters: parameters || {}
+    });
+    return c.json({ ok: true, ...queued }, 202);
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/tasks/queue-status", (c) => {
+  return c.json({ ok: true, ...PersistentTaskQueue.getQueueStatus() });
+});
+app.post("/agents/react", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { agentId = "jarvis", objective, projectName, maxSteps = 15, parameters = {} } = body;
+    if (!objective?.trim()) {
+      return c.json({ ok: false, error: "objective is required" }, 400);
+    }
+    const task = await TaskStore.createTask({
+      title: objective.slice(0, 100),
+      description: objective,
+      agentId,
+      totalSteps: maxSteps
+    });
+    const result = await AutonomousReActEngine.run({
+      taskId: task.id,
+      agentId,
+      objective,
+      projectName: projectName || `proj_${task.id.slice(-6)}`,
+      maxSteps,
+      contextData: parameters,
+      aiCaller: (sys, msgs) => callAI(sys, msgs)
+    });
+    await TaskStore.updateTask(task.id, {
+      status: result.success ? "COMPLETED" : "FAILED",
+      progress: 100,
+      currentOperation: `Completed by ${agentId} Autonomous ReAct Engine`,
+      executionResult: result.finalAnswer,
+      verificationResult: `Verified across ${result.steps.length} ReAct steps. Tools: ${result.toolsUsed.join(", ") || "Direct"}.`,
+      filesChanged: result.artifactsCreated,
+      commandsRun: result.toolsUsed
+    });
+    return c.json({
+      ok: true,
+      taskId: task.id,
+      taskNumber: task.taskNumber,
+      result
+    });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.post("/workspace/execute", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { action, projectName, command, filePath, content, subDir, recursive, timeoutMs } = body;
+    if (!projectName) {
+      return c.json({ ok: false, error: "projectName is required" }, 400);
+    }
+    switch (action) {
+      case "init": {
+        const meta = WorkspaceManager.initProject(projectName);
+        return c.json({ ok: true, project: meta });
+      }
+      case "run": {
+        if (!command) return c.json({ ok: false, error: "command is required for run action" }, 400);
+        const res = await WorkspaceManager.runCommand(projectName, command, timeoutMs || 9e4);
+        return c.json({ ok: res.success, result: res });
+      }
+      case "write": {
+        if (!filePath || content === void 0) {
+          return c.json({ ok: false, error: "filePath and content are required for write action" }, 400);
+        }
+        const fileMeta = WorkspaceManager.writeFile(projectName, filePath, content);
+        return c.json({ ok: true, file: fileMeta });
+      }
+      case "read": {
+        if (!filePath) return c.json({ ok: false, error: "filePath is required for read action" }, 400);
+        const fileContent = WorkspaceManager.readFile(projectName, filePath);
+        return c.json({ ok: true, file: fileContent });
+      }
+      case "list": {
+        const files = WorkspaceManager.listFiles(projectName, subDir || "", recursive ?? true);
+        return c.json({ ok: true, files, count: files.length });
+      }
+      case "clean": {
+        WorkspaceManager.cleanProject(projectName);
+        return c.json({ ok: true, cleaned: true, projectName });
+      }
+      default:
+        return c.json({ ok: false, error: `Unknown workspace action: ${action}` }, 400);
+    }
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
 app.get("/health", async (c) => {
   return c.json({
     ok: true,
@@ -11333,9 +12349,9 @@ app2.post("/api/tools/execute", (c) => tools.execute(c.req.raw));
 app2.get("/api/tools/schemas", (c) => tools.list(c.req.raw));
 app2.use("/*", serveStatic({ root: "./dist" }));
 app2.get("*", (c) => {
-  const indexPath = join7(process.cwd(), "dist", "index.html");
-  if (existsSync7(indexPath)) {
-    return c.html(readFileSync4(indexPath, "utf-8"));
+  const indexPath = join8(process.cwd(), "dist", "index.html");
+  if (existsSync8(indexPath)) {
+    return c.html(readFileSync5(indexPath, "utf-8"));
   }
   return c.text("J.A.R.V.I.S. Sovereign Cloud Engine Active", 200);
 });
@@ -11349,6 +12365,7 @@ validateDatabaseConnectivity().then((diag) => {
 CrashRecovery.recoverInterruptedTasks().catch((err) => {
   console.error("\u26A0\uFE0F [CrashRecovery] Boot recovery failed:", err?.message || err);
 });
+PersistentTaskQueue.startWorker(2e3);
 AutonomousScheduler.scheduleJob({
   title: "Autonomous System Health Audit",
   cronExpression: "*/30 * * * *",

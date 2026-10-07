@@ -12,6 +12,7 @@ import os from 'node:os';
 import { ToolDefinition, ToolCategory, ToolRiskLevel } from './types';
 import { ExecutionPolicy, KernelExecutionContext, KernelToolResult } from '../kernel/types';
 import { ExecutionKernel } from '../kernel/ExecutionKernel';
+import { WorkspaceManager } from '../workspace/WorkspaceManager';
 
 const execFileAsync = promisify(execFile);
 
@@ -481,6 +482,177 @@ export class ToolRegistry {
             sandboxed: true,
             checkpointRollbackAvailable: true,
           },
+        };
+      },
+    });
+
+    // 15. workspace_init
+    this.registerTool({
+      name: 'workspace_init',
+      description: 'Initialize a clean, isolated project workspace directory for building applications',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: { projectName: { type: 'string' } },
+        required: ['projectName'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'LOW',
+      timeoutMs: 10_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const res = WorkspaceManager.initProject(args.projectName);
+        return {
+          tool: 'workspace_init',
+          success: res.success,
+          output: res,
+        };
+      },
+    });
+
+    // 16. workspace_run_command
+    this.registerTool({
+      name: 'workspace_run_command',
+      description: 'Execute a build, test, or package manager command inside an isolated project workspace (e.g. npm init -y, npm install, npm run build)',
+      category: 'TERMINAL',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string' },
+          command: { type: 'string' },
+          timeoutMs: { type: 'number' },
+        },
+        required: ['projectName', 'command'],
+      },
+      requiredPermission: 'SAFE_LOCAL',
+      riskLevel: 'HIGH',
+      timeoutMs: 120_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const res = await WorkspaceManager.runCommand(args.projectName, args.command, args.timeoutMs || 90_000);
+        return {
+          tool: 'workspace_run_command',
+          success: res.success,
+          output: res,
+          error: res.success ? undefined : (res.stderr || `Command failed with exit code ${res.exitCode}`),
+          commandsExecuted: [args.command],
+        };
+      },
+    });
+
+    // 17. workspace_write_file
+    this.registerTool({
+      name: 'workspace_write_file',
+      description: 'Create or update source code files within the project workspace directory',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string' },
+          path: { type: 'string' },
+          content: { type: 'string' },
+        },
+        required: ['projectName', 'path', 'content'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'MEDIUM',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const res = WorkspaceManager.writeFile(args.projectName, args.path, args.content);
+          return {
+            tool: 'workspace_write_file',
+            success: true,
+            output: res,
+            filesTouched: [res.filePath],
+          };
+        } catch (err: any) {
+          return {
+            tool: 'workspace_write_file',
+            success: false,
+            output: null,
+            error: err.message,
+          };
+        }
+      },
+    });
+
+    // 18. workspace_read_file
+    this.registerTool({
+      name: 'workspace_read_file',
+      description: 'Read the contents of a file within the project workspace',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string' },
+          path: { type: 'string' },
+        },
+        required: ['projectName', 'path'],
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 10_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const res = WorkspaceManager.readFile(args.projectName, args.path);
+          return {
+            tool: 'workspace_read_file',
+            success: true,
+            output: res,
+          };
+        } catch (err: any) {
+          return {
+            tool: 'workspace_read_file',
+            success: false,
+            output: null,
+            error: err.message,
+          };
+        }
+      },
+    });
+
+    // 19. workspace_list_files
+    this.registerTool({
+      name: 'workspace_list_files',
+      description: 'Inspect the directory and file tree of an isolated project workspace',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string' },
+          subDir: { type: 'string' },
+          recursive: { type: 'boolean' },
+        },
+        required: ['projectName'],
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 10_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const files = WorkspaceManager.listFiles(args.projectName, args.subDir || '', args.recursive ?? true);
+        return {
+          tool: 'workspace_list_files',
+          success: true,
+          output: { files, total: files.length },
         };
       },
     });

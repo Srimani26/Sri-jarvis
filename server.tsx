@@ -21,6 +21,7 @@ import { join } from 'node:path'
 import customRoutes from './custom-routes'
 import { CrashRecovery } from './src/kernel/CrashRecovery'
 import { AutonomousScheduler } from './src/scheduler/AutonomousScheduler'
+import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
 import { validateDatabaseConnectivity } from './src/lib/db'
 import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
 
@@ -97,6 +98,9 @@ validateDatabaseConnectivity().then((diag) => {
 CrashRecovery.recoverInterruptedTasks().catch((err) => {
   console.error('⚠️ [CrashRecovery] Boot recovery failed:', err?.message || err)
 })
+
+// 24/7 Persistent Task Queue: Boot durable background worker daemon
+PersistentTaskQueue.startWorker(2000)
 
 // 24/7 Autonomous Scheduler: Boot background health monitor
 AutonomousScheduler.scheduleJob({

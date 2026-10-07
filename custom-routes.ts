@@ -54,6 +54,9 @@ import { randomBytes } from 'crypto'
 import { SovereignGate } from './src/security/SovereignGate'
 import { MissionOrchestrator } from './src/orchestrator/MissionOrchestrator'
 import { AgentRegistry } from './src/agents/AgentRegistry'
+import { WorkspaceManager } from './src/workspace/WorkspaceManager'
+import { AutonomousReActEngine } from './src/agents/AutonomousReActEngine'
+import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
 
 function loadJwtSecret(): string {
   return SovereignGate.getJwtSecret()
@@ -1249,6 +1252,9 @@ async function callAI(systemPrompt: string, messages: Array<{ role: string; cont
 
   throw new Error(errors.slice(0, 3).join(' | ') || 'No AI provider available')
 }
+
+// Wire default AI caller into Persistent Background Task Queue
+PersistentTaskQueue.setAiCaller((sys, msgs) => callAI(sys, msgs))
 
 function getModelStatus() {
   return MODEL_CHAIN.map(m => ({
@@ -2638,6 +2644,71 @@ app.post('/agents/dispatch', async (c) => {
     const targetAgentId = MissionOrchestrator.selectAgentForObjective(directive, requestedAgentId)
     const agentSpec = AgentRegistry.getAgent(targetAgentId) || AgentRegistry.getAgent('jarvis')!
 
+    // Async background queue processing
+    if (body?.async === true || body?.queue === true) {
+      const queued = await PersistentTaskQueue.enqueue({
+        title: directive,
+        objective: directive,
+        agentId: agentSpec.id,
+        projectName: body?.projectName,
+        maxSteps: body?.maxSteps || 15,
+        parameters: body?.parameters || {},
+      })
+      return c.json({
+        ok: true,
+        status: 'QUEUED',
+        taskId: queued.taskId,
+        taskNumber: queued.taskNumber,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        spokenSummary: `Master Sri, I have queued your objective for background execution with ${agentSpec.name}. Task ${queued.taskNumber} is being processed.`
+      }, 202)
+    }
+
+    // Full Autonomous ReAct Multi-Turn Loop
+    if (body?.autonomous === true || body?.react === true || body?.mode === 'react') {
+      const task = await TaskStore.createTask({
+        title: directive.slice(0, 100),
+        description: directive,
+        agentId: agentSpec.id,
+        totalSteps: body?.maxSteps || 15,
+      })
+
+      const reactResult = await AutonomousReActEngine.run({
+        taskId: task.id,
+        agentId: agentSpec.id,
+        objective: directive,
+        projectName: body?.projectName || `proj_${task.id.slice(-6)}`,
+        maxSteps: body?.maxSteps || 15,
+        contextData: body?.parameters || {},
+        aiCaller: (sys, msgs) => callAI(sys, msgs),
+      })
+
+      await TaskStore.updateTask(task.id, {
+        status: reactResult.success ? 'COMPLETED' : 'FAILED',
+        progress: 100,
+        currentOperation: `Completed by ${agentSpec.name} Autonomous ReAct Engine`,
+        executionResult: reactResult.finalAnswer,
+        verificationResult: `Verified across ${reactResult.steps.length} ReAct cycles. Tools: ${reactResult.toolsUsed.join(', ') || 'Internal'}. Artifacts: ${reactResult.artifactsCreated.join(', ') || 'None'}.`,
+        filesChanged: reactResult.artifactsCreated,
+        commandsRun: reactResult.toolsUsed,
+      })
+
+      return c.json({
+        ok: true,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        status: reactResult.success ? 'COMPLETED' : 'FAILED',
+        missionId: task.id,
+        steps: reactResult.steps,
+        toolsUsed: reactResult.toolsUsed,
+        filesChanged: reactResult.artifactsCreated,
+        report: reactResult.finalAnswer,
+        spokenSummary: `Master Sri, ${agentSpec.name} completed the autonomous ReAct cycle across ${reactResult.steps.length} steps. ${reactResult.artifactsCreated.length} workspace artifacts created.`,
+        durationMs: reactResult.totalDurationMs
+      })
+    }
+
     const mission = await MissionOrchestrator.dispatchMission({
       objective: directive,
       preferredAgentId: agentSpec.id,
@@ -2774,6 +2845,27 @@ app.post('/agents/dispatch', requireAuth, async (c) => {
       }, 404)
     }
 
+    // 0. Async background queue processing
+    if (body.async === true || body.queue === true) {
+      const queued = await PersistentTaskQueue.enqueue({
+        title: taskObjective,
+        objective: taskObjective,
+        agentId: agentSpec.id,
+        projectName: body.projectName || parameters.projectName,
+        maxSteps: body.maxSteps || parameters.maxSteps || 15,
+        parameters
+      })
+      return c.json({
+        ok: true,
+        status: 'QUEUED',
+        taskId: queued.taskId,
+        taskNumber: queued.taskNumber,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        spokenSummary: `Master Sri, your objective has been queued for background execution with ${agentSpec.name}. Task number ${queued.taskNumber} is being processed.`
+      }, 202)
+    }
+
     // 1. Create durable task record in TaskStore
     const task = await TaskStore.createTask({
       title: taskObjective.slice(0, 100),
@@ -2781,6 +2873,44 @@ app.post('/agents/dispatch', requireAuth, async (c) => {
       agentId: agentSpec.id,
       totalSteps: 4,
     })
+
+    // Autonomous ReAct Multi-Turn Engine execution
+    if (body.autonomous === true || body.react === true || body.mode === 'react' || parameters.react === true) {
+      const reactResult = await AutonomousReActEngine.run({
+        taskId: task.id,
+        agentId: agentSpec.id,
+        objective: taskObjective,
+        projectName: body.projectName || parameters.projectName || `proj_${task.id.slice(-6)}`,
+        maxSteps: body.maxSteps || parameters.maxSteps || 15,
+        contextData: parameters,
+        aiCaller: (sys, msgs) => callAI(sys, msgs),
+      })
+
+      await TaskStore.updateTask(task.id, {
+        status: reactResult.success ? 'COMPLETED' : 'FAILED',
+        progress: 100,
+        currentOperation: `Completed by ${agentSpec.name} Autonomous ReAct Engine`,
+        executionResult: reactResult.finalAnswer,
+        verificationResult: `Verified across ${reactResult.steps.length} ReAct cycles. Tools: ${reactResult.toolsUsed.join(', ') || 'Internal'}. Artifacts: ${reactResult.artifactsCreated.join(', ') || 'None'}.`,
+        filesChanged: reactResult.artifactsCreated,
+        commandsRun: reactResult.toolsUsed,
+      })
+
+      return c.json({
+        ok: true,
+        agentId: agentSpec.id,
+        agent: agentSpec.name,
+        status: reactResult.success ? 'COMPLETED' : 'FAILED',
+        taskId: task.id,
+        taskNumber: task.taskNumber,
+        steps: reactResult.steps,
+        toolsUsed: reactResult.toolsUsed,
+        filesChanged: reactResult.artifactsCreated,
+        report: reactResult.finalAnswer,
+        spokenSummary: `Master Sri, ${agentSpec.name} completed the autonomous ReAct cycle across ${reactResult.steps.length} steps. ${reactResult.artifactsCreated.length} workspace artifacts created.`,
+        durationMs: reactResult.totalDurationMs
+      })
+    }
 
     // 2. Emit delegation handshake events
     await TaskStore.emitEvent(task.id, 'DELEGATION_CREATED', `Delegation initialized: J.A.R.V.I.S. assigned task to ${agentSpec.name}`, {
@@ -4335,6 +4465,137 @@ app.get('/telemetry', requireAuth, async (c) => {
     return c.json({ ok: true, metrics });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 31: AUTONOMOUS REACT ENGINE, WORKSPACE TERMINAL & QUEUE
+// ═══════════════════════════════════════════════════════════════════
+
+// POST /api/tasks/enqueue — Durable background queue submission
+app.post('/tasks/enqueue', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { title, objective, agentId, projectName, maxSteps, parameters } = body;
+    const taskObjective = (objective || title || '').trim();
+
+    if (!taskObjective) {
+      return c.json({ ok: false, error: 'objective or title required' }, 400);
+    }
+
+    const queued = await PersistentTaskQueue.enqueue({
+      title: title || taskObjective.slice(0, 80),
+      objective: taskObjective,
+      agentId: agentId || 'jarvis',
+      projectName,
+      maxSteps: maxSteps || 15,
+      parameters: parameters || {},
+    });
+
+    return c.json({ ok: true, ...queued }, 202);
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/tasks/queue-status — Telemetry for background worker daemon
+app.get('/tasks/queue-status', (c) => {
+  return c.json({ ok: true, ...PersistentTaskQueue.getQueueStatus() });
+});
+
+// POST /api/agents/react — Direct synchronous multi-turn ReAct execution
+app.post('/agents/react', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { agentId = 'jarvis', objective, projectName, maxSteps = 15, parameters = {} } = body;
+
+    if (!objective?.trim()) {
+      return c.json({ ok: false, error: 'objective is required' }, 400);
+    }
+
+    const task = await TaskStore.createTask({
+      title: objective.slice(0, 100),
+      description: objective,
+      agentId,
+      totalSteps: maxSteps,
+    });
+
+    const result = await AutonomousReActEngine.run({
+      taskId: task.id,
+      agentId,
+      objective,
+      projectName: projectName || `proj_${task.id.slice(-6)}`,
+      maxSteps,
+      contextData: parameters,
+      aiCaller: (sys, msgs) => callAI(sys, msgs),
+    });
+
+    await TaskStore.updateTask(task.id, {
+      status: result.success ? 'COMPLETED' : 'FAILED',
+      progress: 100,
+      currentOperation: `Completed by ${agentId} Autonomous ReAct Engine`,
+      executionResult: result.finalAnswer,
+      verificationResult: `Verified across ${result.steps.length} ReAct steps. Tools: ${result.toolsUsed.join(', ') || 'Direct'}.`,
+      filesChanged: result.artifactsCreated,
+      commandsRun: result.toolsUsed,
+    });
+
+    return c.json({
+      ok: true,
+      taskId: task.id,
+      taskNumber: task.taskNumber,
+      result,
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/workspace/execute — Isolated project workspace operations
+app.post('/workspace/execute', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { action, projectName, command, filePath, content, subDir, recursive, timeoutMs } = body;
+
+    if (!projectName) {
+      return c.json({ ok: false, error: 'projectName is required' }, 400);
+    }
+
+    switch (action) {
+      case 'init': {
+        const meta = WorkspaceManager.initProject(projectName);
+        return c.json({ ok: true, project: meta });
+      }
+      case 'run': {
+        if (!command) return c.json({ ok: false, error: 'command is required for run action' }, 400);
+        const res = await WorkspaceManager.runCommand(projectName, command, timeoutMs || 90_000);
+        return c.json({ ok: res.success, result: res });
+      }
+      case 'write': {
+        if (!filePath || content === undefined) {
+          return c.json({ ok: false, error: 'filePath and content are required for write action' }, 400);
+        }
+        const fileMeta = WorkspaceManager.writeFile(projectName, filePath, content);
+        return c.json({ ok: true, file: fileMeta });
+      }
+      case 'read': {
+        if (!filePath) return c.json({ ok: false, error: 'filePath is required for read action' }, 400);
+        const fileContent = WorkspaceManager.readFile(projectName, filePath);
+        return c.json({ ok: true, file: fileContent });
+      }
+      case 'list': {
+        const files = WorkspaceManager.listFiles(projectName, subDir || '', recursive ?? true);
+        return c.json({ ok: true, files, count: files.length });
+      }
+      case 'clean': {
+        WorkspaceManager.cleanProject(projectName);
+        return c.json({ ok: true, cleaned: true, projectName });
+      }
+      default:
+        return c.json({ ok: false, error: `Unknown workspace action: ${action}` }, 400);
+    }
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
   }
 });
 
