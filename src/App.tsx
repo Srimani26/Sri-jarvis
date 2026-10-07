@@ -21,41 +21,48 @@ import Inbox from './surfaces/Inbox'
 import CyberThreatDefense from './surfaces/CyberThreatDefense'
 import OmniApiArsenal from './surfaces/OmniApiArsenal'
 import JarvisVoiceModal from './components/JarvisVoiceModal'
+import ActiveTaskExecutionPanel from './components/ActiveTaskExecutionPanel'
 import {
   LayoutDashboard, MessageSquare, Layers, Code2, Workflow,
   CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe,
   Menu, X, Settings, Lock, Shield, ShieldAlert, LogOut, Eye, EyeOff, AlertTriangle,
-  ChevronRight, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic, Sparkles
+  ChevronRight, ChevronDown, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic, Sparkles, Activity
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } from '@/lib/api'
 import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
 
-const navItems = [
-  { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ', mobileLabel: 'Home' },
+const primaryNav = [
+  { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ Core', mobileLabel: 'HQ' },
+  { id: 'tasks', icon: <Activity className="w-4 h-4" />, label: 'Missions & Tasks', mobileLabel: 'Tasks' },
   { id: 'chat', icon: <MessageSquare className="w-4 h-4" />, label: 'AI Chat', mobileLabel: 'Chat' },
   { id: 'swarms', icon: <Bot className="w-4 h-4" />, label: 'Agent Swarm', mobileLabel: 'Swarm' },
   { id: 'cyber', icon: <ShieldAlert className="w-4 h-4" />, label: 'Cyber Shield', mobileLabel: 'Defense' },
-  { id: 'apis', icon: <Globe className="w-4 h-4" />, label: 'Omni APIs', mobileLabel: 'APIs' },
+]
+
+const arsenalNav = [
   { id: 'projects', icon: <Layers className="w-4 h-4" />, label: 'Projects', mobileLabel: 'Projects' },
+  { id: 'apis', icon: <Globe className="w-4 h-4" />, label: 'Omni APIs', mobileLabel: 'APIs' },
   { id: 'inbox', icon: <Globe className="w-4 h-4" />, label: 'Inbox', mobileLabel: 'Inbox' },
   { id: 'codlab', icon: <Code2 className="w-4 h-4" />, label: 'Code Lab', mobileLabel: 'Code' },
   { id: 'automations', icon: <Workflow className="w-4 h-4" />, label: 'Automations', mobileLabel: 'Auto' },
-  { id: 'knowledge', icon: <Brain className="w-4 h-4" />, label: 'Knowledge', mobileLabel: 'Learn' },
+  { id: 'knowledge', icon: <Brain className="w-4 h-4" />, label: 'Knowledge Hub', mobileLabel: 'Learn' },
   { id: 'techrader', icon: <Globe className="w-4 h-4" />, label: 'Tech Radar', mobileLabel: 'Tech' },
-  { id: 'planner', icon: <CalendarCheck className="w-4 h-4" />, label: 'Planner', mobileLabel: 'Tasks' },
-  { id: 'habits', icon: <Target className="w-4 h-4" />, label: 'Habits', mobileLabel: 'Habits' },
+  { id: 'planner', icon: <CalendarCheck className="w-4 h-4" />, label: 'Daily Planner', mobileLabel: 'Tasks' },
+  { id: 'habits', icon: <Target className="w-4 h-4" />, label: 'Habits Tracker', mobileLabel: 'Habits' },
   { id: 'journal', icon: <BookOpen className="w-4 h-4" />, label: 'Journal', mobileLabel: 'Journal' },
   { id: 'analytics', icon: <BarChart3 className="w-4 h-4" />, label: 'Analytics', mobileLabel: 'Stats' },
   { id: 'profile', icon: <UserRound className="w-4 h-4" />, label: 'Profile', mobileLabel: 'Profile' },
 ]
 
+const navItems = [...primaryNav, ...arsenalNav]
+
 const bottomTabs = [
+  { id: 'command', icon: <LayoutDashboard className="w-5 h-5" />, label: 'HQ' },
+  { id: 'tasks', icon: <Activity className="w-5 h-5" />, label: 'Tasks' },
+  { id: 'voice', icon: <Mic className="w-5 h-5" />, label: 'Voice' },
   { id: 'chat', icon: <MessageSquare className="w-5 h-5" />, label: 'Chat' },
-  { id: 'memory', icon: <MemoryStick className="w-5 h-5" />, label: 'Memory' },
-  { id: 'command', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home' },
-  { id: 'connections', icon: <Link2 className="w-5 h-5" />, label: 'Connect' },
-  { id: 'more', icon: <Menu className="w-5 h-5" />, label: 'More' },
+  { id: 'more', icon: <Menu className="w-5 h-5" />, label: 'Arsenal' },
 ]
 
 function MemoryView() {
@@ -203,6 +210,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('command')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [voiceModalOpen, setVoiceModalOpen] = useState(false)
+  const [arsenalOpen, setArsenalOpen] = useState(false)
   // Auto-welcome managed exclusively by voice transceiver
 
   const [sovereignAwakened, setSovereignAwakened] = useState(false)
@@ -377,42 +385,126 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-white safe-area-bottom">
       {/* Top Bar — Desktop */}
       <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50 hidden md:block">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => handleNavigate('command')}>
-            <div className="relative w-9 h-9 rounded-lg bg-cyan-500/15 flex items-center justify-center">
+            <div className="relative w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.25)]">
               <span className="text-lg">⚡</span>
-              <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse" />
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_#34d399]" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold tracking-wide">J.A.R.V.I.S.</h1>
-              <p className="text-[10px] text-cyan-400/60 font-mono">v2.0 — Next-Gen AI</p>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-sm font-bold tracking-wider text-white">J.A.R.V.I.S.</h1>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">MARK-V</span>
+              </div>
+              <p className="text-[9px] text-cyan-400/70 font-mono tracking-tight">SOVEREIGN AI BUSINESS OS</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            {navItems.map(item => (
-              <button key={item.id} onClick={() => handleNavigate(item.id)}
-                className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all",
-                  activeTab === item.id ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:text-white")}>
-                {item.icon} <span className="hidden lg:inline">{item.label}</span>
+          {/* Primary Navigation Pillars */}
+          <div className="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 backdrop-blur-md">
+            {primaryNav.map(item => (
+              <button
+                key={item.id}
+                onClick={() => handleNavigate(item.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                  activeTab === item.id
+                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+                )}
+              >
+                {item.icon}
+                <span>{item.label}</span>
               </button>
             ))}
+
+            {/* Secondary Arsenal Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setArsenalOpen(!arsenalOpen)}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                  arsenalNav.some(a => a.id === activeTab)
+                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+                )}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Arsenal</span>
+                <ChevronDown className={cn("w-3 h-3 transition-transform", arsenalOpen && "rotate-180")} />
+              </button>
+              {arsenalOpen && (
+                <div
+                  onMouseLeave={() => setArsenalOpen(false)}
+                  className="absolute left-0 mt-2 z-50 w-52 p-2 bg-slate-900/95 border border-cyan-500/40 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.8)] backdrop-blur-xl grid grid-cols-1 gap-1"
+                >
+                  <div className="px-2 py-1 text-[9px] font-mono text-cyan-400 uppercase tracking-wider border-b border-slate-800">
+                    Secondary Systems
+                  </div>
+                  {arsenalNav.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setArsenalOpen(false); handleNavigate(item.id); }}
+                      className={cn(
+                        "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-all",
+                        activeTab === item.id
+                          ? "bg-cyan-500/20 text-cyan-300 font-semibold"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      )}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Right Action Deck */}
           <div className="flex items-center gap-2">
+            {/* Direct Voice Comms Trigger */}
+            <button
+              onClick={() => setVoiceModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/50 text-cyan-300 text-xs font-mono font-semibold tracking-wider transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse"
+              title="Open J.A.R.V.I.S. Mark-V Neural Voice Comms"
+            >
+              <Mic className="w-3.5 h-3.5 text-cyan-400" />
+              <span>VOICE LINK</span>
+            </button>
+
+            {/* Master Sri Biometric Profile */}
             <button
               onClick={() => handleNavigate('profile')}
-              title={`${username} — profile, password, sessions`}
-              className={cn("flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg transition-all",
-                activeTab === 'profile' ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10")}
+              title={`${username} — Sovereign Master Biometrics`}
+              className={cn(
+                "flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-xl border transition-all",
+                activeTab === 'profile'
+                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                  : "bg-slate-900/60 border-slate-800 text-slate-300 hover:border-cyan-500/40"
+              )}
             >
-              <span className="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-500/30 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center text-[10px] font-bold text-cyan-300">
+              <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-cyan-500/40 to-blue-600/30 border border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-300">
                 {(username || 'S').charAt(0).toUpperCase()}
               </span>
-              <span className="text-[10px] font-mono hidden lg:inline max-w-[8rem] truncate">{username}</span>
+              <span className="text-xs font-mono max-w-[6rem] truncate">{username || 'Master Sri'}</span>
             </button>
-            <button onClick={() => setSettingsOpen(true)} className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10"><Settings className="w-4 h-4" /></button>
-            <button onClick={handleLogout} className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10"><Lock className="w-4 h-4" /></button>
+
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/40 transition-all"
+              title="Settings & Sovereign Keys"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition-all"
+              title="Lock Console / Sign Out"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -463,6 +555,7 @@ export default function App() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 pb-24 md:pb-4">
         {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => setVoiceModalOpen(true)} />}
+        {activeTab === 'tasks' && <ActiveTaskExecutionPanel onTriggerTask={(t) => console.log('task triggered', t)} />}
         {activeTab === 'chat' && <AIChat />}
         {activeTab === 'swarms' && (
           <AgentEcosystem
@@ -508,10 +601,11 @@ export default function App() {
           {bottomTabs.map(tab => (
             <button key={tab.id} onClick={() => {
               if (tab.id === 'more') setMobileMenuOpen(true)
+              else if (tab.id === 'voice') setVoiceModalOpen(true)
               else handleNavigate(tab.id)
             }}
               className={cn("flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all",
-                activeTab === tab.id ? "text-cyan-400" : "text-slate-500")}>
+                tab.id === 'voice' ? "text-cyan-300 font-bold" : activeTab === tab.id ? "text-cyan-400" : "text-slate-500")}>
               {tab.icon}
               <span className="text-[9px] font-medium">{tab.label}</span>
             </button>

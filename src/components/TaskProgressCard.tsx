@@ -15,6 +15,11 @@ export interface TaskEvent {
   metadata?: any
 }
 
+export interface StepAction {
+  title: string
+  status: 'COMPLETED' | 'RUNNING' | 'PENDING'
+}
+
 export interface AgentTask {
   id: string
   taskNumber: string
@@ -34,6 +39,8 @@ export interface AgentTask {
   verificationResult?: string
   errorDetails?: string
   events?: TaskEvent[]
+  stepActions?: StepAction[]
+  terminalLogs?: string[]
   filesChanged?: string[]
   commandsRun?: string[]
 }
@@ -210,6 +217,30 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
             style={{ width: `${Math.max(5, Math.min(100, task.progress))}%` }}
           />
         </div>
+        {/* Step-by-Step Execution Verification Checklist */}
+        {task.stepActions && task.stepActions.length > 0 && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-2 border-t border-slate-800/80">
+            {task.stepActions.map((step, idx) => (
+              <div key={idx} className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-900/60 border border-slate-800 text-[11px] font-mono">
+                {step.status === 'COMPLETED' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : step.status === 'RUNNING' ? (
+                  <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin shrink-0" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                )}
+                <span className={cn(
+                  "truncate",
+                  step.status === 'COMPLETED' ? "text-slate-300" :
+                  step.status === 'RUNNING' ? "text-cyan-300 font-semibold" :
+                  "text-slate-500"
+                )}>
+                  {step.title}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Terminal Stdout Stream Line-by-Line */}
@@ -223,14 +254,21 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
         >
           <div className="flex items-center gap-2">
             <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-            <span>TERMINAL STDOUT STREAM ({task.events?.length || 0} events)</span>
+            <span>TERMINAL STDOUT STREAM ({task.terminalLogs?.length || task.events?.length || 0} events)</span>
           </div>
           {showLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
 
         {showLogs && (
           <div className="mt-2 rounded-xl bg-slate-950/95 border border-slate-800/90 p-3 font-mono text-[11px] max-h-40 overflow-y-auto space-y-1.5 scrollbar-thin">
-            {(!task.events || task.events.length === 0) ? (
+            {task.terminalLogs && task.terminalLogs.length > 0 ? (
+              task.terminalLogs.map((log, idx) => (
+                <div key={idx} className="flex items-start gap-2 leading-tight">
+                  <span className="text-cyan-400 font-bold shrink-0 text-[10px]">❯</span>
+                  <span className="text-slate-300 break-all">{log}</span>
+                </div>
+              ))
+            ) : (!task.events || task.events.length === 0) ? (
               <div className="text-slate-500 italic">Listening for live kernel execution logs from SSE (/api/tasks/stream)...</div>
             ) : (
               task.events.map((evt, idx) => (

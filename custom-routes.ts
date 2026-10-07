@@ -957,10 +957,18 @@ type ProviderKeys = {
   huggingface?: string;
 }
 
-// In-memory runtime overrides (session-scoped in process memory, never persisted to disk or git)
+// In-memory runtime overrides with durable local persistence fallback
 const runtimeKeyOverrides: Partial<ProviderKeys> = {}
+const KEYS_FILE = join(process.cwd(), '.jarvis-keys.json')
 
 function loadKeys(): ProviderKeys {
+  if (existsSync(KEYS_FILE)) {
+    try {
+      const diskKeys = JSON.parse(readFileSync(KEYS_FILE, 'utf8'))
+      Object.assign(runtimeKeyOverrides, diskKeys)
+    } catch {}
+  }
+
   const geminiEnv = runtimeKeyOverrides.gemini || process.env.GEMINI_API_KEY
   const geminiKeysEnv = process.env.GEMINI_API_KEYS
     ? process.env.GEMINI_API_KEYS.split(',').map(s => s.trim()).filter(Boolean)
@@ -986,6 +994,10 @@ function loadKeys(): ProviderKeys {
 
 function saveKeys(keys: Partial<ProviderKeys>) {
   Object.assign(runtimeKeyOverrides, keys)
+  try {
+    writeFileSync(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 0o600 })
+    chmodSync(KEYS_FILE, 0o600)
+  } catch {}
   ensureDatabaseTables().catch(() => {})
 }
 

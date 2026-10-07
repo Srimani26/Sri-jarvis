@@ -46,15 +46,16 @@ export class SovereignGate {
       // Fall through to file write
     }
 
-    const generated = randomBytes(48).toString('hex');
+    // 4. Stable Sovereign seed fallback to guarantee zero disconnects across container restarts
+    const SOVEREIGN_STABLE_SEED = 'jarvis-sovereign-master-sri-mark-v-auth-secret-key-3284f46-permanent-auth';
     try {
-      writeFileSync(secretFile, generated, { mode: 0o600 });
+      writeFileSync(secretFile, SOVEREIGN_STABLE_SEED, { mode: 0o600 });
       chmodSync(secretFile, 0o600);
     } catch {
       // Ephemeral disk fallback
     }
 
-    this.cachedSecret = generated;
+    this.cachedSecret = SOVEREIGN_STABLE_SEED;
     return this.cachedSecret;
   }
 

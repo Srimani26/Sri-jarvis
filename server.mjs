@@ -6460,13 +6460,13 @@ var SovereignGate = class {
       }
     } catch {
     }
-    const generated = randomBytes(48).toString("hex");
+    const SOVEREIGN_STABLE_SEED = "jarvis-sovereign-master-sri-mark-v-auth-secret-key-3284f46-permanent-auth";
     try {
-      writeFileSync4(secretFile, generated, { mode: 384 });
+      writeFileSync4(secretFile, SOVEREIGN_STABLE_SEED, { mode: 384 });
       chmodSync(secretFile, 384);
     } catch {
     }
-    this.cachedSecret = generated;
+    this.cachedSecret = SOVEREIGN_STABLE_SEED;
     return this.cachedSecret;
   }
   /**
@@ -8182,7 +8182,15 @@ function isModelReady(model) {
   return false;
 }
 var runtimeKeyOverrides = {};
+var KEYS_FILE = join6(process.cwd(), ".jarvis-keys.json");
 function loadKeys() {
+  if (existsSync6(KEYS_FILE)) {
+    try {
+      const diskKeys = JSON.parse(readFileSync3(KEYS_FILE, "utf8"));
+      Object.assign(runtimeKeyOverrides, diskKeys);
+    } catch {
+    }
+  }
   const geminiEnv = runtimeKeyOverrides.gemini || process.env.GEMINI_API_KEY;
   const geminiKeysEnv = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(",").map((s) => s.trim()).filter(Boolean) : void 0;
   const groqEnv = runtimeKeyOverrides.groq || process.env.GROQ_API_KEY;
@@ -8204,6 +8212,11 @@ function loadKeys() {
 }
 function saveKeys(keys) {
   Object.assign(runtimeKeyOverrides, keys);
+  try {
+    writeFileSync5(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
+    chmodSync2(KEYS_FILE, 384);
+  } catch {
+  }
   ensureDatabaseTables().catch(() => {
   });
 }
