@@ -10550,13 +10550,48 @@ app.post("/voice/transcribe", async (c) => {
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || keys.gemini || keys.geminiKeys && keys.geminiKeys[0];
     const groqKey = process.env.GROQ_API_KEY || keys.groq;
     const mimeType = (file.type || "audio/webm").split(";")[0];
-    const techVocabulary = "J.A.R.V.I.S., Aegis, Vortex, Midas, Cerebro, Stark OS, Master Sri, PostgreSQL, Neon, Prisma, Docker, Render, TypeScript, Next.js, FastAPI, n8n, Tailwind, terminal, schema, migration, test runner, mission, telemetry, rollcall, status";
+    const techVocabulary = "J.A.R.V.I.S., Master Sri, Flipkart, Amazon, Shopify, YouTube, play songs, play the song, analyze, best deal, review, quality, products, compare, terminal, workspace, Aegis, Vortex, Midas, Cerebro, Stark OS, PostgreSQL, Neon, Prisma, Docker, Render, TypeScript, Next.js, FastAPI, n8n, Tailwind, mission, telemetry, rollcall, status";
+    if (groqKey) {
+      try {
+        const groqForm = new FormData();
+        const blob = new Blob([buffer], { type: mimeType });
+        groqForm.append("file", blob, "audio.webm");
+        groqForm.append("model", "whisper-large-v3");
+        groqForm.append("prompt", techVocabulary);
+        groqForm.append("temperature", "0");
+        groqForm.append("language", "en");
+        const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}` },
+          body: groqForm,
+          signal: AbortSignal.timeout(12e3)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const text = (data?.text || "").trim();
+          if (text) {
+            return c.json({
+              ok: true,
+              text,
+              confidence: 0.95,
+              engine: "groq-whisper-large-v3",
+              promptRepeat: false
+            });
+          }
+        } else {
+          const errText = await res.text().catch(() => "");
+          console.warn(`[STT] Groq Whisper returned ${res.status}: ${errText.slice(0, 150)}. Failing over to Gemini...`);
+        }
+      } catch (groqErr) {
+        console.warn(`[STT] Groq Whisper failed: ${groqErr.message}. Failing over to Gemini...`);
+      }
+    }
     if (geminiKey) {
       try {
         const base64Audio = buffer.toString("base64");
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-        const sttPrompt = `You are the primary speech-to-text recognition system for J.A.R.V.I.S. Mark-V.
-The speaker is Master Sri, who speaks English with an Indian accent and frequent technical terminology.
+        const sttPrompt = `You are the speech-to-text recognition system for J.A.R.V.I.S. Mark-V.
+The speaker is Master Sri, who speaks English with an Indian accent and frequent technical and e-commerce commands.
 Special vocabulary list: ${techVocabulary}.
 
 Instructions:
@@ -10602,6 +10637,7 @@ Return ONLY valid JSON matching this schema.`;
               text: parsedText,
               confidence,
               engine: "gemini-1.5-flash",
+              fallbackUsed: true,
               promptRepeat: false
             });
           } else if (confidence < 0.65 || !parsedText) {
@@ -10614,45 +10650,9 @@ Return ONLY valid JSON matching this schema.`;
               message: "Master Sri, I didn't catch that clearly. Please repeat."
             });
           }
-        } else {
-          const errText = await res.text().catch(() => "");
-          console.warn(`[STT] Gemini 1.5 Flash STT returned ${res.status}: ${errText.slice(0, 150)}. Failing over to Groq Whisper...`);
         }
       } catch (geminiErr) {
-        console.warn(`[STT] Gemini 1.5 Flash STT failed: ${geminiErr.message}. Failing over to Groq Whisper...`);
-      }
-    }
-    if (groqKey) {
-      try {
-        const groqForm = new FormData();
-        const blob = new Blob([buffer], { type: mimeType });
-        groqForm.append("file", blob, "audio.webm");
-        groqForm.append("model", "whisper-large-v3");
-        groqForm.append("prompt", techVocabulary);
-        groqForm.append("temperature", "0");
-        groqForm.append("language", "en");
-        const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${groqKey}` },
-          body: groqForm,
-          signal: AbortSignal.timeout(12e3)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const text = (data?.text || "").trim();
-          if (text) {
-            return c.json({
-              ok: true,
-              text,
-              confidence: 0.88,
-              engine: "groq-whisper-large-v3",
-              fallbackUsed: true,
-              promptRepeat: false
-            });
-          }
-        }
-      } catch (groqErr) {
-        console.warn(`[STT] Groq Whisper fallback failed: ${groqErr.message}`);
+        console.warn(`[STT] Gemini Audio failed: ${geminiErr.message}`);
       }
     }
     return c.json({
@@ -11186,6 +11186,39 @@ async function synthesizeNeuralAudio(text, voice) {
   const cacheKey = `${voice}:::${text}`;
   if (ttsAudioCache.has(cacheKey)) {
     return ttsAudioCache.get(cacheKey);
+  }
+  try {
+    const keys = loadKeys();
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY || keys.elevenlabs;
+    if (elevenLabsKey) {
+      const voiceId = process.env.ELEVENLABS_VOICE_ID || "onwK4e9ZLuTAKqWW03F9";
+      const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": elevenLabsKey
+        },
+        body: JSON.stringify({
+          text: text.slice(0, 1500),
+          model_id: "eleven_turbo_v2_5",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.8
+          }
+        }),
+        signal: AbortSignal.timeout(8e3)
+      });
+      if (elRes.ok) {
+        const arrayBuf = await elRes.arrayBuffer();
+        const elBuf = Buffer.from(arrayBuf);
+        if (elBuf.length > 500) {
+          ttsAudioCache.set(cacheKey, elBuf);
+          return elBuf;
+        }
+      }
+    }
+  } catch (elErr) {
+    console.warn(`[TTS] ElevenLabs synthesis failed: ${elErr.message}`);
   }
   const { execFile: execFile3 } = await import("node:child_process");
   const scriptPath = join7(process.cwd(), "scripts", "neural-tts.py");

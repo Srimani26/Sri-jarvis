@@ -314,7 +314,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [deepseekReasoning, setDeepseekReasoning] = useState<string | null>(null)
   const [showReasoning, setShowReasoning] = useState(false)
   const [activeAgent, setActiveAgent] = useState<AgentBadge>(AGENTS.jarvis)
-  const [engineType, setEngineType] = useState<'WebSpeech' | 'Whisper-Turbo'>('WebSpeech')
+  const [engineType, setEngineType] = useState<'WebSpeech' | 'Whisper-Turbo'>('Whisper-Turbo')
   const [voiceVolume, setVoiceVolume] = useState<number[]>([25, 45, 30, 70, 50, 85, 40, 60, 35, 55, 45, 65, 30, 50])
   const [currentPlan, setCurrentPlan] = useState<TacticalPlan | null>(null)
   const [isExecutingPlan, setIsExecutingPlan] = useState(false)
@@ -918,8 +918,31 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return ''
   }
 
-  const processCommand = async (cmd: string) => {
-    if (!cmd.trim()) return
+  // Phonetic and accent normalization for speech recognition hypotheses
+  const normalizeVoiceCommand = (raw: string): string => {
+    if (!raw) return ''
+    let text = raw.trim()
+
+    // 1. Assistant wake & identity phonetic mishearings
+    text = text.replace(/\b(drivers|service|travis|java|jarvise|jarvis's)\b/gi, 'jarvis')
+
+    // 2. E-commerce platforms & brands
+    text = text.replace(/\b(flip card|flip cart|flip cards|flipchart|flip chart)\b/gi, 'flipkart')
+    text = text.replace(/\b(shop if i|shop if|chop if i|shopif|shop if you)\b/gi, 'shopify')
+    text = text.replace(/\b(u tube|you to|you tube|youtube\.com)\b/gi, 'youtube')
+
+    // 3. Media & Action Verbs
+    text = text.replace(/\b(paly|ply|pley)\b/gi, 'play')
+    text = text.replace(/\b(the songs|the song|a song|songs|song)\b/gi, 'the songs')
+    text = text.replace(/\b(analysis|analyse|analysing|analyzing)\b/gi, 'analyze')
+    text = text.replace(/\b(best deals|best price|which is best|best deal and review)\b/gi, 'best deal')
+
+    return text
+  }
+
+  const processCommand = async (rawCmd: string) => {
+    if (!rawCmd || !rawCmd.trim()) return
+    const cmd = normalizeVoiceCommand(rawCmd)
     const lower = cmd.toLowerCase().trim()
     setIsProcessing(true)
 
@@ -1931,9 +1954,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }
 
-  // Primary Speech Recognition (Clean Single-Turn Web Speech API)
+  // Primary Speech Recognition (Whisper-Turbo LPU Neural STT or Calibrated en-IN WebSpeech)
   const startListening = () => {
     if (isSpeakingRef.current || isProcessingRef.current) return
+
+    // If Whisper-Turbo is selected, immediately stream 16kHz audio to Groq Whisper Large v3
+    if (engineType === 'Whisper-Turbo') {
+      startWhisperRecording()
+      return
+    }
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
@@ -1950,7 +1979,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       const recognition = new SpeechRecognition()
       recognition.continuous = false
       recognition.interimResults = true
-      recognition.lang = 'en-US'
+      recognition.lang = 'en-IN' // Indian English accent calibration
 
       recognition.onstart = () => {
         setIsListening(true)
@@ -2142,6 +2171,24 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             >
               {sovereignLock ? <Lock className="w-3 h-3 text-emerald-400" /> : <Unlock className="w-3 h-3 text-slate-400" />}
               {sovereignLock ? 'SOVEREIGN VOICE: LOCKED' : 'VOICE LOCK: OFF'}
+            </button>
+
+            <button
+              onClick={() => {
+                const next = engineType === 'Whisper-Turbo' ? 'WebSpeech' : 'Whisper-Turbo'
+                setEngineType(next)
+                if (isListening) stopListening()
+              }}
+              className={cn(
+                "px-2.5 py-1 rounded-full border text-[10px] font-mono flex items-center gap-1 transition-all",
+                engineType === 'Whisper-Turbo'
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)]"
+                  : "border-slate-700 bg-slate-800/60 text-slate-400 hover:text-slate-200"
+              )}
+              title="Toggle STT Engine: Whisper-Turbo (Groq/Gemini LPU Neural) vs WebSpeech (Browser local)"
+            >
+              <Mic className="w-3 h-3 text-emerald-400" />
+              STT: {engineType === 'Whisper-Turbo' ? 'GROQ WHISPER' : 'WEBSPEECH'}
             </button>
 
             <button
