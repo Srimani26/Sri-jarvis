@@ -1,0 +1,1329 @@
+{
+  "totalScenarios": 120,
+  "passed": 120,
+  "failed": 0,
+  "avgLatencyMs": 19,
+  "timestamp": "2026-10-07T07:15:34.415Z",
+  "results": [
+    {
+      "id": "MEM_01",
+      "category": "MEMORY",
+      "name": "Store & Verify FACT in LONG_TERM plane",
+      "status": "PASS",
+      "durationMs": 136,
+      "detail": {
+        "memoryId": "mem_long_term_1791357332184_7678",
+        "scope": "LONG_TERM",
+        "truthType": "FACT"
+      }
+    },
+    {
+      "id": "MEM_02",
+      "category": "MEMORY",
+      "name": "Store & Verify INFERENCE in LONG_TERM plane",
+      "status": "PASS",
+      "durationMs": 55,
+      "detail": {
+        "memoryId": "mem_long_term_1791357332251_3514",
+        "scope": "LONG_TERM",
+        "truthType": "INFERENCE"
+      }
+    },
+    {
+      "id": "MEM_03",
+      "category": "MEMORY",
+      "name": "Store & Verify USER_PREFERENCE in LONG_TERM plane",
+      "status": "PASS",
+      "durationMs": 55,
+      "detail": {
+        "memoryId": "mem_long_term_1791357332304_329",
+        "scope": "LONG_TERM",
+        "truthType": "USER_PREFERENCE"
+      }
+    },
+    {
+      "id": "MEM_04",
+      "category": "MEMORY",
+      "name": "Store & Verify TEMPORARY_CONTEXT in LONG_TERM plane",
+      "status": "PASS",
+      "durationMs": 59,
+      "detail": {
+        "memoryId": "mem_long_term_1791357332360_281",
+        "scope": "LONG_TERM",
+        "truthType": "TEMPORARY_CONTEXT"
+      }
+    },
+    {
+      "id": "MEM_05",
+      "category": "MEMORY",
+      "name": "Store & Verify FACT in LONG_TERM plane",
+      "status": "PASS",
+      "durationMs": 66,
+      "detail": {
+        "memoryId": "mem_long_term_1791357332426_6054",
+        "scope": "LONG_TERM",
+        "truthType": "FACT"
+      }
+    },
+    {
+      "id": "MEM_06",
+      "category": "MEMORY",
+      "name": "Store & Verify INFERENCE in PROJECT plane",
+      "status": "PASS",
+      "durationMs": 59,
+      "detail": {
+        "memoryId": "mem_project_1791357332487_7490",
+        "scope": "PROJECT",
+        "truthType": "INFERENCE"
+      }
+    },
+    {
+      "id": "MEM_07",
+      "category": "MEMORY",
+      "name": "Store & Verify USER_PREFERENCE in PROJECT plane",
+      "status": "PASS",
+      "durationMs": 58,
+      "detail": {
+        "memoryId": "mem_project_1791357332544_9195",
+        "scope": "PROJECT",
+        "truthType": "USER_PREFERENCE"
+      }
+    },
+    {
+      "id": "MEM_08",
+      "category": "MEMORY",
+      "name": "Store & Verify TEMPORARY_CONTEXT in PROJECT plane",
+      "status": "PASS",
+      "durationMs": 67,
+      "detail": {
+        "memoryId": "mem_project_1791357332612_8985",
+        "scope": "PROJECT",
+        "truthType": "TEMPORARY_CONTEXT"
+      }
+    },
+    {
+      "id": "MEM_09",
+      "category": "MEMORY",
+      "name": "Store & Verify FACT in PROJECT plane",
+      "status": "PASS",
+      "durationMs": 58,
+      "detail": {
+        "memoryId": "mem_project_1791357332673_3359",
+        "scope": "PROJECT",
+        "truthType": "FACT"
+      }
+    },
+    {
+      "id": "MEM_10",
+      "category": "MEMORY",
+      "name": "Store & Verify INFERENCE in PROJECT plane",
+      "status": "PASS",
+      "durationMs": 65,
+      "detail": {
+        "memoryId": "mem_project_1791357332737_116",
+        "scope": "PROJECT",
+        "truthType": "INFERENCE"
+      }
+    },
+    {
+      "id": "MEM_11",
+      "category": "MEMORY",
+      "name": "Store & Verify USER_PREFERENCE in AGENT plane",
+      "status": "PASS",
+      "durationMs": 50,
+      "detail": {
+        "memoryId": "mem_agent_1791357332788_4795",
+        "scope": "AGENT",
+        "truthType": "USER_PREFERENCE"
+      }
+    },
+    {
+      "id": "MEM_12",
+      "category": "MEMORY",
+      "name": "Store & Verify TEMPORARY_CONTEXT in AGENT plane",
+      "status": "PASS",
+      "durationMs": 62,
+      "detail": {
+        "memoryId": "mem_agent_1791357332848_6953",
+        "scope": "AGENT",
+        "truthType": "TEMPORARY_CONTEXT"
+      }
+    },
+    {
+      "id": "MEM_13",
+      "category": "MEMORY",
+      "name": "Store & Verify FACT in AGENT plane",
+      "status": "PASS",
+      "durationMs": 64,
+      "detail": {
+        "memoryId": "mem_agent_1791357332911_3880",
+        "scope": "AGENT",
+        "truthType": "FACT"
+      }
+    },
+    {
+      "id": "MEM_14",
+      "category": "MEMORY",
+      "name": "Store & Verify INFERENCE in AGENT plane",
+      "status": "PASS",
+      "durationMs": 88,
+      "detail": {
+        "memoryId": "mem_agent_1791357332998_77",
+        "scope": "AGENT",
+        "truthType": "INFERENCE"
+      }
+    },
+    {
+      "id": "MEM_15",
+      "category": "MEMORY",
+      "name": "Store & Verify USER_PREFERENCE in AGENT plane",
+      "status": "PASS",
+      "durationMs": 52,
+      "detail": {
+        "memoryId": "mem_agent_1791357333056_2648",
+        "scope": "AGENT",
+        "truthType": "USER_PREFERENCE"
+      }
+    },
+    {
+      "id": "MEM_16",
+      "category": "MEMORY",
+      "name": "Store & Verify TEMPORARY_CONTEXT in WORKING plane",
+      "status": "PASS",
+      "durationMs": 10,
+      "detail": {
+        "memoryId": "mem_working_1791357333110_4287",
+        "scope": "WORKING",
+        "truthType": "TEMPORARY_CONTEXT"
+      }
+    },
+    {
+      "id": "MEM_17",
+      "category": "MEMORY",
+      "name": "Store & Verify FACT in WORKING plane",
+      "status": "PASS",
+      "durationMs": 10,
+      "detail": {
+        "memoryId": "mem_working_1791357333121_180",
+        "scope": "WORKING",
+        "truthType": "FACT"
+      }
+    },
+    {
+      "id": "MEM_18",
+      "category": "MEMORY",
+      "name": "Store & Verify INFERENCE in WORKING plane",
+      "status": "PASS",
+      "durationMs": 9,
+      "detail": {
+        "memoryId": "mem_working_1791357333131_4166",
+        "scope": "WORKING",
+        "truthType": "INFERENCE"
+      }
+    },
+    {
+      "id": "MEM_19",
+      "category": "MEMORY",
+      "name": "Store & Verify USER_PREFERENCE in WORKING plane",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "memoryId": "mem_working_1791357333143_1821",
+        "scope": "WORKING",
+        "truthType": "USER_PREFERENCE"
+      }
+    },
+    {
+      "id": "MEM_20",
+      "category": "MEMORY",
+      "name": "Store & Verify TEMPORARY_CONTEXT in WORKING plane",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "memoryId": "mem_working_1791357333161_1481",
+        "scope": "WORKING",
+        "truthType": "TEMPORARY_CONTEXT"
+      }
+    },
+    {
+      "id": "STORE_01",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 1",
+      "status": "PASS",
+      "durationMs": 41,
+      "detail": {
+        "key": "eval/dataset_1.json",
+        "sizeBytes": 118,
+        "etag": "c1f2bd4bf6ce37c67be077974f318c8c2a92f1cd10c9b808fcba88075cc8baba"
+      }
+    },
+    {
+      "id": "STORE_02",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 2",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "key": "eval/dataset_2.json",
+        "sizeBytes": 168,
+        "etag": "a7fb1234c65f2676b039d702d7e613a569fba71c75a3316d85dc4a7859772d1b"
+      }
+    },
+    {
+      "id": "STORE_03",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 3",
+      "status": "PASS",
+      "durationMs": 20,
+      "detail": {
+        "key": "eval/dataset_3.json",
+        "sizeBytes": 218,
+        "etag": "845ce1d3350f344be8b2fdb5d0bffbfaed35fcf37be69898dacceaefde900ee3"
+      }
+    },
+    {
+      "id": "STORE_04",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 4",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "key": "eval/dataset_4.json",
+        "sizeBytes": 268,
+        "etag": "72331687d17c8f4c102f82920b30b739e1192ed99abd1971588485faee5d84cd"
+      }
+    },
+    {
+      "id": "STORE_05",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 5",
+      "status": "PASS",
+      "durationMs": 27,
+      "detail": {
+        "key": "eval/dataset_5.json",
+        "sizeBytes": 318,
+        "etag": "3a2550047079334c46e2f8debab705086901cec9dc2a3fdd2648a160bb41d7b6"
+      }
+    },
+    {
+      "id": "STORE_06",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 6",
+      "status": "PASS",
+      "durationMs": 8,
+      "detail": {
+        "key": "eval/dataset_6.json",
+        "sizeBytes": 368,
+        "etag": "a8428f2663cc43ce489cdc39de641f472f9368143bf463894303373fc3efa494"
+      }
+    },
+    {
+      "id": "STORE_07",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 7",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "key": "eval/dataset_7.json",
+        "sizeBytes": 418,
+        "etag": "27fec548ebb8a8b8e2fb2862ccc5bd588a0e5424bf26058e780d506f06db7697"
+      }
+    },
+    {
+      "id": "STORE_08",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 8",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "key": "eval/dataset_8.json",
+        "sizeBytes": 468,
+        "etag": "ea99154138add6f89384f2f3dc952ae760cc1e28f6f35a01d849af1f9a400b3a"
+      }
+    },
+    {
+      "id": "STORE_09",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 9",
+      "status": "PASS",
+      "durationMs": 18,
+      "detail": {
+        "key": "eval/dataset_9.json",
+        "sizeBytes": 518,
+        "etag": "698c03bce77bfe28614423e30346dc606c1393660f93e2db4a7dcc8b49586256"
+      }
+    },
+    {
+      "id": "STORE_10",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 10",
+      "status": "PASS",
+      "durationMs": 21,
+      "detail": {
+        "key": "eval/dataset_10.json",
+        "sizeBytes": 569,
+        "etag": "bc890740986d6d936253d9c3cb58fb302e59998e21967899348cd611febc202d"
+      }
+    },
+    {
+      "id": "STORE_11",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 11",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "key": "eval/dataset_11.json",
+        "sizeBytes": 619,
+        "etag": "402148a157e02eaaa983a56d472db28b6fe5ad0a511a7345e43ace50ad799cf2"
+      }
+    },
+    {
+      "id": "STORE_12",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 12",
+      "status": "PASS",
+      "durationMs": 12,
+      "detail": {
+        "key": "eval/dataset_12.json",
+        "sizeBytes": 669,
+        "etag": "3b0f322d3b622877499660fecb341eabe7ef2b63398822e24ba9467145bf1eee"
+      }
+    },
+    {
+      "id": "STORE_13",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 13",
+      "status": "PASS",
+      "durationMs": 23,
+      "detail": {
+        "key": "eval/dataset_13.json",
+        "sizeBytes": 719,
+        "etag": "cb0f4d4f1d44f98fba832ff9ed792283ea28e960caf30de55f114e91e57c3a4f"
+      }
+    },
+    {
+      "id": "STORE_14",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 14",
+      "status": "PASS",
+      "durationMs": 13,
+      "detail": {
+        "key": "eval/dataset_14.json",
+        "sizeBytes": 769,
+        "etag": "070e28c5105a611bfd9d9769e9b7650c575697a26c3179bcda4ed638b99c5068"
+      }
+    },
+    {
+      "id": "STORE_15",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 15",
+      "status": "PASS",
+      "durationMs": 16,
+      "detail": {
+        "key": "eval/dataset_15.json",
+        "sizeBytes": 819,
+        "etag": "b0c7c31ec09b213e5584dc4e14a382256bf993e27d03bc4a797c86dd8e128ae7"
+      }
+    },
+    {
+      "id": "STORE_16",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 16",
+      "status": "PASS",
+      "durationMs": 16,
+      "detail": {
+        "key": "eval/dataset_16.json",
+        "sizeBytes": 869,
+        "etag": "e74ed41d138704d8461a183db9aaded12d543022e8024db5fe5a89142d4e26bb"
+      }
+    },
+    {
+      "id": "STORE_17",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 17",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "key": "eval/dataset_17.json",
+        "sizeBytes": 919,
+        "etag": "0a5218bf4d08f84f062a8f517a1f9fedc2cc92e187c247b4520b6fd92d66e1f4"
+      }
+    },
+    {
+      "id": "STORE_18",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 18",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "key": "eval/dataset_18.json",
+        "sizeBytes": 969,
+        "etag": "f951618c42d254015642f63f82122c0d2ac56edfffedb4491e7ac070396f8dab"
+      }
+    },
+    {
+      "id": "STORE_19",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 19",
+      "status": "PASS",
+      "durationMs": 19,
+      "detail": {
+        "key": "eval/dataset_19.json",
+        "sizeBytes": 1019,
+        "etag": "959ff30050f99c3aa7e400fab0b75f2ef9bc4f2ae2e6ed34da89aa8779a16cdf"
+      }
+    },
+    {
+      "id": "STORE_20",
+      "category": "STORAGE",
+      "name": "Put, Read, List Object # 20",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "key": "eval/dataset_20.json",
+        "sizeBytes": 1069,
+        "etag": "15a474e9a78722cb38c7ccbe096acd909f299523a2c29a06aee1270f0d1d8057"
+      }
+    },
+    {
+      "id": "ROUTER_01",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for code (#1)",
+      "status": "PASS",
+      "durationMs": 12,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_02",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for research (#2)",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_03",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for voice_stt (#3)",
+      "status": "PASS",
+      "durationMs": 3,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_04",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for security_audit (#4)",
+      "status": "PASS",
+      "durationMs": 7,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_05",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for chat (#5)",
+      "status": "PASS",
+      "durationMs": 18,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_06",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for code (#6)",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_07",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for research (#7)",
+      "status": "PASS",
+      "durationMs": 10,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_08",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for voice_stt (#8)",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_09",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for security_audit (#9)",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_10",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for chat (#10)",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_11",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for code (#11)",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_12",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for research (#12)",
+      "status": "PASS",
+      "durationMs": 8,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_13",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for voice_stt (#13)",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_14",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for security_audit (#14)",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_15",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for chat (#15)",
+      "status": "PASS",
+      "durationMs": 21,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_16",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for code (#16)",
+      "status": "PASS",
+      "durationMs": 7,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_17",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for research (#17)",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_18",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for voice_stt (#18)",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_19",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for security_audit (#19)",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {}
+    },
+    {
+      "id": "ROUTER_20",
+      "category": "RESEARCH",
+      "name": "Capability Routing Decision for chat (#20)",
+      "status": "PASS",
+      "durationMs": 9,
+      "detail": {}
+    },
+    {
+      "id": "CODE_01",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #1",
+      "status": "PASS",
+      "durationMs": 7,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_02",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #2",
+      "status": "PASS",
+      "durationMs": 12,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_03",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #3",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_04",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #4",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_05",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #5",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_06",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #6",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_07",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #7",
+      "status": "PASS",
+      "durationMs": 10,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_08",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #8",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_09",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #9",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_10",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #10",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_11",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #11",
+      "status": "PASS",
+      "durationMs": 12,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_12",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #12",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_13",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #13",
+      "status": "PASS",
+      "durationMs": 13,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_14",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #14",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_15",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #15",
+      "status": "PASS",
+      "durationMs": 7,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_16",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #16",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_17",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #17",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_18",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #18",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_19",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #19",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "CODE_20",
+      "category": "CODING",
+      "name": "Code Integrity & Health Ping #20",
+      "status": "PASS",
+      "durationMs": 7,
+      "detail": {
+        "commit": "3284f46",
+        "dbStatus": "CONNECTED"
+      }
+    },
+    {
+      "id": "BROWSER_01",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #1",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_02",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #2",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_03",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #3",
+      "status": "PASS",
+      "durationMs": 16,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_04",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #4",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_05",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #5",
+      "status": "PASS",
+      "durationMs": 3,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_06",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #6",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_07",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #7",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_08",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #8",
+      "status": "PASS",
+      "durationMs": 12,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_09",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #9",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_10",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #10",
+      "status": "PASS",
+      "durationMs": 7,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_11",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #11",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_12",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #12",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_13",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #13",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_14",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #14",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_15",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #15",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_16",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #16",
+      "status": "PASS",
+      "durationMs": 3,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_17",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #17",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_18",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #18",
+      "status": "PASS",
+      "durationMs": 12,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_19",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #19",
+      "status": "PASS",
+      "durationMs": 5,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "BROWSER_20",
+      "category": "BROWSER",
+      "name": "Browser Tool Schema & Route Check #20",
+      "status": "PASS",
+      "durationMs": 12,
+      "detail": {
+        "availableTools": "object"
+      }
+    },
+    {
+      "id": "VOICE_01",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #1",
+      "status": "PASS",
+      "durationMs": 21,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_02",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #2",
+      "status": "PASS",
+      "durationMs": 13,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_03",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #3",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_04",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #4",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_05",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #5",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_06",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #6",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_07",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #7",
+      "status": "PASS",
+      "durationMs": 9,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_08",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #8",
+      "status": "PASS",
+      "durationMs": 11,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_09",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #9",
+      "status": "PASS",
+      "durationMs": 16,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_10",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #10",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_11",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #11",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_12",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #12",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_13",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #13",
+      "status": "PASS",
+      "durationMs": 18,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_14",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #14",
+      "status": "PASS",
+      "durationMs": 7,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_15",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #15",
+      "status": "PASS",
+      "durationMs": 23,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_16",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #16",
+      "status": "PASS",
+      "durationMs": 6,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_17",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #17",
+      "status": "PASS",
+      "durationMs": 14,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_18",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #18",
+      "status": "PASS",
+      "durationMs": 17,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_19",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #19",
+      "status": "PASS",
+      "durationMs": 15,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    },
+    {
+      "id": "VOICE_20",
+      "category": "VOICE",
+      "name": "Voice Cascade Endpoint & Schema Check #20",
+      "status": "PASS",
+      "durationMs": 18,
+      "detail": {
+        "status": 500,
+        "data": {
+          "error": "Content-Type was not one of \"multipart/form-data\" or \"application/x-www-form-urlencoded\"."
+        }
+      }
+    }
+  ]
+}

@@ -4567,6 +4567,105 @@ app.post('/providers/route', async (c) => {
   return c.json({ ok: true, decision });
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// 5TB SOVEREIGN CLOUD STORAGE & LAYERED MEMORY CONTROL PLANE
+// ═══════════════════════════════════════════════════════════════════
+app.get('/storage/health', async (c) => {
+  try {
+    const { StorageProvider } = await import('./src/storage/StorageProvider');
+    const health = await StorageProvider.checkHealth();
+    return c.json({ ok: health.healthy, ...health });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+app.get('/storage/objects', async (c) => {
+  try {
+    const { ObjectStore } = await import('./src/storage/ObjectStore');
+    const prefix = c.req.query('prefix') || '';
+    const objects = await ObjectStore.list(prefix);
+    return c.json({ ok: true, count: objects.length, objects });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+app.post('/storage/upload', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { ObjectStore } = await import('./src/storage/ObjectStore');
+    if (!body.key || body.data === undefined) {
+      return c.json({ ok: false, error: 'key and data required' }, 400);
+    }
+    const meta = await ObjectStore.put(body.key, body.data, body.contentType, body.metadata);
+    return c.json({ ok: true, metadata: meta });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+app.get('/memory/layered/search', async (c) => {
+  try {
+    const { LayeredMemoryEngine } = await import('./src/memory/LayeredMemoryEngine');
+    const query = c.req.query('q') || '';
+    const scope = c.req.query('scope') as any;
+    const truthType = c.req.query('truthType') as any;
+    const minConfidence = parseFloat(c.req.query('minConfidence') || '0.3');
+    const results = await LayeredMemoryEngine.search({
+      query,
+      scope,
+      truthType,
+      minConfidence,
+      limit: parseInt(c.req.query('limit') || '20', 10),
+    });
+    return c.json({ ok: true, count: results.length, memories: results });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+app.post('/memory/layered/record', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { LayeredMemoryEngine } = await import('./src/memory/LayeredMemoryEngine');
+    if (!body.key || !body.content || !body.scope || !body.truthType) {
+      return c.json({ ok: false, error: 'key, content, scope, and truthType required' }, 400);
+    }
+    const record = await LayeredMemoryEngine.recordMemory({
+      scope: body.scope,
+      truthType: body.truthType,
+      key: body.key,
+      content: body.content,
+      source: body.source || 'API',
+      confidence: body.confidence !== undefined ? body.confidence : 1.0,
+      metadata: body.metadata,
+      expiresAt: body.expiresAt,
+      taskId: body.taskId,
+    });
+    return c.json({ ok: true, record });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+app.post('/memory/layered/verify', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { LayeredMemoryEngine } = await import('./src/memory/LayeredMemoryEngine');
+    if (!body.memoryId || !body.verifier) {
+      return c.json({ ok: false, error: 'memoryId and verifier required' }, 400);
+    }
+    const record = await LayeredMemoryEngine.verifyMemory(body.memoryId, body.verifier);
+    if (!record) {
+      return c.json({ ok: false, error: 'Memory record not found' }, 404);
+    }
+    return c.json({ ok: true, record });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
 app.all('*', (c) =>
   c.json(
     { error: 'Not found', detail: `No API route for ${c.req.method} ${c.req.path}` },

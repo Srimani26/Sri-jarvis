@@ -1,100 +1,110 @@
-// server.tsx
-import { Hono as Hono2 } from "hono";
-import { serve } from "@hono/node-server";
-import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync as existsSync5, readFileSync as readFileSync3 } from "node:fs";
-import { join as join5 } from "node:path";
-
-// src/lib/task-engine.ts
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
-
-// src/lib/db.ts
-import { PrismaLibSql } from "@prisma/adapter-libsql";
-import { PrismaPg } from "@prisma/adapter-pg";
-
-// src/generated/prisma/client.ts
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
 
 // src/generated/prisma/internal/class.ts
 import * as runtime from "@prisma/client/runtime/client";
-var config = {
-  "previewFeatures": [],
-  "clientVersion": "7.10.0",
-  "engineVersion": "0edf323efd1d98336f3f0a68684b56f689b900d3",
-  "activeProvider": "sqlite",
-  "inlineSchema": '// SHOGO:CUSTOM-START prisma-header\n// Managed by Shogo. Do not add a datasource `url` or change the generator `provider` \u2014 the database URL is configured in prisma.config.ts (Prisma 7+).\ngenerator client {\n  provider = "prisma-client"\n  output   = "../src/generated/prisma"\n}\n\ndatasource db {\n  provider = "sqlite"\n}\n\n// SHOGO:CUSTOM-END\n\nmodel User {\n  id        String   @id @default(cuid())\n  email     String   @unique\n  name      String?\n  createdAt DateTime @default(now()) @map("created_at")\n  updatedAt DateTime @updatedAt @map("updated_at")\n\n  @@map("users")\n}\n\nmodel AuthUser {\n  id               String    @id @default(cuid())\n  username         String    @unique\n  passwordHash     String    @map("password_hash")\n  twoFactorSecret  String?   @map("two_factor_secret")\n  twoFactorEnabled Boolean   @default(false) @map("two_factor_enabled")\n  failedAttempts   Int       @default(0) @map("failed_attempts")\n  lockedUntil      DateTime? @map("locked_until")\n  createdAt        DateTime  @default(now()) @map("created_at")\n  updatedAt        DateTime  @updatedAt @map("updated_at")\n\n  @@map("auth_users")\n}\n\nmodel AuthSession {\n  id         String   @id @default(cuid())\n  userId     String   @map("user_id")\n  token      String   @unique\n  deviceInfo String?  @map("device_info")\n  ipAddress  String?  @map("ip_address")\n  expiresAt  DateTime @map("expires_at")\n  createdAt  DateTime @default(now()) @map("created_at")\n\n  @@index([token])\n  @@map("auth_sessions")\n}\n\nmodel Habit {\n  id          String            @id @default(cuid())\n  name        String\n  icon        String?\n  color       String?\n  frequency   String            @default("daily")\n  createdAt   DateTime          @default(now()) @map("created_at")\n  updatedAt   DateTime          @updatedAt @map("updated_at")\n  completions HabitCompletion[]\n\n  @@map("habits")\n}\n\nmodel HabitCompletion {\n  id      String   @id @default(cuid())\n  habitId String   @map("habit_id")\n  date    DateTime @map("completed_at")\n  habit   Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)\n\n  @@unique([habitId, date])\n  @@map("habit_completions")\n}\n\nmodel Note {\n  id        String   @id @default(cuid())\n  title     String?\n  content   String\n  category  String   @default("general")\n  mood      String?\n  tags      String?\n  pinned    Boolean  @default(false)\n  createdAt DateTime @default(now()) @map("created_at")\n  updatedAt DateTime @updatedAt @map("updated_at")\n\n  @@map("notes")\n}\n\nmodel Metric {\n  id        String   @id @default(cuid())\n  name      String\n  value     Float\n  unit      String?\n  category  String   @default("general")\n  date      DateTime @default(now()) @map("recorded_at")\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@map("metrics")\n}\n\nmodel Reminder {\n  id        String   @id @default(cuid())\n  title     String\n  message   String?\n  remindAt  DateTime @map("remind_at")\n  completed Boolean  @default(false)\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@map("reminders")\n}\n\nmodel Memory {\n  id         String   @id @default(cuid())\n  content    String\n  category   String   @default("conversation")\n  importance Int      @default(5)\n  tags       String?\n  metadata   String?\n  createdAt  DateTime @default(now()) @map("created_at")\n  updatedAt  DateTime @updatedAt @map("updated_at")\n\n  @@map("memories")\n}\n\nmodel Conversation {\n  id        String   @id @default(cuid())\n  role      String\n  content   String\n  sessionId String   @map("session_id")\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@index([sessionId])\n  @@index([createdAt])\n  @@map("conversations")\n}\n\nmodel ActivityLog {\n  id        String   @id @default(cuid())\n  action    String\n  details   String?\n  surface   String?\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@index([createdAt])\n  @@index([surface])\n  @@map("activity_logs")\n}\n\nmodel DailySummary {\n  id        String   @id @default(cuid())\n  date      DateTime @unique\n  summary   String\n  stats     String?\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@map("daily_summaries")\n}\n\nmodel UserSession {\n  id         String   @id @default(cuid())\n  deviceType String?  @map("device_type")\n  deviceName String?  @map("device_name")\n  ipAddress  String?  @map("ip_address")\n  lastActive DateTime @default(now()) @map("last_active")\n  isActive   Boolean  @default(true) @map("is_active")\n  createdAt  DateTime @default(now()) @map("created_at")\n\n  @@index([isActive])\n  @@map("user_sessions")\n}\n\nmodel SystemEvent {\n  id        String   @id @default(cuid())\n  level     String   @default("info")\n  source    String\n  message   String\n  meta      String?\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@index([createdAt])\n  @@index([level])\n  @@map("system_events")\n}\n\n// End of JARVIS schema \u2014 Standard Roofs AI Assistant\n\nmodel AgentTask {\n  id                 String      @id @default(cuid())\n  taskNumber         String      @unique\n  title              String\n  description        String\n  agentId            String      @map("agent_id")\n  status             String      @default("QUEUED")\n  progress           Int         @default(0)\n  currentOperation   String?     @map("current_operation")\n  totalSteps         Int         @default(1) @map("total_steps")\n  completedSteps     Int         @default(0) @map("completed_steps")\n  estimatedDuration  String?     @map("estimated_duration")\n  executionResult    String?     @map("execution_result")\n  verificationResult String?     @map("verification_result")\n  errorDetails       String?     @map("error_details")\n  filesChanged       String?     @map("files_changed")\n  commandsRun        String?     @map("commands_run")\n  startedAt          DateTime?   @map("started_at")\n  completedAt        DateTime?   @map("completed_at")\n  createdAt          DateTime    @default(now()) @map("created_at")\n  updatedAt          DateTime    @updatedAt @map("updated_at")\n  events             TaskEvent[]\n\n  @@index([status])\n  @@index([agentId])\n  @@map("agent_tasks")\n}\n\nmodel TaskEvent {\n  id        String    @id @default(cuid())\n  taskId    String    @map("task_id")\n  eventType String    @map("event_type")\n  message   String\n  metadata  String?\n  createdAt DateTime  @default(now()) @map("created_at")\n  task      AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)\n\n  @@index([taskId])\n  @@index([eventType])\n  @@map("task_events")\n}\n',
-  "runtimeDataModel": {
-    "models": {},
-    "enums": {},
-    "types": {}
-  },
-  "parameterizationSchema": {
-    "strings": [],
-    "graph": ""
-  }
-};
-config.runtimeDataModel = JSON.parse('{"models":{"User":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"email","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"users","schema":null},"AuthUser":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"username","kind":"scalar","type":"String"},{"name":"passwordHash","kind":"scalar","type":"String","dbName":"password_hash"},{"name":"twoFactorSecret","kind":"scalar","type":"String","dbName":"two_factor_secret"},{"name":"twoFactorEnabled","kind":"scalar","type":"Boolean","dbName":"two_factor_enabled"},{"name":"failedAttempts","kind":"scalar","type":"Int","dbName":"failed_attempts"},{"name":"lockedUntil","kind":"scalar","type":"DateTime","dbName":"locked_until"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"auth_users","schema":null},"AuthSession":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"token","kind":"scalar","type":"String"},{"name":"deviceInfo","kind":"scalar","type":"String","dbName":"device_info"},{"name":"ipAddress","kind":"scalar","type":"String","dbName":"ip_address"},{"name":"expiresAt","kind":"scalar","type":"DateTime","dbName":"expires_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"auth_sessions","schema":null},"Habit":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"icon","kind":"scalar","type":"String"},{"name":"color","kind":"scalar","type":"String"},{"name":"frequency","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"completions","kind":"object","type":"HabitCompletion","relationName":"HabitToHabitCompletion"}],"dbName":"habits","schema":null},"HabitCompletion":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"habitId","kind":"scalar","type":"String","dbName":"habit_id"},{"name":"date","kind":"scalar","type":"DateTime","dbName":"completed_at"},{"name":"habit","kind":"object","type":"Habit","relationName":"HabitToHabitCompletion"}],"dbName":"habit_completions","schema":null},"Note":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"title","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"category","kind":"scalar","type":"String"},{"name":"mood","kind":"scalar","type":"String"},{"name":"tags","kind":"scalar","type":"String"},{"name":"pinned","kind":"scalar","type":"Boolean"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"notes","schema":null},"Metric":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"value","kind":"scalar","type":"Float"},{"name":"unit","kind":"scalar","type":"String"},{"name":"category","kind":"scalar","type":"String"},{"name":"date","kind":"scalar","type":"DateTime","dbName":"recorded_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"metrics","schema":null},"Reminder":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"title","kind":"scalar","type":"String"},{"name":"message","kind":"scalar","type":"String"},{"name":"remindAt","kind":"scalar","type":"DateTime","dbName":"remind_at"},{"name":"completed","kind":"scalar","type":"Boolean"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"reminders","schema":null},"Memory":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"category","kind":"scalar","type":"String"},{"name":"importance","kind":"scalar","type":"Int"},{"name":"tags","kind":"scalar","type":"String"},{"name":"metadata","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"memories","schema":null},"Conversation":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"role","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"sessionId","kind":"scalar","type":"String","dbName":"session_id"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"conversations","schema":null},"ActivityLog":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"action","kind":"scalar","type":"String"},{"name":"details","kind":"scalar","type":"String"},{"name":"surface","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"activity_logs","schema":null},"DailySummary":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"date","kind":"scalar","type":"DateTime"},{"name":"summary","kind":"scalar","type":"String"},{"name":"stats","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"daily_summaries","schema":null},"UserSession":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"deviceType","kind":"scalar","type":"String","dbName":"device_type"},{"name":"deviceName","kind":"scalar","type":"String","dbName":"device_name"},{"name":"ipAddress","kind":"scalar","type":"String","dbName":"ip_address"},{"name":"lastActive","kind":"scalar","type":"DateTime","dbName":"last_active"},{"name":"isActive","kind":"scalar","type":"Boolean","dbName":"is_active"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"user_sessions","schema":null},"SystemEvent":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"level","kind":"scalar","type":"String"},{"name":"source","kind":"scalar","type":"String"},{"name":"message","kind":"scalar","type":"String"},{"name":"meta","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"system_events","schema":null},"AgentTask":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"taskNumber","kind":"scalar","type":"String"},{"name":"title","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"agentId","kind":"scalar","type":"String","dbName":"agent_id"},{"name":"status","kind":"scalar","type":"String"},{"name":"progress","kind":"scalar","type":"Int"},{"name":"currentOperation","kind":"scalar","type":"String","dbName":"current_operation"},{"name":"totalSteps","kind":"scalar","type":"Int","dbName":"total_steps"},{"name":"completedSteps","kind":"scalar","type":"Int","dbName":"completed_steps"},{"name":"estimatedDuration","kind":"scalar","type":"String","dbName":"estimated_duration"},{"name":"executionResult","kind":"scalar","type":"String","dbName":"execution_result"},{"name":"verificationResult","kind":"scalar","type":"String","dbName":"verification_result"},{"name":"errorDetails","kind":"scalar","type":"String","dbName":"error_details"},{"name":"filesChanged","kind":"scalar","type":"String","dbName":"files_changed"},{"name":"commandsRun","kind":"scalar","type":"String","dbName":"commands_run"},{"name":"startedAt","kind":"scalar","type":"DateTime","dbName":"started_at"},{"name":"completedAt","kind":"scalar","type":"DateTime","dbName":"completed_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"events","kind":"object","type":"TaskEvent","relationName":"AgentTaskToTaskEvent"}],"dbName":"agent_tasks","schema":null},"TaskEvent":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"taskId","kind":"scalar","type":"String","dbName":"task_id"},{"name":"eventType","kind":"scalar","type":"String","dbName":"event_type"},{"name":"message","kind":"scalar","type":"String"},{"name":"metadata","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"task","kind":"object","type":"AgentTask","relationName":"AgentTaskToTaskEvent"}],"dbName":"task_events","schema":null}},"enums":{},"types":{}}');
-config.parameterizationSchema = {
-  strings: JSON.parse('["where","User.findUnique","User.findUniqueOrThrow","orderBy","cursor","User.findFirst","User.findFirstOrThrow","User.findMany","data","User.createOne","User.createMany","User.createManyAndReturn","User.updateOne","User.updateMany","User.updateManyAndReturn","create","update","User.upsertOne","User.deleteOne","User.deleteMany","having","_count","_min","_max","User.groupBy","User.aggregate","AuthUser.findUnique","AuthUser.findUniqueOrThrow","AuthUser.findFirst","AuthUser.findFirstOrThrow","AuthUser.findMany","AuthUser.createOne","AuthUser.createMany","AuthUser.createManyAndReturn","AuthUser.updateOne","AuthUser.updateMany","AuthUser.updateManyAndReturn","AuthUser.upsertOne","AuthUser.deleteOne","AuthUser.deleteMany","_avg","_sum","AuthUser.groupBy","AuthUser.aggregate","AuthSession.findUnique","AuthSession.findUniqueOrThrow","AuthSession.findFirst","AuthSession.findFirstOrThrow","AuthSession.findMany","AuthSession.createOne","AuthSession.createMany","AuthSession.createManyAndReturn","AuthSession.updateOne","AuthSession.updateMany","AuthSession.updateManyAndReturn","AuthSession.upsertOne","AuthSession.deleteOne","AuthSession.deleteMany","AuthSession.groupBy","AuthSession.aggregate","habit","completions","Habit.findUnique","Habit.findUniqueOrThrow","Habit.findFirst","Habit.findFirstOrThrow","Habit.findMany","Habit.createOne","Habit.createMany","Habit.createManyAndReturn","Habit.updateOne","Habit.updateMany","Habit.updateManyAndReturn","Habit.upsertOne","Habit.deleteOne","Habit.deleteMany","Habit.groupBy","Habit.aggregate","HabitCompletion.findUnique","HabitCompletion.findUniqueOrThrow","HabitCompletion.findFirst","HabitCompletion.findFirstOrThrow","HabitCompletion.findMany","HabitCompletion.createOne","HabitCompletion.createMany","HabitCompletion.createManyAndReturn","HabitCompletion.updateOne","HabitCompletion.updateMany","HabitCompletion.updateManyAndReturn","HabitCompletion.upsertOne","HabitCompletion.deleteOne","HabitCompletion.deleteMany","HabitCompletion.groupBy","HabitCompletion.aggregate","Note.findUnique","Note.findUniqueOrThrow","Note.findFirst","Note.findFirstOrThrow","Note.findMany","Note.createOne","Note.createMany","Note.createManyAndReturn","Note.updateOne","Note.updateMany","Note.updateManyAndReturn","Note.upsertOne","Note.deleteOne","Note.deleteMany","Note.groupBy","Note.aggregate","Metric.findUnique","Metric.findUniqueOrThrow","Metric.findFirst","Metric.findFirstOrThrow","Metric.findMany","Metric.createOne","Metric.createMany","Metric.createManyAndReturn","Metric.updateOne","Metric.updateMany","Metric.updateManyAndReturn","Metric.upsertOne","Metric.deleteOne","Metric.deleteMany","Metric.groupBy","Metric.aggregate","Reminder.findUnique","Reminder.findUniqueOrThrow","Reminder.findFirst","Reminder.findFirstOrThrow","Reminder.findMany","Reminder.createOne","Reminder.createMany","Reminder.createManyAndReturn","Reminder.updateOne","Reminder.updateMany","Reminder.updateManyAndReturn","Reminder.upsertOne","Reminder.deleteOne","Reminder.deleteMany","Reminder.groupBy","Reminder.aggregate","Memory.findUnique","Memory.findUniqueOrThrow","Memory.findFirst","Memory.findFirstOrThrow","Memory.findMany","Memory.createOne","Memory.createMany","Memory.createManyAndReturn","Memory.updateOne","Memory.updateMany","Memory.updateManyAndReturn","Memory.upsertOne","Memory.deleteOne","Memory.deleteMany","Memory.groupBy","Memory.aggregate","Conversation.findUnique","Conversation.findUniqueOrThrow","Conversation.findFirst","Conversation.findFirstOrThrow","Conversation.findMany","Conversation.createOne","Conversation.createMany","Conversation.createManyAndReturn","Conversation.updateOne","Conversation.updateMany","Conversation.updateManyAndReturn","Conversation.upsertOne","Conversation.deleteOne","Conversation.deleteMany","Conversation.groupBy","Conversation.aggregate","ActivityLog.findUnique","ActivityLog.findUniqueOrThrow","ActivityLog.findFirst","ActivityLog.findFirstOrThrow","ActivityLog.findMany","ActivityLog.createOne","ActivityLog.createMany","ActivityLog.createManyAndReturn","ActivityLog.updateOne","ActivityLog.updateMany","ActivityLog.updateManyAndReturn","ActivityLog.upsertOne","ActivityLog.deleteOne","ActivityLog.deleteMany","ActivityLog.groupBy","ActivityLog.aggregate","DailySummary.findUnique","DailySummary.findUniqueOrThrow","DailySummary.findFirst","DailySummary.findFirstOrThrow","DailySummary.findMany","DailySummary.createOne","DailySummary.createMany","DailySummary.createManyAndReturn","DailySummary.updateOne","DailySummary.updateMany","DailySummary.updateManyAndReturn","DailySummary.upsertOne","DailySummary.deleteOne","DailySummary.deleteMany","DailySummary.groupBy","DailySummary.aggregate","UserSession.findUnique","UserSession.findUniqueOrThrow","UserSession.findFirst","UserSession.findFirstOrThrow","UserSession.findMany","UserSession.createOne","UserSession.createMany","UserSession.createManyAndReturn","UserSession.updateOne","UserSession.updateMany","UserSession.updateManyAndReturn","UserSession.upsertOne","UserSession.deleteOne","UserSession.deleteMany","UserSession.groupBy","UserSession.aggregate","SystemEvent.findUnique","SystemEvent.findUniqueOrThrow","SystemEvent.findFirst","SystemEvent.findFirstOrThrow","SystemEvent.findMany","SystemEvent.createOne","SystemEvent.createMany","SystemEvent.createManyAndReturn","SystemEvent.updateOne","SystemEvent.updateMany","SystemEvent.updateManyAndReturn","SystemEvent.upsertOne","SystemEvent.deleteOne","SystemEvent.deleteMany","SystemEvent.groupBy","SystemEvent.aggregate","task","events","AgentTask.findUnique","AgentTask.findUniqueOrThrow","AgentTask.findFirst","AgentTask.findFirstOrThrow","AgentTask.findMany","AgentTask.createOne","AgentTask.createMany","AgentTask.createManyAndReturn","AgentTask.updateOne","AgentTask.updateMany","AgentTask.updateManyAndReturn","AgentTask.upsertOne","AgentTask.deleteOne","AgentTask.deleteMany","AgentTask.groupBy","AgentTask.aggregate","TaskEvent.findUnique","TaskEvent.findUniqueOrThrow","TaskEvent.findFirst","TaskEvent.findFirstOrThrow","TaskEvent.findMany","TaskEvent.createOne","TaskEvent.createMany","TaskEvent.createManyAndReturn","TaskEvent.updateOne","TaskEvent.updateMany","TaskEvent.updateManyAndReturn","TaskEvent.upsertOne","TaskEvent.deleteOne","TaskEvent.deleteMany","TaskEvent.groupBy","TaskEvent.aggregate","AND","OR","NOT","id","taskId","eventType","message","metadata","createdAt","equals","in","notIn","lt","lte","gt","gte","not","contains","startsWith","endsWith","taskNumber","title","description","agentId","status","progress","currentOperation","totalSteps","completedSteps","estimatedDuration","executionResult","verificationResult","errorDetails","filesChanged","commandsRun","startedAt","completedAt","updatedAt","every","some","none","level","source","meta","deviceType","deviceName","ipAddress","lastActive","isActive","date","summary","stats","action","details","surface","role","content","sessionId","category","importance","tags","remindAt","completed","name","value","unit","mood","pinned","habitId","icon","color","frequency","habitId_date","userId","token","deviceInfo","expiresAt","username","passwordHash","twoFactorSecret","twoFactorEnabled","failedAttempts","lockedUntil","email","is","isNot","connectOrCreate","upsert","createMany","set","disconnect","delete","connect","updateMany","deleteMany","increment","decrement","multiply","divide"]'),
-  graph: "xgSLAYACCJACAADWAwAwkQIAAAQAEJICAADWAwAwkwIBAAAAAZgCQACtAwAhtQJAAK0DACHPAgEAqwMAIeMCAQAAAAEBAAAAAQAgAQAAAAEAIAiQAgAA1gMAMJECAAAEABCSAgAA1gMAMJMCAQCpAwAhmAJAAK0DACG1AkAArQMAIc8CAQCrAwAh4wIBAKkDACEBzwIAANcDACADAAAABAAgAwAABQAwBAAAAQAgAwAAAAQAIAMAAAUAMAQAAAEAIAMAAAAEACADAAAFADAEAAABACAFkwIBAAAAAZgCQAAAAAG1AkAAAAABzwIBAAAAAeMCAQAAAAEBCAAACQAgBZMCAQAAAAGYAkAAAAABtQJAAAAAAc8CAQAAAAHjAgEAAAABAQgAAAsAMAEIAAALADAFkwIBANsDACGYAkAA3QMAIbUCQADdAwAhzwIBANwDACHjAgEA2wMAIQIAAAABACAIAAAOACAFkwIBANsDACGYAkAA3QMAIbUCQADdAwAhzwIBANwDACHjAgEA2wMAIQIAAAAEACAIAAAQACACAAAABAAgCAAAEAAgAwAAAAEAIA8AAAkAIBAAAA4AIAEAAAABACABAAAABAAgBBUAALgEACAWAAC6BAAgFwAAuQQAIM8CAADXAwAgCJACAADVAwAwkQIAABcAEJICAADVAwAwkwIBAJYDACGYAkAAmAMAIbUCQACYAwAhzwIBAJcDACHjAgEAlgMAIQMAAAAEACADAAAWADAUAAAXACADAAAABAAgAwAABQAwBAAAAQAgDJACAADUAwAwkQIAAB0AEJICAADUAwAwkwIBAAAAAZgCQACtAwAhtQJAAK0DACHdAgEAAAAB3gIBAKkDACHfAgEAqwMAIeACIAC4AwAh4QICAKoDACHiAkAArAMAIQEAAAAaACABAAAAGgAgDJACAADUAwAwkQIAAB0AEJICAADUAwAwkwIBAKkDACGYAkAArQMAIbUCQACtAwAh3QIBAKkDACHeAgEAqQMAId8CAQCrAwAh4AIgALgDACHhAgIAqgMAIeICQACsAwAhAt8CAADXAwAg4gIAANcDACADAAAAHQAgAwAAHgAwBAAAGgAgAwAAAB0AIAMAAB4AMAQAABoAIAMAAAAdACADAAAeADAEAAAaACAJkwIBAAAAAZgCQAAAAAG1AkAAAAAB3QIBAAAAAd4CAQAAAAHfAgEAAAAB4AIgAAAAAeECAgAAAAHiAkAAAAABAQgAACIAIAmTAgEAAAABmAJAAAAAAbUCQAAAAAHdAgEAAAAB3gIBAAAAAd8CAQAAAAHgAiAAAAAB4QICAAAAAeICQAAAAAEBCAAAJAAwAQgAACQAMAmTAgEA2wMAIZgCQADdAwAhtQJAAN0DACHdAgEA2wMAId4CAQDbAwAh3wIBANwDACHgAiAA_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_AQAgBpMCAQDbAwAhlgIBANwDACGYAkAA3QMAIaUCAQDbAwAhzQJAAN0DACHOAiAA_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_QEAIAMAAACAAgAgAwAAgQIAMAQAAP0BACADAAAAgAIAIAMAAIECADAEAAD9AQAgBZMCAQAAAAGYAkAAAAABxAIBAAAAAcUCAQAAAAHGAgEAAAABAQgAAIUCACAFkwIBAAAAAZgCQAAAAAHEAgEAAAABxQIBAAAAAcYCAQAAAAEBCAAAhwIAMAEIAACHAgAwBZMCAQDbAwAhmAJAAN0DACHEAgEA2wMAIcUCAQDcAwAhxgIBANwDACECAAAA_QEAIAgAAIoCACAFkwIBANsDACGYAkAA3QMAIcQCAQDbAwAhxQIBANwDACHGAgEA3AMAIQIAAACAAgAgCAAAjAIAIAIAAACAAgAgCAAAjAIAIAMAAAD9AQAgDwAAhQIAIBAAAIoCACABAAAA_QEAIAEAAACAAgAgBRUAAIEEACAWAACDBAAgFwAAggQAIMUCAADXAwAgxgIAANcDACAIkAIAALsDADCRAgAAkwIAEJICAAC7AwAwkwIBAJYDACGYAkAAmAMAIcQCAQCWAwAhxQIBAJcDACHGAgEAlwMAIQMAAACAAgAgAwAAkgIAMBQAAJMCACADAAAAgAIAIAMAAIECADAEAAD9AQAgCJACAAC6AwAwkQIAAJkCABCSAgAAugMAMJMCAQAAAAGYAkAArQMAIcECQAAAAAHCAgEAqQMAIcMCAQCrAwAhAQAAAJYCACABAAAAlgIAIAiQAgAAugMAMJECAACZAgAQkgIAALoDADCTAgEAqQMAIZgCQACtAwAhwQJAAK0DACHCAgEAqQMAIcMCAQCrAwAhAcMCAADXAwAgAwAAAJkCACADAACaAgAwBAAAlgIAIAMAAACZAgAgAwAAmgIAMAQAAJYCACADAAAAmQIAIAMAAJoCADAEAACWAgAgBZMCAQAAAAGYAkAAAAABwQJAAAAAAcICAQAAAAHDAgEAAAABAQgAAJ4CACAFkwIBAAAAAZgCQAAAAAHBAkAAAAABwgIBAAAAAcMCAQAAAAEBCAAAoAIAMAEIAACgAgAwBZMCAQDbAwAhmAJAAN0DACHBAkAA3QMAIcICAQDbAwAhwwIBANwDACECAAAAlgIAIAgAAKMCACAFkwIBANsDACGYAkAA3QMAIcECQADdAwAhwgIBANsDACHDAgEA3AMAIQIAAACZAgAgCAAApQIAIAIAAACZAgAgCAAApQIAIAMAAACWAgAgDwAAngIAIBAAAKMCACABAAAAlgIAIAEAAACZAgAgBBUAAP4DACAWAACABAAgFwAA_wMAIMMCAADXAwAgCJACAAC5AwAwkQIAAKwCABCSAgAAuQMAMJMCAQCWAwAhmAJAAJgDACHBAkAAmAMAIcICAQCWAwAhwwIBAJcDACEDAAAAmQIAIAMAAKsCADAUAACsAgAgAwAAAJkCACADAACaAgAwBAAAlgIAIAqQAgAAtwMAMJECAACyAgAQkgIAALcDADCTAgEAAAABmAJAAK0DACG8AgEAqwMAIb0CAQCrAwAhvgIBAKsDACG_AkAArQMAIcACIAC4AwAhAQAAAK8CACABAAAArwIAIAqQAgAAtwMAMJECAACyAgAQkgIAALcDADCTAgEAqQMAIZgCQACtAwAhvAIBAKsDACG9AgEAqwMAIb4CAQCrAwAhvwJAAK0DACHAAiAAuAMAIQO8AgAA1wMAIL0CAADXAwAgvgIAANcDACADAAAAsgIAIAMAALMCADAEAACvAgAgAwAAALICACADAACzAgAwBAAArwIAIAMAAACyAgAgAwAAswIAMAQAAK8CACAHkwIBAAAAAZgCQAAAAAG8AgEAAAABvQIBAAAAAb4CAQAAAAG_AkAAAAABwAIgAAAAAQEIAAC3AgAgB5MCAQAAAAGYAkAAAAABvAIBAAAAAb0CAQAAAAG-AgEAAAABvwJAAAAAAcACIAAAAAEBCAAAuQIAMAEIAAC5AgAwB5MCAQDbAwAhmAJAAN0DACG8AgEA3AMAIb0CAQDcAwAhvgIBANwDACG_AkAA3QMAIcACIAD9AwAhAgAAAK8CACAIAAC8AgAgB5MCAQDbAwAhmAJAAN0DACG8AgEA3AMAIb0CAQDcAwAhvgIBANwDACG_AkAA3QMAIcACIAD9AwAhAgAAALICACAIAAC-AgAgAgAAALICACAIAAC-AgAgAwAAAK8CACAPAAC3AgAgEAAAvAIAIAEAAACvAgAgAQAAALICACAGFQAA-gMAIBYAAPwDACAXAAD7AwAgvAIAANcDACC9AgAA1wMAIL4CAADXAwAgCpACAACzAwAwkQIAAMUCABCSAgAAswMAMJMCAQCWAwAhmAJAAJgDACG8AgEAlwMAIb0CAQCXAwAhvgIBAJcDACG_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_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_AkAAmAMAIcACIAC0AwAhBRUAAJoDACAWAAC2AwAgFwAAtgMAIJkCIAAAAAGgAiAAtQMAIQUVAACaAwAgFgAAtgMAIBcAALYDACCZAiAAAAABoAIgALUDACECmQIgAAAAAaACIAC2AwAhCpACAAC3AwAwkQIAALICABCSAgAAtwMAMJMCAQCpAwAhmAJAAK0DACG8AgEAqwMAIb0CAQCrAwAhvgIBAKsDACG_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_FgCCARcAgwEoAIABKQCBAQAAAAAABRUAfxYAggEXAIMBKACAASkAgQEB7gEAeQHuAQB5AxUAiAEWAIkBFwCKAQAAAAMVAIgBFgCJARcAigEBAgECAwEFBgEGBwEHCAEJCgEKDAILDQMMDwENEQIOEgQREwESFAETFQIYGAUZGQkaGwobHAocHwodIAoeIQofIwogJQIhJgsiKAojKgIkKwwlLAomLQonLgIqMQ0rMhMsNBQtNRQuOBQvORQwOhQxPBQyPgIzPxU0QRQ1QwI2RBY3RRQ4RhQ5RwI6Shc7Sxs-TRw_UxxAVhxBVxxCWBxDWhxEXAJFXR9GXxxHYQJIYiBJYxxKZBxLZQJMaCFNaSVOah1Pax1QbB1RbR1Sbh1TcB1UcgJVcyZWdR1XdwJYeCdZeR1aeh1bewJcfihdfyxegQEtX4IBLWCFAS1hhgEtYocBLWOJAS1kiwECZYwBLmaOAS1nkAECaJEBL2mSAS1qkwEta5QBAmyXATBtmAE0bpoBNW-bATVwngE1cZ8BNXKgATVzogE1dKQBAnWlATZ2pwE1d6kBAniqATd5qwE1eqwBNXutAQJ8sAE4fbEBPn6zAT9_tAE_gAG3AT-BAbgBP4IBuQE_gwG7AT-EAb0BAoUBvgFAhgHAAT-HAcIBAogBwwFBiQHEAT-KAcUBP4sBxgECjAHJAUKNAcoBRo4BzAFHjwHNAUeQAdABR5EB0QFHkgHSAUeTAdQBR5QB1gEClQHXAUiWAdkBR5cB2wECmAHcAUmZAd0BR5oB3gFHmwHfAQKcAeIBSp0B4wFQngHlAVGfAeYBUaAB6QFRoQHqAVGiAesBUaMB7QFRpAHvAQKlAfABUqYB8gFRpwH0AQKoAfUBU6kB9gFRqgH3AVGrAfgBAqwB-wFUrQH8AViuAf4BWa8B_wFZsAGCAlmxAYMCWbIBhAJZswGGAlm0AYgCArUBiQJatgGLAlm3AY0CArgBjgJbuQGPAlm6AZACWbsBkQICvAGUAly9AZUCYL4BlwJhvwGYAmHAAZsCYcEBnAJhwgGdAmHDAZ8CYcQBoQICxQGiAmLGAaQCYccBpgICyAGnAmPJAagCYcoBqQJhywGqAgLMAa0CZM0BrgJozgGwAmnPAbECadABtAJp0QG1AmnSAbYCadMBuAJp1AG6AgLVAbsCatYBvQJp1wG_AgLYAcACa9kBwQJp2gHCAmnbAcMCAtwBxgJs3QHHAnDeAckCcd8BygJx4AHNAnHhAc4CceIBzwJx4wHRAnHkAdMCAuUB1AJy5gHWAnHnAdgCAugB2QJz6QHaAnHqAdsCcesB3AIC7AHfAnTtAeACePAB4gJ58QHoAnnyAesCefMB7AJ59AHtAnn1Ae8CefYB8QIC9wHyAnz4AfQCefkB9gIC-gH3An37AfgCefwB-QJ5_QH6AgL-Af0Cfv8B_gKEAYAC_wJ6gQKAA3qCAoEDeoMCggN6hAKDA3qFAoUDeoYChwMChwKIA4UBiAKKA3qJAowDAooCjQOGAYsCjgN6jAKPA3qNApADAo4CkwOHAY8ClAOLAQ"
-};
 async function decodeBase64AsWasm(wasmBase64) {
   const { Buffer: Buffer2 } = await import("node:buffer");
   const wasmArray = Buffer2.from(wasmBase64, "base64");
   return new WebAssembly.Module(wasmArray);
 }
-config.compilerWasm = {
-  getRuntime: async () => await import("@prisma/client/runtime/query_compiler_fast_bg.sqlite.mjs"),
-  getQueryCompilerWasmModule: async () => {
-    const { wasm } = await import("@prisma/client/runtime/query_compiler_fast_bg.sqlite.wasm-base64.mjs");
-    return await decodeBase64AsWasm(wasm);
-  },
-  importName: "./query_compiler_fast_bg.js"
-};
 function getPrismaClientClass() {
   return runtime.getPrismaClient(config);
 }
+var config;
+var init_class = __esm({
+  "src/generated/prisma/internal/class.ts"() {
+    "use strict";
+    config = {
+      "previewFeatures": [],
+      "clientVersion": "7.10.0",
+      "engineVersion": "0edf323efd1d98336f3f0a68684b56f689b900d3",
+      "activeProvider": "sqlite",
+      "inlineSchema": '// SHOGO:CUSTOM-START prisma-header\n// Managed by Shogo. Do not add a datasource `url` or change the generator `provider` \u2014 the database URL is configured in prisma.config.ts (Prisma 7+).\ngenerator client {\n  provider = "prisma-client"\n  output   = "../src/generated/prisma"\n}\n\ndatasource db {\n  provider = "sqlite"\n}\n\n// SHOGO:CUSTOM-END\n\nmodel User {\n  id        String   @id @default(cuid())\n  email     String   @unique\n  name      String?\n  createdAt DateTime @default(now()) @map("created_at")\n  updatedAt DateTime @updatedAt @map("updated_at")\n\n  @@map("users")\n}\n\nmodel AuthUser {\n  id               String    @id @default(cuid())\n  username         String    @unique\n  passwordHash     String    @map("password_hash")\n  twoFactorSecret  String?   @map("two_factor_secret")\n  twoFactorEnabled Boolean   @default(false) @map("two_factor_enabled")\n  failedAttempts   Int       @default(0) @map("failed_attempts")\n  lockedUntil      DateTime? @map("locked_until")\n  createdAt        DateTime  @default(now()) @map("created_at")\n  updatedAt        DateTime  @updatedAt @map("updated_at")\n\n  @@map("auth_users")\n}\n\nmodel AuthSession {\n  id         String   @id @default(cuid())\n  userId     String   @map("user_id")\n  token      String   @unique\n  deviceInfo String?  @map("device_info")\n  ipAddress  String?  @map("ip_address")\n  expiresAt  DateTime @map("expires_at")\n  createdAt  DateTime @default(now()) @map("created_at")\n\n  @@index([token])\n  @@map("auth_sessions")\n}\n\nmodel Habit {\n  id          String            @id @default(cuid())\n  name        String\n  icon        String?\n  color       String?\n  frequency   String            @default("daily")\n  createdAt   DateTime          @default(now()) @map("created_at")\n  updatedAt   DateTime          @updatedAt @map("updated_at")\n  completions HabitCompletion[]\n\n  @@map("habits")\n}\n\nmodel HabitCompletion {\n  id      String   @id @default(cuid())\n  habitId String   @map("habit_id")\n  date    DateTime @map("completed_at")\n  habit   Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)\n\n  @@unique([habitId, date])\n  @@map("habit_completions")\n}\n\nmodel Note {\n  id        String   @id @default(cuid())\n  title     String?\n  content   String\n  category  String   @default("general")\n  mood      String?\n  tags      String?\n  pinned    Boolean  @default(false)\n  createdAt DateTime @default(now()) @map("created_at")\n  updatedAt DateTime @updatedAt @map("updated_at")\n\n  @@map("notes")\n}\n\nmodel Metric {\n  id        String   @id @default(cuid())\n  name      String\n  value     Float\n  unit      String?\n  category  String   @default("general")\n  date      DateTime @default(now()) @map("recorded_at")\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@map("metrics")\n}\n\nmodel Reminder {\n  id        String   @id @default(cuid())\n  title     String\n  message   String?\n  remindAt  DateTime @map("remind_at")\n  completed Boolean  @default(false)\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@map("reminders")\n}\n\nmodel Memory {\n  id         String   @id @default(cuid())\n  content    String\n  category   String   @default("conversation")\n  importance Int      @default(5)\n  tags       String?\n  metadata   String?\n  createdAt  DateTime @default(now()) @map("created_at")\n  updatedAt  DateTime @updatedAt @map("updated_at")\n\n  @@map("memories")\n}\n\nmodel Conversation {\n  id        String   @id @default(cuid())\n  role      String\n  content   String\n  sessionId String   @map("session_id")\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@index([sessionId])\n  @@index([createdAt])\n  @@map("conversations")\n}\n\nmodel ActivityLog {\n  id        String   @id @default(cuid())\n  action    String\n  details   String?\n  surface   String?\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@index([createdAt])\n  @@index([surface])\n  @@map("activity_logs")\n}\n\nmodel DailySummary {\n  id        String   @id @default(cuid())\n  date      DateTime @unique\n  summary   String\n  stats     String?\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@map("daily_summaries")\n}\n\nmodel UserSession {\n  id         String   @id @default(cuid())\n  deviceType String?  @map("device_type")\n  deviceName String?  @map("device_name")\n  ipAddress  String?  @map("ip_address")\n  lastActive DateTime @default(now()) @map("last_active")\n  isActive   Boolean  @default(true) @map("is_active")\n  createdAt  DateTime @default(now()) @map("created_at")\n\n  @@index([isActive])\n  @@map("user_sessions")\n}\n\nmodel SystemEvent {\n  id        String   @id @default(cuid())\n  level     String   @default("info")\n  source    String\n  message   String\n  meta      String?\n  createdAt DateTime @default(now()) @map("created_at")\n\n  @@index([createdAt])\n  @@index([level])\n  @@map("system_events")\n}\n\n// End of JARVIS schema \u2014 Standard Roofs AI Assistant\n\nmodel AgentTask {\n  id                 String      @id @default(cuid())\n  taskNumber         String      @unique\n  title              String\n  description        String\n  agentId            String      @map("agent_id")\n  status             String      @default("QUEUED")\n  progress           Int         @default(0)\n  currentOperation   String?     @map("current_operation")\n  totalSteps         Int         @default(1) @map("total_steps")\n  completedSteps     Int         @default(0) @map("completed_steps")\n  estimatedDuration  String?     @map("estimated_duration")\n  executionResult    String?     @map("execution_result")\n  verificationResult String?     @map("verification_result")\n  errorDetails       String?     @map("error_details")\n  filesChanged       String?     @map("files_changed")\n  commandsRun        String?     @map("commands_run")\n  startedAt          DateTime?   @map("started_at")\n  completedAt        DateTime?   @map("completed_at")\n  createdAt          DateTime    @default(now()) @map("created_at")\n  updatedAt          DateTime    @updatedAt @map("updated_at")\n  events             TaskEvent[]\n\n  @@index([status])\n  @@index([agentId])\n  @@map("agent_tasks")\n}\n\nmodel TaskEvent {\n  id        String    @id @default(cuid())\n  taskId    String    @map("task_id")\n  eventType String    @map("event_type")\n  message   String\n  metadata  String?\n  createdAt DateTime  @default(now()) @map("created_at")\n  task      AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)\n\n  @@index([taskId])\n  @@index([eventType])\n  @@map("task_events")\n}\n',
+      "runtimeDataModel": {
+        "models": {},
+        "enums": {},
+        "types": {}
+      },
+      "parameterizationSchema": {
+        "strings": [],
+        "graph": ""
+      }
+    };
+    config.runtimeDataModel = JSON.parse('{"models":{"User":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"email","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"users","schema":null},"AuthUser":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"username","kind":"scalar","type":"String"},{"name":"passwordHash","kind":"scalar","type":"String","dbName":"password_hash"},{"name":"twoFactorSecret","kind":"scalar","type":"String","dbName":"two_factor_secret"},{"name":"twoFactorEnabled","kind":"scalar","type":"Boolean","dbName":"two_factor_enabled"},{"name":"failedAttempts","kind":"scalar","type":"Int","dbName":"failed_attempts"},{"name":"lockedUntil","kind":"scalar","type":"DateTime","dbName":"locked_until"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"auth_users","schema":null},"AuthSession":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"token","kind":"scalar","type":"String"},{"name":"deviceInfo","kind":"scalar","type":"String","dbName":"device_info"},{"name":"ipAddress","kind":"scalar","type":"String","dbName":"ip_address"},{"name":"expiresAt","kind":"scalar","type":"DateTime","dbName":"expires_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"auth_sessions","schema":null},"Habit":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"icon","kind":"scalar","type":"String"},{"name":"color","kind":"scalar","type":"String"},{"name":"frequency","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"completions","kind":"object","type":"HabitCompletion","relationName":"HabitToHabitCompletion"}],"dbName":"habits","schema":null},"HabitCompletion":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"habitId","kind":"scalar","type":"String","dbName":"habit_id"},{"name":"date","kind":"scalar","type":"DateTime","dbName":"completed_at"},{"name":"habit","kind":"object","type":"Habit","relationName":"HabitToHabitCompletion"}],"dbName":"habit_completions","schema":null},"Note":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"title","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"category","kind":"scalar","type":"String"},{"name":"mood","kind":"scalar","type":"String"},{"name":"tags","kind":"scalar","type":"String"},{"name":"pinned","kind":"scalar","type":"Boolean"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"notes","schema":null},"Metric":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"value","kind":"scalar","type":"Float"},{"name":"unit","kind":"scalar","type":"String"},{"name":"category","kind":"scalar","type":"String"},{"name":"date","kind":"scalar","type":"DateTime","dbName":"recorded_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"metrics","schema":null},"Reminder":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"title","kind":"scalar","type":"String"},{"name":"message","kind":"scalar","type":"String"},{"name":"remindAt","kind":"scalar","type":"DateTime","dbName":"remind_at"},{"name":"completed","kind":"scalar","type":"Boolean"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"reminders","schema":null},"Memory":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"category","kind":"scalar","type":"String"},{"name":"importance","kind":"scalar","type":"Int"},{"name":"tags","kind":"scalar","type":"String"},{"name":"metadata","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"}],"dbName":"memories","schema":null},"Conversation":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"role","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"sessionId","kind":"scalar","type":"String","dbName":"session_id"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"conversations","schema":null},"ActivityLog":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"action","kind":"scalar","type":"String"},{"name":"details","kind":"scalar","type":"String"},{"name":"surface","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"activity_logs","schema":null},"DailySummary":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"date","kind":"scalar","type":"DateTime"},{"name":"summary","kind":"scalar","type":"String"},{"name":"stats","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"daily_summaries","schema":null},"UserSession":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"deviceType","kind":"scalar","type":"String","dbName":"device_type"},{"name":"deviceName","kind":"scalar","type":"String","dbName":"device_name"},{"name":"ipAddress","kind":"scalar","type":"String","dbName":"ip_address"},{"name":"lastActive","kind":"scalar","type":"DateTime","dbName":"last_active"},{"name":"isActive","kind":"scalar","type":"Boolean","dbName":"is_active"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"user_sessions","schema":null},"SystemEvent":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"level","kind":"scalar","type":"String"},{"name":"source","kind":"scalar","type":"String"},{"name":"message","kind":"scalar","type":"String"},{"name":"meta","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"}],"dbName":"system_events","schema":null},"AgentTask":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"taskNumber","kind":"scalar","type":"String"},{"name":"title","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"agentId","kind":"scalar","type":"String","dbName":"agent_id"},{"name":"status","kind":"scalar","type":"String"},{"name":"progress","kind":"scalar","type":"Int"},{"name":"currentOperation","kind":"scalar","type":"String","dbName":"current_operation"},{"name":"totalSteps","kind":"scalar","type":"Int","dbName":"total_steps"},{"name":"completedSteps","kind":"scalar","type":"Int","dbName":"completed_steps"},{"name":"estimatedDuration","kind":"scalar","type":"String","dbName":"estimated_duration"},{"name":"executionResult","kind":"scalar","type":"String","dbName":"execution_result"},{"name":"verificationResult","kind":"scalar","type":"String","dbName":"verification_result"},{"name":"errorDetails","kind":"scalar","type":"String","dbName":"error_details"},{"name":"filesChanged","kind":"scalar","type":"String","dbName":"files_changed"},{"name":"commandsRun","kind":"scalar","type":"String","dbName":"commands_run"},{"name":"startedAt","kind":"scalar","type":"DateTime","dbName":"started_at"},{"name":"completedAt","kind":"scalar","type":"DateTime","dbName":"completed_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"events","kind":"object","type":"TaskEvent","relationName":"AgentTaskToTaskEvent"}],"dbName":"agent_tasks","schema":null},"TaskEvent":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"taskId","kind":"scalar","type":"String","dbName":"task_id"},{"name":"eventType","kind":"scalar","type":"String","dbName":"event_type"},{"name":"message","kind":"scalar","type":"String"},{"name":"metadata","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"task","kind":"object","type":"AgentTask","relationName":"AgentTaskToTaskEvent"}],"dbName":"task_events","schema":null}},"enums":{},"types":{}}');
+    config.parameterizationSchema = {
+      strings: JSON.parse('["where","User.findUnique","User.findUniqueOrThrow","orderBy","cursor","User.findFirst","User.findFirstOrThrow","User.findMany","data","User.createOne","User.createMany","User.createManyAndReturn","User.updateOne","User.updateMany","User.updateManyAndReturn","create","update","User.upsertOne","User.deleteOne","User.deleteMany","having","_count","_min","_max","User.groupBy","User.aggregate","AuthUser.findUnique","AuthUser.findUniqueOrThrow","AuthUser.findFirst","AuthUser.findFirstOrThrow","AuthUser.findMany","AuthUser.createOne","AuthUser.createMany","AuthUser.createManyAndReturn","AuthUser.updateOne","AuthUser.updateMany","AuthUser.updateManyAndReturn","AuthUser.upsertOne","AuthUser.deleteOne","AuthUser.deleteMany","_avg","_sum","AuthUser.groupBy","AuthUser.aggregate","AuthSession.findUnique","AuthSession.findUniqueOrThrow","AuthSession.findFirst","AuthSession.findFirstOrThrow","AuthSession.findMany","AuthSession.createOne","AuthSession.createMany","AuthSession.createManyAndReturn","AuthSession.updateOne","AuthSession.updateMany","AuthSession.updateManyAndReturn","AuthSession.upsertOne","AuthSession.deleteOne","AuthSession.deleteMany","AuthSession.groupBy","AuthSession.aggregate","habit","completions","Habit.findUnique","Habit.findUniqueOrThrow","Habit.findFirst","Habit.findFirstOrThrow","Habit.findMany","Habit.createOne","Habit.createMany","Habit.createManyAndReturn","Habit.updateOne","Habit.updateMany","Habit.updateManyAndReturn","Habit.upsertOne","Habit.deleteOne","Habit.deleteMany","Habit.groupBy","Habit.aggregate","HabitCompletion.findUnique","HabitCompletion.findUniqueOrThrow","HabitCompletion.findFirst","HabitCompletion.findFirstOrThrow","HabitCompletion.findMany","HabitCompletion.createOne","HabitCompletion.createMany","HabitCompletion.createManyAndReturn","HabitCompletion.updateOne","HabitCompletion.updateMany","HabitCompletion.updateManyAndReturn","HabitCompletion.upsertOne","HabitCompletion.deleteOne","HabitCompletion.deleteMany","HabitCompletion.groupBy","HabitCompletion.aggregate","Note.findUnique","Note.findUniqueOrThrow","Note.findFirst","Note.findFirstOrThrow","Note.findMany","Note.createOne","Note.createMany","Note.createManyAndReturn","Note.updateOne","Note.updateMany","Note.updateManyAndReturn","Note.upsertOne","Note.deleteOne","Note.deleteMany","Note.groupBy","Note.aggregate","Metric.findUnique","Metric.findUniqueOrThrow","Metric.findFirst","Metric.findFirstOrThrow","Metric.findMany","Metric.createOne","Metric.createMany","Metric.createManyAndReturn","Metric.updateOne","Metric.updateMany","Metric.updateManyAndReturn","Metric.upsertOne","Metric.deleteOne","Metric.deleteMany","Metric.groupBy","Metric.aggregate","Reminder.findUnique","Reminder.findUniqueOrThrow","Reminder.findFirst","Reminder.findFirstOrThrow","Reminder.findMany","Reminder.createOne","Reminder.createMany","Reminder.createManyAndReturn","Reminder.updateOne","Reminder.updateMany","Reminder.updateManyAndReturn","Reminder.upsertOne","Reminder.deleteOne","Reminder.deleteMany","Reminder.groupBy","Reminder.aggregate","Memory.findUnique","Memory.findUniqueOrThrow","Memory.findFirst","Memory.findFirstOrThrow","Memory.findMany","Memory.createOne","Memory.createMany","Memory.createManyAndReturn","Memory.updateOne","Memory.updateMany","Memory.updateManyAndReturn","Memory.upsertOne","Memory.deleteOne","Memory.deleteMany","Memory.groupBy","Memory.aggregate","Conversation.findUnique","Conversation.findUniqueOrThrow","Conversation.findFirst","Conversation.findFirstOrThrow","Conversation.findMany","Conversation.createOne","Conversation.createMany","Conversation.createManyAndReturn","Conversation.updateOne","Conversation.updateMany","Conversation.updateManyAndReturn","Conversation.upsertOne","Conversation.deleteOne","Conversation.deleteMany","Conversation.groupBy","Conversation.aggregate","ActivityLog.findUnique","ActivityLog.findUniqueOrThrow","ActivityLog.findFirst","ActivityLog.findFirstOrThrow","ActivityLog.findMany","ActivityLog.createOne","ActivityLog.createMany","ActivityLog.createManyAndReturn","ActivityLog.updateOne","ActivityLog.updateMany","ActivityLog.updateManyAndReturn","ActivityLog.upsertOne","ActivityLog.deleteOne","ActivityLog.deleteMany","ActivityLog.groupBy","ActivityLog.aggregate","DailySummary.findUnique","DailySummary.findUniqueOrThrow","DailySummary.findFirst","DailySummary.findFirstOrThrow","DailySummary.findMany","DailySummary.createOne","DailySummary.createMany","DailySummary.createManyAndReturn","DailySummary.updateOne","DailySummary.updateMany","DailySummary.updateManyAndReturn","DailySummary.upsertOne","DailySummary.deleteOne","DailySummary.deleteMany","DailySummary.groupBy","DailySummary.aggregate","UserSession.findUnique","UserSession.findUniqueOrThrow","UserSession.findFirst","UserSession.findFirstOrThrow","UserSession.findMany","UserSession.createOne","UserSession.createMany","UserSession.createManyAndReturn","UserSession.updateOne","UserSession.updateMany","UserSession.updateManyAndReturn","UserSession.upsertOne","UserSession.deleteOne","UserSession.deleteMany","UserSession.groupBy","UserSession.aggregate","SystemEvent.findUnique","SystemEvent.findUniqueOrThrow","SystemEvent.findFirst","SystemEvent.findFirstOrThrow","SystemEvent.findMany","SystemEvent.createOne","SystemEvent.createMany","SystemEvent.createManyAndReturn","SystemEvent.updateOne","SystemEvent.updateMany","SystemEvent.updateManyAndReturn","SystemEvent.upsertOne","SystemEvent.deleteOne","SystemEvent.deleteMany","SystemEvent.groupBy","SystemEvent.aggregate","task","events","AgentTask.findUnique","AgentTask.findUniqueOrThrow","AgentTask.findFirst","AgentTask.findFirstOrThrow","AgentTask.findMany","AgentTask.createOne","AgentTask.createMany","AgentTask.createManyAndReturn","AgentTask.updateOne","AgentTask.updateMany","AgentTask.updateManyAndReturn","AgentTask.upsertOne","AgentTask.deleteOne","AgentTask.deleteMany","AgentTask.groupBy","AgentTask.aggregate","TaskEvent.findUnique","TaskEvent.findUniqueOrThrow","TaskEvent.findFirst","TaskEvent.findFirstOrThrow","TaskEvent.findMany","TaskEvent.createOne","TaskEvent.createMany","TaskEvent.createManyAndReturn","TaskEvent.updateOne","TaskEvent.updateMany","TaskEvent.updateManyAndReturn","TaskEvent.upsertOne","TaskEvent.deleteOne","TaskEvent.deleteMany","TaskEvent.groupBy","TaskEvent.aggregate","AND","OR","NOT","id","taskId","eventType","message","metadata","createdAt","equals","in","notIn","lt","lte","gt","gte","not","contains","startsWith","endsWith","taskNumber","title","description","agentId","status","progress","currentOperation","totalSteps","completedSteps","estimatedDuration","executionResult","verificationResult","errorDetails","filesChanged","commandsRun","startedAt","completedAt","updatedAt","every","some","none","level","source","meta","deviceType","deviceName","ipAddress","lastActive","isActive","date","summary","stats","action","details","surface","role","content","sessionId","category","importance","tags","remindAt","completed","name","value","unit","mood","pinned","habitId","icon","color","frequency","habitId_date","userId","token","deviceInfo","expiresAt","username","passwordHash","twoFactorSecret","twoFactorEnabled","failedAttempts","lockedUntil","email","is","isNot","connectOrCreate","upsert","createMany","set","disconnect","delete","connect","updateMany","deleteMany","increment","decrement","multiply","divide"]'),
+      graph: "xgSLAYACCJACAADWAwAwkQIAAAQAEJICAADWAwAwkwIBAAAAAZgCQACtAwAhtQJAAK0DACHPAgEAqwMAIeMCAQAAAAEBAAAAAQAgAQAAAAEAIAiQAgAA1gMAMJECAAAEABCSAgAA1gMAMJMCAQCpAwAhmAJAAK0DACG1AkAArQMAIc8CAQCrAwAh4wIBAKkDACEBzwIAANcDACADAAAABAAgAwAABQAwBAAAAQAgAwAAAAQAIAMAAAUAMAQAAAEAIAMAAAAEACADAAAFADAEAAABACAFkwIBAAAAAZgCQAAAAAG1AkAAAAABzwIBAAAAAeMCAQAAAAEBCAAACQAgBZMCAQAAAAGYAkAAAAABtQJAAAAAAc8CAQAAAAHjAgEAAAABAQgAAAsAMAEIAAALADAFkwIBANsDACGYAkAA3QMAIbUCQADdAwAhzwIBANwDACHjAgEA2wMAIQIAAAABACAIAAAOACAFkwIBANsDACGYAkAA3QMAIbUCQADdAwAhzwIBANwDACHjAgEA2wMAIQIAAAAEACAIAAAQACACAAAABAAgCAAAEAAgAwAAAAEAIA8AAAkAIBAAAA4AIAEAAAABACABAAAABAAgBBUAALgEACAWAAC6BAAgFwAAuQQAIM8CAADXAwAgCJACAADVAwAwkQIAABcAEJICAADVAwAwkwIBAJYDACGYAkAAmAMAIbUCQACYAwAhzwIBAJcDACHjAgEAlgMAIQMAAAAEACADAAAWADAUAAAXACADAAAABAAgAwAABQAwBAAAAQAgDJACAADUAwAwkQIAAB0AEJICAADUAwAwkwIBAAAAAZgCQACtAwAhtQJAAK0DACHdAgEAAAAB3gIBAKkDACHfAgEAqwMAIeACIAC4AwAh4QICAKoDACHiAkAArAMAIQEAAAAaACABAAAAGgAgDJACAADUAwAwkQIAAB0AEJICAADUAwAwkwIBAKkDACGYAkAArQMAIbUCQACtAwAh3QIBAKkDACHeAgEAqQMAId8CAQCrAwAh4AIgALgDACHhAgIAqgMAIeICQACsAwAhAt8CAADXAwAg4gIAANcDACADAAAAHQAgAwAAHgAwBAAAGgAgAwAAAB0AIAMAAB4AMAQAABoAIAMAAAAdACADAAAeADAEAAAaACAJkwIBAAAAAZgCQAAAAAG1AkAAAAAB3QIBAAAAAd4CAQAAAAHfAgEAAAAB4AIgAAAAAeECAgAAAAHiAkAAAAABAQgAACIAIAmTAgEAAAABmAJAAAAAAbUCQAAAAAHdAgEAAAAB3gIBAAAAAd8CAQAAAAHgAiAAAAAB4QICAAAAAeICQAAAAAEBCAAAJAAwAQgAACQAMAmTAgEA2wMAIZgCQADdAwAhtQJAAN0DACHdAgEA2wMAId4CAQDbAwAh3wIBANwDACHgAiAA_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_AQAgBpMCAQDbAwAhlgIBANwDACGYAkAA3QMAIaUCAQDbAwAhzQJAAN0DACHOAiAA_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_QEAIAMAAACAAgAgAwAAgQIAMAQAAP0BACADAAAAgAIAIAMAAIECADAEAAD9AQAgBZMCAQAAAAGYAkAAAAABxAIBAAAAAcUCAQAAAAHGAgEAAAABAQgAAIUCACAFkwIBAAAAAZgCQAAAAAHEAgEAAAABxQIBAAAAAcYCAQAAAAEBCAAAhwIAMAEIAACHAgAwBZMCAQDbAwAhmAJAAN0DACHEAgEA2wMAIcUCAQDcAwAhxgIBANwDACECAAAA_QEAIAgAAIoCACAFkwIBANsDACGYAkAA3QMAIcQCAQDbAwAhxQIBANwDACHGAgEA3AMAIQIAAACAAgAgCAAAjAIAIAIAAACAAgAgCAAAjAIAIAMAAAD9AQAgDwAAhQIAIBAAAIoCACABAAAA_QEAIAEAAACAAgAgBRUAAIEEACAWAACDBAAgFwAAggQAIMUCAADXAwAgxgIAANcDACAIkAIAALsDADCRAgAAkwIAEJICAAC7AwAwkwIBAJYDACGYAkAAmAMAIcQCAQCWAwAhxQIBAJcDACHGAgEAlwMAIQMAAACAAgAgAwAAkgIAMBQAAJMCACADAAAAgAIAIAMAAIECADAEAAD9AQAgCJACAAC6AwAwkQIAAJkCABCSAgAAugMAMJMCAQAAAAGYAkAArQMAIcECQAAAAAHCAgEAqQMAIcMCAQCrAwAhAQAAAJYCACABAAAAlgIAIAiQAgAAugMAMJECAACZAgAQkgIAALoDADCTAgEAqQMAIZgCQACtAwAhwQJAAK0DACHCAgEAqQMAIcMCAQCrAwAhAcMCAADXAwAgAwAAAJkCACADAACaAgAwBAAAlgIAIAMAAACZAgAgAwAAmgIAMAQAAJYCACADAAAAmQIAIAMAAJoCADAEAACWAgAgBZMCAQAAAAGYAkAAAAABwQJAAAAAAcICAQAAAAHDAgEAAAABAQgAAJ4CACAFkwIBAAAAAZgCQAAAAAHBAkAAAAABwgIBAAAAAcMCAQAAAAEBCAAAoAIAMAEIAACgAgAwBZMCAQDbAwAhmAJAAN0DACHBAkAA3QMAIcICAQDbAwAhwwIBANwDACECAAAAlgIAIAgAAKMCACAFkwIBANsDACGYAkAA3QMAIcECQADdAwAhwgIBANsDACHDAgEA3AMAIQIAAACZAgAgCAAApQIAIAIAAACZAgAgCAAApQIAIAMAAACWAgAgDwAAngIAIBAAAKMCACABAAAAlgIAIAEAAACZAgAgBBUAAP4DACAWAACABAAgFwAA_wMAIMMCAADXAwAgCJACAAC5AwAwkQIAAKwCABCSAgAAuQMAMJMCAQCWAwAhmAJAAJgDACHBAkAAmAMAIcICAQCWAwAhwwIBAJcDACEDAAAAmQIAIAMAAKsCADAUAACsAgAgAwAAAJkCACADAACaAgAwBAAAlgIAIAqQAgAAtwMAMJECAACyAgAQkgIAALcDADCTAgEAAAABmAJAAK0DACG8AgEAqwMAIb0CAQCrAwAhvgIBAKsDACG_AkAArQMAIcACIAC4AwAhAQAAAK8CACABAAAArwIAIAqQAgAAtwMAMJECAACyAgAQkgIAALcDADCTAgEAqQMAIZgCQACtAwAhvAIBAKsDACG9AgEAqwMAIb4CAQCrAwAhvwJAAK0DACHAAiAAuAMAIQO8AgAA1wMAIL0CAADXAwAgvgIAANcDACADAAAAsgIAIAMAALMCADAEAACvAgAgAwAAALICACADAACzAgAwBAAArwIAIAMAAACyAgAgAwAAswIAMAQAAK8CACAHkwIBAAAAAZgCQAAAAAG8AgEAAAABvQIBAAAAAb4CAQAAAAG_AkAAAAABwAIgAAAAAQEIAAC3AgAgB5MCAQAAAAGYAkAAAAABvAIBAAAAAb0CAQAAAAG-AgEAAAABvwJAAAAAAcACIAAAAAEBCAAAuQIAMAEIAAC5AgAwB5MCAQDbAwAhmAJAAN0DACG8AgEA3AMAIb0CAQDcAwAhvgIBANwDACG_AkAA3QMAIcACIAD9AwAhAgAAAK8CACAIAAC8AgAgB5MCAQDbAwAhmAJAAN0DACG8AgEA3AMAIb0CAQDcAwAhvgIBANwDACG_AkAA3QMAIcACIAD9AwAhAgAAALICACAIAAC-AgAgAgAAALICACAIAAC-AgAgAwAAAK8CACAPAAC3AgAgEAAAvAIAIAEAAACvAgAgAQAAALICACAGFQAA-gMAIBYAAPwDACAXAAD7AwAgvAIAANcDACC9AgAA1wMAIL4CAADXAwAgCpACAACzAwAwkQIAAMUCABCSAgAAswMAMJMCAQCWAwAhmAJAAJgDACG8AgEAlwMAIb0CAQCXAwAhvgIBAJcDACG_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_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_AkAAmAMAIcACIAC0AwAhBRUAAJoDACAWAAC2AwAgFwAAtgMAIJkCIAAAAAGgAiAAtQMAIQUVAACaAwAgFgAAtgMAIBcAALYDACCZAiAAAAABoAIgALUDACECmQIgAAAAAaACIAC2AwAhCpACAAC3AwAwkQIAALICABCSAgAAtwMAMJMCAQCpAwAhmAJAAK0DACG8AgEAqwMAIb0CAQCrAwAhvgIBAKsDACG_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_FgCCARcAgwEoAIABKQCBAQAAAAAABRUAfxYAggEXAIMBKACAASkAgQEB7gEAeQHuAQB5AxUAiAEWAIkBFwCKAQAAAAMVAIgBFgCJARcAigEBAgECAwEFBgEGBwEHCAEJCgEKDAILDQMMDwENEQIOEgQREwESFAETFQIYGAUZGQkaGwobHAocHwodIAoeIQofIwogJQIhJgsiKAojKgIkKwwlLAomLQonLgIqMQ0rMhMsNBQtNRQuOBQvORQwOhQxPBQyPgIzPxU0QRQ1QwI2RBY3RRQ4RhQ5RwI6Shc7Sxs-TRw_UxxAVhxBVxxCWBxDWhxEXAJFXR9GXxxHYQJIYiBJYxxKZBxLZQJMaCFNaSVOah1Pax1QbB1RbR1Sbh1TcB1UcgJVcyZWdR1XdwJYeCdZeR1aeh1bewJcfihdfyxegQEtX4IBLWCFAS1hhgEtYocBLWOJAS1kiwECZYwBLmaOAS1nkAECaJEBL2mSAS1qkwEta5QBAmyXATBtmAE0bpoBNW-bATVwngE1cZ8BNXKgATVzogE1dKQBAnWlATZ2pwE1d6kBAniqATd5qwE1eqwBNXutAQJ8sAE4fbEBPn6zAT9_tAE_gAG3AT-BAbgBP4IBuQE_gwG7AT-EAb0BAoUBvgFAhgHAAT-HAcIBAogBwwFBiQHEAT-KAcUBP4sBxgECjAHJAUKNAcoBRo4BzAFHjwHNAUeQAdABR5EB0QFHkgHSAUeTAdQBR5QB1gEClQHXAUiWAdkBR5cB2wECmAHcAUmZAd0BR5oB3gFHmwHfAQKcAeIBSp0B4wFQngHlAVGfAeYBUaAB6QFRoQHqAVGiAesBUaMB7QFRpAHvAQKlAfABUqYB8gFRpwH0AQKoAfUBU6kB9gFRqgH3AVGrAfgBAqwB-wFUrQH8AViuAf4BWa8B_wFZsAGCAlmxAYMCWbIBhAJZswGGAlm0AYgCArUBiQJatgGLAlm3AY0CArgBjgJbuQGPAlm6AZACWbsBkQICvAGUAly9AZUCYL4BlwJhvwGYAmHAAZsCYcEBnAJhwgGdAmHDAZ8CYcQBoQICxQGiAmLGAaQCYccBpgICyAGnAmPJAagCYcoBqQJhywGqAgLMAa0CZM0BrgJozgGwAmnPAbECadABtAJp0QG1AmnSAbYCadMBuAJp1AG6AgLVAbsCatYBvQJp1wG_AgLYAcACa9kBwQJp2gHCAmnbAcMCAtwBxgJs3QHHAnDeAckCcd8BygJx4AHNAnHhAc4CceIBzwJx4wHRAnHkAdMCAuUB1AJy5gHWAnHnAdgCAugB2QJz6QHaAnHqAdsCcesB3AIC7AHfAnTtAeACePAB4gJ58QHoAnnyAesCefMB7AJ59AHtAnn1Ae8CefYB8QIC9wHyAnz4AfQCefkB9gIC-gH3An37AfgCefwB-QJ5_QH6AgL-Af0Cfv8B_gKEAYAC_wJ6gQKAA3qCAoEDeoMCggN6hAKDA3qFAoUDeoYChwMChwKIA4UBiAKKA3qJAowDAooCjQOGAYsCjgN6jAKPA3qNApADAo4CkwOHAY8ClAOLAQ"
+    };
+    config.compilerWasm = {
+      getRuntime: async () => await import("@prisma/client/runtime/query_compiler_fast_bg.sqlite.mjs"),
+      getQueryCompilerWasmModule: async () => {
+        const { wasm } = await import("@prisma/client/runtime/query_compiler_fast_bg.sqlite.wasm-base64.mjs");
+        return await decodeBase64AsWasm(wasm);
+      },
+      importName: "./query_compiler_fast_bg.js"
+    };
+  }
+});
 
 // src/generated/prisma/internal/prismaNamespace.ts
 import * as runtime2 from "@prisma/client/runtime/client";
-var getExtensionContext = runtime2.Extensions.getExtensionContext;
-var NullTypes2 = {
-  DbNull: runtime2.NullTypes.DbNull,
-  JsonNull: runtime2.NullTypes.JsonNull,
-  AnyNull: runtime2.NullTypes.AnyNull
-};
-var TransactionIsolationLevel = runtime2.makeStrictEnum({
-  Serializable: "Serializable"
+var getExtensionContext, NullTypes2, TransactionIsolationLevel, defineExtension;
+var init_prismaNamespace = __esm({
+  "src/generated/prisma/internal/prismaNamespace.ts"() {
+    "use strict";
+    getExtensionContext = runtime2.Extensions.getExtensionContext;
+    NullTypes2 = {
+      DbNull: runtime2.NullTypes.DbNull,
+      JsonNull: runtime2.NullTypes.JsonNull,
+      AnyNull: runtime2.NullTypes.AnyNull
+    };
+    TransactionIsolationLevel = runtime2.makeStrictEnum({
+      Serializable: "Serializable"
+    });
+    defineExtension = runtime2.Extensions.defineExtension;
+  }
 });
-var defineExtension = runtime2.Extensions.defineExtension;
+
+// src/generated/prisma/enums.ts
+var init_enums = __esm({
+  "src/generated/prisma/enums.ts"() {
+    "use strict";
+  }
+});
 
 // src/generated/prisma/client.ts
-globalThis["__dirname"] = path.dirname(fileURLToPath(import.meta.url));
-var PrismaClient = getPrismaClientClass();
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+var PrismaClient;
+var init_client = __esm({
+  "src/generated/prisma/client.ts"() {
+    "use strict";
+    init_class();
+    init_prismaNamespace();
+    init_enums();
+    init_enums();
+    globalThis["__dirname"] = path.dirname(fileURLToPath(import.meta.url));
+    PrismaClient = getPrismaClientClass();
+  }
+});
 
 // src/lib/db.ts
+import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
-var globalForPrisma = globalThis;
-var rawDbUrl = process.env.DATABASE_URL || "file:./dev.db";
-var isPostgres = rawDbUrl.startsWith("postgres://") || rawDbUrl.startsWith("postgresql://");
-var adapter;
-if (isPostgres) {
-  const pool = globalForPrisma.pgPool ?? new pg.Pool({ connectionString: rawDbUrl });
-  if (process.env.NODE_ENV !== "production") globalForPrisma.pgPool = pool;
-  adapter = new PrismaPg(pool);
-} else {
-  const cleanUrl = rawDbUrl.replace(/([?&])connection_limit=\d+(&?)/, "$1").replace(/[?&]$/, "");
-  adapter = new PrismaLibSql({
-    url: cleanUrl
-  });
-}
-var prisma = globalForPrisma.prisma ?? new PrismaClient({
-  adapter,
-  log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
-});
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 function getEnvironmentClassification() {
   if (process.env.NODE_ENV === "production") {
     if (process.env.RENDER_GIT_BRANCH === "staging" || process.env.STAGE === "staging") {
@@ -146,8 +156,945 @@ async function validateDatabaseConnectivity() {
     };
   }
 }
+var globalForPrisma, rawDbUrl, isPostgres, adapter, prisma;
+var init_db = __esm({
+  "src/lib/db.ts"() {
+    "use strict";
+    init_client();
+    globalForPrisma = globalThis;
+    rawDbUrl = process.env.DATABASE_URL || "file:./dev.db";
+    isPostgres = rawDbUrl.startsWith("postgres://") || rawDbUrl.startsWith("postgresql://");
+    if (isPostgres) {
+      const pool = globalForPrisma.pgPool ?? new pg.Pool({ connectionString: rawDbUrl });
+      if (process.env.NODE_ENV !== "production") globalForPrisma.pgPool = pool;
+      adapter = new PrismaPg(pool);
+    } else {
+      const cleanUrl = rawDbUrl.replace(/([?&])connection_limit=\d+(&?)/, "$1").replace(/[?&]$/, "");
+      adapter = new PrismaLibSql({
+        url: cleanUrl
+      });
+    }
+    prisma = globalForPrisma.prisma ?? new PrismaClient({
+      adapter,
+      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
+    });
+    if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+  }
+});
+
+// src/storage/adapters/LocalFallbackStorageProvider.ts
+import { promises as fs } from "node:fs";
+import { existsSync } from "node:fs";
+import * as path2 from "node:path";
+import * as crypto from "node:crypto";
+var LocalFallbackStorageProvider;
+var init_LocalFallbackStorageProvider = __esm({
+  "src/storage/adapters/LocalFallbackStorageProvider.ts"() {
+    "use strict";
+    LocalFallbackStorageProvider = class {
+      name = "Local Durable Filesystem Provider";
+      type = "LOCAL_DURABLE";
+      rootDir;
+      constructor(customPath) {
+        this.rootDir = customPath || process.env.STORAGE_LOCAL_ROOT || path2.join(process.cwd(), "data", "cloud_storage");
+      }
+      isConfigured() {
+        return true;
+      }
+      resolvePath(bucket, key) {
+        const sanitizedBucket = bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+        const sanitizedKey = key.replace(/\\/g, "/").replace(/\.\./g, "");
+        return path2.join(this.rootDir, sanitizedBucket, sanitizedKey);
+      }
+      async putObject(bucket, key, data, contentType = "application/octet-stream", metadata) {
+        const filePath = this.resolvePath(bucket, key);
+        const dir = path2.dirname(filePath);
+        await fs.mkdir(dir, { recursive: true });
+        const buffer = Buffer.isBuffer(data) ? data : typeof data === "string" ? Buffer.from(data, "utf-8") : Buffer.from(data);
+        const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+        await fs.writeFile(filePath, buffer);
+        const stat = await fs.stat(filePath);
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        const meta = {
+          key,
+          sizeBytes: stat.size,
+          contentType,
+          etag: hash,
+          createdAt: stat.birthtime.toISOString() || nowIso,
+          lastModified: stat.mtime.toISOString() || nowIso,
+          customMetadata: metadata
+        };
+        const metaPath = `${filePath}.meta.json`;
+        await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+        return meta;
+      }
+      async getObject(bucket, key) {
+        const filePath = this.resolvePath(bucket, key);
+        if (!existsSync(filePath)) {
+          return null;
+        }
+        return fs.readFile(filePath);
+      }
+      async deleteObject(bucket, key) {
+        const filePath = this.resolvePath(bucket, key);
+        if (!existsSync(filePath)) {
+          return false;
+        }
+        await fs.unlink(filePath);
+        const metaPath = `${filePath}.meta.json`;
+        if (existsSync(metaPath)) {
+          await fs.unlink(metaPath).catch(() => {
+          });
+        }
+        return true;
+      }
+      async listObjects(bucket, prefix = "") {
+        const bucketDir = path2.join(this.rootDir, bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_"));
+        if (!existsSync(bucketDir)) {
+          return [];
+        }
+        const results = [];
+        const scanDir = async (currentDir, relBase = "") => {
+          const entries = await fs.readdir(currentDir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.name.endsWith(".meta.json")) continue;
+            const fullPath = path2.join(currentDir, entry.name);
+            const relPath = path2.join(relBase, entry.name).replace(/\\/g, "/");
+            if (entry.isDirectory()) {
+              await scanDir(fullPath, relPath);
+            } else if (entry.isFile()) {
+              if (!prefix || relPath.startsWith(prefix)) {
+                const stat = await fs.stat(fullPath);
+                let meta = null;
+                const metaPath = `${fullPath}.meta.json`;
+                if (existsSync(metaPath)) {
+                  try {
+                    meta = JSON.parse(await fs.readFile(metaPath, "utf-8"));
+                  } catch (_) {
+                  }
+                }
+                if (!meta) {
+                  meta = {
+                    key: relPath,
+                    sizeBytes: stat.size,
+                    contentType: "application/octet-stream",
+                    etag: "local-" + stat.mtimeMs,
+                    createdAt: stat.birthtime.toISOString(),
+                    lastModified: stat.mtime.toISOString()
+                  };
+                }
+                results.push(meta);
+              }
+            }
+          }
+        };
+        await scanDir(bucketDir);
+        return results;
+      }
+      async getHealth() {
+        const start = Date.now();
+        try {
+          await fs.mkdir(this.rootDir, { recursive: true });
+          const testFile = path2.join(this.rootDir, ".health_probe");
+          await fs.writeFile(testFile, "JARVIS_PROBE", "utf-8");
+          await fs.unlink(testFile);
+          const latencyMs = Date.now() - start;
+          return {
+            healthy: true,
+            provider: this.type,
+            latencyMs,
+            bucketOrRoot: this.rootDir
+          };
+        } catch (err) {
+          return {
+            healthy: false,
+            provider: this.type,
+            latencyMs: Date.now() - start,
+            bucketOrRoot: this.rootDir,
+            error: err?.message || String(err)
+          };
+        }
+      }
+    };
+  }
+});
+
+// src/storage/adapters/S3StorageProvider.ts
+import * as crypto2 from "node:crypto";
+var S3StorageProvider;
+var init_S3StorageProvider = __esm({
+  "src/storage/adapters/S3StorageProvider.ts"() {
+    "use strict";
+    S3StorageProvider = class {
+      name = "S3-Compatible Cloud Storage Provider (5TB Capable)";
+      type = "S3_COMPATIBLE";
+      config;
+      constructor(customConfig) {
+        this.config = {
+          endpoint: customConfig?.endpoint || process.env.STORAGE_S3_ENDPOINT || process.env.AWS_ENDPOINT_URL || "",
+          bucket: customConfig?.bucket || process.env.STORAGE_S3_BUCKET || process.env.AWS_S3_BUCKET || "jarvis-5tb-vault",
+          accessKeyId: customConfig?.accessKeyId || process.env.STORAGE_S3_ACCESS_KEY || process.env.AWS_ACCESS_KEY_ID || "",
+          secretAccessKey: customConfig?.secretAccessKey || process.env.STORAGE_S3_SECRET_KEY || process.env.AWS_SECRET_ACCESS_KEY || "",
+          region: customConfig?.region || process.env.STORAGE_S3_REGION || process.env.AWS_REGION || "auto",
+          forcePathStyle: customConfig?.forcePathStyle ?? true
+        };
+      }
+      isConfigured() {
+        return Boolean(this.config.endpoint && this.config.accessKeyId && this.config.secretAccessKey);
+      }
+      getUrl(bucket, key) {
+        const ep = this.config.endpoint.replace(/\/$/, "");
+        const cleanKey = key.replace(/^\//, "");
+        if (this.config.forcePathStyle) {
+          return `${ep}/${bucket}/${cleanKey}`;
+        }
+        return `https://${bucket}.${ep.replace(/^https?:\/\//, "")}/${cleanKey}`;
+      }
+      /**
+       * Generates AWS SigV4 authorization headers
+       */
+      signRequest(method, urlStr, payload, contentType = "application/octet-stream", extraHeaders = {}) {
+        const url = new URL(urlStr);
+        const now = /* @__PURE__ */ new Date();
+        const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+        const dateStamp = amzDate.substring(0, 8);
+        const region = this.config.region || "us-east-1";
+        const service = "s3";
+        const payloadBuffer = Buffer.isBuffer(payload) ? payload : typeof payload === "string" ? Buffer.from(payload, "utf-8") : Buffer.from(payload);
+        const payloadHash = crypto2.createHash("sha256").update(payloadBuffer).digest("hex");
+        const headers = {
+          host: url.host,
+          "x-amz-date": amzDate,
+          "x-amz-content-sha256": payloadHash,
+          "content-type": contentType,
+          ...extraHeaders
+        };
+        const sortedHeaderKeys = Object.keys(headers).sort();
+        const canonicalHeaders = sortedHeaderKeys.map((k) => `${k.toLowerCase()}:${headers[k].trim()}
+`).join("");
+        const signedHeaders = sortedHeaderKeys.map((k) => k.toLowerCase()).join(";");
+        const canonicalUri = encodeURI(url.pathname);
+        const canonicalQuery = Array.from(url.searchParams.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
+        const canonicalRequest = [
+          method.toUpperCase(),
+          canonicalUri,
+          canonicalQuery,
+          canonicalHeaders,
+          signedHeaders,
+          payloadHash
+        ].join("\n");
+        const algorithm = "AWS4-HMAC-SHA256";
+        const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+        const stringToSign = [
+          algorithm,
+          amzDate,
+          credentialScope,
+          crypto2.createHash("sha256").update(canonicalRequest).digest("hex")
+        ].join("\n");
+        const kDate = crypto2.createHmac("sha256", `AWS4${this.config.secretAccessKey}`).update(dateStamp).digest();
+        const kRegion = crypto2.createHmac("sha256", kDate).update(region).digest();
+        const kService = crypto2.createHmac("sha256", kRegion).update(service).digest();
+        const kSigning = crypto2.createHmac("sha256", kService).update("aws4_request").digest();
+        const signature = crypto2.createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+        headers["Authorization"] = `${algorithm} Credential=${this.config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+        return headers;
+      }
+      async putObject(bucket, key, data, contentType = "application/octet-stream", metadata) {
+        if (!this.isConfigured()) {
+          throw new Error("S3StorageProvider is not configured with valid endpoint and keys.");
+        }
+        const url = this.getUrl(bucket, key);
+        const extraHeaders = {};
+        if (metadata) {
+          for (const [k, v] of Object.entries(metadata)) {
+            extraHeaders[`x-amz-meta-${k.toLowerCase()}`] = v;
+          }
+        }
+        const headers = this.signRequest("PUT", url, data, contentType, extraHeaders);
+        const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        const res = await fetch(url, {
+          method: "PUT",
+          headers,
+          body: buffer
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`S3 PUT failed with status ${res.status}: ${errText}`);
+        }
+        const etag = (res.headers.get("etag") || "").replace(/"/g, "");
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        return {
+          key,
+          sizeBytes: buffer.length,
+          contentType,
+          etag,
+          createdAt: nowIso,
+          lastModified: nowIso,
+          customMetadata: metadata
+        };
+      }
+      async getObject(bucket, key) {
+        if (!this.isConfigured()) return null;
+        const url = this.getUrl(bucket, key);
+        const headers = this.signRequest("GET", url, "");
+        const res = await fetch(url, { method: "GET", headers });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`S3 GET failed with status ${res.status}`);
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+      async deleteObject(bucket, key) {
+        if (!this.isConfigured()) return false;
+        const url = this.getUrl(bucket, key);
+        const headers = this.signRequest("DELETE", url, "");
+        const res = await fetch(url, { method: "DELETE", headers });
+        return res.ok || res.status === 204;
+      }
+      async listObjects(bucket, prefix = "") {
+        if (!this.isConfigured()) return [];
+        let url = this.getUrl(bucket, "");
+        if (prefix) {
+          url += `?prefix=${encodeURIComponent(prefix)}`;
+        }
+        const headers = this.signRequest("GET", url, "");
+        const res = await fetch(url, { method: "GET", headers });
+        if (!res.ok) return [];
+        const xml = await res.text();
+        const items = [];
+        const contentsMatches = xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g);
+        for (const match of contentsMatches) {
+          const block = match[1];
+          const key = block.match(/<Key>(.*?)<\/Key>/)?.[1] || "";
+          const sizeBytes = parseInt(block.match(/<Size>(\d+)<\/Size>/)?.[1] || "0", 10);
+          const etag = (block.match(/<ETag>(.*?)<\/ETag>/)?.[1] || "").replace(/"/g, "");
+          const lastModified = block.match(/<LastModified>(.*?)<\/LastModified>/)?.[1] || (/* @__PURE__ */ new Date()).toISOString();
+          if (key) {
+            items.push({
+              key,
+              sizeBytes,
+              contentType: "application/octet-stream",
+              etag,
+              createdAt: lastModified,
+              lastModified
+            });
+          }
+        }
+        return items;
+      }
+      async getHealth() {
+        const start = Date.now();
+        if (!this.isConfigured()) {
+          return {
+            healthy: false,
+            provider: this.type,
+            latencyMs: 0,
+            bucketOrRoot: this.config.bucket,
+            error: "S3 Credentials not configured (STORAGE_S3_ENDPOINT, ACCESS_KEY, SECRET_KEY missing)"
+          };
+        }
+        try {
+          const url = this.getUrl(this.config.bucket, "?max-keys=1");
+          const headers = this.signRequest("GET", url, "");
+          const res = await fetch(url, { method: "GET", headers });
+          const latencyMs = Date.now() - start;
+          return {
+            healthy: res.ok || res.status === 200,
+            provider: this.type,
+            latencyMs,
+            bucketOrRoot: `${this.config.endpoint}/${this.config.bucket}`,
+            error: res.ok ? void 0 : `Probe returned HTTP ${res.status}`
+          };
+        } catch (err) {
+          return {
+            healthy: false,
+            provider: this.type,
+            latencyMs: Date.now() - start,
+            bucketOrRoot: `${this.config.endpoint}/${this.config.bucket}`,
+            error: err?.message || String(err)
+          };
+        }
+      }
+    };
+  }
+});
+
+// src/storage/adapters/GoogleDriveStorageProvider.ts
+var GoogleDriveStorageProvider;
+var init_GoogleDriveStorageProvider = __esm({
+  "src/storage/adapters/GoogleDriveStorageProvider.ts"() {
+    "use strict";
+    GoogleDriveStorageProvider = class {
+      name = "Google Drive 5TB Cloud Storage Provider";
+      type = "GOOGLE_DRIVE";
+      config;
+      accessToken = null;
+      tokenExpiresAt = 0;
+      constructor(customConfig) {
+        this.config = {
+          clientId: customConfig?.clientId || process.env.GDRIVE_CLIENT_ID || "",
+          clientSecret: customConfig?.clientSecret || process.env.GDRIVE_CLIENT_SECRET || "",
+          refreshToken: customConfig?.refreshToken || process.env.GDRIVE_REFRESH_TOKEN || "",
+          apiKey: customConfig?.apiKey || process.env.GDRIVE_API_KEY || "",
+          rootFolderId: customConfig?.rootFolderId || process.env.GDRIVE_ROOT_FOLDER_ID || "root"
+        };
+      }
+      isConfigured() {
+        return Boolean(
+          this.config.clientId && this.config.clientSecret && this.config.refreshToken || this.config.apiKey
+        );
+      }
+      async getAccessToken() {
+        if (this.accessToken && Date.now() < this.tokenExpiresAt - 6e4) {
+          return this.accessToken;
+        }
+        if (!this.config.refreshToken || !this.config.clientId || !this.config.clientSecret) {
+          return null;
+        }
+        try {
+          const res = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: this.config.clientId,
+              client_secret: this.config.clientSecret,
+              refresh_token: this.config.refreshToken,
+              grant_type: "refresh_token"
+            }).toString()
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          this.accessToken = data.access_token;
+          this.tokenExpiresAt = Date.now() + (data.expires_in || 3600) * 1e3;
+          return this.accessToken;
+        } catch {
+          return null;
+        }
+      }
+      async putObject(bucket, key, data, contentType = "application/octet-stream", metadata) {
+        const token = await this.getAccessToken();
+        if (!token && !this.config.apiKey) {
+          throw new Error("Google Drive API not authenticated (Refresh token or API key required)");
+        }
+        const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        const boundary = "-------314159265358979323846";
+        const delimiter = `\r
+--${boundary}\r
+`;
+        const closeDelimiter = `\r
+--${boundary}--`;
+        const fileMetadata = {
+          name: `${bucket}_${key.replace(/\//g, "_")}`,
+          parents: [this.config.rootFolderId || "root"],
+          properties: metadata || {}
+        };
+        const multipartRequestBody = Buffer.concat([
+          Buffer.from(
+            delimiter + "Content-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(fileMetadata) + delimiter + `Content-Type: ${contentType}\r
+\r
+`
+          ),
+          buffer,
+          Buffer.from(closeDelimiter)
+        ]);
+        const uploadUrl = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+        const headers = {
+          "Content-Type": `multipart/related; boundary=${boundary}`
+        };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers,
+          body: multipartRequestBody
+        });
+        if (!res.ok) {
+          throw new Error(`Google Drive upload failed: ${res.statusText}`);
+        }
+        const fileRes = await res.json();
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        return {
+          key,
+          sizeBytes: buffer.length,
+          contentType,
+          etag: fileRes.id || "gdrive-" + Date.now(),
+          createdAt: nowIso,
+          lastModified: nowIso,
+          customMetadata: metadata
+        };
+      }
+      async getObject(bucket, key) {
+        const token = await this.getAccessToken();
+        if (!token && !this.config.apiKey) return null;
+        const fileName = `${bucket}_${key.replace(/\//g, "_")}`;
+        const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(fileName)}' and trashed=false`;
+        const headers = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const searchRes = await fetch(searchUrl, { headers });
+        if (!searchRes.ok) return null;
+        const searchData = await searchRes.json();
+        if (!searchData.files || searchData.files.length === 0) return null;
+        const fileId = searchData.files[0].id;
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        const downloadRes = await fetch(downloadUrl, { headers });
+        if (!downloadRes.ok) return null;
+        const arrayBuf = await downloadRes.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+      async deleteObject(bucket, key) {
+        const token = await this.getAccessToken();
+        if (!token) return false;
+        const fileName = `${bucket}_${key.replace(/\//g, "_")}`;
+        const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(fileName)}' and trashed=false`;
+        const headers = { Authorization: `Bearer ${token}` };
+        const searchRes = await fetch(searchUrl, { headers });
+        if (!searchRes.ok) return false;
+        const searchData = await searchRes.json();
+        if (!searchData.files || searchData.files.length === 0) return false;
+        const fileId = searchData.files[0].id;
+        const deleteRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+          method: "DELETE",
+          headers
+        });
+        return deleteRes.ok;
+      }
+      async listObjects(bucket, prefix = "") {
+        const token = await this.getAccessToken();
+        if (!token && !this.config.apiKey) return [];
+        const headers = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const searchUrl = `https://www.googleapis.com/drive/v3/files?pageSize=100&fields=files(id,name,size,mimeType,createdTime,modifiedTime)&trashed=false`;
+        const res = await fetch(searchUrl, { headers });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const items = [];
+        const bucketPrefix = `${bucket}_`;
+        for (const file of data.files || []) {
+          if (file.name.startsWith(bucketPrefix)) {
+            const key = file.name.substring(bucketPrefix.length);
+            if (!prefix || key.startsWith(prefix)) {
+              items.push({
+                key,
+                sizeBytes: parseInt(file.size || "0", 10),
+                contentType: file.mimeType || "application/octet-stream",
+                etag: file.id,
+                createdAt: file.createdTime || (/* @__PURE__ */ new Date()).toISOString(),
+                lastModified: file.modifiedTime || (/* @__PURE__ */ new Date()).toISOString()
+              });
+            }
+          }
+        }
+        return items;
+      }
+      async getHealth() {
+        const start = Date.now();
+        if (!this.isConfigured()) {
+          return {
+            healthy: false,
+            provider: this.type,
+            latencyMs: 0,
+            bucketOrRoot: this.config.rootFolderId || "gdrive_root",
+            error: "Google Drive not configured (GDRIVE_REFRESH_TOKEN or GDRIVE_API_KEY required)"
+          };
+        }
+        try {
+          const token = await this.getAccessToken();
+          const headers = {};
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+          const res = await fetch("https://www.googleapis.com/drive/v3/about?fields=storageQuota", { headers });
+          const latencyMs = Date.now() - start;
+          const data = await res.json();
+          return {
+            healthy: res.ok,
+            provider: this.type,
+            latencyMs,
+            bucketOrRoot: this.config.rootFolderId || "gdrive_root",
+            quotaBytes: parseInt(data?.storageQuota?.limit || "5497558138880", 10),
+            // ~5TB
+            usedBytes: parseInt(data?.storageQuota?.usage || "0", 10),
+            error: res.ok ? void 0 : `Google Drive returned ${res.statusText}`
+          };
+        } catch (err) {
+          return {
+            healthy: false,
+            provider: this.type,
+            latencyMs: Date.now() - start,
+            bucketOrRoot: this.config.rootFolderId || "gdrive_root",
+            error: err?.message || String(err)
+          };
+        }
+      }
+    };
+  }
+});
+
+// src/storage/StorageProvider.ts
+var StorageProvider_exports = {};
+__export(StorageProvider_exports, {
+  StorageProvider: () => StorageProvider
+});
+var StorageProvider;
+var init_StorageProvider = __esm({
+  "src/storage/StorageProvider.ts"() {
+    "use strict";
+    init_LocalFallbackStorageProvider();
+    init_S3StorageProvider();
+    init_GoogleDriveStorageProvider();
+    StorageProvider = class {
+      static instance = null;
+      static activeType = "LOCAL_DURABLE";
+      /**
+       * Initializes or gets the active 5TB storage provider based on environment credentials
+       */
+      static getProvider() {
+        if (this.instance) {
+          return this.instance;
+        }
+        const s3 = new S3StorageProvider();
+        if (s3.isConfigured()) {
+          console.log("\u{1F4E6} [StorageFabric] Detected and activated S3-Compatible 5TB Cloud Storage Provider");
+          this.instance = s3;
+          this.activeType = "S3_COMPATIBLE";
+          return this.instance;
+        }
+        const gdrive = new GoogleDriveStorageProvider();
+        if (gdrive.isConfigured()) {
+          console.log("\u{1F4E6} [StorageFabric] Detected and activated Google Drive 5TB Cloud Storage Provider");
+          this.instance = gdrive;
+          this.activeType = "GOOGLE_DRIVE";
+          return this.instance;
+        }
+        console.log("\u{1F4E6} [StorageFabric] Activating Local Durable Filesystem Storage Provider (warning: Render ephemeral warning in effect)");
+        this.instance = new LocalFallbackStorageProvider();
+        this.activeType = "LOCAL_DURABLE";
+        return this.instance;
+      }
+      /**
+       * Explicitly set provider for testing or custom multi-cloud tiering
+       */
+      static setProvider(provider) {
+        this.instance = provider;
+        this.activeType = provider.type;
+      }
+      static getActiveType() {
+        return this.activeType;
+      }
+      static async checkHealth() {
+        return this.getProvider().getHealth();
+      }
+    };
+  }
+});
+
+// src/storage/StorageMemoryStore.ts
+var StorageMemoryStore;
+var init_StorageMemoryStore = __esm({
+  "src/storage/StorageMemoryStore.ts"() {
+    "use strict";
+    init_StorageProvider();
+    StorageMemoryStore = class {
+      static BUCKET = "jarvis-memories";
+      static async putMemoryPayload(memoryId, data, metadata) {
+        const key = `records/${memoryId}.json`;
+        const provider = StorageProvider.getProvider();
+        return provider.putObject(this.BUCKET, key, data, "application/json", {
+          memoryId,
+          ...metadata
+        });
+      }
+      static async getMemoryPayload(memoryId) {
+        const key = `records/${memoryId}.json`;
+        const provider = StorageProvider.getProvider();
+        return provider.getObject(this.BUCKET, key);
+      }
+      static async deleteMemoryPayload(memoryId) {
+        const key = `records/${memoryId}.json`;
+        const provider = StorageProvider.getProvider();
+        return provider.deleteObject(this.BUCKET, key);
+      }
+    };
+  }
+});
+
+// src/memory/LayeredMemoryEngine.ts
+var LayeredMemoryEngine_exports = {};
+__export(LayeredMemoryEngine_exports, {
+  LayeredMemoryEngine: () => LayeredMemoryEngine
+});
+var LayeredMemoryEngine;
+var init_LayeredMemoryEngine = __esm({
+  "src/memory/LayeredMemoryEngine.ts"() {
+    "use strict";
+    init_db();
+    init_StorageMemoryStore();
+    LayeredMemoryEngine = class {
+      static workingMemory = /* @__PURE__ */ new Map();
+      // Keyed by taskId/threadId
+      static memoryCache = /* @__PURE__ */ new Map();
+      /**
+       * Stores a new memory entry across the appropriate layer.
+       * If content exceeds 4KB, the heavy body is offloaded to ObjectStore/StorageMemoryStore.
+       */
+      static async recordMemory(params) {
+        const id = `mem_${params.scope.toLowerCase()}_${Date.now()}_${Math.floor(Math.random() * 1e4)}`;
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        const provenance = {
+          creator: params.source,
+          chainOfCustody: [params.source],
+          ...params.provenance
+        };
+        let artifactKey;
+        let storedContent = params.content;
+        if (Buffer.byteLength(params.content, "utf-8") > 4096) {
+          const storageMeta = await StorageMemoryStore.putMemoryPayload(id, params.content, {
+            scope: params.scope,
+            truthType: params.truthType,
+            key: params.key
+          });
+          artifactKey = storageMeta.key;
+          storedContent = `[OFFLOADED_TO_OBJECT_STORE: ${artifactKey}] ${params.content.slice(0, 500)}...`;
+        }
+        const record = {
+          id,
+          scope: params.scope,
+          truthType: params.truthType,
+          key: params.key,
+          content: storedContent,
+          metadata: params.metadata,
+          source: params.source,
+          confidence: Math.max(0, Math.min(1, params.confidence)),
+          permissions: params.permissions || ["read:all"],
+          provenance,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          expiresAt: params.expiresAt,
+          artifactKey
+        };
+        if (params.scope === "WORKING") {
+          const taskKey = params.taskId || "global";
+          const existing = this.workingMemory.get(taskKey) || [];
+          existing.push(record);
+          this.workingMemory.set(taskKey, existing);
+          this.memoryCache.set(id, record);
+          return record;
+        }
+        this.memoryCache.set(id, record);
+        try {
+          await prisma.memory.create({
+            data: {
+              id,
+              content: record.content,
+              category: record.scope,
+              importance: Math.round(record.confidence * 10),
+              tags: `${record.truthType},${record.source}`,
+              metadata: JSON.stringify({
+                key: record.key,
+                truthType: record.truthType,
+                confidence: record.confidence,
+                permissions: record.permissions,
+                provenance: record.provenance,
+                expiresAt: record.expiresAt,
+                artifactKey: record.artifactKey,
+                custom: record.metadata
+              })
+            }
+          });
+        } catch (err) {
+          console.warn(`\u26A0\uFE0F [LayeredMemoryEngine] Failed to persist memory to database (cached in RAM):`, err);
+        }
+        return record;
+      }
+      // --- Epistemic Helpers ---
+      static async recordFact(scope, key, content, source, verifiedBy, metadata) {
+        return this.recordMemory({
+          scope,
+          truthType: "FACT",
+          key,
+          content,
+          source,
+          confidence: 1,
+          provenance: {
+            creator: source,
+            verifiedBy,
+            verifiedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            chainOfCustody: [source, verifiedBy]
+          },
+          metadata
+        });
+      }
+      static async recordInference(scope, key, content, source, confidence, metadata) {
+        return this.recordMemory({
+          scope,
+          truthType: "INFERENCE",
+          key,
+          content,
+          source,
+          confidence,
+          metadata
+        });
+      }
+      static async recordUserPreference(key, content, metadata) {
+        return this.recordMemory({
+          scope: "USER_PREFERENCE",
+          truthType: "USER_PREFERENCE",
+          key,
+          content,
+          source: "Master Sri Explicit Directive",
+          confidence: 1,
+          metadata
+        });
+      }
+      static async recordTemporaryContext(key, content, source, ttlSeconds = 3600) {
+        const expiresAt = new Date(Date.now() + ttlSeconds * 1e3).toISOString();
+        return this.recordMemory({
+          scope: "WORKING",
+          truthType: "TEMPORARY_CONTEXT",
+          key,
+          content,
+          source,
+          confidence: 0.8,
+          expiresAt
+        });
+      }
+      static async recordUnverifiedInfo(scope, key, content, source, metadata) {
+        return this.recordMemory({
+          scope,
+          truthType: "UNVERIFIED_INFORMATION",
+          key,
+          content,
+          source,
+          confidence: 0.3,
+          metadata
+        });
+      }
+      /**
+       * Promotes an inference or unverified info into an established FACT after empirical validation
+       */
+      static async verifyMemory(memoryId, verifier) {
+        const record = this.memoryCache.get(memoryId);
+        if (!record) return null;
+        record.truthType = "FACT";
+        record.confidence = 1;
+        record.provenance.verifiedBy = verifier;
+        record.provenance.verifiedAt = (/* @__PURE__ */ new Date()).toISOString();
+        record.provenance.chainOfCustody.push(verifier);
+        record.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+        try {
+          await prisma.memory.update({
+            where: { id: memoryId },
+            data: {
+              tags: `FACT,${record.source}`,
+              importance: 10,
+              metadata: JSON.stringify({
+                key: record.key,
+                truthType: "FACT",
+                confidence: 1,
+                permissions: record.permissions,
+                provenance: record.provenance,
+                expiresAt: record.expiresAt,
+                artifactKey: record.artifactKey,
+                custom: record.metadata
+              })
+            }
+          });
+        } catch (_) {
+        }
+        return record;
+      }
+      /**
+       * Search layered memory across Working, Session, and Persistent planes
+       */
+      static async search(query) {
+        const { scope, truthType, query: searchText, limit = 10, minConfidence = 0.4, includeExpired = false } = query;
+        const nowMs = Date.now();
+        const tokens = searchText.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+        const candidates = Array.from(this.memoryCache.values());
+        const filtered = candidates.filter((mem) => {
+          if (scope && mem.scope !== scope) return false;
+          if (truthType && mem.truthType !== truthType) return false;
+          if (mem.confidence < minConfidence) return false;
+          if (!includeExpired && mem.expiresAt && new Date(mem.expiresAt).getTime() < nowMs) return false;
+          return true;
+        });
+        const scored = filtered.map((mem) => {
+          const text = `${mem.key} ${mem.content}`.toLowerCase();
+          let matchCount = 0;
+          for (const t of tokens) {
+            if (text.includes(t)) matchCount++;
+          }
+          const score = tokens.length === 0 ? 1 : matchCount / tokens.length;
+          return { mem, score };
+        });
+        scored.sort((a, b) => b.score - a.score || b.mem.confidence - a.mem.confidence);
+        return scored.slice(0, limit).map((s) => s.mem);
+      }
+      /**
+       * Retrieve full content (including from ObjectStore if offloaded)
+       */
+      static async getFullContent(memoryId) {
+        const mem = this.memoryCache.get(memoryId);
+        if (!mem) return null;
+        if (mem.artifactKey) {
+          const payload = await StorageMemoryStore.getMemoryPayload(memoryId);
+          if (payload) return payload.toString("utf-8");
+        }
+        return mem.content;
+      }
+      /**
+       * Wipe working memory for a task upon completion
+       */
+      static clearWorkingMemory(taskId) {
+        const working = this.workingMemory.get(taskId) || [];
+        for (const mem of working) {
+          this.memoryCache.delete(mem.id);
+        }
+        this.workingMemory.delete(taskId);
+      }
+    };
+  }
+});
+
+// src/storage/ObjectStore.ts
+var ObjectStore_exports = {};
+__export(ObjectStore_exports, {
+  ObjectStore: () => ObjectStore
+});
+var ObjectStore;
+var init_ObjectStore = __esm({
+  "src/storage/ObjectStore.ts"() {
+    "use strict";
+    init_StorageProvider();
+    ObjectStore = class {
+      static BUCKET = "jarvis-objects";
+      static async put(key, data, contentType = "application/octet-stream", metadata) {
+        const provider = StorageProvider.getProvider();
+        return provider.putObject(this.BUCKET, key, data, contentType, metadata);
+      }
+      static async get(key) {
+        const provider = StorageProvider.getProvider();
+        return provider.getObject(this.BUCKET, key);
+      }
+      static async delete(key) {
+        const provider = StorageProvider.getProvider();
+        return provider.deleteObject(this.BUCKET, key);
+      }
+      static async list(prefix = "") {
+        const provider = StorageProvider.getProvider();
+        return provider.listObjects(this.BUCKET, prefix);
+      }
+    };
+  }
+});
+
+// server.tsx
+import { Hono as Hono2 } from "hono";
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { existsSync as existsSync6, readFileSync as readFileSync3 } from "node:fs";
+import { join as join6 } from "node:path";
 
 // src/lib/task-engine.ts
+init_db();
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 var execAsync = promisify(exec);
 var AGENT_REGISTRY = {
   jarvis: {
@@ -599,6 +1546,7 @@ Self-healing audit verified: Workspace AST verified clean and stable.`;
 };
 
 // src/lib/ensure-db.ts
+init_db();
 async function ensureDatabaseTables() {
   const ddlStatements = [
     `CREATE TABLE IF NOT EXISTS users (
@@ -1614,6 +2562,9 @@ ${revRes.text}`;
 // custom-routes.ts
 import { streamSSE } from "hono/streaming";
 
+// src/kernel/TaskStore.ts
+init_db();
+
 // src/kernel/ExecutionKernel.ts
 var ExecutionKernel = class {
   static tools = /* @__PURE__ */ new Map();
@@ -2086,6 +3037,7 @@ var TaskStore = class {
 };
 
 // src/kernel/CrashRecovery.ts
+init_db();
 var CrashRecovery = class {
   /**
    * Run full boot-time recovery audit of all in-flight tasks
@@ -3331,6 +4283,7 @@ var ModelRouter = class {
 };
 
 // src/memory/MemoryStore.ts
+init_LayeredMemoryEngine();
 var MemoryStore = class {
   static memories = /* @__PURE__ */ new Map();
   /**
@@ -3340,20 +4293,43 @@ var MemoryStore = class {
     const id = entry.id || `mem_${entry.scope.toLowerCase()}_${Date.now()}_${Math.floor(Math.random() * 1e3)}`;
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const existing = this.memories.get(id);
+    const truthType = entry.truthType || (entry.scope === "USER_PREFERENCE" ? "USER_PREFERENCE" : "FACT");
+    const permissions = entry.permissions || ["read:all"];
+    const provenance = {
+      creator: entry.source || "JARVIS_CORE",
+      chainOfCustody: [entry.source || "JARVIS_CORE"],
+      ...entry.provenance
+    };
     const record = {
       ...entry,
       id,
+      truthType,
+      permissions,
+      provenance,
       createdAt: existing ? existing.createdAt : now,
       updatedAt: now
     };
     this.memories.set(id, record);
+    LayeredMemoryEngine.recordMemory({
+      scope: record.scope,
+      truthType: record.truthType,
+      key: record.key,
+      content: record.content,
+      source: record.source,
+      confidence: record.confidence,
+      permissions: record.permissions,
+      provenance: record.provenance,
+      metadata: record.metadata,
+      expiresAt: record.expiresAt
+    }).catch(() => {
+    });
     return record;
   }
   /**
    * Search memory with scope isolation, confidence filtering, and expiration checks
    */
   static search(searchQuery) {
-    const { scope, query, limit = 10, minConfidence = 0.5 } = searchQuery;
+    const { scope, truthType, query, limit = 10, minConfidence = 0.5, includeExpired = false } = searchQuery;
     const now = (/* @__PURE__ */ new Date()).getTime();
     const queryTokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
     const results = [];
@@ -3361,10 +4337,13 @@ var MemoryStore = class {
       if (scope && record.scope !== scope) {
         continue;
       }
+      if (truthType && record.truthType !== truthType) {
+        continue;
+      }
       if (record.confidence < minConfidence) {
         continue;
       }
-      if (record.expiresAt && new Date(record.expiresAt).getTime() < now) {
+      if (!includeExpired && record.expiresAt && new Date(record.expiresAt).getTime() < now) {
         continue;
       }
       const contentLower = `${record.key} ${record.content}`.toLowerCase();
@@ -3388,6 +4367,7 @@ var MemoryStore = class {
   static recordFailureFix(failureSignature, fixResolution, metadata) {
     return this.store({
       scope: "FAILURE",
+      truthType: "FACT",
       key: failureSignature,
       content: fixResolution,
       source: "SelfRepairEngine",
@@ -3403,29 +4383,23 @@ var MemoryStore = class {
       scope: "FAILURE",
       query: failureSignature,
       limit: 1,
-      minConfidence: 0.7
+      minConfidence: 0.8
     });
     return matches[0];
   }
   /**
-   * Set user preference in USER memory plane
+   * Record verified skill or solution recipe
    */
-  static setUserPreference(key, value) {
+  static recordSkill(skillName, recipe, tags = []) {
     return this.store({
-      id: `pref_${key}`,
-      scope: "USER",
-      key,
-      content: value,
-      source: "UserDirective",
-      confidence: 1
+      scope: "SKILL",
+      truthType: "FACT",
+      key: skillName,
+      content: recipe,
+      source: "SystemSkillLearner",
+      confidence: 1,
+      metadata: { tags }
     });
-  }
-  static getUserPreference(key) {
-    const record = this.memories.get(`pref_${key}`);
-    return record?.content;
-  }
-  static clear() {
-    this.memories.clear();
   }
 };
 
@@ -4087,8 +5061,8 @@ var MissionOrchestrator = class {
 };
 
 // src/tools/ToolRegistry.ts
-import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from "node:fs";
-import { resolve, dirname as dirname2 } from "node:path";
+import { existsSync as existsSync2, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from "node:fs";
+import { resolve, dirname as dirname3 } from "node:path";
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify3 } from "node:util";
 import os from "node:os";
@@ -4133,7 +5107,7 @@ var ToolRegistry = class {
         if (!filePath.startsWith(cwd)) {
           return { tool: "filesystem_read", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
         }
-        if (!existsSync(filePath)) {
+        if (!existsSync2(filePath)) {
           return { tool: "filesystem_read", success: false, output: null, error: `File not found: ${args.path}` };
         }
         const content = readFileSync(filePath, "utf-8");
@@ -4167,8 +5141,8 @@ var ToolRegistry = class {
         if (!filePath.startsWith(cwd)) {
           return { tool: "filesystem_write", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
         }
-        const parent = dirname2(filePath);
-        if (!existsSync(parent)) {
+        const parent = dirname3(filePath);
+        if (!existsSync2(parent)) {
           mkdirSync(parent, { recursive: true });
         }
         writeFileSync(filePath, args.content, "utf-8");
@@ -4201,7 +5175,7 @@ var ToolRegistry = class {
         if (!dirPath.startsWith(cwd)) {
           return { tool: "filesystem_list", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
         }
-        if (!existsSync(dirPath)) {
+        if (!existsSync2(dirPath)) {
           return { tool: "filesystem_list", success: false, output: null, error: `Directory not found: ${args.path}` };
         }
         const entries = readdirSync(dirPath).map((entry) => {
@@ -5419,16 +6393,18 @@ var CapabilityRegistry = class {
 };
 
 // custom-routes.ts
+init_db();
 import { createShogoLlmProvider } from "@shogo-ai/sdk";
 import { generateText } from "ai";
 
 // src/infrastructure/CloudInfrastructureManager.ts
-import * as fs from "fs";
-import * as path2 from "path";
+init_db();
+import * as fs2 from "fs";
+import * as path3 from "path";
 var CloudInfrastructureManager = class {
   static startTime = Date.now();
   static lastSnapshot = null;
-  static snapshotDir = path2.resolve(process.cwd(), "data", "backups");
+  static snapshotDir = path3.resolve(process.cwd(), "data", "backups");
   static async getInfrastructureStatus() {
     const connCheck = await validateDatabaseConnectivity();
     const isPostgres2 = connCheck.provider === "postgresql";
@@ -5457,12 +6433,12 @@ var CloudInfrastructureManager = class {
   }
   static async createStorageSnapshot() {
     try {
-      if (!fs.existsSync(this.snapshotDir)) {
-        fs.mkdirSync(this.snapshotDir, { recursive: true });
+      if (!fs2.existsSync(this.snapshotDir)) {
+        fs2.mkdirSync(this.snapshotDir, { recursive: true });
       }
       const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
       const filename = `snapshot-${timestamp}.json`;
-      const snapshotPath = path2.join(this.snapshotDir, filename);
+      const snapshotPath = path3.join(this.snapshotDir, filename);
       const dbStatus = await validateDatabaseConnectivity();
       const snapshotPayload = {
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -5472,7 +6448,7 @@ var CloudInfrastructureManager = class {
         environment: process.env.NODE_ENV || "production",
         snapshotId: `snap_${Date.now()}`
       };
-      fs.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
+      fs2.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
       this.lastSnapshot = snapshotPayload.timestamp;
       return {
         success: true,
@@ -5488,7 +6464,7 @@ var CloudInfrastructureManager = class {
 };
 
 // src/workers/WorkerFabric.ts
-import * as crypto from "crypto";
+import * as crypto3 from "crypto";
 var WorkerFabric = class {
   static nodes = /* @__PURE__ */ new Map();
   static activeAssignments = /* @__PURE__ */ new Map();
@@ -5540,7 +6516,7 @@ var WorkerFabric = class {
   }
   static generateCapabilityToken(workerId, taskId, capability) {
     const payload = `${workerId}:${taskId}:${capability}:${Date.now()}`;
-    const hmac = crypto.createHmac("sha256", this.hmacSecret).update(payload).digest("hex");
+    const hmac = crypto3.createHmac("sha256", this.hmacSecret).update(payload).digest("hex");
     return `cap_${Buffer.from(payload).toString("base64url")}.${hmac}`;
   }
   static verifyCapabilityToken(token) {
@@ -5548,7 +6524,7 @@ var WorkerFabric = class {
       const [b64Payload, hmac] = token.replace("cap_", "").split(".");
       if (!b64Payload || !hmac) return { valid: false };
       const payload = Buffer.from(b64Payload, "base64url").toString("utf-8");
-      const expectedHmac = crypto.createHmac("sha256", this.hmacSecret).update(payload).digest("hex");
+      const expectedHmac = crypto3.createHmac("sha256", this.hmacSecret).update(payload).digest("hex");
       if (hmac !== expectedHmac) return { valid: false };
       const [workerId, taskId, capability] = payload.split(":");
       return { valid: true, workerId, taskId, capability };
@@ -5703,7 +6679,7 @@ var ConversationOS = class {
 };
 
 // src/council/AgentCouncil.ts
-import * as crypto2 from "crypto";
+import * as crypto4 from "crypto";
 var AgentCouncil = class {
   static coreCouncilMembers = [
     "jarvis",
@@ -5764,7 +6740,7 @@ var AgentCouncil = class {
       synthesizedPlan = `COUNCIL VETOED / REJECTED: [${topic}]. Dissenting objections: ${rejectingReasons}. Execution halted for safety.`;
     }
     const auditPayload = JSON.stringify({ sessionId, topic, votes, consensusReached });
-    const auditHash = crypto2.createHash("sha256").update(auditPayload).digest("hex");
+    const auditHash = crypto4.createHash("sha256").update(auditPayload).digest("hex");
     return {
       councilSessionId: sessionId,
       topic,
@@ -5781,13 +6757,13 @@ var AgentCouncil = class {
 };
 
 // src/browser/AdvancedComputerUse.ts
-import * as path3 from "path";
+import * as path4 from "path";
 var AdvancedComputerUse = class {
-  static workspaceRoot = path3.resolve(process.cwd());
+  static workspaceRoot = path4.resolve(process.cwd());
   static async executeAction(request) {
     const start = Date.now();
     if (request.targetPath) {
-      const resolved = path3.resolve(request.targetPath);
+      const resolved = path4.resolve(request.targetPath);
       if (!resolved.startsWith(this.workspaceRoot)) {
         return {
           success: false,
@@ -5875,6 +6851,7 @@ var AdvancedComputerUse = class {
 };
 
 // src/repair/SelfDiagnosisEngine.ts
+init_db();
 var SelfDiagnosisEngine = class {
   static async runFullSystemDiagnosis() {
     const anomalies = [];
@@ -6226,13 +7203,13 @@ var LongRunningRuntime = class {
 };
 
 // src/infrastructure/DisasterRecoveryManager.ts
-import * as fs2 from "fs";
-import * as path4 from "path";
+import * as fs3 from "fs";
+import * as path5 from "path";
 var DisasterRecoveryManager = class {
-  static recoveryDir = path4.resolve(process.cwd(), "data", "recovery");
+  static recoveryDir = path5.resolve(process.cwd(), "data", "recovery");
   static async generateEmergencyRecoveryManifest(activeTasksCount = 0) {
-    if (!fs2.existsSync(this.recoveryDir)) {
-      fs2.mkdirSync(this.recoveryDir, { recursive: true });
+    if (!fs3.existsSync(this.recoveryDir)) {
+      fs3.mkdirSync(this.recoveryDir, { recursive: true });
     }
     const manifestId = `rec_${Date.now()}`;
     const manifest = {
@@ -6243,8 +7220,8 @@ var DisasterRecoveryManager = class {
       integrityHash: `sha256_${Date.now()}_clean`,
       recoveryStatus: "VERIFIED_RESTORABLE"
     };
-    const filePath = path4.join(this.recoveryDir, `${manifestId}.json`);
-    fs2.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
+    const filePath = path5.join(this.recoveryDir, `${manifestId}.json`);
+    fs3.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
     return manifest;
   }
   static async verifyRecoveryRestorability(manifest) {
@@ -6267,8 +7244,8 @@ var DisasterRecoveryManager = class {
 };
 
 // custom-routes.ts
-import { readFileSync as readFileSync2, writeFileSync as writeFileSync4, existsSync as existsSync4, chmodSync } from "fs";
-import { join as join4 } from "path";
+import { readFileSync as readFileSync2, writeFileSync as writeFileSync4, existsSync as existsSync5, chmodSync } from "fs";
+import { join as join5 } from "path";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -6278,9 +7255,9 @@ import { getServerToolsClient } from "@shogo-ai/sdk/tools";
 function loadJwtSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
   if (process.env.RUNTIME_AUTH_SECRET) return process.env.RUNTIME_AUTH_SECRET;
-  const secretFile = join4(process.cwd(), ".jarvis-secret");
+  const secretFile = join5(process.cwd(), ".jarvis-secret");
   try {
-    if (existsSync4(secretFile)) {
+    if (existsSync5(secretFile)) {
       const stored = readFileSync2(secretFile, "utf8").trim();
       if (stored.length >= 32) return stored;
     }
@@ -6383,9 +7360,9 @@ var JWT_SECRET = loadJwtSecret();
 var BCRYPT_ROUNDS = 12;
 function loadInviteCode() {
   if (process.env.JARVIS_INVITE_CODE) return process.env.JARVIS_INVITE_CODE;
-  const inviteFile = join4(process.cwd(), ".jarvis-invite");
+  const inviteFile = join5(process.cwd(), ".jarvis-invite");
   try {
-    if (existsSync4(inviteFile)) {
+    if (existsSync5(inviteFile)) {
       const stored = readFileSync2(inviteFile, "utf8").trim();
       if (stored.length >= 8) return stored;
     }
@@ -8571,53 +9548,53 @@ app.get("/voice/speak", async (c) => {
     const rawText = c.req.query("text") || "At your command, Sovereign Master Sri.";
     const clean = rawText.replace(/`[\s\S]*?`/g, "Code block generated.").replace(/[*_#~>]/g, "").replace(/https?:\/\/[^\s]+/g, "link provided.").replace(/\{[\s\S]*?\}/g, "").slice(0, 3e3).trim();
     const lang = c.req.query("lang") || "en-GB";
-    const audioDir = join4(process.cwd(), "public", "audio");
+    const audioDir = join5(process.cwd(), "public", "audio");
     let staticFile = null;
     if (clean.includes("greetings and welcome back") || clean.includes("Master Sri, greetings")) {
-      staticFile = join4(process.cwd(), "public", "welcome.mp3");
+      staticFile = join5(process.cwd(), "public", "welcome.mp3");
     } else if (clean.includes("J.A.R.V.I.S. Grand Marshal core reporting") || clean.includes("commanding the subordinate") || clean.includes("commanding the supreme intelligence swarm")) {
-      staticFile = join4(audioDir, "rollcall_jarvis.mp3");
+      staticFile = join5(audioDir, "rollcall_jarvis.mp3");
     } else if (clean.includes("I am Aegis")) {
-      staticFile = join4(audioDir, "rollcall_aegis.mp3");
+      staticFile = join5(audioDir, "rollcall_aegis.mp3");
     } else if (clean.includes("I am Vortex")) {
-      staticFile = join4(audioDir, "rollcall_vortex.mp3");
+      staticFile = join5(audioDir, "rollcall_vortex.mp3");
     } else if (clean.includes("I am Midas")) {
-      staticFile = join4(audioDir, "rollcall_midas.mp3");
+      staticFile = join5(audioDir, "rollcall_midas.mp3");
     } else if (clean.includes("I am Cerebro")) {
-      staticFile = join4(audioDir, "rollcall_cerebro.mp3");
+      staticFile = join5(audioDir, "rollcall_cerebro.mp3");
     } else if (clean.includes("I am Stark OS")) {
-      staticFile = join4(audioDir, "rollcall_stark.mp3");
+      staticFile = join5(audioDir, "rollcall_stark.mp3");
     } else if (clean.includes("I am DeepSeek")) {
-      staticFile = join4(audioDir, "rollcall_deepseek.mp3");
+      staticFile = join5(audioDir, "rollcall_deepseek.mp3");
     } else if (clean.includes("I am AutoGen")) {
-      staticFile = join4(audioDir, "rollcall_autogen.mp3");
+      staticFile = join5(audioDir, "rollcall_autogen.mp3");
     } else if (clean.includes("I am CrewAI")) {
-      staticFile = join4(audioDir, "rollcall_crewai.mp3");
+      staticFile = join5(audioDir, "rollcall_crewai.mp3");
     } else if (clean.includes("I am Browser-Use")) {
-      staticFile = join4(audioDir, "rollcall_browser_use.mp3");
+      staticFile = join5(audioDir, "rollcall_browser_use.mp3");
     } else if (clean.includes("I am MetaGPT")) {
-      staticFile = join4(audioDir, "rollcall_metagpt.mp3");
+      staticFile = join5(audioDir, "rollcall_metagpt.mp3");
     } else if (clean.includes("I am Agent Foundry")) {
-      staticFile = join4(audioDir, "rollcall_foundry.mp3");
+      staticFile = join5(audioDir, "rollcall_foundry.mp3");
     } else if (clean.includes("I am OpenHands")) {
-      staticFile = join4(audioDir, "rollcall_openhands.mp3");
+      staticFile = join5(audioDir, "rollcall_openhands.mp3");
     } else if (clean.includes("I am Smolagents")) {
-      staticFile = join4(audioDir, "rollcall_smolagent.mp3");
+      staticFile = join5(audioDir, "rollcall_smolagent.mp3");
     } else if (clean.includes("I am CAMEL")) {
-      staticFile = join4(audioDir, "rollcall_camel.mp3");
+      staticFile = join5(audioDir, "rollcall_camel.mp3");
     } else if (clean.includes("I am LangGraph")) {
-      staticFile = join4(audioDir, "rollcall_langgraph.mp3");
+      staticFile = join5(audioDir, "rollcall_langgraph.mp3");
     } else if (clean.includes("all 16 Sovereign Agents are fully armed") || clean.includes("all agents are live, synchronized") || clean.includes("all 16 Sovereign Agents")) {
-      staticFile = join4(audioDir, "rollcall_conclusion.mp3");
+      staticFile = join5(audioDir, "rollcall_conclusion.mp3");
     }
-    if (staticFile && existsSync4(staticFile)) {
+    if (staticFile && existsSync5(staticFile)) {
       c.header("Content-Type", "audio/mpeg");
       c.header("Cache-Control", "public, max-age=86400");
       return c.body(readFileSync2(staticFile));
     }
     try {
       const { execFileSync } = await import("node:child_process");
-      const scriptPath = join4(process.cwd(), "scripts", "neural-tts.py");
+      const scriptPath = join5(process.cwd(), "scripts", "neural-tts.py");
       const pyBin = process.platform === "win32" ? "python" : "python3";
       let audioBuffer2 = null;
       try {
@@ -8664,7 +9641,7 @@ app.post("/voice/speak", async (c) => {
     const clean = rawText.replace(/`[\s\S]*?`/g, "Code block generated.").replace(/[*_#~>]/g, "").replace(/https?:\/\/[^\s]+/g, "link provided.").replace(/\{[\s\S]*?\}/g, "").slice(0, 3e3).trim();
     const pyBin = process.platform === "win32" ? "python" : "python3";
     const { execFileSync } = await import("node:child_process");
-    const scriptPath = join4(process.cwd(), "scripts", "neural-tts.py");
+    const scriptPath = join5(process.cwd(), "scripts", "neural-tts.py");
     let audioBuffer = null;
     try {
       audioBuffer = execFileSync(pyBin, [scriptPath, "--text", clean, "--voice", lang], {
@@ -9886,6 +10863,96 @@ app.post("/providers/route", async (c) => {
   const decision = CapabilityRegistry.routeTask(body.taskType || "chat", body.capabilities || []);
   return c.json({ ok: true, decision });
 });
+app.get("/storage/health", async (c) => {
+  try {
+    const { StorageProvider: StorageProvider2 } = await Promise.resolve().then(() => (init_StorageProvider(), StorageProvider_exports));
+    const health = await StorageProvider2.checkHealth();
+    return c.json({ ok: health.healthy, ...health });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.get("/storage/objects", async (c) => {
+  try {
+    const { ObjectStore: ObjectStore2 } = await Promise.resolve().then(() => (init_ObjectStore(), ObjectStore_exports));
+    const prefix = c.req.query("prefix") || "";
+    const objects = await ObjectStore2.list(prefix);
+    return c.json({ ok: true, count: objects.length, objects });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.post("/storage/upload", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { ObjectStore: ObjectStore2 } = await Promise.resolve().then(() => (init_ObjectStore(), ObjectStore_exports));
+    if (!body.key || body.data === void 0) {
+      return c.json({ ok: false, error: "key and data required" }, 400);
+    }
+    const meta = await ObjectStore2.put(body.key, body.data, body.contentType, body.metadata);
+    return c.json({ ok: true, metadata: meta });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.get("/memory/layered/search", async (c) => {
+  try {
+    const { LayeredMemoryEngine: LayeredMemoryEngine2 } = await Promise.resolve().then(() => (init_LayeredMemoryEngine(), LayeredMemoryEngine_exports));
+    const query = c.req.query("q") || "";
+    const scope = c.req.query("scope");
+    const truthType = c.req.query("truthType");
+    const minConfidence = parseFloat(c.req.query("minConfidence") || "0.3");
+    const results = await LayeredMemoryEngine2.search({
+      query,
+      scope,
+      truthType,
+      minConfidence,
+      limit: parseInt(c.req.query("limit") || "20", 10)
+    });
+    return c.json({ ok: true, count: results.length, memories: results });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.post("/memory/layered/record", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { LayeredMemoryEngine: LayeredMemoryEngine2 } = await Promise.resolve().then(() => (init_LayeredMemoryEngine(), LayeredMemoryEngine_exports));
+    if (!body.key || !body.content || !body.scope || !body.truthType) {
+      return c.json({ ok: false, error: "key, content, scope, and truthType required" }, 400);
+    }
+    const record = await LayeredMemoryEngine2.recordMemory({
+      scope: body.scope,
+      truthType: body.truthType,
+      key: body.key,
+      content: body.content,
+      source: body.source || "API",
+      confidence: body.confidence !== void 0 ? body.confidence : 1,
+      metadata: body.metadata,
+      expiresAt: body.expiresAt,
+      taskId: body.taskId
+    });
+    return c.json({ ok: true, record });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.post("/memory/layered/verify", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { LayeredMemoryEngine: LayeredMemoryEngine2 } = await Promise.resolve().then(() => (init_LayeredMemoryEngine(), LayeredMemoryEngine_exports));
+    if (!body.memoryId || !body.verifier) {
+      return c.json({ ok: false, error: "memoryId and verifier required" }, 400);
+    }
+    const record = await LayeredMemoryEngine2.verifyMemory(body.memoryId, body.verifier);
+    if (!record) {
+      return c.json({ ok: false, error: "Memory record not found" }, 404);
+    }
+    return c.json({ ok: true, record });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
 app.all(
   "*",
   (c) => c.json(
@@ -9896,6 +10963,7 @@ app.all(
 var custom_routes_default = app;
 
 // server.tsx
+init_db();
 import { createToolsHandlers } from "@shogo-ai/sdk/tools/server";
 process.on("uncaughtException", (err) => {
   console.error("\u{1F6E1}\uFE0F [SOVEREIGN ZERO-CRASH SHIELD] Intercepted uncaught exception (kept alive):", err?.message || err);
@@ -9943,8 +11011,8 @@ app2.post("/api/tools/execute", (c) => tools.execute(c.req.raw));
 app2.get("/api/tools/schemas", (c) => tools.list(c.req.raw));
 app2.use("/*", serveStatic({ root: "./dist" }));
 app2.get("*", (c) => {
-  const indexPath = join5(process.cwd(), "dist", "index.html");
-  if (existsSync5(indexPath)) {
+  const indexPath = join6(process.cwd(), "dist", "index.html");
+  if (existsSync6(indexPath)) {
     return c.html(readFileSync3(indexPath, "utf-8"));
   }
   return c.text("J.A.R.V.I.S. Sovereign Cloud Engine Active", 200);
