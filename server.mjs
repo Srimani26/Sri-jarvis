@@ -7331,12 +7331,39 @@ async function ensureDatabaseSchema() {
     schemaRepairAttempted = true;
     console.error("[jarvis] database schema missing, repairing:", msg);
     try {
+      const { readFileSync: readFileSync4, writeFileSync: writeFileSync5 } = await import("node:fs");
+      const { join: join7 } = await import("node:path");
       const { execFileSync } = await import("node:child_process");
-      execFileSync("bun", ["x", "--bun", "prisma", "db", "push"], {
-        cwd: process.cwd(),
-        stdio: "inherit",
-        timeout: 12e4
-      });
+      const schemaPath = join7(process.cwd(), "prisma", "schema.prisma");
+      const rawDbUrl2 = process.env.DATABASE_URL || "";
+      const isPg = rawDbUrl2.startsWith("postgres://") || rawDbUrl2.startsWith("postgresql://");
+      const targetProvider = isPg ? "postgresql" : "sqlite";
+      try {
+        const schema = readFileSync4(schemaPath, "utf-8");
+        const updated = schema.replace(
+          /datasource\s+db\s*\{[\s\S]*?provider\s*=\s*["'][^"']+["'][\s\S]*?\}/,
+          `datasource db {
+  provider = "${targetProvider}"
+}`
+        );
+        if (schema !== updated) {
+          writeFileSync5(schemaPath, updated, "utf-8");
+        }
+      } catch (_) {
+      }
+      try {
+        execFileSync("npx", ["prisma", "db", "push"], {
+          cwd: process.cwd(),
+          stdio: "inherit",
+          timeout: 12e4
+        });
+      } catch {
+        execFileSync("bun", ["x", "--bun", "prisma", "db", "push"], {
+          cwd: process.cwd(),
+          stdio: "inherit",
+          timeout: 12e4
+        });
+      }
       console.log("[jarvis] schema repair complete");
     } catch (repairErr) {
       console.error("[jarvis] schema repair failed:", repairErr?.message ?? repairErr);

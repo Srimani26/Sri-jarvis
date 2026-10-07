@@ -195,14 +195,40 @@ async function ensureDatabaseSchema() {
     schemaRepairAttempted = true
     console.error('[jarvis] database schema missing, repairing:', msg)
     try {
+      const { readFileSync, writeFileSync } = await import('node:fs')
+      const { join } = await import('node:path')
       const { execFileSync } = await import('node:child_process')
-      // Additive only — deliberately NO --accept-data-loss and NO --force-reset,
-      // so this can create missing tables but can never destroy existing data.
-      execFileSync('bun', ['x', '--bun', 'prisma', 'db', 'push'], {
-        cwd: process.cwd(),
-        stdio: 'inherit',
-        timeout: 120_000,
-      })
+      
+      const schemaPath = join(process.cwd(), 'prisma', 'schema.prisma')
+      const rawDbUrl = process.env.DATABASE_URL || ''
+      const isPg = rawDbUrl.startsWith('postgres://') || rawDbUrl.startsWith('postgresql://')
+      const targetProvider = isPg ? 'postgresql' : 'sqlite'
+      
+      try {
+        const schema = readFileSync(schemaPath, 'utf-8')
+        const updated = schema.replace(
+          /datasource\s+db\s*\{[\s\S]*?provider\s*=\s*["'][^"']+["'][\s\S]*?\}/,
+          `datasource db {\n  provider = "${targetProvider}"\n}`
+        )
+        if (schema !== updated) {
+          writeFileSync(schemaPath, updated, 'utf-8')
+        }
+      } catch (_) {}
+
+      // Additive only — create missing tables
+      try {
+        execFileSync('npx', ['prisma', 'db', 'push'], {
+          cwd: process.cwd(),
+          stdio: 'inherit',
+          timeout: 120_000,
+        })
+      } catch {
+        execFileSync('bun', ['x', '--bun', 'prisma', 'db', 'push'], {
+          cwd: process.cwd(),
+          stdio: 'inherit',
+          timeout: 120_000,
+        })
+      }
       console.log('[jarvis] schema repair complete')
     } catch (repairErr: any) {
       console.error('[jarvis] schema repair failed:', repairErr?.message ?? repairErr)

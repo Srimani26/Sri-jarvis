@@ -15,4 +15,4 @@ EXPOSE 3001
 ENV PORT=3001
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss || true && node server.mjs"]
+CMD ["node", "scripts/db-startup.mjs"]
