@@ -1,0 +1,268 @@
+{
+  "target": "https://sri-jarvis.onrender.com",
+  "timestamp": "2026-10-07T06:37:46.539Z",
+  "tests": {
+    "authLogin": {
+      "status": "PASS",
+      "user": {
+        "id": "cmuxqih0600001yhwsxoj70y5",
+        "username": "SrimanikandanK",
+        "twoFactorEnabled": false
+      },
+      "tokenIssued": true,
+      "refreshTokenIssued": true
+    },
+    "authDiagnostics": {
+      "status": "PASS",
+      "data": {
+        "status": "AUTHENTICATED",
+        "tokenPresent": true,
+        "tokenValid": true,
+        "refreshPresent": false,
+        "username": "SrimanikandanK",
+        "userId": "cmuxqih0600001yhwsxoj70y5",
+        "expiresAt": "2026-10-14T06:37:23.000Z",
+        "headersReceived": {
+          "authorization": true,
+          "xJarvisToken": false,
+          "cookiePresent": false
+        },
+        "clientIp": "103.59.135.103, 162.158.54.223, 10.25.16.5",
+        "error": null
+      }
+    },
+    "tokenRefresh": {
+      "status": "PASS",
+      "refreshed": true
+    },
+    "specialistAgents": {
+      "aegis": {
+        "agentId": "aegis",
+        "name": "Aegis",
+        "role": "software_engineer",
+        "registered": true,
+        "health": "HEALTHY",
+        "lastSeen": "2026-10-07T06:37:23.708Z",
+        "invocations": 0,
+        "successes": 0,
+        "failures": 0,
+        "avgDurationMs": 0,
+        "successRate": "100%"
+      },
+      "vortex": {
+        "agentId": "vortex",
+        "name": "Vortex",
+        "role": "automation_agent",
+        "registered": true,
+        "health": "HEALTHY",
+        "lastSeen": "2026-10-07T06:37:23.795Z",
+        "invocations": 0,
+        "successes": 0,
+        "failures": 0,
+        "avgDurationMs": 0,
+        "successRate": "100%"
+      },
+      "midas": {
+        "agentId": "midas",
+        "name": "Midas",
+        "role": "business_agent",
+        "registered": true,
+        "health": "HEALTHY",
+        "lastSeen": "2026-10-07T06:37:23.879Z",
+        "invocations": 0,
+        "successes": 0,
+        "failures": 0,
+        "avgDurationMs": 0,
+        "successRate": "100%"
+      },
+      "cerebro": {
+        "agentId": "cerebro",
+        "name": "Cerebro",
+        "role": "research_agent",
+        "registered": true,
+        "health": "HEALTHY",
+        "lastSeen": "2026-10-07T06:37:23.966Z",
+        "invocations": 0,
+        "successes": 0,
+        "failures": 0,
+        "avgDurationMs": 0,
+        "successRate": "100%"
+      },
+      "stark_os": {
+        "agentId": "stark_os",
+        "name": "Stark OS",
+        "role": "devops_engineer",
+        "registered": true,
+        "health": "HEALTHY",
+        "lastSeen": "2026-10-07T06:37:24.061Z",
+        "invocations": 0,
+        "successes": 0,
+        "failures": 0,
+        "avgDurationMs": 0,
+        "successRate": "100%"
+      }
+    },
+    "providers": {
+      "registry": [
+        {
+          "id": "gemini",
+          "name": "Google Gemini Pro / Flash",
+          "priority": 1,
+          "capabilities": [
+            "coding",
+            "reasoning",
+            "fast",
+            "vision",
+            "audio",
+            "tools"
+          ],
+          "envKeyName": "GEMINI_API_KEY",
+          "hasKey": true,
+          "health": "HEALTHY",
+          "lastLatencyMs": 0,
+          "avgLatencyMs": 0,
+          "totalRequests": 0,
+          "successfulRequests": 0,
+          "failureCount": 0,
+          "rateLimitCount": 0
+        },
+        {
+          "id": "groq",
+          "name": "Groq LPUs (Llama 3 / Whisper)",
+          "priority": 2,
+          "capabilities": [
+            "fast",
+            "coding",
+            "audio",
+            "tools"
+          ],
+          "envKeyName": "GROQ_API_KEY",
+          "hasKey": false,
+          "health": "UNCONFIGURED",
+          "lastLatencyMs": 0,
+          "avgLatencyMs": 0,
+          "totalRequests": 0,
+          "successfulRequests": 0,
+          "failureCount": 0,
+          "rateLimitCount": 0
+        },
+        {
+          "id": "openrouter",
+          "name": "OpenRouter Multi-Model Gateway",
+          "priority": 3,
+          "capabilities": [
+            "coding",
+            "reasoning",
+            "fast",
+            "vision",
+            "tools"
+          ],
+          "envKeyName": "OPENROUTER_API_KEY",
+          "hasKey": false,
+          "health": "UNCONFIGURED",
+          "lastLatencyMs": 0,
+          "avgLatencyMs": 0,
+          "totalRequests": 0,
+          "successfulRequests": 0,
+          "failureCount": 0,
+          "rateLimitCount": 0
+        },
+        {
+          "id": "anthropic",
+          "name": "Anthropic Claude (Sonnet / Opus)",
+          "priority": 4,
+          "capabilities": [
+            "coding",
+            "reasoning",
+            "vision",
+            "tools"
+          ],
+          "envKeyName": "ANTHROPIC_API_KEY",
+          "hasKey": false,
+          "health": "UNCONFIGURED",
+          "lastLatencyMs": 0,
+          "avgLatencyMs": 0,
+          "totalRequests": 0,
+          "successfulRequests": 0,
+          "failureCount": 0,
+          "rateLimitCount": 0
+        },
+        {
+          "id": "openai",
+          "name": "OpenAI GPT-4o / Whisper",
+          "priority": 5,
+          "capabilities": [
+            "coding",
+            "reasoning",
+            "vision",
+            "audio",
+            "tools"
+          ],
+          "envKeyName": "OPENAI_API_KEY",
+          "hasKey": false,
+          "health": "UNCONFIGURED",
+          "lastLatencyMs": 0,
+          "avgLatencyMs": 0,
+          "totalRequests": 0,
+          "successfulRequests": 0,
+          "failureCount": 0,
+          "rateLimitCount": 0
+        },
+        {
+          "id": "shogo",
+          "name": "Shogo AI Enterprise LLM Gateway",
+          "priority": 1,
+          "capabilities": [
+            "coding",
+            "reasoning",
+            "fast",
+            "tools"
+          ],
+          "envKeyName": "AI_PROXY_TOKEN",
+          "hasKey": false,
+          "health": "UNCONFIGURED",
+          "lastLatencyMs": 0,
+          "avgLatencyMs": 0,
+          "totalRequests": 0,
+          "successfulRequests": 0,
+          "failureCount": 0,
+          "rateLimitCount": 0
+        },
+        {
+          "id": "ollama",
+          "name": "Local Ollama Instance",
+          "priority": 6,
+          "capabilities": [
+            "fast",
+            "coding",
+            "tools"
+          ],
+          "envKeyName": "OLLAMA_BASE_URL",
+          "hasKey": false,
+          "health": "UNCONFIGURED",
+          "lastLatencyMs": 0,
+          "avgLatencyMs": 0,
+          "totalRequests": 0,
+          "successfulRequests": 0,
+          "failureCount": 0,
+          "rateLimitCount": 0
+        }
+      ],
+      "geminiLiveLatencyMs": 363,
+      "geminiHealthy": true
+    },
+    "taskExecution": {
+      "status": "PASS",
+      "taskId": "cmuxqjit300051yhwi0um9rcc",
+      "taskNumber": "TASK-V5-044757600",
+      "agent": "Aegis",
+      "durationMs": 5304,
+      "resultSummary": ""
+    },
+    "taskPersistence": {
+      "status": "PASS",
+      "totalTasksInDB": 1,
+      "foundDispatchedTask": true
+    }
+  }
+}

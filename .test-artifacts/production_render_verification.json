@@ -1,0 +1,47 @@
+{
+  "target": "https://sri-jarvis.onrender.com",
+  "timestamp": "2026-10-07T06:33:42.036Z",
+  "endpoints": {
+    "health": {
+      "status": 200,
+      "latency": 1338,
+      "data": {
+        "ok": true,
+        "timestamp": "2026-10-07T06:33:17.290Z",
+        "cloudStatus": "ONLINE_24x7"
+      }
+    },
+    "authDiagnostics": {
+      "status": 200,
+      "latency": 155,
+      "data": {
+        "status": "UNAUTHENTICATED",
+        "tokenPresent": true,
+        "tokenValid": false,
+        "refreshPresent": false,
+        "username": null,
+        "userId": null,
+        "expiresAt": null,
+        "headersReceived": {
+          "authorization": true,
+          "xJarvisToken": false,
+          "cookiePresent": false
+        },
+        "clientIp": "103.59.135.103, 104.22.66.160, 10.30.126.74",
+        "error": "invalid signature"
+      }
+    },
+    "agentsHealth": {
+      "status": 401,
+      "latency": 264,
+      "count": 1
+    },
+    "taskDispatch": {
+      "status": 401,
+      "latency": 113,
+      "data": {
+        "error": "Invalid or expired token"
+      }
+    }
+  }
+}
