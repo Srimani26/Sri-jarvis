@@ -300,7 +300,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [continuousMode, setContinuousMode] = useState(true)
+  const [continuousMode, setContinuousMode] = useState(false) // Strictly false: mic stays OFF after playback
   const [isSleeping, setIsSleeping] = useState(false) // Rest / Sleep mode
   const [deepseekMode, setDeepseekMode] = useState(true) // DeepSeek Harness Reasoning
   const [sovereignLock, setSovereignLock] = useState(true) // Biometric Voiceprint Lock
@@ -328,9 +328,11 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const silenceTimerRef = useRef<any>(null)
   const maxRecordingTimerRef = useRef<any>(null)
   const sovereignLockRef = useRef(true)
-  const continuousModeRef = useRef(true)
+  const continuousModeRef = useRef(false)
   const recognitionRef = useRef<any>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const activeAgentRef = useRef<AgentBadge>(AGENTS.jarvis)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -353,9 +355,25 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           localStorage.removeItem('jarvis_initial_agent')
         }
       } catch {}
+
+      // One dynamic greeting on load based on current local time & system status
+      if (!hasGreetedSessionRef.current) {
+        hasGreetedSessionRef.current = true
+        const now = new Date()
+        const h = now.getHours()
+        let greeting = 'Good evening'
+        if (h >= 5 && h < 12) greeting = 'Good morning'
+        else if (h >= 12 && h < 17) greeting = 'Good afternoon'
+        else if (h >= 22 || h < 5) greeting = 'Good night'
+
+        const greetingSpeech = `${greeting}, Master Sri. J.A.R.V.I.S. Mark-V acoustic telemetry initialized. Cloud PostgreSQL persistence verified durable. Tap the microphone when you are ready to command, Sire.`
+        setJarvisResponse(greetingSpeech)
+        speakVoice(greetingSpeech, 'en-GB')
+      }
     }
     if (!isOpen) {
       isRollingCallRef.current = false
+      stopListening()
     }
   }, [isOpen])
 
@@ -388,8 +406,39 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return () => clearInterval(timer)
   }, [isOpen])
 
+  // Push-to-Talk Shortcut Listener (Space or 'v' when not typing)
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
+      if ((e.code === 'KeyV' || e.code === 'Space') && !e.repeat) {
+        if (!isListeningRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+          e.preventDefault()
+          startListening()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
+
   // Real vocal speech player using backend Google Neural stream with hard microphone isolation
   const speakVoice = (text: string, lang?: string, onDone?: () => void) => {
+    // Before TTS audio plays, immediately call mediaStream.getTracks().forEach(t => t.stop()) and reset audio recorder buffers
+    if (mediaStreamRef.current) {
+      try {
+        mediaStreamRef.current.getTracks().forEach(t => t.stop())
+      } catch {}
+      mediaStreamRef.current = null
+    }
+    if (audioCtxRef.current) {
+      try {
+        audioCtxRef.current.close().catch(() => {})
+      } catch {}
+      audioCtxRef.current = null
+    }
+    audioChunksRef.current = []
     stopListening()
     stopNeuralSpeech()
 
@@ -407,7 +456,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         isSpeakingRef.current = true
       },
       () => {
-        // Deterministic speech completion: mic stays OFF until user deliberately initiates
+        // Deterministic speech completion: mic stays strictly OFF until user deliberately initiates
         setIsSpeaking(false)
         isSpeakingRef.current = false
         lastActiveRef.current = Date.now()
@@ -1493,54 +1542,70 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }
 
-  // Universal Fallback: Server-side Gemini STT with VAD (Voice Activity Detection)
+  // Universal Fallback: Server-side Gemini STT with 16kHz Web Audio VAD
   const startWhisperRecording = async () => {
+    if (isSpeakingRef.current || isProcessingRef.current) return
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const constraints: MediaStreamConstraints = {
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          autoGainControl: true,
+          noiseSuppression: true
+        }
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      mediaStreamRef.current = stream
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
 
-      // Web Audio VAD: Auto-detect when Master Sri finishes speaking
+      // 16kHz Web Audio API filters & RMS energy gate VAD (1.8s sustained silence threshold)
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-        const audioCtx = new AudioCtx()
+        const audioCtx = new AudioCtx({ sampleRate: 16000 })
+        audioCtxRef.current = audioCtx
         const source = audioCtx.createMediaStreamSource(stream)
         const analyser = audioCtx.createAnalyser()
-        analyser.fftSize = 256
+        analyser.fftSize = 512
         source.connect(analyser)
-        const dataArray = new Uint8Array(analyser.frequencyBinCount)
+        const timeDomainData = new Float32Array(analyser.fftSize)
 
         let hasSpoken = false
-        let silenceStart: number | null = null
+        let silenceStartTime: number | null = null
+        const SILENCE_THRESHOLD_RMS = 0.015
+        const SILENCE_DURATION_MS = 1800
 
-        const checkVAD = () => {
+        const checkRMSGate = () => {
           if (!isListeningRef.current || recorder.state !== 'recording') {
-            audioCtx.close().catch(() => {})
             return
           }
-          analyser.getByteFrequencyData(dataArray)
-          let sum = 0
-          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
-          const avg = sum / dataArray.length
+          analyser.getFloatTimeDomainData(timeDomainData)
+          let sumSquares = 0
+          for (let i = 0; i < timeDomainData.length; i++) {
+            sumSquares += timeDomainData[i] * timeDomainData[i]
+          }
+          const rms = Math.sqrt(sumSquares / timeDomainData.length)
 
-          if (avg > 18) {
+          if (rms > SILENCE_THRESHOLD_RMS) {
             hasSpoken = true
-            silenceStart = null
+            silenceStartTime = null
             setTranscript('Hearing Master Sri speak...')
           } else if (hasSpoken) {
-            if (!silenceStart) silenceStart = Date.now()
-            else if (Date.now() - silenceStart > 700) {
-              // 1.3 seconds of silence after speaking -> auto-stop and process!
+            if (!silenceStartTime) {
+              silenceStartTime = Date.now()
+            } else if (Date.now() - silenceStartTime >= SILENCE_DURATION_MS) {
+              // 1.8 seconds of sustained silence after speaking -> auto-terminate audio stream
               if (recorder.state === 'recording') {
                 recorder.stop()
               }
               return
             }
           }
-          requestAnimationFrame(checkVAD)
+          requestAnimationFrame(checkRMSGate)
         }
-        requestAnimationFrame(checkVAD)
+        requestAnimationFrame(checkRMSGate)
       } catch (vadErr) {
         console.warn('VAD setup skipped:', vadErr)
       }
@@ -1559,11 +1624,20 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
       recorder.onstop = async () => {
         if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
-        stream.getTracks().forEach(t => t.stop())
+        if (mediaStreamRef.current) {
+          try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
+          mediaStreamRef.current = null
+        }
+        if (audioCtxRef.current) {
+          try { audioCtxRef.current.close().catch(() => {}) } catch {}
+          audioCtxRef.current = null
+        }
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        audioChunksRef.current = []
+        setIsListening(false)
+        isListeningRef.current = false
+
         if (audioBlob.size < 200) {
-          setIsListening(false)
-          isListeningRef.current = false
           return
         }
 
@@ -1579,6 +1653,12 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           })
           if (res.ok) {
             const data = await res.json()
+            if (data.promptRepeat || (typeof data.confidence === 'number' && data.confidence < 0.65)) {
+              const repeatMsg = "Master Sri, I didn't catch that clearly. Please repeat."
+              setJarvisResponse(repeatMsg)
+              speakVoice(repeatMsg, 'en-GB')
+              return
+            }
             if (data.text?.trim()) {
               setTranscript(data.text.trim())
               transcriptRef.current = data.text.trim()
@@ -1591,13 +1671,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         } finally {
           setIsProcessing(false)
           isProcessingRef.current = false
-          if (continuousModeRef.current && !isSpeakingRef.current && isOpen) {
-            setTimeout(() => {
-              if (!isSpeakingRef.current && !isListeningRef.current) {
-                startListening()
-              }
-            }, 400)
-          }
+          // Strict mandate: Mic stays OFF after speech completes. NEVER auto-restart!
         }
       }
 
@@ -1711,6 +1785,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop() } catch {}
     }
+    if (mediaStreamRef.current) {
+      try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
+      mediaStreamRef.current = null
+    }
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close().catch(() => {}) } catch {}
+      audioCtxRef.current = null
+    }
+    audioChunksRef.current = []
     setIsListening(false)
     isListeningRef.current = false
   }

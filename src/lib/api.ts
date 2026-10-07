@@ -134,18 +134,20 @@ async function retryingFetch(input: any, init?: RequestInit): Promise<Response> 
     try {
       let res = await nativeFetch(input, init)
 
-      // Handle 401 Unauthorized via transparent token refresh
+      // Handle 401 Unauthorized via transparent token refresh with exponential retry
       if (res.status === 401 && !input.includes('/api/auth/login') && !input.includes('/api/auth/refresh')) {
-        const refreshedToken = await attemptTokenRefresh()
-        if (refreshedToken) {
-          // Re-prepare input URL and headers with the refreshed token
-          const refreshedInput = typeof input === 'string' ? authUrl(input, refreshedToken) : input
-          const refreshedHeaders = new Headers(init?.headers || {})
-          refreshedHeaders.set('Authorization', `Bearer ${refreshedToken}`)
-          refreshedHeaders.set('x-jarvis-token', refreshedToken)
-          const retriedRes = await nativeFetch(refreshedInput, { ...init, headers: refreshedHeaders })
-          if (retriedRes.status !== 401) {
-            return retriedRes
+        for (let retry = 1; retry <= 2; retry++) {
+          await delay(150 * Math.pow(2, retry - 1))
+          const refreshedToken = await attemptTokenRefresh()
+          if (refreshedToken) {
+            const refreshedInput = typeof input === 'string' ? authUrl(input, refreshedToken) : input
+            const refreshedHeaders = new Headers(init?.headers || {})
+            refreshedHeaders.set('Authorization', `Bearer ${refreshedToken}`)
+            refreshedHeaders.set('x-jarvis-token', refreshedToken)
+            const retriedRes = await nativeFetch(refreshedInput, { ...init, headers: refreshedHeaders })
+            if (retriedRes.status !== 401) {
+              return retriedRes
+            }
           }
         }
       }
@@ -159,6 +161,16 @@ async function retryingFetch(input: any, init?: RequestInit): Promise<Response> 
       await delay(120 * attempt)
     }
   }
+}
+
+// 15-Minute Automated Silent Refresh Loop for Active Sessions
+if (typeof window !== 'undefined' && !(window as any).__jarvisSilentRefreshInitialized) {
+  ;(window as any).__jarvisSilentRefreshInitialized = true
+  setInterval(() => {
+    if (getToken() && getRefreshToken()) {
+      attemptTokenRefresh().catch(() => {})
+    }
+  }, 15 * 60 * 1000)
 }
 
 if (typeof globalThis.fetch === 'function' && !(globalThis as any).__jarvisFetchPatched) {
@@ -179,7 +191,22 @@ export function jsonAuthHeaders(): Record<string, string> {
 
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<any> {
   const headers = authHeaders((init.headers as Record<string, string>) || {})
-  const res = await fetch(path, { ...init, headers })
+  let res = await fetch(path, { ...init, headers })
+
+  // If 401 occurs, retry twice with exponential backoff before surfacing error
+  if (res.status === 401 && !path.includes('/api/auth/login') && !path.includes('/api/auth/refresh')) {
+    for (let retry = 1; retry <= 2; retry++) {
+      await delay(200 * Math.pow(2, retry - 1))
+      const refreshed = await attemptTokenRefresh().catch(() => null)
+      const retryHeaders = authHeaders({
+        ...((init.headers as Record<string, string>) || {}),
+        ...(refreshed ? { Authorization: `Bearer ${refreshed}`, 'x-jarvis-token': refreshed } : {})
+      })
+      res = await fetch(path, { ...init, headers: retryHeaders })
+      if (res.ok) break
+    }
+  }
+
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {
     const err = new Error(body?.error || `Request failed (${res.status})`) as Error & { status?: number; code?: string }

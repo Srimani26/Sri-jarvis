@@ -7,6 +7,7 @@ import {
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { playJarvisChime } from '@/lib/sound'
+import TaskProgressCard from '@/components/TaskProgressCard'
 
 interface TaskEvent {
   id: string
@@ -255,105 +256,9 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: ActiveTaskEx
           </button>
         </div>
 
-        {/* Active Task Card Detail */}
+        {/* Active Task Card Detail via Live Execution HUD */}
         {activeTask ? (
-          <div className="rounded-2xl border border-cyan-500/40 bg-slate-950/90 p-5 space-y-4">
-            {/* Top Bar: ID, Agent, Status, Elapsed */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-mono font-black text-cyan-400 tracking-wider">
-                  {activeTask.taskNumber}
-                </span>
-                <span className={cn("px-2.5 py-0.5 rounded-lg border text-[11px] font-mono font-bold capitalize", getAgentColor(activeTask.agentId))}>
-                  Agent: {activeTask.agentId.toUpperCase()}
-                </span>
-                {getStatusBadge(activeTask.status)}
-              </div>
-
-              <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                  Elapsed: <strong className="text-slate-200">{formatElapsed(activeTask.startedAt, activeTask.completedAt)}</strong>
-                </span>
-                {activeTask.estimatedDuration && (
-                  <span className="flex items-center gap-1">
-                    ETA: <strong className="text-slate-200">{activeTask.estimatedDuration}</strong>
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Title & Directive */}
-            <div>
-              <h3 className="text-base font-bold text-white tracking-wide">
-                {activeTask.title}
-              </h3>
-              {activeTask.description && activeTask.description !== activeTask.title && (
-                <p className="text-xs text-slate-400 mt-1 font-mono">
-                  {activeTask.description}
-                </p>
-              )}
-            </div>
-
-            {/* Live Step & Action Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
-              <div>
-                <span className="text-[10px] font-mono text-slate-500 uppercase">Current Step</span>
-                <div className="text-xs font-mono font-bold text-cyan-300 mt-0.5">
-                  Step {activeTask.completedSteps} of {activeTask.totalSteps || 4}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-mono text-slate-500 uppercase">Current Tool</span>
-                <div className="text-xs font-mono font-bold text-amber-300 mt-0.5">
-                  {activeTask.currentTool || (activeTask.status === 'COMPLETED' ? 'Tool Suite Finalized' : 'Specialist Reasoning')}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-mono text-slate-500 uppercase">Current Action</span>
-                <div className="text-xs font-mono font-bold text-slate-200 mt-0.5 truncate">
-                  {activeTask.currentOperation || 'Executing autonomously'}
-                </div>
-              </div>
-            </div>
-
-            {/* Verification Result Evidence */}
-            {activeTask.verificationResult && (
-              <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs font-mono space-y-1">
-                <div className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase text-[10px]">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Execution Verification Evidence
-                </div>
-                <p className="text-emerald-200 leading-relaxed font-mono">
-                  {activeTask.verificationResult}
-                </p>
-              </div>
-            )}
-
-            {/* Output Deliverable Report (Collapsible) */}
-            {activeTask.executionResult && (
-              <div className="space-y-2">
-                <button
-                  onClick={() => setExpandedLogs(prev => ({ ...prev, [activeTask.id]: !prev[activeTask.id] }))}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 text-xs font-mono text-cyan-400 transition-all"
-                >
-                  <span className="flex items-center gap-2 font-bold">
-                    <Terminal className="w-3.5 h-3.5" />
-                    Technical Production Deliverable & Diffs
-                  </span>
-                  {expandedLogs[activeTask.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-
-                {expandedLogs[activeTask.id] && (
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 max-h-64 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
-                    {activeTask.executionResult}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <TaskProgressCard task={activeTask} />
         ) : (
           <div className="p-8 text-center rounded-2xl border border-slate-800 bg-slate-950/60 space-y-2 font-mono">
             <Sparkles className="w-6 h-6 text-cyan-400 mx-auto" />

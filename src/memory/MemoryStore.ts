@@ -157,4 +157,25 @@ export class MemoryStore {
       metadata: { tags },
     });
   }
+
+  /**
+   * Set user preference in USER memory plane
+   */
+  public static setUserPreference(key: string, value: string): MemoryRecord {
+    return this.store({
+      scope: 'USER',
+      truthType: 'USER_PREFERENCE',
+      key,
+      content: value,
+      source: 'UserInterface',
+      confidence: 1.0,
+    });
+  }
+
+  /**
+   * Clear all memories (for testing and resets)
+   */
+  public static clear(): void {
+    this.memories.clear();
+  }
 }

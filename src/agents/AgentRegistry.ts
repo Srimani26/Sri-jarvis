@@ -389,6 +389,7 @@ export class AgentRegistry {
     midas: 'business_agent',
     cerebro: 'research_agent',
     stark_os: 'devops_engineer',
+    'stark os': 'devops_engineer',
     stark: 'devops_engineer',
     friday: 'software_engineer',
     coder: 'software_engineer',
@@ -417,24 +418,62 @@ export class AgentRegistry {
     if (this.agents.has(normalized)) {
       return this.agents.get(normalized);
     }
-    const targetId = this.ALIAS_MAP[normalized];
+    const targetId = this.ALIAS_MAP[normalized] || (normalized === 'stark os' ? 'devops_engineer' : undefined);
     if (targetId && this.agents.has(targetId)) {
       const baseAgent = this.agents.get(targetId)!;
-      if (['aegis', 'vortex', 'midas', 'cerebro', 'stark_os', 'stark'].includes(normalized)) {
-        const specialistIdentities: Record<string, { name: string; codename: string }> = {
-          aegis: { name: 'Aegis', codename: 'AEGIS // FULL-STACK ARCHITECT & DEFENSE' },
-          vortex: { name: 'Vortex', codename: 'VORTEX // HEAVY ENTERPRISE AUTOMATION' },
-          midas: { name: 'Midas', codename: 'MIDAS // REVENUE & MONETIZATION' },
-          cerebro: { name: 'Cerebro', codename: 'CEREBRO // DEEP RECON & INTEL' },
-          stark_os: { name: 'Stark OS', codename: 'STARK_OS // DEVICE & OPERATIONS CONCIERGE' },
-          stark: { name: 'Stark OS', codename: 'STARK_OS // DEVICE & OPERATIONS CONCIERGE' },
+      if (['aegis', 'vortex', 'midas', 'cerebro', 'stark_os', 'stark', 'stark os'].includes(normalized)) {
+        const specialistIdentities: Record<string, { name: string; codename: string; description?: string; systemPrompt?: string }> = {
+          aegis: {
+            name: 'Aegis',
+            codename: 'AEGIS // CODE ARCHITECTURE & UNIT TEST EXECUTION',
+            description: 'Code analysis, repository management, unit test execution, and cyber defense.',
+            systemPrompt: 'You are Aegis, Master Software Architect and Cyber Defense specialist for Master Sri. Specialize in deep code analysis, repository management, unit test execution, type safety, and verifying zero regressions.'
+          },
+          vortex: {
+            name: 'Vortex',
+            codename: 'VORTEX // HEAVY ENTERPRISE AUTOMATION',
+            description: 'Automations, webhooks, API pipelines, and autonomous workflow swarms.',
+            systemPrompt: 'You are Vortex, Enterprise Automation Specialist for Master Sri. Specialize in high-reliability automations, webhooks, n8n swarms, and API pipelines.'
+          },
+          midas: {
+            name: 'Midas',
+            codename: 'MIDAS // REVENUE & MONETIZATION ENGINE',
+            description: 'Business metrics, SaaS financial models, unit economics, and capital velocity.',
+            systemPrompt: 'You are Midas, Chief Revenue and Monetization Engine for Master Sri. Specialize in business metrics, SaaS financial models, unit economics, high-ticket deal prospecting, and capital velocity.'
+          },
+          cerebro: {
+            name: 'Cerebro',
+            codename: 'CEREBRO // DEEP RESEARCH & MULTI-VECTOR RAG',
+            description: 'Technical documentation, deep research, multi-vector RAG, and market telemetry.',
+            systemPrompt: 'You are Cerebro, Deep Intelligence and Multi-Vector RAG specialist for Master Sri. Specialize in technical documentation, deep research, multi-vector RAG synthesis, and actionable market intelligence.'
+          },
+          stark_os: {
+            name: 'Stark OS',
+            codename: 'STARK OS // SYSTEM DIAGNOSTICS & TELEMETRY',
+            description: 'System diagnostics, Neon PostgreSQL telemetry, memory usage, and operational hardware logistics.',
+            systemPrompt: 'You are Stark OS, Operations Concierge and Diagnostics Core for Master Sri. Specialize in full system diagnostics, Neon PostgreSQL telemetry, memory usage monitoring, and hardware logistics.'
+          },
+          'stark os': {
+            name: 'Stark OS',
+            codename: 'STARK OS // SYSTEM DIAGNOSTICS & TELEMETRY',
+            description: 'System diagnostics, Neon PostgreSQL telemetry, memory usage, and operational hardware logistics.',
+            systemPrompt: 'You are Stark OS, Operations Concierge and Diagnostics Core for Master Sri. Specialize in full system diagnostics, Neon PostgreSQL telemetry, memory usage monitoring, and hardware logistics.'
+          },
+          stark: {
+            name: 'Stark OS',
+            codename: 'STARK OS // SYSTEM DIAGNOSTICS & TELEMETRY',
+            description: 'System diagnostics, Neon PostgreSQL telemetry, memory usage, and operational hardware logistics.',
+            systemPrompt: 'You are Stark OS, Operations Concierge and Diagnostics Core for Master Sri. Specialize in full system diagnostics, Neon PostgreSQL telemetry, memory usage monitoring, and hardware logistics.'
+          },
         };
         const override = specialistIdentities[normalized];
         return {
           ...baseAgent,
-          id: normalized === 'stark' ? 'stark_os' : normalized,
+          id: (normalized === 'stark' || normalized === 'stark os') ? 'stark_os' : normalized,
           name: override?.name || baseAgent.name,
           codename: override?.codename || baseAgent.codename,
+          description: override?.description || baseAgent.description,
+          systemPrompt: override?.systemPrompt || baseAgent.systemPrompt,
         };
       }
       return baseAgent;

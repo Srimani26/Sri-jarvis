@@ -57,20 +57,39 @@ export class VoiceEngine {
     let assignedAgentId = 'jarvis';
     const lower = normalized.toLowerCase();
 
-    if (/database|migration|sql|prisma|query|index/i.test(lower)) {
-      assignedAgentId = 'database_engineer';
-    } else if (/code|bug|function|refactor|test|compile|ts|typescript/i.test(lower)) {
+    // 1. Explicit specialist agent routing (when command addresses an agent by name)
+    if (/\baegis\b/i.test(lower)) {
+      assignedAgentId = 'aegis';
+    } else if (/\bvortex\b/i.test(lower)) {
+      assignedAgentId = 'vortex';
+    } else if (/\bmidas\b/i.test(lower)) {
+      assignedAgentId = 'midas';
+    } else if (/\bcerebro\b/i.test(lower)) {
+      assignedAgentId = 'cerebro';
+    } else if (/\bstark[\s_-]?os\b/i.test(lower)) {
+      assignedAgentId = 'stark_os';
+    }
+    // 2. Functional domain mapping
+    else if (/code|typescript|refactor|compile|bug|inspect the code/i.test(lower)) {
       assignedAgentId = 'software_engineer';
+    } else if (/system health|health|metric|status|cpu|memory/i.test(lower)) {
+      assignedAgentId = 'monitor_agent';
+    } else if (/database|migration|sql|prisma|query|schema/i.test(lower)) {
+      assignedAgentId = 'database_engineer';
     } else if (/architecture|blueprint|design system|domain/i.test(lower)) {
       assignedAgentId = 'architect';
     } else if (/security|threat|vulnerability|audit|token/i.test(lower)) {
       assignedAgentId = 'security_agent';
+    } else if (/automation|webhook|pipeline|n8n|crawler/i.test(lower)) {
+      assignedAgentId = 'vortex';
+    } else if (/business metric|financial model|unit economic|revenue|monetiz|deal/i.test(lower)) {
+      assignedAgentId = 'midas';
+    } else if (/technical doc|deep research|multi-vector|rag|market intel/i.test(lower)) {
+      assignedAgentId = 'cerebro';
+    } else if (/system diagnostic|neon|postgresql telemetry/i.test(lower)) {
+      assignedAgentId = 'stark_os';
     } else if (/browse|website|click|scrape|webpage/i.test(lower)) {
       assignedAgentId = 'browser_agent';
-    } else if (/research|paper|compare|find tools/i.test(lower)) {
-      assignedAgentId = 'research_agent';
-    } else if (/health|monitor|server status|cpu|memory/i.test(lower)) {
-      assignedAgentId = 'monitor_agent';
     }
 
     return {
@@ -103,6 +122,23 @@ export class VoiceEngine {
       agentId: intent.assignedAgentId,
       totalSteps: 3,
     });
+
+    // Check for Multi-Agent Rollcall directive
+    if (/(report\s+status|system\s+status|full\s+diagnostic|rollcall)/i.test(intent.normalizedDirective)) {
+      const { MissionOrchestrator } = await import('../orchestrator/MissionOrchestrator');
+      const rollcallResult = await MissionOrchestrator.executeMultiAgentRollcall();
+      this.state = 'SPEAKING';
+      this.isSpeaking = true;
+      return {
+        turnId: `turn_${Date.now()}`,
+        state: this.state,
+        intent,
+        taskId: task.id,
+        spokenResponse: rollcallResult.spokenSummary,
+        interrupted: false,
+        durationMs: Date.now() - startTime,
+      };
+    }
 
     // 2. Dispatch to Specialist Agent
     const agentResult = await AgentRuntime.executeAgentTask({

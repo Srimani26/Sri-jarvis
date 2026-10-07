@@ -103,8 +103,10 @@ export class LayeredMemoryEngine {
           }),
         },
       });
-    } catch (err) {
-      console.warn(`⚠️ [LayeredMemoryEngine] Failed to persist memory to database (cached in RAM):`, err);
+    } catch (err: any) {
+      if (!err?.message?.includes('CLIENT_CLOSED')) {
+        console.warn(`⚠️ [LayeredMemoryEngine] Failed to persist memory to database (cached in RAM):`, err?.message || err);
+      }
     }
 
     return record;

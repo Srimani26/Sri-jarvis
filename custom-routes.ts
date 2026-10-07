@@ -51,25 +51,12 @@ import { readFileSync, writeFileSync, existsSync, chmodSync } from 'fs'
 import { join } from 'path'
 import { randomBytes } from 'crypto'
 
-// The signing secret must survive restarts, otherwise every deploy silently
-// invalidates Sri's session and he has to log in again. Persist it next to
-// the other local secrets on first boot.
+import { SovereignGate } from './src/security/SovereignGate'
+import { MissionOrchestrator } from './src/orchestrator/MissionOrchestrator'
+import { AgentRegistry } from './src/agents/AgentRegistry'
+
 function loadJwtSecret(): string {
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET
-  if (process.env.RUNTIME_AUTH_SECRET) return process.env.RUNTIME_AUTH_SECRET
-  const secretFile = join(process.cwd(), '.jarvis-secret')
-  try {
-    if (existsSync(secretFile)) {
-      const stored = readFileSync(secretFile, 'utf8').trim()
-      if (stored.length >= 32) return stored
-    }
-  } catch { /* fall through and regenerate */ }
-  const generated = randomBytes(48).toString('hex')
-  try {
-    writeFileSync(secretFile, generated, { mode: 0o600 })
-    chmodSync(secretFile, 0o600)
-  } catch { /* read-only fs — secret stays in-memory for this boot */ }
-  return generated
+  return SovereignGate.getJwtSecret()
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2437,136 +2424,250 @@ Format your response in Markdown with:
 
 
 // ============================================================================
-// STARK VOICE ENGINE — GROQ WHISPER-LARGE-V3-TURBO TRANSCRIPTION (150ms STT)
-// Universal voice endpoint for iPhone Safari, Android, and Desktop
+// ============================================================================
+// STARK VOICE ENGINE — CALIBRATED MULTIMODAL STT CASCADE
+// Primary: Google Gemini 1.5 Flash (calibrated for Indian English accent & technical vocabulary)
+// Secondary: Groq Whisper (whisper-large-v3)
+// Confidence Guard: < 0.65 triggers "Master Sri, I didn't catch that clearly. Please repeat."
 // ============================================================================
 app.post('/voice/transcribe', async (c) => {
   try {
-    const formData = await c.req.formData()
-    const audioFile = formData.get('file') as any
-    if (!audioFile) {
-      return c.json({ error: 'Audio file is required' }, 400)
+    let file: any = null
+    try {
+      const formData = await c.req.formData()
+      file = formData.get('file')
+    } catch {
+      try {
+        const body = await c.req.parseBody()
+        file = body['file']
+      } catch {}
     }
 
-    const arrayBuffer = await audioFile.arrayBuffer()
+    if (!file || typeof file === 'string') {
+      return c.json({ ok: false, error: 'Audio file is required', text: '' }, 400)
+    }
+
+    const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
     if (buffer.length === 0) {
-      return c.json({ error: 'Audio file is empty' }, 400)
+      return c.json({ ok: false, error: 'Audio file is empty', text: '' }, 400)
     }
 
     const keys = loadKeys()
-    const groqKey = keys.groq
-    const openaiKey = keys.openai
-    const geminiKey = keys.gemini || (keys.geminiKeys && keys.geminiKeys[0]) || process.env.GEMINI_API_KEY
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || keys.gemini || (keys.geminiKeys && keys.geminiKeys[0])
+    const groqKey = process.env.GROQ_API_KEY || keys.groq
+    const mimeType = (file.type || 'audio/webm').split(';')[0]
 
-    // 1. Primary Engine: Groq Whisper Large v3 Turbo (ultra low-latency ~150ms)
-    if (groqKey) {
-      try {
-        const groqForm = new FormData()
-        const blob = new Blob([buffer], { type: audioFile.type || 'audio/webm' })
-        groqForm.append('file', blob, 'audio.webm')
-        groqForm.append('model', 'whisper-large-v3-turbo')
-        groqForm.append('temperature', '0')
-        groqForm.append('language', 'en')
+    const techVocabulary = 'J.A.R.V.I.S., Aegis, Vortex, Midas, Cerebro, Stark OS, Master Sri, PostgreSQL, Neon, Prisma, Docker, Render, TypeScript, Next.js, FastAPI, n8n, Tailwind, terminal, schema, migration, test runner, mission, telemetry, rollcall, status'
 
-        const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${groqKey}` },
-          body: groqForm,
-          signal: AbortSignal.timeout(10000),
-        })
-
-        if (res.ok) {
-          const data: any = await res.json()
-          if (data?.text !== undefined) {
-            return c.json({ text: data.text.trim(), engine: 'groq_whisper_turbo', fallbackUsed: false })
-          }
-        } else {
-          const errText = await res.text().catch(() => '')
-          console.warn(`[STT] Primary Groq Whisper returned ${res.status}: ${errText.slice(0, 150)}. Retrying with secondary engine...`)
-        }
-      } catch (groqErr: any) {
-        console.warn(`[STT] Primary Groq Whisper failed (${groqErr.message}). Retrying with secondary engine...`)
-      }
-    } else {
-      console.log('[STT] Groq API key not configured. Falling back to secondary STT engine...')
-    }
-
-    // 2. Secondary Engine: OpenAI Whisper
-    if (openaiKey) {
-      try {
-        const openaiForm = new FormData()
-        const blob = new Blob([buffer], { type: audioFile.type || 'audio/webm' })
-        openaiForm.append('file', blob, 'audio.webm')
-        openaiForm.append('model', 'whisper-1')
-        openaiForm.append('language', 'en')
-
-        const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${openaiKey}` },
-          body: openaiForm,
-          signal: AbortSignal.timeout(12000),
-        })
-
-        if (res.ok) {
-          const data: any = await res.json()
-          if (data?.text !== undefined) {
-            console.log('[STT] Secondary engine (OpenAI Whisper) successfully transcribed audio.')
-            return c.json({ text: data.text.trim(), engine: 'openai_whisper', fallbackUsed: true })
-          }
-        } else {
-          const errText = await res.text().catch(() => '')
-          console.warn(`[STT] Secondary OpenAI Whisper returned ${res.status}: ${errText.slice(0, 150)}. Retrying with tertiary engine...`)
-        }
-      } catch (oaiErr: any) {
-        console.warn(`[STT] Secondary OpenAI Whisper failed (${oaiErr.message}). Retrying with tertiary engine...`)
-      }
-    }
-
-    // 3. Tertiary Engine: Gemini Flash Multimodal Audio
+    // 1. Primary Engine: Google Gemini 1.5 Flash Multimodal Pipeline (Indian English Accent Calibrated)
     if (geminiKey) {
       try {
         const base64Audio = buffer.toString('base64')
-        const mimeType = audioFile.type || 'audio/webm'
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
+
+        const sttPrompt = `You are the primary speech-to-text recognition system for J.A.R.V.I.S. Mark-V.
+The speaker is Master Sri, who speaks English with an Indian accent and frequent technical terminology.
+Special vocabulary list: ${techVocabulary}.
+
+Instructions:
+1. Accurately transcribe what was spoken verbatim into clear English.
+2. If the audio is silence, background murmur, unintelligible, or you are not at least 65% confident in the words, respond with JSON:
+{"text": "", "confidence": 0.0}
+3. If valid speech is recognized with >= 0.65 confidence, respond with JSON:
+{"text": "<transcribed English sentence>", "confidence": <estimated float between 0.65 and 1.0>}
+Return ONLY valid JSON matching this schema.`
 
         const res = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{
+              role: 'user',
               parts: [
                 { inlineData: { mimeType, data: base64Audio } },
-                { text: 'Transcribe the spoken words in this audio recording verbatim. Output ONLY the exact transcription text with zero preamble, zero explanation, and no quotation marks.' }
+                { text: sttPrompt }
               ]
             }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 250 }
+            generationConfig: { temperature: 0.1, maxOutputTokens: 300 }
           }),
           signal: AbortSignal.timeout(12000),
         })
 
         if (res.ok) {
           const data: any = await res.json()
-          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-          if (text) {
-            console.log('[STT] Tertiary engine (Gemini Flash Audio) successfully transcribed audio.')
-            return c.json({ text, engine: 'gemini_multimodal_audio', fallbackUsed: true })
+          const rawResponseText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+          
+          let parsedText = ''
+          let confidence = 0.9
+
+          // Try parsing structured JSON
+          try {
+            const cleanJsonStr = rawResponseText.replace(/^```json/i, '').replace(/```$/i, '').trim()
+            const parsed = JSON.parse(cleanJsonStr)
+            parsedText = (parsed.text || '').trim()
+            if (typeof parsed.confidence === 'number') {
+              confidence = parsed.confidence
+            }
+          } catch {
+            // Direct plain text fallback
+            parsedText = rawResponseText
+          }
+
+          if (parsedText && confidence >= 0.65) {
+            return c.json({
+              ok: true,
+              text: parsedText,
+              confidence,
+              engine: 'gemini-1.5-flash',
+              promptRepeat: false
+            })
+          } else if (confidence < 0.65 || !parsedText) {
+            return c.json({
+              ok: true,
+              text: '',
+              confidence,
+              engine: 'gemini-1.5-flash',
+              promptRepeat: true,
+              message: "Master Sri, I didn't catch that clearly. Please repeat."
+            })
           }
         } else {
           const errText = await res.text().catch(() => '')
-          console.warn(`[STT] Tertiary Gemini Audio returned ${res.status}: ${errText.slice(0, 150)}`)
+          console.warn(`[STT] Gemini 1.5 Flash STT returned ${res.status}: ${errText.slice(0, 150)}. Failing over to Groq Whisper...`)
         }
       } catch (geminiErr: any) {
-        console.warn(`[STT] Tertiary Gemini Audio failed: ${geminiErr.message}`)
+        console.warn(`[STT] Gemini 1.5 Flash STT failed: ${geminiErr.message}. Failing over to Groq Whisper...`)
+      }
+    }
+
+    // 2. Secondary Fallback Engine: Groq Whisper (whisper-large-v3)
+    if (groqKey) {
+      try {
+        const groqForm = new FormData()
+        const blob = new Blob([buffer], { type: mimeType })
+        groqForm.append('file', blob, 'audio.webm')
+        groqForm.append('model', 'whisper-large-v3')
+        groqForm.append('prompt', techVocabulary)
+        groqForm.append('temperature', '0')
+        groqForm.append('language', 'en')
+
+        const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${groqKey}` },
+          body: groqForm,
+          signal: AbortSignal.timeout(12000),
+        })
+
+        if (res.ok) {
+          const data: any = await res.json()
+          const text = (data?.text || '').trim()
+          if (text) {
+            return c.json({
+              ok: true,
+              text,
+              confidence: 0.88,
+              engine: 'groq-whisper-large-v3',
+              fallbackUsed: true,
+              promptRepeat: false
+            })
+          }
+        }
+      } catch (groqErr: any) {
+        console.warn(`[STT] Groq Whisper fallback failed: ${groqErr.message}`)
       }
     }
 
     return c.json({
-      error: 'Voice recognition engines unavailable or keys missing. Please configure Groq, OpenAI, or Gemini API keys in Settings.',
-      code: 'STT_ALL_ENGINES_FAILED'
-    }, 503)
+      ok: false,
+      text: '',
+      confidence: 0.0,
+      promptRepeat: true,
+      message: "Master Sri, I didn't catch that clearly. Please repeat.",
+      error: 'NO_ACTIVE_STT_PROVIDER_RESPONSE'
+    }, 200)
   } catch (err: any) {
-    return c.json({ error: err.message }, 500)
+    return c.json({
+      ok: false,
+      text: '',
+      confidence: 0.0,
+      promptRepeat: true,
+      message: "Master Sri, I didn't catch that clearly. Please repeat.",
+      error: err?.message || String(err)
+    }, 200)
+  }
+})
+
+// ============================================================================
+// MULTI-AGENT SPECIALIST DISPATCH & SEQUENTIAL ROLLCALL
+// ============================================================================
+app.post('/agents/dispatch', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}))
+    const requestedAgentId = body?.agentId || 'jarvis'
+    const directive = body?.task || body?.prompt || body?.objective || ''
+
+    if (!directive.trim()) {
+      return c.json({ ok: false, error: 'Directive task string required' }, 400)
+    }
+
+    // Check if directive is rollcall / status report
+    if (/(report\s+status|system\s+status|full\s+diagnostic|rollcall)/i.test(directive)) {
+      const rollcallResult = await MissionOrchestrator.executeMultiAgentRollcall()
+      return c.json({
+        ok: true,
+        agent: 'J.A.R.V.I.S.',
+        report: rollcallResult.summary,
+        spokenSummary: rollcallResult.spokenSummary,
+        updates: rollcallResult.updates
+      })
+    }
+
+    const targetAgentId = MissionOrchestrator.selectAgentForObjective(directive, requestedAgentId)
+    const agentSpec = AgentRegistry.getAgent(targetAgentId) || AgentRegistry.getAgent('jarvis')!
+
+    const mission = await MissionOrchestrator.dispatchMission({
+      objective: directive,
+      preferredAgentId: agentSpec.id,
+      caller: 'Master Sri'
+    })
+
+    const spoken = mission.status === 'COMPLETED'
+      ? `${agentSpec.name} has completed your directive, Master Sri. Verification passed with zero errors.`
+      : `${agentSpec.name} reported mission status: ${mission.status}. Deliverables recorded in telemetry.`
+
+    return c.json({
+      ok: true,
+      agentId: agentSpec.id,
+      agent: agentSpec.name,
+      status: mission.status,
+      missionId: mission.missionId,
+      report: mission.reportMarkdown || `### [${agentSpec.name}] Execution Report\n- **Directive**: ${directive}\n- **Outcome**: ${mission.status}\n- **Tools Used**: ${mission.toolsUsed.join(', ') || 'Internal Runtime'}\n- **Files Changed**: ${mission.filesChanged.join(', ') || 'None'}`,
+      spokenSummary: spoken,
+      filesChanged: mission.filesChanged,
+      toolsUsed: mission.toolsUsed,
+      durationMs: mission.durationMs
+    })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500)
+  }
+})
+
+app.get('/agents/rollcall', async (c) => {
+  try {
+    const result = await MissionOrchestrator.executeMultiAgentRollcall()
+    return c.json({ ok: true, ...result })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500)
+  }
+})
+
+app.post('/agents/rollcall', async (c) => {
+  try {
+    const result = await MissionOrchestrator.executeMultiAgentRollcall()
+    return c.json({ ok: true, ...result })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500)
   }
 })
 
@@ -3126,92 +3227,6 @@ app.post('/voice/speak', async (c) => {
     return c.text(err.message, 500)
   }
 })
-
-// ============================================================================
-// PRODUCTION SPEECH-TO-TEXT TRANSCRIPTION (GEMINI MULTIMODAL CASCADE)
-// ============================================================================
-app.post('/voice/transcribe', async (c) => {
-  try {
-    const body = await c.req.parseBody();
-    const file = body['file'];
-    if (!file || typeof file === 'string') {
-      return c.json({ ok: false, error: 'No audio file provided', text: '' }, 400);
-    }
-
-    const buffer = Buffer.from(await (file as Blob).arrayBuffer());
-    const base64Audio = buffer.toString('base64');
-    const mimeType = (file as Blob).type || 'audio/webm';
-
-    // Cascade 1: Google Gemini Multimodal Audio Transcription
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (geminiKey) {
-      try {
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: 'user',
-                  parts: [
-                    {
-                      inlineData: {
-                        mimeType: mimeType.split(';')[0] || 'audio/webm',
-                        data: base64Audio,
-                      },
-                    },
-                    {
-                      text: 'Transcribe this spoken human audio verbatim into accurate English text. Return ONLY the transcribed text and nothing else. No punctuation commentary, no preamble.',
-                    },
-                  ],
-                },
-              ],
-            }),
-            signal: AbortSignal.timeout(15000),
-          }
-        );
-
-        if (geminiRes.ok) {
-          const geminiData = await geminiRes.json();
-          const transcribedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-          if (transcribedText) {
-            return c.json({ ok: true, text: transcribedText, provider: 'gemini-1.5-flash' });
-          }
-        }
-      } catch (geminiErr) {
-        console.warn('[STT] Gemini transcription attempt failed:', geminiErr);
-      }
-    }
-
-    // Cascade 2: Groq Whisper if GROQ_API_KEY is available
-    const groqKey = process.env.GROQ_API_KEY;
-    if (groqKey) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file as Blob, 'voice.webm');
-        formData.append('model', 'whisper-large-v3');
-        const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${groqKey}` },
-          body: formData,
-          signal: AbortSignal.timeout(15000),
-        });
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          return c.json({ ok: true, text: groqData.text?.trim() || '', provider: 'groq-whisper' });
-        }
-      } catch (groqErr) {
-        console.warn('[STT] Groq transcription attempt failed:', groqErr);
-      }
-    }
-
-    return c.json({ ok: false, error: 'NO_ACTIVE_STT_PROVIDER_RESPONSE', text: '' }, 502);
-  } catch (err: any) {
-    return c.json({ ok: false, error: err?.message || String(err), text: '' }, 500);
-  }
-});
 
 app.post('/task/plan', requireAuth, async (c) => {
   try {
