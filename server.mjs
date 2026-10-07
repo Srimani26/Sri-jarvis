@@ -176,7 +176,13 @@ var init_db = __esm({
     }
     prisma = globalForPrisma.prisma ?? new PrismaClient({
       adapter,
-      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
+      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+      __internal: {
+        configOverride: (config2) => ({
+          ...config2,
+          activeProvider: isPostgres ? "postgresql" : "sqlite"
+        })
+      }
     });
     if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
   }

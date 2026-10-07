@@ -46,7 +46,13 @@ export const prisma =
   new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  });
+    __internal: {
+      configOverride: (config: any) => ({
+        ...config,
+        activeProvider: isPostgres ? 'postgresql' : 'sqlite',
+      }),
+    },
+  } as any);
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
