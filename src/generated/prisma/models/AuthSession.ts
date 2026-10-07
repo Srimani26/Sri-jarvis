@@ -1044,6 +1044,7 @@ export type AuthSessionCreateManyArgs<ExtArgs extends runtime.Types.Extensions.I
    * The data used to create many AuthSessions.
    */
   data: Prisma.AuthSessionCreateManyInput | Prisma.AuthSessionCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1062,6 +1063,7 @@ export type AuthSessionCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Ext
    * The data used to create many AuthSessions.
    */
   data: Prisma.AuthSessionCreateManyInput | Prisma.AuthSessionCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

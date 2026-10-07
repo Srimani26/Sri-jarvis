@@ -1016,6 +1016,7 @@ export type ReminderCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * The data used to create many Reminders.
    */
   data: Prisma.ReminderCreateManyInput | Prisma.ReminderCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1034,6 +1035,7 @@ export type ReminderCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extens
    * The data used to create many Reminders.
    */
   data: Prisma.ReminderCreateManyInput | Prisma.ReminderCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

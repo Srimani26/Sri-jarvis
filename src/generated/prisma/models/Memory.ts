@@ -1116,6 +1116,7 @@ export type MemoryCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Intern
    * The data used to create many Memories.
    */
   data: Prisma.MemoryCreateManyInput | Prisma.MemoryCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1134,6 +1135,7 @@ export type MemoryCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensio
    * The data used to create many Memories.
    */
   data: Prisma.MemoryCreateManyInput | Prisma.MemoryCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

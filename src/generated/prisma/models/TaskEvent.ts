@@ -404,6 +404,7 @@ export type TaskEventCreateOrConnectWithoutTaskInput = {
 
 export type TaskEventCreateManyTaskInputEnvelope = {
   data: Prisma.TaskEventCreateManyTaskInput | Prisma.TaskEventCreateManyTaskInput[]
+  skipDuplicates?: boolean
 }
 
 export type TaskEventUpsertWithWhereUniqueWithoutTaskInput = {
@@ -1194,6 +1195,7 @@ export type TaskEventCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Int
    * The data used to create many TaskEvents.
    */
   data: Prisma.TaskEventCreateManyInput | Prisma.TaskEventCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1212,6 +1214,7 @@ export type TaskEventCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Exten
    * The data used to create many TaskEvents.
    */
   data: Prisma.TaskEventCreateManyInput | Prisma.TaskEventCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

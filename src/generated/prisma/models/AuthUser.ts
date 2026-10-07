@@ -1160,6 +1160,7 @@ export type AuthUserCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * The data used to create many AuthUsers.
    */
   data: Prisma.AuthUserCreateManyInput | Prisma.AuthUserCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1178,6 +1179,7 @@ export type AuthUserCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extens
    * The data used to create many AuthUsers.
    */
   data: Prisma.AuthUserCreateManyInput | Prisma.AuthUserCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

@@ -338,6 +338,7 @@ export type HabitCompletionCreateOrConnectWithoutHabitInput = {
 
 export type HabitCompletionCreateManyHabitInputEnvelope = {
   data: Prisma.HabitCompletionCreateManyHabitInput | Prisma.HabitCompletionCreateManyHabitInput[]
+  skipDuplicates?: boolean
 }
 
 export type HabitCompletionUpsertWithWhereUniqueWithoutHabitInput = {
@@ -1095,6 +1096,7 @@ export type HabitCompletionCreateManyArgs<ExtArgs extends runtime.Types.Extensio
    * The data used to create many HabitCompletions.
    */
   data: Prisma.HabitCompletionCreateManyInput | Prisma.HabitCompletionCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1113,6 +1115,7 @@ export type HabitCompletionCreateManyAndReturnArgs<ExtArgs extends runtime.Types
    * The data used to create many HabitCompletions.
    */
   data: Prisma.HabitCompletionCreateManyInput | Prisma.HabitCompletionCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

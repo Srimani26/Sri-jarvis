@@ -1016,6 +1016,7 @@ export type SystemEventCreateManyArgs<ExtArgs extends runtime.Types.Extensions.I
    * The data used to create many SystemEvents.
    */
   data: Prisma.SystemEventCreateManyInput | Prisma.SystemEventCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1034,6 +1035,7 @@ export type SystemEventCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Ext
    * The data used to create many SystemEvents.
    */
   data: Prisma.SystemEventCreateManyInput | Prisma.SystemEventCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

@@ -47,10 +47,32 @@ export const prisma =
     adapter,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     __internal: {
-      configOverride: (config: any) => ({
-        ...config,
-        activeProvider: isPostgres ? 'postgresql' : 'sqlite',
-      }),
+      configOverride: (config: any) => {
+        const targetProvider = isPostgres ? 'postgresql' : 'sqlite';
+        return {
+          ...config,
+          activeProvider: targetProvider,
+          inlineSchema: config.inlineSchema?.replace(
+            /datasource\s+db\s*\{[\s\S]*?provider\s*=\s*["'][^"']+["'][\s\S]*?\}/,
+            `datasource db {\n  provider = "${targetProvider}"\n}`
+          ),
+          compilerWasm: {
+            getRuntime: async () => {
+              return isPostgres
+                ? await import('@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs')
+                : await import('@prisma/client/runtime/query_compiler_fast_bg.sqlite.mjs');
+            },
+            getQueryCompilerWasmModule: async () => {
+              const { Buffer } = await import('node:buffer');
+              const { wasm } = isPostgres
+                ? await import('@prisma/client/runtime/query_compiler_fast_bg.postgresql.wasm-base64.mjs')
+                : await import('@prisma/client/runtime/query_compiler_fast_bg.sqlite.wasm-base64.mjs');
+              return new WebAssembly.Module(Buffer.from(wasm, 'base64'));
+            },
+            importName: './query_compiler_fast_bg.js',
+          },
+        };
+      },
     },
   } as any);
 

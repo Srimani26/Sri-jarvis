@@ -988,6 +988,7 @@ export type DailySummaryCreateManyArgs<ExtArgs extends runtime.Types.Extensions.
    * The data used to create many DailySummaries.
    */
   data: Prisma.DailySummaryCreateManyInput | Prisma.DailySummaryCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1006,6 +1007,7 @@ export type DailySummaryCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Ex
    * The data used to create many DailySummaries.
    */
   data: Prisma.DailySummaryCreateManyInput | Prisma.DailySummaryCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

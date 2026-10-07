@@ -1044,6 +1044,7 @@ export type UserSessionCreateManyArgs<ExtArgs extends runtime.Types.Extensions.I
    * The data used to create many UserSessions.
    */
   data: Prisma.UserSessionCreateManyInput | Prisma.UserSessionCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1062,6 +1063,7 @@ export type UserSessionCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Ext
    * The data used to create many UserSessions.
    */
   data: Prisma.UserSessionCreateManyInput | Prisma.UserSessionCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

@@ -1662,6 +1662,7 @@ export type AgentTaskCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Int
    * The data used to create many AgentTasks.
    */
   data: Prisma.AgentTaskCreateManyInput | Prisma.AgentTaskCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1680,6 +1681,7 @@ export type AgentTaskCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Exten
    * The data used to create many AgentTasks.
    */
   data: Prisma.AgentTaskCreateManyInput | Prisma.AgentTaskCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

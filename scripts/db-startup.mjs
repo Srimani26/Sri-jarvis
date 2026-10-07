@@ -23,6 +23,11 @@ try {
   if (schema !== updatedSchema) {
     writeFileSync(schemaPath, updatedSchema, 'utf-8');
     console.log(`🗄️ [db-startup] Updated schema.prisma datasource provider to: "${targetProvider}"`);
+    try {
+      execSync('npx prisma generate', { stdio: 'inherit' });
+    } catch (genErr) {
+      console.warn(`⚠️ [db-startup] Prisma client generate warning:`, genErr?.message || genErr);
+    }
   }
 
   // Push schema to the database (creates tables automatically on Neon/Postgres or SQLite)
