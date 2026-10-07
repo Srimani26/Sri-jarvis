@@ -57,6 +57,7 @@ import { AgentRegistry } from './src/agents/AgentRegistry'
 import { WorkspaceManager } from './src/workspace/WorkspaceManager'
 import { AutonomousReActEngine } from './src/agents/AutonomousReActEngine'
 import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
+import { ECommerceReconEngine } from './src/services/ECommerceReconEngine'
 
 function loadJwtSecret(): string {
   return SovereignGate.getJwtSecret()
@@ -1259,8 +1260,9 @@ async function callAI(systemPrompt: string, messages: Array<{ role: string; cont
   throw new Error(errors.slice(0, 3).join(' | ') || 'No AI provider available')
 }
 
-// Wire default AI caller into Persistent Background Task Queue
+// Wire default AI caller into Persistent Background Task Queue and ECommerce Recon Engine
 PersistentTaskQueue.setAiCaller((sys, msgs) => callAI(sys, msgs))
+ECommerceReconEngine.setDefaultAiCaller((sys, msgs) => callAI(sys, msgs))
 
 function getModelStatus() {
   return MODEL_CHAIN.map(m => ({

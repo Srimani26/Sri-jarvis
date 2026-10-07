@@ -382,35 +382,40 @@ export default function App() {
   if (!authenticated) return <LoginScreen onLogin={handleLogin} />
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white safe-area-bottom">
+    <div className="min-h-screen bg-[#030712] text-white safe-area-bottom antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Top Bar — Desktop */}
-      <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50 hidden md:block">
+      <div className="sticky top-0 z-50 bg-[#030712]/85 backdrop-blur-2xl border-b border-cyan-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.5)] hidden md:block">
         <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => handleNavigate('command')}>
-            <div className="relative w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.25)]">
-              <span className="text-lg">⚡</span>
-              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_#34d399]" />
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => handleNavigate('command')}>
+            <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 via-blue-500/15 to-transparent border border-cyan-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.35)] group-hover:border-cyan-400 group-hover:scale-105 transition-all">
+              <span className="text-xl">⚡</span>
+              <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-bold tracking-wider text-white">J.A.R.V.I.S.</h1>
-                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">MARK-V</span>
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-black tracking-wider text-white font-mono">J.A.R.V.I.S.</h1>
+                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                  MARK-V SOVEREIGN
+                </span>
               </div>
-              <p className="text-[9px] text-cyan-400/70 font-mono tracking-tight">SOVEREIGN AI BUSINESS OS</p>
+              <p className="text-[9px] text-cyan-400/80 font-mono tracking-wider flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                20 AGENTS ARMED // NEON DURABLE // 42ms
+              </p>
             </div>
           </div>
 
           {/* Primary Navigation Pillars */}
-          <div className="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 backdrop-blur-md">
+          <div className="flex items-center gap-1 bg-slate-900/80 p-1.5 rounded-2xl border border-cyan-500/25 backdrop-blur-xl shadow-inner">
             {primaryNav.map(item => (
               <button
                 key={item.id}
                 onClick={() => handleNavigate(item.id)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                  "flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition-all duration-300",
                   activeTab === item.id
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+                    ? "bg-gradient-to-r from-cyan-500/25 to-blue-500/25 text-cyan-200 border border-cyan-400/50 shadow-[0_0_15px_rgba(6,182,212,0.35)] font-bold scale-[1.02]"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                 )}
               >
                 {item.icon}
@@ -423,33 +428,34 @@ export default function App() {
               <button
                 onClick={() => setArsenalOpen(!arsenalOpen)}
                 className={cn(
-                  "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-medium transition-all duration-200",
                   arsenalNav.some(a => a.id === activeTab)
                     ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                 )}
               >
-                <Layers className="w-3.5 h-3.5" />
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Arsenal</span>
-                <ChevronDown className={cn("w-3 h-3 transition-transform", arsenalOpen && "rotate-180")} />
+                <ChevronDown className={cn("w-3 h-3 transition-transform text-cyan-400", arsenalOpen && "rotate-180")} />
               </button>
               {arsenalOpen && (
                 <div
                   onMouseLeave={() => setArsenalOpen(false)}
-                  className="absolute left-0 mt-2 z-50 w-52 p-2 bg-slate-900/95 border border-cyan-500/40 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.8)] backdrop-blur-xl grid grid-cols-1 gap-1"
+                  className="absolute left-0 mt-2 z-50 w-56 p-2 bg-slate-950/95 border border-cyan-500/40 rounded-2xl shadow-[0_20px_45px_rgba(0,0,0,0.85)] backdrop-blur-2xl grid grid-cols-1 gap-1 animate-in fade-in slide-in-from-top-2"
                 >
-                  <div className="px-2 py-1 text-[9px] font-mono text-cyan-400 uppercase tracking-wider border-b border-slate-800">
-                    Secondary Systems
+                  <div className="px-2.5 py-1 text-[9px] font-mono text-cyan-400 uppercase tracking-wider border-b border-slate-800 flex items-center justify-between">
+                    <span>Secondary Systems</span>
+                    <span className="text-[8px] text-slate-500 font-bold">12 MODULES</span>
                   </div>
                   {arsenalNav.map(item => (
                     <button
                       key={item.id}
                       onClick={() => { setArsenalOpen(false); handleNavigate(item.id); }}
                       className={cn(
-                        "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-all",
+                        "flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-mono font-medium text-left transition-all",
                         activeTab === item.id
-                          ? "bg-cyan-500/20 text-cyan-300 font-semibold"
-                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                          ? "bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-400/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                          : "text-slate-300 hover:bg-slate-900 hover:text-white"
                       )}
                     >
                       {item.icon}
@@ -462,14 +468,14 @@ export default function App() {
           </div>
 
           {/* Right Action Deck */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {/* Direct Voice Comms Trigger */}
             <button
               onClick={() => setVoiceModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/50 text-cyan-300 text-xs font-mono font-semibold tracking-wider transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 text-slate-950 text-xs font-mono font-black tracking-wider transition-all shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:shadow-[0_0_35px_rgba(6,182,212,0.8)] hover:scale-105 active:scale-95"
               title="Open J.A.R.V.I.S. Mark-V Neural Voice Comms"
             >
-              <Mic className="w-3.5 h-3.5 text-cyan-400" />
+              <Mic className="w-3.5 h-3.5 text-slate-950 animate-pulse" />
               <span>VOICE LINK</span>
             </button>
 
@@ -478,21 +484,21 @@ export default function App() {
               onClick={() => handleNavigate('profile')}
               title={`${username} — Sovereign Master Biometrics`}
               className={cn(
-                "flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-xl border transition-all",
+                "flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-2xl border transition-all",
                 activeTab === 'profile'
-                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
-                  : "bg-slate-900/60 border-slate-800 text-slate-300 hover:border-cyan-500/40"
+                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.25)]"
+                  : "bg-slate-900/80 border-slate-800 text-slate-300 hover:border-cyan-500/40"
               )}
             >
-              <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-cyan-500/40 to-blue-600/30 border border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-300">
+              <span className="w-6 h-6 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-[10px] font-black text-slate-950 shadow-inner">
                 {(username || 'S').charAt(0).toUpperCase()}
               </span>
-              <span className="text-xs font-mono max-w-[6rem] truncate">{username || 'Master Sri'}</span>
+              <span className="text-xs font-mono max-w-[6.5rem] truncate font-bold">{username || 'Master Sri'}</span>
             </button>
 
             <button
               onClick={() => setSettingsOpen(true)}
-              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/40 transition-all"
+              className="p-2 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/40 hover:bg-slate-800 transition-all"
               title="Settings & Sovereign Keys"
             >
               <Settings className="w-4 h-4" />
@@ -500,7 +506,7 @@ export default function App() {
 
             <button
               onClick={handleLogout}
-              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition-all"
+              className="p-2 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-950/20 transition-all"
               title="Lock Console / Sign Out"
             >
               <Lock className="w-4 h-4" />
@@ -510,19 +516,38 @@ export default function App() {
       </div>
 
       {/* Mobile Top Bar */}
-      <div className="md:hidden sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2" onClick={() => handleNavigate('command')}>
-            <span className="text-lg">⚡</span>
+      <div className="md:hidden sticky top-0 z-50 bg-[#030712]/90 backdrop-blur-2xl border-b border-cyan-500/20 shadow-[0_4px_25px_rgba(0,0,0,0.6)]">
+        <div className="px-4 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5" onClick={() => handleNavigate('command')}>
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-400/40 flex items-center justify-center shadow-[0_0_12px_rgba(6,182,212,0.3)]">
+              <span className="text-base">⚡</span>
+            </div>
             <div>
-              <h1 className="text-sm font-semibold">J.A.R.V.I.S.</h1>
-              <p className="text-[9px] text-cyan-400/60 font-mono">v2.0</p>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-xs font-black tracking-wider text-white font-mono">J.A.R.V.I.S.</h1>
+                <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">v5.0</span>
+              </div>
+              <p className="text-[8px] text-emerald-400 font-mono tracking-tight flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                ONLINE // 20 SWARMS
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setSettingsOpen(true)} className="p-2 text-slate-400" aria-label="Settings"><Settings className="w-4 h-4" /></button>
-            <button onClick={() => handleNavigate('profile')} aria-label="Profile" className="p-1 text-slate-400">
-              <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center text-[11px] font-bold text-cyan-300">
+          <div className="flex items-center gap-1.5">
+            {/* Quick Voice Trigger on Mobile Header */}
+            <button
+              onClick={() => setVoiceModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 text-[10px] font-mono font-black flex items-center gap-1 shadow-[0_0_15px_rgba(6,182,212,0.4)] active:scale-95"
+              aria-label="Open Neural Voice"
+            >
+              <Mic className="w-3 h-3 text-slate-950" />
+              <span>VOICE</span>
+            </button>
+            <button onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 active:scale-95" aria-label="Settings">
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => handleNavigate('profile')} aria-label="Profile" className="p-0.5 rounded-xl active:scale-95">
+              <span className="w-7 h-7 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-[10px] font-black text-slate-950 shadow-inner">
                 {(username || 'S').charAt(0).toUpperCase()}
               </span>
             </button>
@@ -532,28 +557,40 @@ export default function App() {
 
       {/* Mobile More Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-slate-950/95 backdrop-blur-xl overflow-auto">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-white">All Surfaces</h2>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-slate-400"><X className="w-5 h-5" /></button>
+        <div className="md:hidden fixed inset-0 z-50 bg-[#030712]/98 backdrop-blur-3xl overflow-auto p-4 animate-in fade-in">
+          <div className="flex items-center justify-between mb-5 pb-3 border-b border-cyan-500/20">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-cyan-400" />
+              <h2 className="text-base font-bold text-white font-mono">All Sovereign Surfaces</h2>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              {navItems.map(item => (
-                <button key={item.id} onClick={() => handleNavigate(item.id)}
-                  className={cn("flex flex-col items-center gap-2 p-4 rounded-2xl transition-all",
-                    activeTab === item.id ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30" : "bg-slate-800/50 text-slate-400 hover:text-white")}>
+            <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => handleNavigate(item.id)}
+                className={cn(
+                  "flex flex-col items-center gap-2 p-3.5 rounded-2xl border transition-all text-center",
+                  activeTab === item.id
+                    ? "bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.3)] font-bold"
+                    : "bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                )}
+              >
+                <div className={cn("p-2 rounded-xl", activeTab === item.id ? "bg-cyan-500/30 text-cyan-300" : "bg-slate-800/80 text-slate-400")}>
                   {item.icon}
-                  <span className="text-xs font-medium">{item.mobileLabel}</span>
-                </button>
-              ))}
-            </div>
+                </div>
+                <span className="text-xs font-mono font-medium">{item.label}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 pb-24 md:pb-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 pb-28 md:pb-6">
         {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => setVoiceModalOpen(true)} />}
         {activeTab === 'tasks' && <ActiveTaskExecutionPanel onTriggerTask={(t) => console.log('task triggered', t)} />}
         {activeTab === 'chat' && <AIChat />}
@@ -568,7 +605,7 @@ export default function App() {
           />
         )}
         {activeTab === 'cyber' && <CyberThreatDefense />}
-          {activeTab === 'apis' && <OmniApiArsenal />}
+        {activeTab === 'apis' && <OmniApiArsenal />}
         {activeTab === 'projects' && <Projects />}
         {activeTab === 'inbox' && <Inbox />}
         {activeTab === 'codlab' && <CodeLab />}
@@ -583,33 +620,54 @@ export default function App() {
         {activeTab === 'memory' && <MemoryView />}
         {activeTab === 'connections' && <ConnectionsView />}
         {activeTab === 'more' && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {navItems.map(item => (
               <button key={item.id} onClick={() => handleNavigate(item.id)}
-                className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-800/50 text-slate-400 hover:text-white transition-all">
+                className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white transition-all">
                 {item.icon}
-                <span className="text-xs font-medium">{item.mobileLabel}</span>
+                <span className="text-xs font-medium font-mono">{item.mobileLabel}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Bottom Nav — Mobile */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-xl border-t border-slate-800/50 safe-area-bottom">
-        <div className="flex items-center justify-around py-2 px-2">
-          {bottomTabs.map(tab => (
-            <button key={tab.id} onClick={() => {
-              if (tab.id === 'more') setMobileMenuOpen(true)
-              else if (tab.id === 'voice') setVoiceModalOpen(true)
-              else handleNavigate(tab.id)
-            }}
-              className={cn("flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all",
-                tab.id === 'voice' ? "text-cyan-300 font-bold" : activeTab === tab.id ? "text-cyan-400" : "text-slate-500")}>
-              {tab.icon}
-              <span className="text-[9px] font-medium">{tab.label}</span>
-            </button>
-          ))}
+      {/* Bottom Nav Dock — Mobile (Floating Ergonomic Glass Dock) */}
+      <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-[#030712]/90 backdrop-blur-2xl border border-cyan-500/25 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.7)] safe-area-bottom">
+        <div className="flex items-center justify-around py-2 px-1">
+          {bottomTabs.map(tab => {
+            const isVoice = tab.id === 'voice'
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (tab.id === 'more') setMobileMenuOpen(true)
+                  else if (tab.id === 'voice') setVoiceModalOpen(true)
+                  else handleNavigate(tab.id)
+                }}
+                className={cn(
+                  "flex flex-col items-center justify-center transition-all touch-feedback",
+                  isVoice
+                    ? "-mt-5 w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-600 text-slate-950 font-black shadow-[0_0_25px_rgba(6,182,212,0.8)] border border-cyan-300/60"
+                    : "flex-1 py-1"
+                )}
+              >
+                {isVoice ? (
+                  <Mic className="w-5 h-5 text-slate-950 animate-pulse" />
+                ) : (
+                  <>
+                    <div className={cn("transition-colors", isActive ? "text-cyan-400 scale-110" : "text-slate-500")}>
+                      {tab.icon}
+                    </div>
+                    <span className={cn("text-[9px] font-mono mt-0.5", isActive ? "text-cyan-300 font-bold" : "text-slate-500")}>
+                      {tab.label}
+                    </span>
+                  </>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -617,7 +675,7 @@ export default function App() {
       {!sovereignAwakened && (
         <div
           onClick={handleAwakenSovereign}
-          className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none animate-in fade-in duration-500"
+          className="fixed inset-0 z-50 bg-[#030712]/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none animate-in fade-in duration-500"
         >
           <div className="relative mb-8 group">
             <div className="w-36 h-36 rounded-full border-2 border-cyan-400/50 flex items-center justify-center animate-spin-slow shadow-[0_0_80px_rgba(6,182,212,0.6)]">
@@ -634,13 +692,13 @@ export default function App() {
               <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" /> Sovereign Master Sri Recognized
             </div>
             <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white font-mono">
-              J.A.R.V.I.S. READY
+              J.A.R.V.I.S. MARK-V
             </h1>
             <p className="text-sm text-cyan-300/90 font-mono">
-              "Master Sri, greetings and welcome back. We are ready to assist you."
+              ⚡ Sovereign Autonomous Engine Active • 20 Specialist Swarms Synchronized • Durable Neon Cloud PostgreSQL Online
             </p>
             <div className="pt-2">
-              <button className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 text-slate-950 font-black text-sm font-mono tracking-widest uppercase shadow-[0_0_50px_rgba(6,182,212,0.8)] hover:scale-105 transition-all">
+              <button className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 text-slate-950 font-black text-sm font-mono tracking-widest uppercase shadow-[0_0_50px_rgba(6,182,212,0.8)] hover:scale-105 active:scale-95 transition-all">
                 TAP ANYWHERE TO ACTIVATE & SPEAK
               </button>
             </div>

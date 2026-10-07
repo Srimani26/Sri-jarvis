@@ -2536,7 +2536,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-2xl animate-in fade-in duration-300">
       <div className={cn(
-        "relative w-full max-w-2xl rounded-3xl border transition-all duration-500 p-5 sm:p-7 shadow-[0_0_80px_rgba(6,182,212,0.3)] overflow-hidden max-h-[92vh] overflow-y-auto",
+        "relative w-full max-w-2xl rounded-2xl sm:rounded-3xl border transition-all duration-500 p-4 sm:p-7 shadow-[0_0_80px_rgba(6,182,212,0.3)] overflow-hidden max-h-[94dvh] overflow-y-auto no-scrollbar",
         securityAlert
           ? "border-rose-500 bg-gradient-to-b from-rose-950/40 via-slate-950 to-slate-950 shadow-[0_0_60px_rgba(244,63,94,0.4)]"
           : isSleeping
