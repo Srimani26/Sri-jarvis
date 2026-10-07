@@ -9,7 +9,7 @@ import { TwoFactorVerify } from './auth/TwoFactorVerify'
 import { playJarvisChime } from '@/lib/sound'
 
 interface LoginScreenProps {
-  onLogin: (token: string, username: string) => void
+  onLogin: (token: string, username: string, refreshToken?: string) => void
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -46,7 +46,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       const data = await res.json()
       if (res.ok && data.token) {
         playJarvisChime('execute')
-        onLogin(data.token, 'SrimanikandanK')
+        onLogin(data.token, 'SrimanikandanK', data.refreshToken)
       } else {
         setError(data.error || 'Authentication rejected')
       }
@@ -122,7 +122,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       }
 
       playJarvisChime('execute')
-      onLogin(data.token, data.user?.username || username)
+      onLogin(data.token, data.user?.username || username, data.refreshToken)
     } catch {
       setError('Connection error. Server is starting up.')
     } finally {

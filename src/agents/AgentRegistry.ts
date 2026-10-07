@@ -75,7 +75,7 @@ export class AgentRegistry {
         codename: 'ENGINEER // FULL-STACK CODER',
         role: 'software_engineer',
         description: 'Implements production code, executes refactors, applies surgical diffs, runs tests.',
-        allowedTools: ['filesystem_read', 'filesystem_write', 'filesystem_list', 'code_diff_apply', 'test_runner', 'terminal_exec', 'git_status', 'system_health'],
+        allowedTools: ['filesystem_read', 'filesystem_write', 'filesystem_list', 'code_diff_apply', 'test_runner', 'terminal_exec', 'git_status', 'system_health', 'build_fullstack_app', 'execute_code'],
         maxPermission: 'PROJECT_WRITE',
         preferredModels: ['claude-3-7-sonnet', 'deepseek-coder', 'gemini-2.5-pro'],
         timeoutMs: 90_000,
@@ -211,7 +211,7 @@ export class AgentRegistry {
         codename: 'INTEL // WEB & REPO INVESTIGATOR',
         role: 'research_agent',
         description: 'Conducts deep technical research, inspects open-source packages, extracts documentation, provides citations.',
-        allowedTools: ['web_search', 'web_scrape', 'doc_reader', 'github_search'],
+        allowedTools: ['web_search', 'web_scrape', 'doc_reader', 'github_search', 'scrape_web', 'market_intel'],
         maxPermission: 'SAFE_LOCAL',
         preferredModels: ['gemini-2.5-pro', 'perplexity-sonar', 'claude-3-7-sonnet'],
         timeoutMs: 60_000,
@@ -245,7 +245,7 @@ export class AgentRegistry {
         codename: 'FLOW // PIPELINE EXECUTOR',
         role: 'automation_agent',
         description: 'Executes repeatable multi-step business workflows, integrations, webhook listeners, sync tasks.',
-        allowedTools: ['webhook_trigger', 'http_request', 'filesystem_read', 'data_transform'],
+        allowedTools: ['webhook_trigger', 'http_request', 'filesystem_read', 'data_transform', 'generate_automation', 'scrape_web', 'terminal_exec'],
         maxPermission: 'SAFE_LOCAL',
         preferredModels: ['gemini-2.5-flash', 'claude-3-7-sonnet'],
         timeoutMs: 60_000,
@@ -279,7 +279,7 @@ export class AgentRegistry {
         codename: 'OPS // EXECUTIVE STRATEGY',
         role: 'business_agent',
         description: 'Analyzes ROI, market positioning, proposal drafting, cost optimization, operational workflows.',
-        allowedTools: ['filesystem_read', 'doc_reader', 'report_generator'],
+        allowedTools: ['filesystem_read', 'doc_reader', 'report_generator', 'market_intel', 'web_search'],
         maxPermission: 'SAFE_LOCAL',
         preferredModels: ['gemini-2.5-pro', 'claude-3-7-sonnet'],
         timeoutMs: 60_000,
@@ -364,7 +364,7 @@ export class AgentRegistry {
         codename: 'EVOLVE // SYSTEM REFINEMENT',
         role: 'evolution_agent',
         description: 'Identifies performance bottlenecks, benchmarks optimizations, proposes safe system enhancements under sandbox.',
-        allowedTools: ['filesystem_read', 'benchmark_run', 'patch_propose', 'test_runner'],
+        allowedTools: ['filesystem_read', 'benchmark_run', 'patch_propose', 'test_runner', 'self_evolution'],
         maxPermission: 'SANDBOX',
         preferredModels: ['deepseek-r1', 'claude-3-7-sonnet'],
         timeoutMs: 120_000,
@@ -382,12 +382,101 @@ export class AgentRegistry {
     }
   }
 
+  private static readonly ALIAS_MAP: Record<string, string> = {
+    // Sovereign Specialists mapped to canonical workforce roles
+    aegis: 'software_engineer',
+    vortex: 'automation_agent',
+    midas: 'business_agent',
+    cerebro: 'research_agent',
+    stark_os: 'devops_engineer',
+    stark: 'devops_engineer',
+    friday: 'software_engineer',
+    coder: 'software_engineer',
+    daedalus: 'architect',
+    prism: 'frontend_engineer',
+    vulcan: 'backend_engineer',
+    oracle: 'database_engineer',
+    atlas: 'devops_engineer',
+    sentinel: 'qa_engineer',
+    holmes: 'debugger',
+    cerberus: 'security_agent',
+    athena: 'research_agent',
+    chronos: 'automation_agent',
+    navis: 'browser_agent',
+    thoth: 'data_agent',
+    scribe: 'documentation_agent',
+    mnemos: 'memory_agent',
+    argus: 'monitor_agent',
+    kairos: 'scheduler_agent',
+    prometheus: 'evolution_agent',
+  };
+
   public static getAgent(id: string): AgentSpecification | undefined {
-    return this.agents.get(id);
+    if (!id) return undefined;
+    const normalized = id.toLowerCase().trim();
+    if (this.agents.has(normalized)) {
+      return this.agents.get(normalized);
+    }
+    const targetId = this.ALIAS_MAP[normalized];
+    if (targetId && this.agents.has(targetId)) {
+      const baseAgent = this.agents.get(targetId)!;
+      if (['aegis', 'vortex', 'midas', 'cerebro', 'stark_os', 'stark'].includes(normalized)) {
+        const specialistIdentities: Record<string, { name: string; codename: string }> = {
+          aegis: { name: 'Aegis', codename: 'AEGIS // FULL-STACK ARCHITECT & DEFENSE' },
+          vortex: { name: 'Vortex', codename: 'VORTEX // HEAVY ENTERPRISE AUTOMATION' },
+          midas: { name: 'Midas', codename: 'MIDAS // REVENUE & MONETIZATION' },
+          cerebro: { name: 'Cerebro', codename: 'CEREBRO // DEEP RECON & INTEL' },
+          stark_os: { name: 'Stark OS', codename: 'STARK_OS // DEVICE & OPERATIONS CONCIERGE' },
+          stark: { name: 'Stark OS', codename: 'STARK_OS // DEVICE & OPERATIONS CONCIERGE' },
+        };
+        const override = specialistIdentities[normalized];
+        return {
+          ...baseAgent,
+          id: normalized === 'stark' ? 'stark_os' : normalized,
+          name: override?.name || baseAgent.name,
+          codename: override?.codename || baseAgent.codename,
+        };
+      }
+      return baseAgent;
+    }
+    return undefined;
   }
 
   public static listAgents(): AgentSpecification[] {
     return Array.from(this.agents.values());
+  }
+
+  public static getAgentHealth(agentId: string) {
+    const agent = this.getAgent(agentId);
+    if (!agent) {
+      return {
+        agentId,
+        registered: false,
+        health: 'UNAVAILABLE' as const,
+        lastSeen: null,
+        invocations: 0,
+        successRate: '0%',
+      };
+    }
+    const total = agent.telemetry.invocations;
+    const rate = total > 0 ? `${Math.round((agent.telemetry.successes / total) * 100)}%` : '100%';
+    return {
+      agentId: agent.id,
+      name: agent.name,
+      role: agent.role,
+      registered: true,
+      health: agent.health,
+      lastSeen: agent.telemetry.lastActive || new Date().toISOString(),
+      invocations: total,
+      successes: agent.telemetry.successes,
+      failures: agent.telemetry.failures,
+      avgDurationMs: agent.telemetry.avgDurationMs,
+      successRate: rate,
+    };
+  }
+
+  public static listAllAgentHealth() {
+    return Array.from(this.agents.values()).map(ag => this.getAgentHealth(ag.id));
   }
 
   public static registerAgent(agent: AgentSpecification): void {

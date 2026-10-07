@@ -6,6 +6,7 @@ import {
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
 import { jsonAuthHeaders } from '@/lib/api'
+import ActiveTaskExecutionPanel from '@/components/ActiveTaskExecutionPanel'
 
 function getTimeGreeting() {
   const h = new Date().getHours()
@@ -163,6 +164,9 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
           ))}
         </div>
       </div>
+
+      {/* Real-Time Live Task Execution Cockpit */}
+      <ActiveTaskExecutionPanel onTriggerTask={onVoiceTrigger} />
 
       {/* Grid: Telemetry, Projects & Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

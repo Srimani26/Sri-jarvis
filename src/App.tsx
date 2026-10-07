@@ -28,7 +28,7 @@ import {
   ChevronRight, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic, Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { authHeaders, jsonAuthHeaders } from '@/lib/api'
+import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } from '@/lib/api'
 import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
 
 const navItems = [
@@ -301,11 +301,19 @@ export default function App() {
     }
     fetch('/api/auth/status', { headers: authHeaders() })
       .then(async r => ({ ok: r.ok, body: (await r.json().catch(() => ({}))) as { authenticated?: boolean; username?: string } }))
-      .then(({ ok, body }) => {
+      .then(async ({ ok, body }) => {
         if (cancelled) return
-        // The server explicitly rejected the token — clear it.
+        // The server explicitly rejected the token — attempt refresh before giving up
         if (ok && body.authenticated === false) {
+          const refreshed = await attemptTokenRefresh()
+          if (cancelled) return
+          if (refreshed) {
+            setToken(refreshed)
+            keepSession()
+            return
+          }
           localStorage.removeItem('jarvis_token')
+          localStorage.removeItem('jarvis_refresh_token')
           localStorage.removeItem('jarvis_user')
           setToken('')
           setUsername('')
@@ -313,25 +321,27 @@ export default function App() {
           return
         }
         // Anything unexpected (5xx, server restarting) keeps the session.
-        // Nothing else ever set this true, so clearing here used to bounce
-        // Sri straight back to the login screen on every reload.
         keepSession(body.username)
       })
       .catch(() => keepSession())
     return () => { cancelled = true }
   }, [])
 
-  const handleLogin = (newToken: string, user: string) => {
+  const handleLogin = (newToken: string, user: string, refreshToken?: string) => {
     setToken(newToken)
     setUsername(user)
     localStorage.setItem('jarvis_token', newToken)
     localStorage.setItem('jarvis_user', user)
+    if (refreshToken) {
+      setRefreshToken(refreshToken)
+    }
     setAuthenticated(true)
   }
 
   const handleLogout = async () => {
     try { await fetch('/api/auth/logout', { method: 'POST', headers: authHeaders() }) } catch {}
     localStorage.removeItem('jarvis_token')
+    localStorage.removeItem('jarvis_refresh_token')
     localStorage.removeItem('jarvis_user')
     setToken('')
     setUsername('')

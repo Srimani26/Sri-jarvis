@@ -1,4 +1,5 @@
 const TOKEN_KEY = 'jarvis_token'
+const REFRESH_KEY = 'jarvis_refresh_token'
 
 export function getToken(): string {
   if (typeof localStorage === 'undefined') return ''
@@ -11,18 +12,20 @@ export function setToken(token: string) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
+export function getRefreshToken(): string {
+  if (typeof localStorage === 'undefined') return ''
+  return localStorage.getItem(REFRESH_KEY) || ''
+}
+
+export function setRefreshToken(refreshToken: string) {
+  if (typeof localStorage === 'undefined') return
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken)
+  else localStorage.removeItem(REFRESH_KEY)
+}
 
 /**
  * Auth transport.
- *
- * The pod's public proxy forwards ONLY the URL — every request header
- * (`Authorization`, `Cookie`, and any custom header) is stripped before the
- * request reaches this API. Verified against the live proxy: a request sent
- * with Authorization + Cookie + custom headers arrives carrying none of them.
- *
- * So header-based auth can never work through it, and the token has to travel
- * in the query string. `authHeaders()` still sets the headers as well, because
- * they DO work for direct calls (curl, tests, other pods) and cost nothing.
+ * Supports Bearer header, x-jarvis-token, and ?token= fallback for proxies.
  */
 export function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const token = getToken()
@@ -34,27 +37,66 @@ export function authHeaders(extra?: Record<string, string>): Record<string, stri
   }
 }
 
-/** Append the session token to a URL — the only channel the proxy passes through. */
-export function authUrl(url: string): string {
-  const token = getToken()
-  if (!token || !url.startsWith('/api/') || url.includes('token=')) return url
+/** Append the session token to a URL — channel for reverse proxies. */
+export function authUrl(url: string, explicitToken?: string): string {
+  const token = explicitToken || getToken()
+  if (!token || !url.startsWith('/api/')) return url
+  // Replace existing token param if present, or append
+  if (url.includes('token=')) {
+    return url.replace(/([?&])token=[^&]*/, `$1token=${encodeURIComponent(token)}`)
+  }
   return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
 }
 
-// Installed once at module load so every /api/ call in the app is covered —
-// including ones added later. Wrapping fetch (rather than editing ~20 call
-// sites by hand) is what makes this hold for good instead of until the next
-// surface is written.
-//
-// It also retries, because this preview host is load-balanced across backends
-// that do NOT all serve this project: measured live, ~15% of `/api/health` and
-// ~10% of `/api/auth/login` requests came back 404 from a *foreign* backend.
-// Those requests never reach our server, so retrying them is safe and turns a
-// random "login failed" into a non-event.
-//
-// We only retry a response that provably did NOT come from our own API: a
-// 404/502/503/504 whose body is not JSON. Any JSON answer from our API — 401,
-// 409, 400 — is returned on the first try, so real errors stay real and fast.
+let activeRefreshPromise: Promise<string | null> | null = null
+
+/**
+ * Attempts a transparent token refresh.
+ * Coalesces concurrent calls to prevent thundering herd.
+ */
+export async function attemptTokenRefresh(): Promise<string | null> {
+  if (activeRefreshPromise) return activeRefreshPromise
+
+  activeRefreshPromise = (async () => {
+    const refreshToken = getRefreshToken()
+    const currentToken = getToken()
+    if (!refreshToken && !currentToken) return null
+
+    try {
+      const res = await nativeFetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentToken ? { 'x-jarvis-token': currentToken, Authorization: `Bearer ${currentToken}` } : {}),
+          ...(refreshToken ? { 'x-refresh-token': refreshToken } : {})
+        },
+        body: JSON.stringify({ refreshToken, token: currentToken })
+      })
+
+      if (!res.ok) {
+        return null
+      }
+
+      const data = await res.json().catch(() => ({}))
+      if (data?.token) {
+        setToken(data.token)
+        if (data.refreshToken) setRefreshToken(data.refreshToken)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('jarvis:token-refreshed', { detail: { token: data.token } }))
+        }
+        return data.token as string
+      }
+      return null
+    } catch {
+      return null
+    } finally {
+      activeRefreshPromise = null
+    }
+  })()
+
+  return activeRefreshPromise
+}
+
 const RETRY_STATUSES = new Set([404, 502, 503, 504])
 const RETRY_ATTEMPTS = 4
 
@@ -69,7 +111,6 @@ function isOurJson(text: string): boolean {
   }
 }
 
-// Re-sending a request only works if its body can be read twice. Streams cannot.
 function bodyIsResendable(body: unknown): boolean {
   return (
     body == null ||
@@ -82,8 +123,6 @@ function bodyIsResendable(body: unknown): boolean {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-// Captured at module scope (bound, so calling it unbound can't throw an
-// "Illegal invocation") because the retry helper below has to reach it.
 const nativeFetch: typeof fetch =
   typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : (globalThis.fetch as typeof fetch)
 
@@ -93,10 +132,26 @@ async function retryingFetch(input: any, init?: RequestInit): Promise<Response> 
 
   for (let attempt = 1; ; attempt++) {
     try {
-      const res = await nativeFetch(input, init)
+      let res = await nativeFetch(input, init)
+
+      // Handle 401 Unauthorized via transparent token refresh
+      if (res.status === 401 && !input.includes('/api/auth/login') && !input.includes('/api/auth/refresh')) {
+        const refreshedToken = await attemptTokenRefresh()
+        if (refreshedToken) {
+          // Re-prepare input URL and headers with the refreshed token
+          const refreshedInput = typeof input === 'string' ? authUrl(input, refreshedToken) : input
+          const refreshedHeaders = new Headers(init?.headers || {})
+          refreshedHeaders.set('Authorization', `Bearer ${refreshedToken}`)
+          refreshedHeaders.set('x-jarvis-token', refreshedToken)
+          const retriedRes = await nativeFetch(refreshedInput, { ...init, headers: refreshedHeaders })
+          if (retriedRes.status !== 401) {
+            return retriedRes
+          }
+        }
+      }
+
       if (attempt >= RETRY_ATTEMPTS || !RETRY_STATUSES.has(res.status)) return res
       const text = await res.clone().text().catch(() => '')
-      // A JSON body means our API answered — that 404/5xx is real. Don't retry.
       if (isOurJson(text)) return res
       await delay(120 * attempt)
     } catch (err) {
@@ -111,7 +166,7 @@ if (typeof globalThis.fetch === 'function' && !(globalThis as any).__jarvisFetch
     try {
       if (typeof input === 'string') input = authUrl(input)
     } catch {
-      // Never let the auth shim break a request — fall through unmodified.
+      // Fall through safely
     }
     return retryingFetch(input, init)
   }) as typeof fetch
@@ -122,10 +177,6 @@ export function jsonAuthHeaders(): Record<string, string> {
   return authHeaders({ 'Content-Type': 'application/json' })
 }
 
-/**
- * fetch() with the bearer token attached. Throws an Error carrying the server's
- * own `error` string (never a generic message) so callers can surface it.
- */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<any> {
   const headers = authHeaders((init.headers as Record<string, string>) || {})
   const res = await fetch(path, { ...init, headers })

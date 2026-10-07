@@ -72,21 +72,32 @@ function launchTunnel() {
     setTimeout(launchTunnel, 3000)
   })
 
-  // Periodic Keepalive Health-Check every 45 seconds
+  // Resilient Periodic Keepalive Health-Check every 45 seconds
+  let consecutiveFailures = 0
   const keepalive = setInterval(async () => {
     if (urlDetected) {
       try {
         const currentUrl = fs.readFileSync(URL_FILE, 'utf-8').trim()
-        const res = await fetch(`${currentUrl}/api/system/version`, { signal: AbortSignal.timeout(6000) })
-        if (!res.ok) {
-          console.warn('[Keepalive] Gateway ping returned non-200. Cycling tunnel...')
+        const res = await fetch(`${currentUrl}/api/system/version`, { signal: AbortSignal.timeout(10000) })
+        if (res.ok) {
+          consecutiveFailures = 0
+        } else {
+          consecutiveFailures++
+          console.warn(`[Keepalive] Gateway ping returned status ${res.status} (${consecutiveFailures}/5)`)
+          if (consecutiveFailures >= 5) {
+            console.warn('[Keepalive] Consecutive failures exceeded. Cycling tunnel...')
+            clearInterval(keepalive)
+            try { child.kill() } catch {}
+          }
+        }
+      } catch (e) {
+        consecutiveFailures++
+        console.warn(`[Keepalive] Gateway ping failed: ${e.message} (${consecutiveFailures}/5)`)
+        if (consecutiveFailures >= 5) {
+          console.warn('[Keepalive] Consecutive failures exceeded. Cycling tunnel for fresh connection...')
           clearInterval(keepalive)
           try { child.kill() } catch {}
         }
-      } catch (e) {
-        console.warn('[Keepalive] Gateway ping failed. Cycling tunnel for fresh connection...')
-        clearInterval(keepalive)
-        try { child.kill() } catch {}
       }
     }
   }, 45000)

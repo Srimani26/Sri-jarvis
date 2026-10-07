@@ -81,6 +81,10 @@ export interface DatabaseDiagnostics {
   status: 'CONNECTED' | 'DISCONNECTED';
   latencyMs: number;
   details: string;
+  connected: boolean;
+  error?: string | null;
+  storageType: 'postgresql' | 'sqlite';
+  durable: boolean;
 }
 
 /**
@@ -103,6 +107,10 @@ export async function validateDatabaseConnectivity(): Promise<DatabaseDiagnostic
       durability,
       status: 'CONNECTED',
       latencyMs,
+      connected: true,
+      error: null,
+      storageType: provider,
+      durable: durability === 'PRODUCTION_DURABLE',
       details: isPostgres
         ? 'Connected to Managed PostgreSQL. Data and task states are persistent across restarts.'
         : 'Running on SQLite. Note: On container-restart platforms (e.g., Render Free), storage is NOT production-durable.',
@@ -115,6 +123,10 @@ export async function validateDatabaseConnectivity(): Promise<DatabaseDiagnostic
       durability,
       status: 'DISCONNECTED',
       latencyMs,
+      connected: false,
+      error: err?.message || String(err),
+      storageType: provider,
+      durable: false,
       details: `Database connection error: ${err?.message || err}`,
     };
   }
