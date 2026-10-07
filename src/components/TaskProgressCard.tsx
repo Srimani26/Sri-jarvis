@@ -43,6 +43,8 @@ export interface AgentTask {
   terminalLogs?: string[]
   filesChanged?: string[]
   commandsRun?: string[]
+  workspacePath?: string
+  planPhases?: Array<{ phase: string; title: string; agent: string; status: string }>
 }
 
 interface TaskProgressCardProps {
@@ -190,8 +192,43 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
         </div>
       </div>
 
+      {/* High-Capacity Autonomous Engine Workflow Pipeline Breadcrumb */}
+      <div className="mt-3 p-2 rounded-xl bg-slate-900/90 border border-cyan-500/30 text-[10px] font-mono flex items-center justify-between gap-1 overflow-x-auto no-scrollbar relative z-10 shadow-inner">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">1. PLAN</span>
+          <span className="text-slate-600 font-bold">→</span>
+          <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">2. ASSIGN ({agentConfig.label.split(' ')[0]})</span>
+          <span className="text-slate-600 font-bold">→</span>
+          <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">3. ID (#{task.taskNumber})</span>
+          <span className="text-slate-600 font-bold">→</span>
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">4. PATH</span>
+          <span className="text-slate-600 font-bold">→</span>
+          <span className={cn(
+            "px-1.5 py-0.5 rounded font-bold border transition-all",
+            task.status === 'RUNNING' ? "bg-cyan-500/30 text-cyan-200 border-cyan-400 animate-pulse" :
+            task.status === 'COMPLETED' ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" :
+            "bg-slate-800 text-slate-400 border-slate-700"
+          )}>
+            5. EXECUTE {task.status === 'RUNNING' ? '🔄' : task.status === 'COMPLETED' ? '✅' : ''}
+          </span>
+          <span className="text-slate-600 font-bold">→</span>
+          <span className={cn(
+            "px-1.5 py-0.5 rounded font-bold border",
+            task.status === 'COMPLETED' ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/50" : "bg-slate-800 text-slate-500 border-slate-700"
+          )}>
+            6. VERIFY {task.status === 'COMPLETED' ? '100%' : 'PENDING'}
+          </span>
+        </div>
+        {task.workspacePath && (
+          <div className="flex items-center gap-1 text-[9px] text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/40 shrink-0">
+            <span>📁</span>
+            <span className="font-semibold">{task.workspacePath}</span>
+          </div>
+        )}
+      </div>
+
       {/* Progress Counter & Step Status */}
-      <div className="mt-4 space-y-2 relative z-10">
+      <div className="mt-3 space-y-2 relative z-10">
         <div className="flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-2 text-cyan-300">
             <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
