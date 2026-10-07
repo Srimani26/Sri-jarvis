@@ -2225,6 +2225,59 @@ app.post('/ecommerce/compare', requireAuth, async (c) => {
   }
 })
 
+// ============================================================================
+// SOVEREIGN MULTI-AGENT SWARM & PARALLEL WORKFORCE ORCHESTRATION
+// ============================================================================
+
+// POST /api/swarm/dispatch — Synchronized 5-Agent Pipeline
+app.post('/swarm/dispatch', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}))
+    const objective = (body?.objective || 'Build autonomous business intelligence dashboard').trim()
+    const projectName = body?.projectName || `swarm_${Date.now().toString().slice(-6)}`
+    const { MultiAgentSwarmEngine } = await import('./src/agents/MultiAgentSwarmEngine')
+
+    const taskId = `SWARM-${Date.now()}`
+    const result = await MultiAgentSwarmEngine.dispatchSwarm({
+      taskId,
+      objective,
+      projectName,
+      aiCaller: (sys, msgs) => callAI(sys, msgs),
+    })
+
+    return c.json({ ok: true, data: result })
+  } catch (error: any) {
+    return c.json({ ok: false, error: error.message }, 500)
+  }
+})
+
+// POST /api/swarm/parallel — Concurrent Multi-Agent Doing Engine
+app.post('/swarm/parallel', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}))
+    const tasks = Array.isArray(body?.tasks) ? body.tasks : [
+      { agentId: 'architect', objective: 'Design architecture for CRM system' },
+      { agentId: 'software_engineer', objective: 'Scaffold Express API routes for CRM' },
+    ]
+    const { MultiAgentSwarmEngine } = await import('./src/agents/MultiAgentSwarmEngine')
+    const result = await MultiAgentSwarmEngine.executeParallelTasks(tasks, (sys, msgs) => callAI(sys, msgs))
+    return c.json({ ok: true, data: result })
+  } catch (error: any) {
+    return c.json({ ok: false, error: error.message }, 500)
+  }
+})
+
+// GET /api/swarm/status/:taskId — Query Swarm Status & Blackboard
+app.get('/swarm/status/:taskId', requireAuth, async (c) => {
+  const taskId = c.req.param('taskId')
+  const { MultiAgentSwarmEngine } = await import('./src/agents/MultiAgentSwarmEngine')
+  const swarm = MultiAgentSwarmEngine.getSwarmResult(taskId)
+  if (!swarm) {
+    return c.json({ ok: false, error: 'Swarm mission not found or still processing' }, 404)
+  }
+  return c.json({ ok: true, data: swarm })
+})
+
 
 // ============================================================================
 // AEGIS CYBER THREAT DEFENSE SHIELD - MASTER SRI SECURITY SENTINEL

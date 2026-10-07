@@ -686,6 +686,82 @@ export class ToolRegistry {
         };
       },
     });
+
+    // 26. swarm_dispatch — Multi-Agent Synchronized Swarm Pipeline
+    this.registerTool({
+      name: 'swarm_dispatch',
+      description: 'Dispatches a synchronized 5-agent specialist swarm (Daedalus -> Friday -> Aegis -> Sentinel -> Jarvis) for complex multi-stage objectives',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          objective: { type: 'string', description: 'Comprehensive goal for the swarm' },
+          projectName: { type: 'string', description: 'Optional sandbox project directory name' },
+        },
+        required: ['objective'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'STANDARD',
+      timeoutMs: 120_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args, context) => {
+        const { MultiAgentSwarmEngine } = await import('../agents/MultiAgentSwarmEngine');
+        const res = await MultiAgentSwarmEngine.dispatchSwarm({
+          taskId: context?.taskId || `SWARM-${Date.now()}`,
+          objective: args.objective,
+          projectName: args.projectName,
+        });
+        return {
+          tool: 'swarm_dispatch',
+          success: res.success,
+          output: res,
+        };
+      },
+    });
+
+    // 27. execute_parallel_tasks — Concurrent Multi-Agent Doing Engine
+    this.registerTool({
+      name: 'execute_parallel_tasks',
+      description: 'Executes multiple independent subtasks concurrently across distinct specialist agents',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tasks: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                agentId: { type: 'string' },
+                objective: { type: 'string' },
+                projectName: { type: 'string' },
+              },
+              required: ['agentId', 'objective'],
+            },
+          },
+        },
+        required: ['tasks'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'STANDARD',
+      timeoutMs: 90_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const { MultiAgentSwarmEngine } = await import('../agents/MultiAgentSwarmEngine');
+        const res = await MultiAgentSwarmEngine.executeParallelTasks(args.tasks || []);
+        return {
+          tool: 'execute_parallel_tasks',
+          success: true,
+          output: res,
+        };
+      },
+    });
   }
 
   public static registerTool(tool: ToolDefinition): void {

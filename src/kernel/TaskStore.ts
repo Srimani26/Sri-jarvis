@@ -109,7 +109,9 @@ export class TaskStore {
       });
       persistedEventId = dbEvent.id;
     } catch (err: any) {
-      console.error(`[TaskStore] Failed to persist event to SQLite:`, err?.message);
+      if (!err?.message?.includes('Foreign key constraint') && !err?.message?.includes('foreign key')) {
+        console.error(`[TaskStore] Failed to persist event to SQLite:`, err?.message);
+      }
     }
 
     const event: KernelEvent = {

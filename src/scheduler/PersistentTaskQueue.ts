@@ -24,8 +24,12 @@ export class PersistentTaskQueue {
   private static isRunning = false;
   private static pollTimer: NodeJS.Timeout | null = null;
   private static activeJobs: Map<string, Promise<any>> = new Map();
-  private static maxConcurrency = 2; // Controlled concurrency for cloud container stability
+  private static maxConcurrency = 4; // High-capacity multi-task concurrency
   private static defaultAiCaller: ((systemPrompt: string, messages: Array<{ role: string; content: string }>) => Promise<{ text: string; source?: string }>) | null = null;
+
+  public static setMaxConcurrency(limit: number): void {
+    this.maxConcurrency = Math.max(1, limit);
+  }
 
   /**
    * Set global AI caller for queue workers
