@@ -958,6 +958,8 @@ type ProviderKeys = {
   openrouter?: string;
   mistral?: string;
   huggingface?: string;
+  elevenlabs?: string;
+  deepgram?: string;
 }
 
 // In-memory runtime overrides with durable local persistence fallback
@@ -982,6 +984,8 @@ function loadKeys(): ProviderKeys {
   const huggingfaceEnv = runtimeKeyOverrides.huggingface || process.env.HUGGINGFACE_API_KEY
   const openaiEnv = runtimeKeyOverrides.openai || process.env.OPENAI_API_KEY
   const anthropicEnv = runtimeKeyOverrides.anthropic || process.env.ANTHROPIC_API_KEY
+  const elevenlabsEnv = runtimeKeyOverrides.elevenlabs || process.env.ELEVENLABS_API_KEY
+  const deepgramEnv = runtimeKeyOverrides.deepgram || process.env.DEEPGRAM_API_KEY
 
   return {
     openai: openaiEnv,
@@ -992,6 +996,8 @@ function loadKeys(): ProviderKeys {
     openrouter: openrouterEnv,
     mistral: mistralEnv,
     huggingface: huggingfaceEnv,
+    elevenlabs: elevenlabsEnv,
+    deepgram: deepgramEnv,
   }
 }
 
@@ -2472,11 +2478,46 @@ app.post('/voice/transcribe', async (c) => {
     }
 
     const keys = loadKeys()
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || keys.deepgram
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || keys.gemini || (keys.geminiKeys && keys.geminiKeys[0])
     const groqKey = process.env.GROQ_API_KEY || keys.groq
     const mimeType = (file.type || 'audio/webm').split(';')[0]
 
     const techVocabulary = 'J.A.R.V.I.S., Master Sri, Flipkart, Amazon, Shopify, YouTube, play songs, play the song, analyze, best deal, review, quality, products, compare, terminal, workspace, Aegis, Vortex, Midas, Cerebro, Stark OS, PostgreSQL, Neon, Prisma, Docker, Render, TypeScript, Next.js, FastAPI, n8n, Tailwind, mission, telemetry, rollcall, status'
+
+    // 0. Ultra-Low Latency Engine: Deepgram Nova-2 (~100ms, multi-accent, intelligent punctuation)
+    if (deepgramKey) {
+      try {
+        const dgRes = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&keywords=J.A.R.V.I.S.,Master+Sri,Flipkart,Amazon,Shopify,YouTube,songs', {
+          method: 'POST',
+          headers: {
+            Authorization: `Token ${deepgramKey}`,
+            'Content-Type': mimeType,
+          },
+          body: buffer,
+          signal: AbortSignal.timeout(8000),
+        })
+        if (dgRes.ok) {
+          const dgData: any = await dgRes.json()
+          const dgTranscript = dgData?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || ''
+          const dgConfidence = dgData?.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0.98
+          if (dgTranscript) {
+            return c.json({
+              ok: true,
+              text: dgTranscript,
+              confidence: dgConfidence,
+              engine: 'deepgram-nova-2',
+              promptRepeat: false,
+            })
+          }
+        } else {
+          const errText = await dgRes.text().catch(() => '')
+          console.warn(`[STT] Deepgram Nova-2 returned ${dgRes.status}: ${errText.slice(0, 100)}. Failing over to Groq Whisper...`)
+        }
+      } catch (dgErr: any) {
+        console.warn(`[STT] Deepgram Nova-2 failed: ${dgErr.message}. Failing over to Groq Whisper...`)
+      }
+    }
 
     // 1. Primary Engine: Groq Whisper Large v3 (Sub-200ms dedicated LPU speech recognition with domain biasing)
     if (groqKey) {
@@ -3256,6 +3297,34 @@ async function synthesizeNeuralAudio(text: string, voice: string): Promise<Buffe
     }
   } catch (elErr: any) {
     console.warn(`[TTS] ElevenLabs synthesis failed: ${elErr.message}`)
+  }
+
+  // 2. Deepgram Aura Ultra-Low Latency Streaming Neural TTS (~120ms)
+  try {
+    const keys = loadKeys()
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || keys.deepgram
+    if (deepgramKey) {
+      const dgVoice = process.env.DEEPGRAM_VOICE || 'aura-orion-en'
+      const dgRes = await fetch(`https://api.deepgram.com/v1/speak?model=${dgVoice}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${deepgramKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: text.slice(0, 1500) }),
+        signal: AbortSignal.timeout(8000),
+      })
+      if (dgRes.ok) {
+        const arrayBuf = await dgRes.arrayBuffer()
+        const dgBuf = Buffer.from(arrayBuf)
+        if (dgBuf.length > 500) {
+          ttsAudioCache.set(cacheKey, dgBuf)
+          return dgBuf
+        }
+      }
+    }
+  } catch (dgErr: any) {
+    console.warn(`[TTS] Deepgram Aura synthesis failed: ${dgErr.message}`)
   }
 
   const { execFile } = await import('node:child_process')
