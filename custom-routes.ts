@@ -1443,7 +1443,10 @@ Directly converse with Master Sri. Keep spoken responses concise, authoritative,
       await (prisma as any).conversation.create({ data: { role: 'assistant', content: answer.text.substring(0, 2000), sessionId: 'main' } }).catch(() => {})
       await (prisma as any).activityLog.create({ data: { action: 'ai_chat', details: answer.source, surface: 'chat' } }).catch(() => {})
     }
-    return c.json({ content: answer.text, source: answer.source })
+    const spokenSummary = ConversationOS.sanitizeSpokenText(
+      answer.text.split('\n\n')[0]?.split('\n')[0]?.slice(0, 240) || answer.text.slice(0, 180)
+    );
+    return c.json({ content: answer.text, source: answer.source, spokenSummary })
   } catch (error: any) {
     return c.json({ error: error.message || 'Chat error' }, 500)
   }
@@ -3214,6 +3217,56 @@ app.get('/system/version', (c) => {
 // HIGH-FIDELITY NEURAL AUDIO STREAMING (NEVER FAILS ON MOBILE PHONES)
 // Delivers crystal-clear British audio stream directly to HTML5 Audio element
 // ============================================================================
+const ttsAudioCache = new Map<string, Buffer>()
+const MAX_TTS_CACHE_ITEMS = 200
+
+async function synthesizeNeuralAudio(text: string, voice: string): Promise<Buffer | null> {
+  const cacheKey = `${voice}:::${text}`
+  if (ttsAudioCache.has(cacheKey)) {
+    return ttsAudioCache.get(cacheKey)!
+  }
+
+  const { execFile } = await import('node:child_process')
+  const scriptPath = join(process.cwd(), 'scripts', 'neural-tts.py')
+  const pyBin = process.platform === 'win32' ? 'python' : 'python3'
+
+  const audioBuffer = await new Promise<Buffer | null>((resolve) => {
+    execFile(pyBin, [scriptPath, '--text', text, '--voice', voice], {
+      maxBuffer: 20 * 1024 * 1024,
+      timeout: 15000,
+      encoding: 'buffer'
+    }, (err, stdout) => {
+      if (!err && stdout && stdout.length > 500) {
+        return resolve(stdout as unknown as Buffer)
+      }
+      if (pyBin !== 'python') {
+        execFile('python', [scriptPath, '--text', text, '--voice', voice], {
+          maxBuffer: 20 * 1024 * 1024,
+          timeout: 15000,
+          encoding: 'buffer'
+        }, (err2, stdout2) => {
+          if (!err2 && stdout2 && stdout2.length > 500) {
+            return resolve(stdout2 as unknown as Buffer)
+          }
+          resolve(null)
+        })
+      } else {
+        resolve(null)
+      }
+    })
+  })
+
+  if (audioBuffer && audioBuffer.length > 500) {
+    if (ttsAudioCache.size >= MAX_TTS_CACHE_ITEMS) {
+      const firstKey = ttsAudioCache.keys().next().value
+      if (firstKey) ttsAudioCache.delete(firstKey)
+    }
+    ttsAudioCache.set(cacheKey, audioBuffer)
+    return audioBuffer
+  }
+  return null
+}
+
 app.get('/voice/speak', async (c) => {
   try {
     const rawText = c.req.query('text') || 'At your command, Sovereign Master Sri.'
@@ -3274,30 +3327,12 @@ app.get('/voice/speak', async (c) => {
       return c.body(readFileSync(staticFile))
     }
 
-    // High-fidelity neural human voice synthesis (edge-tts via python3/python)
-    try {
-      const { execFileSync } = await import('node:child_process')
-      const scriptPath = join(process.cwd(), 'scripts', 'neural-tts.py')
-      const pyBin = process.platform === 'win32' ? 'python' : 'python3'
-      let audioBuffer: Buffer | null = null
-      try {
-        audioBuffer = execFileSync(pyBin, [scriptPath, '--text', clean, '--voice', lang], {
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 15000
-        })
-      } catch {
-        audioBuffer = execFileSync('python', [scriptPath, '--text', clean, '--voice', lang], {
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 15000
-        })
-      }
-      if (audioBuffer && audioBuffer.length > 500) {
-        c.header('Content-Type', 'audio/mpeg')
-        c.header('Cache-Control', 'public, max-age=86400')
-        return c.body(audioBuffer)
-      }
-    } catch (e: any) {
-      console.warn('[TTS] neural-tts fallback to Google TTS:', e?.message)
+    // Asynchronous High-fidelity neural voice synthesis with in-memory LRU caching
+    const audioBuffer = await synthesizeNeuralAudio(clean, lang)
+    if (audioBuffer && audioBuffer.length > 500) {
+      c.header('Content-Type', 'audio/mpeg')
+      c.header('Cache-Control', 'public, max-age=86400')
+      return c.body(audioBuffer)
     }
 
     // Resilient fallback: Google Translate TTS
@@ -3312,10 +3347,10 @@ app.get('/voice/speak', async (c) => {
       return c.text('TTS stream failed', 500)
     }
 
-    const audioBuffer = await audioRes.arrayBuffer()
+    const fallbackBuf = await audioRes.arrayBuffer()
     c.header('Content-Type', 'audio/mpeg')
     c.header('Cache-Control', 'public, max-age=86400')
-    return c.body(audioBuffer)
+    return c.body(fallbackBuf)
   } catch (err: any) {
     return c.text(err.message, 500)
   }
@@ -3335,21 +3370,7 @@ app.post('/voice/speak', async (c) => {
       .slice(0, 3000)
       .trim()
 
-    const pyBin = process.platform === 'win32' ? 'python' : 'python3'
-    const { execFileSync } = await import('node:child_process')
-    const scriptPath = join(process.cwd(), 'scripts', 'neural-tts.py')
-    let audioBuffer: Buffer | null = null
-    try {
-      audioBuffer = execFileSync(pyBin, [scriptPath, '--text', clean, '--voice', lang], {
-        maxBuffer: 15 * 1024 * 1024,
-        timeout: 15000
-      })
-    } catch {
-      audioBuffer = execFileSync('python', [scriptPath, '--text', clean, '--voice', lang], {
-        maxBuffer: 15 * 1024 * 1024,
-        timeout: 15000
-      })
-    }
+    const audioBuffer = await synthesizeNeuralAudio(clean, lang)
     if (audioBuffer && audioBuffer.length > 500) {
       c.header('Content-Type', 'audio/mpeg')
       c.header('Cache-Control', 'public, max-age=86400')
@@ -4765,7 +4786,11 @@ app.post('/voice/conversation', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const transcript = body?.transcript || '';
     if (!transcript) return c.json({ ok: false, error: 'transcript is required' }, 400);
-    const reply = ConversationOS.processUserSpeech(transcript);
+    const reply = await ConversationOS.processUserSpeechAsync(
+      transcript,
+      (sys, msgs) => callAI(sys, msgs),
+      body?.persona || 'jarvis'
+    );
     return c.json({ ok: true, response: reply });
   } catch (err: any) {
     return c.json({ ok: false, error: err?.message || err }, 500);

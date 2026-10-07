@@ -6200,6 +6200,83 @@ var ConversationOS = class {
       requiresConfirmation: lower.includes("delete") || lower.includes("drop") || lower.includes("deploy prod")
     };
   }
+  /**
+   * Advanced Intelligent Conversational Voice Processing
+   * Uses real LLM context and Tony Stark / Paul Bettany persona prompts to formulate
+   * articulate, dynamic, witty, high-IQ spoken responses rather than static canned strings.
+   */
+  static async processUserSpeechAsync(transcript, aiCaller, persona = "jarvis") {
+    this.currentState = "THINKING";
+    const cleanInput = transcript.trim();
+    const utterance = {
+      id: `utt_${Date.now()}_u`,
+      sender: "user",
+      text: cleanInput,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.history.push(utterance);
+    let assignedAgent = "jarvis";
+    const lower = cleanInput.toLowerCase();
+    if (lower.includes("code") || lower.includes("bug") || lower.includes("function") || lower.includes("refactor") || lower.includes("build") || lower.includes("software")) {
+      assignedAgent = "software_engineer";
+    } else if (lower.includes("architecture") || lower.includes("design") || lower.includes("system") || lower.includes("topology")) {
+      assignedAgent = "architect";
+    } else if (lower.includes("test") || lower.includes("verify") || lower.includes("regression") || lower.includes("qa")) {
+      assignedAgent = "qa_engineer";
+    } else if (lower.includes("security") || lower.includes("scan") || lower.includes("vulnerability") || lower.includes("auth")) {
+      assignedAgent = "security_agent";
+    } else if (lower.includes("database") || lower.includes("schema") || lower.includes("migrate") || lower.includes("sql") || lower.includes("prisma")) {
+      assignedAgent = "database_engineer";
+    } else if (lower.includes("deploy") || lower.includes("docker") || lower.includes("infra") || lower.includes("kubernetes")) {
+      assignedAgent = "devops_engineer";
+    }
+    let spoken = "";
+    if (aiCaller) {
+      try {
+        const personaPrompt = `You are J.A.R.V.I.S., Tony Stark's legendary AI, serving Sovereign Master Sri.
+Persona: Sophisticated British intellect, razor-sharp wit, unflinching loyalty, and absolute operational clarity.
+Operational Context: The user's directive has been routed to specialist: ${assignedAgent}.
+${assignedAgent === "software_engineer" ? "Explicitly reference F.R.I.D.A.Y. coordinating code synthesis and verification." : ""}
+${assignedAgent === "architect" ? "Explicitly reference D.A.E.D.A.L.U.S. architecting the system blueprint." : ""}
+${assignedAgent === "qa_engineer" ? "Explicitly reference S.E.N.T.I.N.E.L. executing test coverage." : ""}
+${assignedAgent === "security_agent" ? "Explicitly reference C.E.R.B.E.R.U.S. locking down threat perimeters." : ""}
+Rules for Spoken Output:
+1. Provide a direct, highly intelligent, articulate spoken reply to Master Sri.
+2. Deliver exactly 1 to 2 spoken sentences (under 45 words maximum).
+3. NO markdown formatting, no code blocks, no asterisks, no bullet points, no URLs. Formatted strictly for natural speech synthesis.`;
+        const recentMessages = this.history.slice(-6).map((u) => ({
+          role: u.sender === "user" ? "user" : "assistant",
+          content: u.text
+        }));
+        const aiResponse = await aiCaller(personaPrompt, recentMessages);
+        if (aiResponse?.text && aiResponse.text.trim()) {
+          spoken = this.sanitizeSpokenText(aiResponse.text);
+        }
+      } catch (err) {
+        console.warn("[ConversationOS] AI voice synthesis fallback:", err);
+      }
+    }
+    if (!spoken) {
+      spoken = this.generateTacticalVoiceReply(cleanInput, assignedAgent);
+    }
+    const jarvisUtterance = {
+      id: `utt_${Date.now()}_j`,
+      sender: "jarvis",
+      text: spoken,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      assignedAgent
+    };
+    this.history.push(jarvisUtterance);
+    return {
+      spokenText: spoken,
+      technicalDetails: `Routed to agent: ${assignedAgent}`,
+      assignedAgentId: assignedAgent,
+      requiresConfirmation: lower.includes("delete") || lower.includes("drop") || lower.includes("deploy prod")
+    };
+  }
+  static sanitizeSpokenText(raw2) {
+    return raw2.replace(/```[\s\S]*?```/g, "Code block generated.").replace(/`([^`]+)`/g, "$1").replace(/[*#_~>]/g, "").replace(/https?:\/\/\S+/g, "link provided").replace(/\{[\s\S]*?\}/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\s+/g, " ").trim();
+  }
   static beginSpeechPlayback() {
     this.currentState = "SPEAKING";
     this.activePlaybackAbortController = new AbortController();
@@ -6223,6 +6300,12 @@ var ConversationOS = class {
     }
     if (agentId === "security_agent") {
       return `Engaging C.E.R.B.E.R.U.S. security shield to audit boundaries.`;
+    }
+    if (agentId === "database_engineer") {
+      return `Accessing O.R.A.C.L.E. data repository to verify schema integrity.`;
+    }
+    if (agentId === "devops_engineer") {
+      return `Deploying A.T.L.A.S. infrastructure pipeline for cloud provisioning.`;
     }
     return `At your command, Sir. Initializing mission parameters now.`;
   }
@@ -9379,7 +9462,10 @@ Directly converse with Master Sri. Keep spoken responses concise, authoritative,
       await prisma.activityLog.create({ data: { action: "ai_chat", details: answer.source, surface: "chat" } }).catch(() => {
       });
     }
-    return c.json({ content: answer.text, source: answer.source });
+    const spokenSummary = ConversationOS.sanitizeSpokenText(
+      answer.text.split("\n\n")[0]?.split("\n")[0]?.slice(0, 240) || answer.text.slice(0, 180)
+    );
+    return c.json({ content: answer.text, source: answer.source, spokenSummary });
   } catch (error) {
     return c.json({ error: error.message || "Chat error" }, 500);
   }
@@ -10847,6 +10933,51 @@ app.get("/system/version", (c) => {
     gatewaySync: "AUTOMATIC_ON_GIT_PUSH"
   });
 });
+var ttsAudioCache = /* @__PURE__ */ new Map();
+var MAX_TTS_CACHE_ITEMS = 200;
+async function synthesizeNeuralAudio(text, voice) {
+  const cacheKey = `${voice}:::${text}`;
+  if (ttsAudioCache.has(cacheKey)) {
+    return ttsAudioCache.get(cacheKey);
+  }
+  const { execFile: execFile3 } = await import("node:child_process");
+  const scriptPath = join7(process.cwd(), "scripts", "neural-tts.py");
+  const pyBin = process.platform === "win32" ? "python" : "python3";
+  const audioBuffer = await new Promise((resolve6) => {
+    execFile3(pyBin, [scriptPath, "--text", text, "--voice", voice], {
+      maxBuffer: 20 * 1024 * 1024,
+      timeout: 15e3,
+      encoding: "buffer"
+    }, (err, stdout) => {
+      if (!err && stdout && stdout.length > 500) {
+        return resolve6(stdout);
+      }
+      if (pyBin !== "python") {
+        execFile3("python", [scriptPath, "--text", text, "--voice", voice], {
+          maxBuffer: 20 * 1024 * 1024,
+          timeout: 15e3,
+          encoding: "buffer"
+        }, (err2, stdout2) => {
+          if (!err2 && stdout2 && stdout2.length > 500) {
+            return resolve6(stdout2);
+          }
+          resolve6(null);
+        });
+      } else {
+        resolve6(null);
+      }
+    });
+  });
+  if (audioBuffer && audioBuffer.length > 500) {
+    if (ttsAudioCache.size >= MAX_TTS_CACHE_ITEMS) {
+      const firstKey = ttsAudioCache.keys().next().value;
+      if (firstKey) ttsAudioCache.delete(firstKey);
+    }
+    ttsAudioCache.set(cacheKey, audioBuffer);
+    return audioBuffer;
+  }
+  return null;
+}
 app.get("/voice/speak", async (c) => {
   try {
     const rawText = c.req.query("text") || "At your command, Sovereign Master Sri.";
@@ -10896,29 +11027,11 @@ app.get("/voice/speak", async (c) => {
       c.header("Cache-Control", "public, max-age=86400");
       return c.body(readFileSync4(staticFile));
     }
-    try {
-      const { execFileSync } = await import("node:child_process");
-      const scriptPath = join7(process.cwd(), "scripts", "neural-tts.py");
-      const pyBin = process.platform === "win32" ? "python" : "python3";
-      let audioBuffer2 = null;
-      try {
-        audioBuffer2 = execFileSync(pyBin, [scriptPath, "--text", clean, "--voice", lang], {
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 15e3
-        });
-      } catch {
-        audioBuffer2 = execFileSync("python", [scriptPath, "--text", clean, "--voice", lang], {
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 15e3
-        });
-      }
-      if (audioBuffer2 && audioBuffer2.length > 500) {
-        c.header("Content-Type", "audio/mpeg");
-        c.header("Cache-Control", "public, max-age=86400");
-        return c.body(audioBuffer2);
-      }
-    } catch (e) {
-      console.warn("[TTS] neural-tts fallback to Google TTS:", e?.message);
+    const audioBuffer = await synthesizeNeuralAudio(clean, lang);
+    if (audioBuffer && audioBuffer.length > 500) {
+      c.header("Content-Type", "audio/mpeg");
+      c.header("Cache-Control", "public, max-age=86400");
+      return c.body(audioBuffer);
     }
     const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(clean)}&tl=${lang}&client=tw-ob`;
     const audioRes = await fetch(ttsUrl, {
@@ -10929,10 +11042,10 @@ app.get("/voice/speak", async (c) => {
     if (!audioRes.ok) {
       return c.text("TTS stream failed", 500);
     }
-    const audioBuffer = await audioRes.arrayBuffer();
+    const fallbackBuf = await audioRes.arrayBuffer();
     c.header("Content-Type", "audio/mpeg");
     c.header("Cache-Control", "public, max-age=86400");
-    return c.body(audioBuffer);
+    return c.body(fallbackBuf);
   } catch (err) {
     return c.text(err.message, 500);
   }
@@ -10943,21 +11056,7 @@ app.post("/voice/speak", async (c) => {
     const rawText = body.text || "At your command, Sovereign Master Sri.";
     const lang = body.lang || "en-GB";
     const clean = rawText.replace(/`[\s\S]*?`/g, "Code block generated.").replace(/[*_#~>]/g, "").replace(/https?:\/\/[^\s]+/g, "link provided.").replace(/\{[\s\S]*?\}/g, "").slice(0, 3e3).trim();
-    const pyBin = process.platform === "win32" ? "python" : "python3";
-    const { execFileSync } = await import("node:child_process");
-    const scriptPath = join7(process.cwd(), "scripts", "neural-tts.py");
-    let audioBuffer = null;
-    try {
-      audioBuffer = execFileSync(pyBin, [scriptPath, "--text", clean, "--voice", lang], {
-        maxBuffer: 15 * 1024 * 1024,
-        timeout: 15e3
-      });
-    } catch {
-      audioBuffer = execFileSync("python", [scriptPath, "--text", clean, "--voice", lang], {
-        maxBuffer: 15 * 1024 * 1024,
-        timeout: 15e3
-      });
-    }
+    const audioBuffer = await synthesizeNeuralAudio(clean, lang);
     if (audioBuffer && audioBuffer.length > 500) {
       c.header("Content-Type", "audio/mpeg");
       c.header("Cache-Control", "public, max-age=86400");
@@ -12108,7 +12207,11 @@ app.post("/voice/conversation", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const transcript = body?.transcript || "";
     if (!transcript) return c.json({ ok: false, error: "transcript is required" }, 400);
-    const reply = ConversationOS.processUserSpeech(transcript);
+    const reply = await ConversationOS.processUserSpeechAsync(
+      transcript,
+      (sys, msgs) => callAI(sys, msgs),
+      body?.persona || "jarvis"
+    );
     return c.json({ ok: true, response: reply });
   } catch (err) {
     return c.json({ ok: false, error: err?.message || err }, 500);

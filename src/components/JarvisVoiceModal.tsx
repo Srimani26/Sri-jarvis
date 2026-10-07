@@ -1663,8 +1663,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       if (res.ok) {
         const data = await res.json()
         const textContent = data.content || data.reply || data.text || 'Command executed, Master Sri.'
+        const spokenReply = data.spokenSummary || (textContent.split('\n\n')[0]?.split('\n')[0] || textContent).slice(0, 240)
         setJarvisResponse(textContent)
-        speakVoice(textContent)
+        speakVoice(spokenReply)
       } else {
         const fallback = `Understood, Master Sri. I have registered your directive: "${cmd}". The swarm is aligning execution.`
         setJarvisResponse(fallback)
