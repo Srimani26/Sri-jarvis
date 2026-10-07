@@ -1910,14 +1910,16 @@ var TaskStore = class {
    * Create and persist a new task in SQLite
    */
   static async createTask(input) {
-    const taskNumber = this.generateTaskNumber();
+    const taskNumber = input.id || this.generateTaskNumber();
     const assignedAgent = input.agentId || "jarvis";
     const totalSteps = input.totalSteps || 4;
+    const title = input.title || input.objective || "Autonomous Task";
+    const description = input.description || input.objective || "Executed by J.A.R.V.I.S. Execution Kernel";
     const task = await prisma.agentTask.create({
       data: {
         taskNumber,
-        title: input.title,
-        description: input.description,
+        title,
+        description,
         agentId: assignedAgent,
         status: "QUEUED",
         progress: 0,
@@ -8021,6 +8023,54 @@ app.post("/voice/transcribe", async (c) => {
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
+});
+app.get("/tasks", requireAuth, async (c) => {
+  try {
+    const report = await TaskStore.getTaskReport();
+    return c.json({ ok: true, ...report });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message, tasks: [] }, 500);
+  }
+});
+app.get("/tasks/:id", requireAuth, async (c) => {
+  try {
+    const task = await TaskStore.getTask(c.req.param("id"));
+    if (!task) return c.json({ error: "Task not found" }, 404);
+    return c.json({ ok: true, task });
+  } catch (err) {
+    return c.json({ error: err?.message }, 500);
+  }
+});
+app.get("/tasks/stream", requireAuth, (c) => {
+  return streamSSE(c, async (stream2) => {
+    const cleanup = EventStream.subscribeGlobal((event) => {
+      try {
+        stream2.writeSSE({
+          id: event.id,
+          event: event.eventType,
+          data: JSON.stringify(event)
+        });
+      } catch {
+      }
+    });
+    const pingInterval = setInterval(() => {
+      try {
+        stream2.writeSSE({ event: "ping", data: JSON.stringify({ time: (/* @__PURE__ */ new Date()).toISOString() }) });
+      } catch {
+      }
+    }, 15e3);
+    stream2.onAbort(() => {
+      clearInterval(pingInterval);
+      cleanup();
+    });
+    await stream2.writeSSE({
+      event: "connected",
+      data: JSON.stringify({ message: "Connected to J.A.R.V.I.S. Task Event Bus", timestamp: (/* @__PURE__ */ new Date()).toISOString() })
+    });
+    while (true) {
+      await new Promise((r) => setTimeout(r, 6e4));
+    }
+  });
 });
 app.get("/agents/health", requireAuth, (c) => {
   return c.json({ ok: true, agents: AgentRegistry.listAllAgentHealth() });

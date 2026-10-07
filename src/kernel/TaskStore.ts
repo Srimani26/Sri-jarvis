@@ -10,14 +10,19 @@ import { ExecutionKernel } from './ExecutionKernel';
 import { EventStream } from './EventStream';
 
 export interface CreateTaskInput {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
+  objective?: string;
+  id?: string;
   agentId?: string;
   totalSteps?: number;
   priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL';
   parentTaskId?: string;
   dependencies?: string[];
   estimatedDuration?: string;
+  category?: string;
+  riskLevel?: string;
+  requiresApproval?: boolean;
 }
 
 export interface UpdateTaskInput {
@@ -48,15 +53,17 @@ export class TaskStore {
    * Create and persist a new task in SQLite
    */
   public static async createTask(input: CreateTaskInput) {
-    const taskNumber = this.generateTaskNumber();
+    const taskNumber = input.id || this.generateTaskNumber();
     const assignedAgent = input.agentId || 'jarvis';
     const totalSteps = input.totalSteps || 4;
+    const title = input.title || input.objective || 'Autonomous Task';
+    const description = input.description || input.objective || 'Executed by J.A.R.V.I.S. Execution Kernel';
 
     const task = await (prisma as any).agentTask.create({
       data: {
         taskNumber,
-        title: input.title,
-        description: input.description,
+        title,
+        description,
         agentId: assignedAgent,
         status: 'QUEUED',
         progress: 0,

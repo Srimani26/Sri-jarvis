@@ -2543,6 +2543,62 @@ app.post('/voice/transcribe', async (c) => {
 })
 
 // ============================================================================
+// DURABLE TASK PERSISTENCE & REAL-TIME EVENT STREAM (SSE)
+// ============================================================================
+app.get('/tasks', requireAuth, async (c) => {
+  try {
+    const report = await TaskStore.getTaskReport()
+    return c.json({ ok: true, ...report })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message, tasks: [] }, 500)
+  }
+})
+
+app.get('/tasks/:id', requireAuth, async (c) => {
+  try {
+    const task = await TaskStore.getTask(c.req.param('id'))
+    if (!task) return c.json({ error: 'Task not found' }, 404)
+    return c.json({ ok: true, task })
+  } catch (err: any) {
+    return c.json({ error: err?.message }, 500)
+  }
+})
+
+app.get('/tasks/stream', requireAuth, (c) => {
+  return streamSSE(c, async (stream) => {
+    const cleanup = EventStream.subscribeGlobal((event) => {
+      try {
+        stream.writeSSE({
+          id: event.id,
+          event: event.eventType,
+          data: JSON.stringify(event)
+        })
+      } catch {}
+    })
+
+    const pingInterval = setInterval(() => {
+      try {
+        stream.writeSSE({ event: 'ping', data: JSON.stringify({ time: new Date().toISOString() }) })
+      } catch {}
+    }, 15000)
+
+    stream.onAbort(() => {
+      clearInterval(pingInterval)
+      cleanup()
+    })
+
+    await stream.writeSSE({
+      event: 'connected',
+      data: JSON.stringify({ message: 'Connected to J.A.R.V.I.S. Task Event Bus', timestamp: new Date().toISOString() })
+    })
+
+    while (true) {
+      await new Promise(r => setTimeout(r, 60000))
+    }
+  })
+})
+
+// ============================================================================
 // AUTONOMOUS MULTI-AGENT DISPATCH PIPELINE & HEALTH REGISTRY
 // Real, observable execution with TaskStore durability and verification
 // ============================================================================
