@@ -98,11 +98,34 @@ const AGENT_CONFIGS: Record<string, { label: string; icon: any; color: string; b
   },
 }
 
+function safeArray(val: unknown): string[] {
+  if (!val) return []
+  if (Array.isArray(val)) return val.map(String)
+  if (typeof val === 'string') {
+    const trimmed = val.trim()
+    if (!trimmed || trimmed === '[]' || trimmed === 'null' || trimmed === 'undefined') return []
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.map(String)
+      return [String(parsed)]
+    } catch {
+      return trimmed.split(',').map(s => s.trim()).filter(Boolean)
+    }
+  }
+  return []
+}
+
 export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProgressCardProps) {
   const [elapsedSec, setElapsedSec] = useState(0)
   const [showLogs, setShowLogs] = useState(true)
   const prevStatusRef = useRef(task.status)
   const audioPlayedRef = useRef(false)
+
+  const filesChanged = safeArray(task.filesChanged)
+  const commandsRun = safeArray(task.commandsRun)
+  const terminalLogs = Array.isArray(task.terminalLogs) ? task.terminalLogs : safeArray(task.terminalLogs)
+  const events = Array.isArray(task.events) ? task.events : []
+  const stepActions = Array.isArray(task.stepActions) ? task.stepActions : []
 
   // Live stopwatch ticker
   useEffect(() => {
@@ -255,9 +278,9 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
           />
         </div>
         {/* Step-by-Step Execution Verification Checklist */}
-        {task.stepActions && task.stepActions.length > 0 && (
+        {stepActions.length > 0 && (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-2 border-t border-slate-800/80">
-            {task.stepActions.map((step, idx) => (
+            {stepActions.map((step, idx) => (
               <div key={idx} className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-900/60 border border-slate-800 text-[11px] font-mono">
                 {step.status === 'COMPLETED' ? (
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -291,24 +314,24 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
         >
           <div className="flex items-center gap-2">
             <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-            <span>TERMINAL STDOUT STREAM ({task.terminalLogs?.length || task.events?.length || 0} events)</span>
+            <span>TERMINAL STDOUT STREAM ({terminalLogs.length || events.length || 0} events)</span>
           </div>
           {showLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
 
         {showLogs && (
           <div className="mt-2 rounded-xl bg-slate-950/95 border border-slate-800/90 p-3 font-mono text-[11px] max-h-40 overflow-y-auto space-y-1.5 scrollbar-thin">
-            {task.terminalLogs && task.terminalLogs.length > 0 ? (
-              task.terminalLogs.map((log, idx) => (
+            {terminalLogs.length > 0 ? (
+              terminalLogs.map((log, idx) => (
                 <div key={idx} className="flex items-start gap-2 leading-tight">
                   <span className="text-cyan-400 font-bold shrink-0 text-[10px]">❯</span>
                   <span className="text-slate-300 break-all">{log}</span>
                 </div>
               ))
-            ) : (!task.events || task.events.length === 0) ? (
+            ) : events.length === 0 ? (
               <div className="text-slate-500 italic">Listening for live kernel execution logs from SSE (/api/tasks/stream)...</div>
             ) : (
-              task.events.map((evt, idx) => (
+              events.map((evt, idx) => (
                 <div key={evt.id || idx} className="flex items-start gap-2 leading-tight">
                   <span className="text-slate-600 text-[10px] select-none shrink-0">
                     {new Date(evt.timestamp || Date.now()).toLocaleTimeString()}
@@ -347,13 +370,13 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
             {task.verificationResult || task.executionResult || "All subtasks verified with zero regressions. System integrity confirmed."}
           </div>
 
-          {task.filesChanged && task.filesChanged.length > 0 && (
+          {filesChanged.length > 0 && (
             <div className="pt-2 border-t border-emerald-900/40">
               <div className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider mb-1">
-                Modified Artifacts ({task.filesChanged.length})
+                Modified Artifacts ({filesChanged.length})
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {task.filesChanged.map((f, i) => (
+                {filesChanged.map((f, i) => (
                   <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-emerald-900/60 text-[10px] font-mono text-slate-300">
                     <FileCode className="w-3 h-3 text-emerald-400" />
                     {f}

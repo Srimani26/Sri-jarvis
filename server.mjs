@@ -756,12 +756,35 @@ var init_TaskStore = __esm({
         }
         return updated;
       }
+      static parseTaskOutput(task) {
+        if (!task) return task;
+        const safeJson = (val) => {
+          if (!val) return [];
+          if (Array.isArray(val)) return val;
+          if (typeof val === "string") {
+            const trimmed = val.trim();
+            if (!trimmed || trimmed === "[]" || trimmed === "null" || trimmed === "undefined") return [];
+            try {
+              const parsed = JSON.parse(trimmed);
+              return Array.isArray(parsed) ? parsed : [String(parsed)];
+            } catch {
+              return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+            }
+          }
+          return [];
+        };
+        return {
+          ...task,
+          filesChanged: safeJson(task.filesChanged),
+          commandsRun: safeJson(task.commandsRun)
+        };
+      }
       /**
        * Retrieve task by ID or taskNumber with historical event trail
        */
       static async getTask(taskIdOrNumber) {
         try {
-          return await prisma.agentTask.findFirst({
+          const task = await prisma.agentTask.findFirst({
             where: {
               OR: [
                 { id: taskIdOrNumber },
@@ -774,6 +797,7 @@ var init_TaskStore = __esm({
               }
             }
           });
+          return task ? this.parseTaskOutput(task) : null;
         } catch {
           return null;
         }
@@ -783,7 +807,7 @@ var init_TaskStore = __esm({
        */
       static async getActiveTasks() {
         try {
-          return await prisma.agentTask.findMany({
+          const tasks = await prisma.agentTask.findMany({
             where: {
               status: {
                 in: ["CREATED", "QUEUED", "PLANNING", "ASSIGNED", "RUNNING", "WAITING_FOR_INPUT", "BLOCKED", "RETRYING", "VERIFYING", "RECOVERING"]
@@ -798,6 +822,7 @@ var init_TaskStore = __esm({
             orderBy: { createdAt: "desc" },
             take: 20
           });
+          return tasks.map((t) => this.parseTaskOutput(t));
         } catch {
           return [];
         }
@@ -807,7 +832,7 @@ var init_TaskStore = __esm({
        */
       static async getTaskReport() {
         try {
-          const allTasks = await prisma.agentTask.findMany({
+          const allTasksRaw = await prisma.agentTask.findMany({
             orderBy: { createdAt: "desc" },
             take: 50,
             include: {
@@ -817,6 +842,7 @@ var init_TaskStore = __esm({
               }
             }
           });
+          const allTasks = allTasksRaw.map((t) => this.parseTaskOutput(t));
           const total = allTasks.length;
           const active = allTasks.filter((t) => ["RUNNING", "PLANNING", "VERIFYING", "QUEUED", "RECOVERING"].includes(t.status)).length;
           const completed = allTasks.filter((t) => t.status === "COMPLETED").length;

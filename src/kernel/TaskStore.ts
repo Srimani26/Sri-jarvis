@@ -176,12 +176,37 @@ export class TaskStore {
     return updated;
   }
 
+  public static parseTaskOutput(task: any) {
+    if (!task) return task;
+    const safeJson = (val: any) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (!trimmed || trimmed === '[]' || trimmed === 'null' || trimmed === 'undefined') return [];
+        try {
+          const parsed = JSON.parse(trimmed);
+          return Array.isArray(parsed) ? parsed : [String(parsed)];
+        } catch {
+          return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      return [];
+    };
+
+    return {
+      ...task,
+      filesChanged: safeJson(task.filesChanged),
+      commandsRun: safeJson(task.commandsRun),
+    };
+  }
+
   /**
    * Retrieve task by ID or taskNumber with historical event trail
    */
   public static async getTask(taskIdOrNumber: string) {
     try {
-      return await (prisma as any).agentTask.findFirst({
+      const task = await (prisma as any).agentTask.findFirst({
         where: {
           OR: [
             { id: taskIdOrNumber },
@@ -194,6 +219,7 @@ export class TaskStore {
           }
         }
       });
+      return task ? this.parseTaskOutput(task) : null;
     } catch {
       return null;
     }
@@ -204,7 +230,7 @@ export class TaskStore {
    */
   public static async getActiveTasks() {
     try {
-      return await (prisma as any).agentTask.findMany({
+      const tasks = await (prisma as any).agentTask.findMany({
         where: {
           status: {
             in: ['CREATED', 'QUEUED', 'PLANNING', 'ASSIGNED', 'RUNNING', 'WAITING_FOR_INPUT', 'BLOCKED', 'RETRYING', 'VERIFYING', 'RECOVERING']
@@ -219,6 +245,7 @@ export class TaskStore {
         orderBy: { createdAt: 'desc' },
         take: 20
       });
+      return tasks.map((t: any) => this.parseTaskOutput(t));
     } catch {
       return [];
     }
@@ -229,7 +256,7 @@ export class TaskStore {
    */
   public static async getTaskReport() {
     try {
-      const allTasks = await (prisma as any).agentTask.findMany({
+      const allTasksRaw = await (prisma as any).agentTask.findMany({
         orderBy: { createdAt: 'desc' },
         take: 50,
         include: {
@@ -240,6 +267,7 @@ export class TaskStore {
         }
       });
 
+      const allTasks = allTasksRaw.map((t: any) => this.parseTaskOutput(t));
       const total = allTasks.length;
       const active = allTasks.filter((t: any) => ['RUNNING', 'PLANNING', 'VERIFYING', 'QUEUED', 'RECOVERING'].includes(t.status)).length;
       const completed = allTasks.filter((t: any) => t.status === 'COMPLETED').length;
