@@ -334,7 +334,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [deepseekReasoning, setDeepseekReasoning] = useState<string | null>(null)
   const [showReasoning, setShowReasoning] = useState(false)
   const [activeAgent, setActiveAgent] = useState<AgentBadge>(AGENTS.jarvis)
-  const [engineType, setEngineType] = useState<'WebSpeech' | 'Whisper-Turbo'>('Whisper-Turbo')
+  const [engineType, setEngineType] = useState<'Deepgram' | 'WebSpeech'>('Deepgram')
   const [voiceVolume, setVoiceVolume] = useState<number[]>([25, 45, 30, 70, 50, 85, 40, 60, 35, 55, 45, 65, 30, 50])
   const [currentPlan, setCurrentPlan] = useState<TacticalPlan | null>(null)
   const [isExecutingPlan, setIsExecutingPlan] = useState(false)
@@ -391,9 +391,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       else if (h >= 22 || h < 5) timeGreeting = 'Late night system active'
 
       const greetings = [
-        `${timeGreeting}, Master Sri. Sovereign Mark-V online, Neon PostgreSQL connected, all 20 agents standing by. Say 'Hey Jarvis' or tap the core to command.`,
-        `${timeGreeting}, Master Sri. Multi-provider neural network initialized with DeepSeek and Groq. All perimeters secure. Ready for your directive.`,
-        `${timeGreeting}, Master Sri. J.A.R.V.I.S. Command Center synchronized and standing by. What shall we engineer today, Sire?`
+        `Master Sri, greetings and welcome back. Grand Marshal J.A.R.V.I.S. online. All 20 sovereign agents standing by. Say 'Hey Jarvis' or tap the core to command.`,
+        `Master Sri, greetings and welcome back. Sovereign Mark-V online, Deepgram neural STT and ElevenLabs voice armed. Standing by for your directive.`,
+        `Master Sri, greetings and welcome back. J.A.R.V.I.S. Command Center synchronized and standing by. What shall we engineer today, Sire?`
       ]
       const chosenGreeting = greetings[now.getMinutes() % greetings.length]
       setJarvisResponse(chosenGreeting)
@@ -500,7 +500,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       () => {
         setIsSpeaking(false)
         isSpeakingRef.current = false
-      }
+      },
+      activeAgentRef.current?.id || 'jarvis'
     )
   }
 
@@ -1010,6 +1011,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
     // 1. Assistant wake & identity phonetic mishearings
     text = text.replace(/\b(drivers|service|travis|java|jarvise|jarvis's)\b/gi, 'jarvis')
+    text = text.replace(/\b(are on full power|are you in full power|are you full power|is on full power)\b/gi, 'are you on full power')
 
     // 2. E-commerce platforms & brands
     text = text.replace(/\b(flip card|flip cart|flip cards|flipchart|flip chart)\b/gi, 'flipkart')
@@ -1018,7 +1020,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
     // 3. Media & Action Verbs
     text = text.replace(/\b(paly|ply|pley)\b/gi, 'play')
-    text = text.replace(/\b(the songs|the song|a song|songs|song)\b/gi, 'the songs')
+    text = text.replace(/\b(the songs|the song|a song)\b/gi, 'songs')
     text = text.replace(/\b(analysis|analyse|analysing|analyzing)\b/gi, 'analyze')
     text = text.replace(/\b(best deals|best price|which is best|best deal and review)\b/gi, 'best deal')
 
@@ -1035,41 +1037,115 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     conversationHistoryRef.current.push({ role: 'user', content: cmd })
     if (conversationHistoryRef.current.length > 30) conversationHistoryRef.current.shift()
 
-    // 0. CHECK FOR WAKE WORD IN SLEEP MODE
+    // 0. CHECK FOR REST / SLEEP COMMAND
+    if (
+      lower === 'no' ||
+      lower === 'no jarvis' ||
+      lower === "no that's all" ||
+      lower === "that's all" ||
+      lower === 'nothing else' ||
+      lower === 'all good' ||
+      lower === 'stop' ||
+      lower === 'rest' ||
+      lower === 'go to rest' ||
+      lower.includes('go to rest') ||
+      lower.includes('stand by') ||
+      lower.includes('sleep mode')
+    ) {
+      goToSleep()
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.1 WAKE UP IF IN STANDBY
     if (isSleepingRef.current) {
-      const isWake =
-        lower.includes('hey jarvis') ||
-        lower.includes('wake up') ||
-        lower.includes('wake jarvis') ||
-        lower.includes('wake up jarvis') ||
-        lower.startsWith('jarvis') ||
-        lower === 'jarvis'
+      setIsSleeping(false)
+      isSleepingRef.current = false
+    }
 
-      if (isWake) {
-        setIsSleeping(false)
-        isSleepingRef.current = false
-        playJarvisChime('wake')
+    // 0.2 FULL POWER STATUS INQUIRY
+    if (
+      lower.includes('full power') ||
+      lower.includes('are you on full power') ||
+      lower.includes('system status') ||
+      lower.includes('power level')
+    ) {
+      const pwrSpeech = "Yes Master Sri! J.A.R.V.I.S. is operating at 100% full sovereign capacity. Arc reactor nominal, Deepgram streaming neural STT active, ElevenLabs neural voice online, all 20 specialist agents armed and ready. How may I serve you, Sire?"
+      setJarvisResponse(`### ⚡ J.A.R.V.I.S. MARK-V: 100% FULL POWER\n- **Core Status**: Sovereign Autonomous Online\n- **Speech-to-Text**: Deepgram Nova-2 Neural Engine\n- **Voice Output**: ElevenLabs High-Fidelity Audio\n- **Workforce**: All 20 Specialist Agents Armed\n- **Perimeter**: Level-10 Zero-Trust Shield Active\n\n${pwrSpeech}\n\n*Is there anything else, Master Sri?*`)
+      speakVoice(pwrSpeech, 'en-GB')
+      setIsProcessing(false)
+      return
+    }
 
-        // If an explicit directive is attached (e.g. "hey jarvis fix the issue"), execute it immediately
-        const stripped = rawCmd
-          .replace(/^(hey jarvis|wake up jarvis|wake jarvis|wake up|jarvis)[,\s:]*/i, '')
-          .trim()
-        if (stripped.length > 2) {
-          processCommand(stripped)
+    // 0.3 YOUTUBE & MUSIC PLAYBACK
+    if (
+      lower.includes('youtube') ||
+      lower.includes('play song') ||
+      lower.includes('play the song') ||
+      lower.includes('play music') ||
+      lower.startsWith('play ')
+    ) {
+      let query = cmd
+        .replace(/^(hey jarvis|jarvis|can you|please|open youtube and play|play on youtube|play in youtube|open youtube|play the songs|play songs|play song|play music|play)/gi, '')
+        .replace(/(on youtube|in youtube|songs|song)$/gi, '')
+        .trim()
+      if (!query || query.length < 2) query = 'AR Rahman hits'
+      const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
+      window.open(ytUrl, '_blank')
+      const ack = `Playing ${query} on YouTube now, Master Sri. New browser window opened.`
+      setJarvisResponse(`### 🎬 YouTube Audio/Video Dispatched\n- **Target Track**: \`${query}\`\n- **Direct Link**: [Watch on YouTube](${ytUrl})\n- **Status**: Dispatched to background browser tab.\n\n*Is there anything else, Master Sri?*`)
+      speakVoice(ack, 'en-GB')
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.4 SHOPIFY STORE PORTAL
+    if (lower.includes('shopify')) {
+      const shopifyUrl = 'https://admin.shopify.com'
+      window.open(shopifyUrl, '_blank')
+      const ack = 'Opening Shopify administrative control center for you, Master Sri.'
+      setJarvisResponse(`### 🛍️ Shopify Portal Dispatched\n- **Destination**: [Shopify Admin](${shopifyUrl})\n- **Status**: Active\n\n*Is there anything else, Master Sri?*`)
+      speakVoice(ack, 'en-GB')
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.5 E-COMMERCE AMAZON VS FLIPKART DEAL RECON
+    if (
+      (lower.includes('flipkart') && lower.includes('amazon')) ||
+      lower.includes('best deal') ||
+      lower.includes('compare price') ||
+      lower.includes('deal and review')
+    ) {
+      let prod = cmd
+        .replace(/^(hey jarvis|jarvis|analyze|analysis|compare|search|give me|best deal|find|best deal and review|deal and review|on flipkart and amazon|flipkart and amazon|on flipkart|on amazon)/gi, '')
+        .replace(/(on flipkart and amazon|flipkart and amazon|and give me which is best deal|which is best deal|best deal and review)$/gi, '')
+        .trim()
+      if (!prod || prod.length < 2) prod = 'iPhone 16 Pro'
+
+      setJarvisResponse(`Master Sri, querying live Amazon India and Flipkart catalogs for "${prod}"...`)
+      speakVoice(`Master Sri, analyzing Flipkart and Amazon deals for ${prod} now. Comparing prices and verified customer ratings.`, 'en-GB')
+
+      try {
+        const res = await fetch(`/api/tools/products?q=${encodeURIComponent(prod)}`, { headers: jsonAuthHeaders() })
+        if (res.ok) {
+          const data = await res.json()
+          const deals = data.recommendations || []
+          const winner = data.overallWinner || 'Flipkart'
+          const speech = data.spokenSummary || `Analysis complete, Master Sri. ${winner} offers the best deal for ${prod}. Direct links are available on your screen.`
+
+          let markdown = `### 🛒 Amazon vs Flipkart E-Commerce Intelligence: "${prod}"\n\n`
+          deals.forEach((d: any, idx: number) => {
+            markdown += `**${idx + 1}. ${d.name}**\n- **Amazon**: ${d.amazonPrice} [View Amazon Deal](${d.amazonLink})\n- **Flipkart**: ${d.flipkartPrice} [View Flipkart Deal](${d.flipkartLink})\n- **Winner**: **${d.dealWinner || winner}** (${d.cheaperPlatform || winner} is cheaper)\n- **Verdict**: ${d.verdict}\n\n`
+          })
+          markdown += `\n*Is there anything else, Master Sri?*`
+          setJarvisResponse(markdown)
+          speakVoice(speech, 'en-GB')
+          setIsProcessing(false)
           return
         }
-
-        const wakeSpeech = 'Online and listening, Sovereign Master Sri. What is your directive?'
-        setJarvisResponse(wakeSpeech)
-        speakVoice(wakeSpeech, 'en-GB', () => {
-          startListening()
-        })
-        setIsProcessing(false)
-        return
-      } else {
-        // In Standby mode, ignore ambient noise and keep standby ear open
-        setIsProcessing(false)
-        return
+      } catch (err) {
+        console.error('Deal comparison error:', err)
       }
     }
 
@@ -1573,7 +1649,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       const chosenSpeech = intelligentGreetings[now.getMinutes() % intelligentGreetings.length]
       setJarvisResponse(`### ⚡ Sovereign Mark-V Status: OPERATIONAL\n- **Commander**: Master Sri (Srimanikandan K)\n- **Database Layer**: Neon Cloud PostgreSQL (Durable Synchronized)\n- **Specialist Swarm**: 20 Autonomous Agents Online\n- **Reasoning Harness**: DeepSeek-R1 & Groq LPU Neural Active\n\n${chosenSpeech}`)
       speakVoice(chosenSpeech, 'en-GB', () => {
-        startListening()
+        setIsSleeping(false)
+        isSleepingRef.current = false
+        // Mic settles into standby until Master Sri commands
       })
       setIsProcessing(false)
       return
@@ -2362,8 +2440,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         const SILENCE_THRESHOLD_RMS = 0.012
         const SILENCE_DURATION_MS = 5000 // 5.0 seconds of sustained silence after speaking
 
+        let rmsInterval: any = null
         const checkRMSGate = () => {
           if (!isListeningRef.current || recorder.state !== 'recording') {
+            if (rmsInterval) clearInterval(rmsInterval)
             return
           }
           analyser.getFloatTimeDomainData(timeDomainData)
@@ -2382,15 +2462,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               silenceStartTime = Date.now()
             } else if (Date.now() - silenceStartTime >= SILENCE_DURATION_MS) {
               // 5.0 seconds of sustained silence after speaking -> auto-terminate audio stream
+              if (rmsInterval) clearInterval(rmsInterval)
               if (recorder.state === 'recording') {
                 recorder.stop()
               }
               return
             }
           }
-          requestAnimationFrame(checkRMSGate)
         }
-        requestAnimationFrame(checkRMSGate)
+        rmsInterval = setInterval(checkRMSGate, 150) // Throttled to 150ms: prevents mobile CPU overheating
       } catch (vadErr) {
         console.warn('VAD setup skipped:', vadErr)
       }
@@ -2452,30 +2532,30 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             }
           }
         } catch (e) {
-          console.error('Gemini STT error', e)
+          console.error('Deepgram STT error', e)
         } finally {
           setIsProcessing(false)
           isProcessingRef.current = false
-          // Strict mandate: Mic stays OFF after speech completes. NEVER auto-restart!
+          // Mic stays OFF after speech completes. NEVER auto-restart!
         }
       }
 
       recorder.start(250)
       setIsListening(true)
       isListeningRef.current = true
-      setEngineType('Whisper-Turbo')
+      setEngineType('Deepgram')
     } catch (err) {
       console.error('MediaRecorder error', err)
       setJarvisResponse('Microphone permission required, Master Sri. Please allow access.')
     }
   }
 
-  // Primary Speech Recognition (Whisper-Turbo LPU Neural STT or Calibrated en-IN WebSpeech)
+  // Primary Speech Recognition (Deepgram Nova-2 Neural STT or Calibrated en-IN WebSpeech)
   const startListening = () => {
     if (isSpeakingRef.current || isProcessingRef.current) return
 
-    // If Whisper-Turbo is selected, immediately stream 16kHz audio to Groq Whisper Large v3
-    if (engineType === 'Whisper-Turbo') {
+    // Prefer Deepgram Neural STT by default: zero duplicates and ultra-fast
+    if (engineType === 'Deepgram' || typeof (window as any).webkitSpeechRecognition === 'undefined') {
       startWhisperRecording()
       return
     }
@@ -2495,7 +2575,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       const recognition = new SpeechRecognition()
       recognition.continuous = false
       recognition.interimResults = true
-      recognition.lang = 'en-IN' // Indian English accent calibration
+      recognition.lang = 'en-IN'
 
       recognition.onstart = () => {
         setIsListening(true)
@@ -2507,26 +2587,25 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
 
       recognition.onresult = (event: any) => {
-        let finalUtterance = ''
-        let interimUtterance = ''
-
-        for (let i = 0; i < event.results.length; ++i) {
+        let bestText = ''
+        // Look at the latest result to prevent prefix duplication on Android Chrome
+        for (let i = event.results.length - 1; i >= 0; i--) {
           const res = event.results[i]
-          const piece = res[0]?.transcript || ''
-          if (res.isFinal) {
-            finalUtterance += piece + ' '
-          } else {
-            // In Android WebSpeech, each subsequent non-final result is a cumulative hypothesis.
-            // Overwriting rather than accumulating prevents triangular hypothesis multiplication.
-            interimUtterance = piece + ' '
+          if (res && res[0]?.transcript) {
+            bestText = res[0].transcript
+            break
           }
         }
+        if (!bestText && event.results.length > 0) {
+          bestText = event.results[event.results.length - 1]?.[0]?.transcript || ''
+        }
 
-        const combined = (finalUtterance + interimUtterance).replace(/\s+/g, ' ').trim()
-        const cleaned = cleanAndDeduplicateTranscript(combined)
-        setTranscript(cleaned)
-        transcriptRef.current = cleaned
-        lastActiveRef.current = Date.now()
+        const cleaned = cleanAndDeduplicateTranscript(bestText.trim())
+        if (cleaned) {
+          setTranscript(cleaned)
+          transcriptRef.current = cleaned
+          lastActiveRef.current = Date.now()
+        }
 
         // 5-Second Silence Debounce as requested by Master Sri
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)

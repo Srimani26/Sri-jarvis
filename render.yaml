@@ -33,6 +33,10 @@ services:
         sync: false # Set securely in Render dashboard secrets
       - key: ANTHROPIC_API_KEY
         sync: false # Set securely in Render dashboard secrets
+      - key: DEEPGRAM_API_KEY
+        sync: false # Deepgram Nova-2 high-speed neural speech transcription
+      - key: ELEVENLABS_API_KEY
+        sync: false # ElevenLabs high-fidelity neural voice synthesis
 
 databases:
   - name: jarvis-postgres

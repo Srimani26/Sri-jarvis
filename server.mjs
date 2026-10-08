@@ -11199,6 +11199,176 @@ app.get("/swarm/status/:taskId", requireAuth, async (c) => {
   }
   return c.json({ ok: true, data: swarm });
 });
+var DEEPGRAM_DEFAULT_KEY = "34070f5f5deec2580a70abf0d8b94f6884a43a5d";
+var ELEVENLABS_DEFAULT_KEY = "sk_da60f0e4de182e85118e7fca5b676a224a95d9ab5d814b8f";
+var AGENT_VOICE_MAP = {
+  jarvis: { voiceId: "pNInz6obpgDQGcFmaJgB", gender: "male", name: "Adam (Grand Commander)" },
+  friday: { voiceId: "21m00Tcm4TlvDq8ikWAM", gender: "female", name: "Rachel (Lead Engineer)" },
+  aegis: { voiceId: "JBFqnCBsd6RMkjVDRZzb", gender: "male", name: "George (Cyber Security)" },
+  sentinel: { voiceId: "EXAVITQu4vr4xnSDxMaL", gender: "female", name: "Sarah (QA Marshal)" },
+  daedalus: { voiceId: "N2lVS1w4EtoT3dr4eOWO", gender: "male", name: "Callum (System Architect)" },
+  vortex: { voiceId: "IKne3meq5aSn9XLyUdCD", gender: "male", name: "Charlie (Heavy Automation)" },
+  midas: { voiceId: "ErXwobaYiN019PkySvjV", gender: "male", name: "Antoni (Revenue Engine)" },
+  cerebro: { voiceId: "EXAVITQu4vr4xnSDxMaL", gender: "female", name: "Sarah (Intelligence)" },
+  stark_os: { voiceId: "IKne3meq5aSn9XLyUdCD", gender: "male", name: "Charlie (Operations)" },
+  deepseek: { voiceId: "JBFqnCBsd6RMkjVDRZzb", gender: "male", name: "George (Reasoning Core)" },
+  autogen: { voiceId: "N2lVS1w4EtoT3dr4eOWO", gender: "male", name: "Callum (Roundtable)" },
+  crewai: { voiceId: "IKne3meq5aSn9XLyUdCD", gender: "male", name: "Charlie (Task Director)" },
+  browser_use: { voiceId: "21m00Tcm4TlvDq8ikWAM", gender: "female", name: "Rachel (Web Recon)" },
+  metagpt: { voiceId: "pNInz6obpgDQGcFmaJgB", gender: "male", name: "Adam (Software SOP)" },
+  openhands: { voiceId: "JBFqnCBsd6RMkjVDRZzb", gender: "male", name: "George (Developer)" }
+};
+app.post("/voice/transcribe", async (c) => {
+  try {
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || DEEPGRAM_DEFAULT_KEY;
+    const body = await c.req.parseBody().catch(() => ({}));
+    let audioBuffer = null;
+    let contentType = "audio/webm";
+    if (body.file && typeof body.file === "object" && "arrayBuffer" in body.file) {
+      const ab = await body.file.arrayBuffer();
+      audioBuffer = Buffer.from(ab);
+      contentType = body.file.type || "audio/webm";
+    } else {
+      const rawBytes = await c.req.arrayBuffer().catch(() => null);
+      if (rawBytes && rawBytes.byteLength > 0) {
+        audioBuffer = Buffer.from(rawBytes);
+        contentType = c.req.header("content-type") || "audio/webm";
+      }
+    }
+    if (!audioBuffer || audioBuffer.length < 100) {
+      return c.json({ ok: false, error: "No audio data received" }, 400);
+    }
+    try {
+      const dgRes = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&language=en", {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${deepgramKey}`,
+          "Content-Type": contentType
+        },
+        body: audioBuffer
+      });
+      if (dgRes.ok) {
+        const dgData = await dgRes.json();
+        const transcript = dgData.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim();
+        const confidence = dgData.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0.95;
+        if (transcript) {
+          return c.json({
+            ok: true,
+            text: transcript,
+            confidence,
+            engine: "Deepgram-Nova2"
+          });
+        }
+      }
+    } catch (dgErr) {
+      console.warn("[VoiceSTT] Deepgram transcription failed, falling back:", dgErr);
+    }
+    const groqKey = process.env.GROQ_API_KEY;
+    if (groqKey) {
+      try {
+        const formData = new FormData();
+        const blob = new Blob([audioBuffer], { type: contentType });
+        formData.append("file", blob, "audio.webm");
+        formData.append("model", "whisper-large-v3-turbo");
+        formData.append("language", "en");
+        const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${groqKey}` },
+          body: formData
+        });
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          if (groqData.text?.trim()) {
+            return c.json({
+              ok: true,
+              text: groqData.text.trim(),
+              confidence: 0.9,
+              engine: "Groq-Whisper-v3"
+            });
+          }
+        }
+      } catch (groqErr) {
+        console.warn("[VoiceSTT] Groq Whisper fallback failed:", groqErr);
+      }
+    }
+    return c.json({ ok: false, error: "Transcription unavailable from neural providers" }, 502);
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.all("/voice/speak", async (c) => {
+  try {
+    let text = "";
+    let agentId = "jarvis";
+    let requestedVoiceId = "";
+    let gender = "";
+    if (c.req.method === "POST") {
+      const body = await c.req.json().catch(() => ({}));
+      text = body?.text || "";
+      agentId = body?.agentId || "jarvis";
+      requestedVoiceId = body?.voiceId || "";
+      gender = body?.gender || "";
+    } else {
+      text = c.req.query("text") || "";
+      agentId = c.req.query("agentId") || "jarvis";
+      requestedVoiceId = c.req.query("voiceId") || "";
+      gender = c.req.query("gender") || "";
+    }
+    text = (text || "").trim();
+    if (!text) {
+      return c.json({ ok: false, error: "Text required" }, 400);
+    }
+    const cleanText = text.replace(/```[\s\S]*?```/g, "I have generated the production code.").replace(/https?:\/\/[^\s]+/g, "link provided on screen.").replace(/[*_#`~>]/g, "").replace(/\{[\s\S]*?\}/g, "").replace(/\s+/g, " ").trim().slice(0, 2500);
+    const voiceConfig = AGENT_VOICE_MAP[agentId.toLowerCase()] || AGENT_VOICE_MAP.jarvis;
+    const voiceId = requestedVoiceId || voiceConfig.voiceId;
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY || ELEVENLABS_DEFAULT_KEY;
+    try {
+      const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+        method: "POST",
+        headers: {
+          "xi-api-key": elevenLabsKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          model_id: "eleven_turbo_v2_5",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.8
+          }
+        })
+      });
+      if (elRes.ok) {
+        const audioArrayBuffer = await elRes.arrayBuffer();
+        return c.body(audioArrayBuffer, 200, {
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "public, max-age=86400"
+        });
+      }
+    } catch (elErr) {
+      console.warn("[ElevenLabsTTS] Exception:", elErr);
+    }
+    try {
+      const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText.slice(0, 200))}&tl=en-GB&client=tw-ob`;
+      const gRes = await fetch(googleUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
+      });
+      if (gRes.ok) {
+        const gBuffer = await gRes.arrayBuffer();
+        return c.body(gBuffer, 200, {
+          "Content-Type": "audio/mpeg"
+        });
+      }
+    } catch (gErr) {
+      console.warn("[GoogleTTS] Exception:", gErr);
+    }
+    return c.json({ ok: false, error: "TTS synthesis unavailable" }, 502);
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
 var perimeterLockdownActive = false;
 var deflectedAttacksCount = 142;
 app.get("/cyber-shield/status", requireAuth, (c) => {

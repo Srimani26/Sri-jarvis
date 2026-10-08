@@ -69,12 +69,15 @@ export function playJarvisChime(type: 'wake' | 'execute' | 'alert' = 'wake') {
 }
 
 let activeAudio: HTMLAudioElement | null = null
+let activeSpeechSessionId = 0
 
 export function stopNeuralSpeech() {
+  activeSpeechSessionId++
   if (activeAudio) {
     try {
       activeAudio.pause()
       activeAudio.currentTime = 0
+      activeAudio.src = ''
     } catch {}
     activeAudio = null
   }
@@ -95,11 +98,13 @@ export function playNeuralSpeech(
   lang: string = 'en-GB',
   onStart?: () => void,
   onEnd?: () => void,
-  onError?: () => void
+  onError?: () => void,
+  agentId: string = 'jarvis'
 ): HTMLAudioElement | null {
   if (typeof window === 'undefined') return null
 
   stopNeuralSpeech()
+  const sessionId = ++activeSpeechSessionId
 
   // Clean out code blocks, URLs, markdown symbols for clean speech
   const clean = text
@@ -188,68 +193,71 @@ export function playNeuralSpeech(
   try {
     const spokenSlice = clean.slice(0, 2500)
 
-    // For long spoken responses (> 400 chars) without pre-rendered audio, use POST
-    if (!staticAudioPath && spokenSlice.length > 400) {
+    // For long spoken responses (> 300 chars) without pre-rendered audio, use POST
+    if (!staticAudioPath && spokenSlice.length > 300) {
       fetch('/api/voice/speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: spokenSlice, lang })
+        body: JSON.stringify({ text: spokenSlice, lang, agentId })
       })
       .then(res => {
         if (!res.ok) throw new Error('POST TTS failed')
         return res.blob()
       })
       .then(blob => {
+        if (sessionId !== activeSpeechSessionId) return
         const blobUrl = URL.createObjectURL(blob)
         const audio = new Audio(blobUrl)
         activeAudio = audio
-        audio.onplay = () => { if (onStart) onStart() }
+        audio.onplay = () => { if (sessionId === activeSpeechSessionId && onStart) onStart() }
         audio.onended = () => {
           activeAudio = null
           URL.revokeObjectURL(blobUrl)
-          if (onEnd) onEnd()
+          if (sessionId === activeSpeechSessionId && onEnd) onEnd()
         }
         audio.onerror = () => {
           activeAudio = null
           URL.revokeObjectURL(blobUrl)
-          fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+          if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
         }
         const p = audio.play()
         if (p !== undefined) {
-          p.catch(() => fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError))
+          p.catch(() => {
+            if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+          })
         }
       })
       .catch(() => {
-        fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
       })
       return null
     }
 
     const encoded = encodeURIComponent(spokenSlice.slice(0, 1000))
-    const audioUrl = staticAudioPath || `/api/voice/speak?text=${encoded}&lang=${lang}&t=${Date.now()}`
+    const audioUrl = staticAudioPath || `/api/voice/speak?text=${encoded}&lang=${lang}&agentId=${agentId}&t=${Date.now()}`
     const audio = new Audio(audioUrl)
     activeAudio = audio
 
     audio.onplay = () => {
-      if (onStart) onStart()
+      if (sessionId === activeSpeechSessionId && onStart) onStart()
     }
 
     audio.onended = () => {
       activeAudio = null
-      if (onEnd) onEnd()
+      if (sessionId === activeSpeechSessionId && onEnd) onEnd()
     }
 
     audio.onerror = () => {
       console.warn('Streaming neural audio failed, falling back to Web Speech')
       activeAudio = null
-      fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+      if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
     }
 
     const p = audio.play()
     if (p !== undefined) {
       p.catch((err) => {
         console.warn('Audio play blocked by browser policy:', err)
-        fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
       })
     }
 

@@ -213,7 +213,7 @@ export default function App() {
   const [arsenalOpen, setArsenalOpen] = useState(false)
   // Auto-welcome managed exclusively by voice transceiver
 
-  const [sovereignAwakened, setSovereignAwakened] = useState(false)
+  const [sovereignAwakened, setSovereignAwakened] = useState(true)
 
   const handleAwakenSovereign = () => {
     setSovereignAwakened(true)
