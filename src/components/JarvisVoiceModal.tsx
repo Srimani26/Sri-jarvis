@@ -5,7 +5,7 @@ import {
   CheckCircle2, Radio, Zap, Play, FileSpreadsheet, Image as ImageIcon,
   Upload, FileText, Check, ChevronRight, Layers, Cpu, Moon, Sun,
   ExternalLink, Search, Copy, CheckCheck, Compass, Lock, Unlock, AlertTriangle, RefreshCw,
-  Clock, Rocket
+  Clock, Rocket, TrendingUp
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
@@ -24,6 +24,8 @@ interface AgentBadge {
   name: string
   title: string
   role: string
+  gender: 'male' | 'female'
+  voiceName: string
   color: string
   bg: string
   border: string
@@ -40,7 +42,7 @@ interface TacticalPlan {
 }
 
 interface ActionCard {
-  type: 'youtube' | 'shopify' | 'ecommerce' | 'instagram' | 'linkedin' | 'google' | 'app' | 'evolution'
+  type: 'youtube' | 'shopify' | 'ecommerce' | 'instagram' | 'linkedin' | 'google' | 'app' | 'evolution' | 'trading' | 'osint'
   title: string
   query: string
   url?: string
@@ -48,6 +50,8 @@ interface ActionCard {
   content?: string
   deals?: any[]
   platformUrls?: { amazon?: string; flipkart?: string; shopify?: string }
+  tradingData?: any
+  osintData?: any
 }
 
 const AGENTS: Record<string, AgentBadge> = {
@@ -56,6 +60,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: "J.A.R.V.I.S.",
     title: 'Grand Marshal / 2nd-in-Command',
     role: 'Sovereign Orchestration & Self-Evolution',
+    gender: 'male',
+    voiceName: 'Adam (Grand Marshal)',
     color: 'text-cyan-300',
     bg: 'bg-cyan-500/20',
     border: 'border-cyan-400',
@@ -68,6 +74,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'Aegis',
     title: 'Full-Stack Software Architect',
     role: 'Next.js 15, FastAPI & Cyber Defense',
+    gender: 'male',
+    voiceName: 'George (Cyber Security)',
     color: 'text-blue-400',
     bg: 'bg-blue-500/20',
     border: 'border-blue-400',
@@ -80,6 +88,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'Vortex',
     title: 'Heavy Enterprise Automation',
     role: 'n8n Webhooks & Pipeline Swarms',
+    gender: 'male',
+    voiceName: 'Charlie (Heavy Automation)',
     color: 'text-amber-400',
     bg: 'bg-amber-500/20',
     border: 'border-amber-400',
@@ -91,19 +101,23 @@ const AGENTS: Record<string, AgentBadge> = {
     id: 'midas',
     name: 'Midas',
     title: 'Revenue & Monetization Engine',
-    role: '24/7 Deal Scouting & Capital Velocity',
+    role: 'TradingAgents & FinceptTerminal Quant Velocity',
+    gender: 'male',
+    voiceName: 'Antoni (Quant Revenue)',
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/20',
     border: 'border-emerald-400',
     lang: 'en-IN',
-    greeting: 'Midas at your service, Master Sri. Revenue scouting, deal pipelines, and capital velocity active.',
+    greeting: 'Midas at your service, Master Sri. Trading intelligence, revenue pipelines, and capital velocity active.',
     icon: DollarSign
   },
   cerebro: {
     id: 'cerebro',
     name: 'Cerebro',
     title: 'Deep Intelligence & Recon',
-    role: 'Market Telemetry & Neural Indexing',
+    role: 'flowsint OSINT Recon & Neural Indexing',
+    gender: 'female',
+    voiceName: 'Sarah (Intelligence)',
     color: 'text-purple-400',
     bg: 'bg-purple-500/20',
     border: 'border-purple-400',
@@ -116,6 +130,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'Stark OS',
     title: 'Operations Concierge',
     role: 'Device Telemetry & Daily Logistics',
+    gender: 'male',
+    voiceName: 'Charlie (Operations)',
     color: 'text-rose-400',
     bg: 'bg-rose-500/20',
     border: 'border-rose-400',
@@ -128,6 +144,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'DeepSeek R1',
     title: 'Reasoning & Proof Engine',
     role: '671B CoT Logic, Math & Algorithmic Critic',
+    gender: 'male',
+    voiceName: 'George (Reasoning Core)',
     color: 'text-indigo-400',
     bg: 'bg-indigo-500/20',
     border: 'border-indigo-400',
@@ -140,6 +158,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'AutoGen Swarm',
     title: 'Multi-Agent Moderator',
     role: 'Conversable Multi-Agent Consensus Swarms',
+    gender: 'male',
+    voiceName: 'Callum (Roundtable)',
     color: 'text-sky-400',
     bg: 'bg-sky-500/20',
     border: 'border-sky-400',
@@ -152,6 +172,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'CrewAI Engine',
     title: 'Hierarchical Crew Commander',
     role: 'Role-Playing Task Delegation & Orchestration',
+    gender: 'male',
+    voiceName: 'Charlie (Task Director)',
     color: 'text-teal-400',
     bg: 'bg-teal-500/20',
     border: 'border-teal-400',
@@ -164,6 +186,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'Browser-Use',
     title: 'Web Intelligence Recon',
     role: 'Autonomous DOM Element Scraping & Crawling',
+    gender: 'female',
+    voiceName: 'Rachel (Web Recon)',
     color: 'text-lime-400',
     bg: 'bg-lime-500/20',
     border: 'border-lime-400',
@@ -176,6 +200,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'MetaGPT SOP',
     title: 'Software Company in a Box',
     role: 'PRDs, Architecture, Code & Automated QA',
+    gender: 'male',
+    voiceName: 'Adam (Software SOP)',
     color: 'text-orange-400',
     bg: 'bg-orange-500/20',
     border: 'border-orange-400',
@@ -188,6 +214,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'Agent Foundry',
     title: 'Antigravity Dynamic Spawner',
     role: 'On-The-Fly Custom Agent & Skill Synthesis',
+    gender: 'male',
+    voiceName: 'Antoni (Agent Architect)',
     color: 'text-fuchsia-400',
     bg: 'bg-fuchsia-500/20',
     border: 'border-fuchsia-400',
@@ -200,6 +228,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'OpenHands',
     title: 'Autonomous Software Engineer',
     role: 'Full-Stack Development, Diffs & Commits',
+    gender: 'male',
+    voiceName: 'George (Developer)',
     color: 'text-green-400',
     bg: 'bg-green-500/20',
     border: 'border-green-400',
@@ -212,6 +242,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'Smolagents',
     title: 'High-Speed Action Runner',
     role: 'Direct Code-as-Action Token Efficiency',
+    gender: 'female',
+    voiceName: 'Dorothy (Speed Runner)',
     color: 'text-yellow-400',
     bg: 'bg-yellow-500/20',
     border: 'border-yellow-400',
@@ -224,6 +256,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'CAMEL Society',
     title: 'Communicative Inception Engine',
     role: 'Cooperative Inception Role-Playing Societies',
+    gender: 'male',
+    voiceName: 'Callum (Inception Partner)',
     color: 'text-pink-400',
     bg: 'bg-pink-500/20',
     border: 'border-pink-400',
@@ -236,6 +270,8 @@ const AGENTS: Record<string, AgentBadge> = {
     name: 'LangGraph',
     title: 'Stateful Cyclical Supervisor',
     role: 'State Graph Workflows, Checkpoints & Nodes',
+    gender: 'female',
+    voiceName: 'Sarah (Graph Supervisor)',
     color: 'text-violet-400',
     bg: 'bg-violet-500/20',
     border: 'border-violet-400',
@@ -1146,6 +1182,99 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         }
       } catch (err) {
         console.error('Deal comparison error:', err)
+      }
+    }
+
+    // 0.55 TRADINGAGENTS & FINCEPTTERMINAL QUANT VELOCITY
+    if (
+      lower.includes('trading') ||
+      lower.includes('crypto') ||
+      lower.includes('stock') ||
+      lower.includes('btc') ||
+      lower.includes('bitcoin') ||
+      lower.includes('market analysis') ||
+      lower.includes('fincept') ||
+      lower.includes('quant telemetry')
+    ) {
+      let asset = 'BTC'
+      const match = cmd.match(/\b(btc|eth|sol|nifty|tsla|aapl|bitcoin|ethereum|solana|reliance|gold)\b/i)
+      if (match) asset = match[1].toUpperCase()
+
+      setActiveAgent(AGENTS.midas)
+      activeAgentRef.current = AGENTS.midas
+      setJarvisResponse(`Midas accessing TradingAgents and FinceptTerminal quant engines for ${asset}...`)
+      speakVoice(`Master Sri, Midas querying quantitative market telemetry for ${asset}. Computing liquidity channels and RSI oscillator now.`, 'en-IN')
+
+      try {
+        const res = await fetch(`/api/tools/trading?asset=${encodeURIComponent(asset)}`, { headers: jsonAuthHeaders() })
+        if (res.ok) {
+          const body = await res.json()
+          const data = body.data || {}
+          setCurrentAction({
+            type: 'trading',
+            title: `TradingAgents & FinceptTerminal: ${asset}`,
+            query: asset,
+            tradingData: data
+          })
+          const markdown = `### 📈 Quantitative Financial Telemetry: ${data.asset || asset}\n` +
+            `- **Price**: **${data.price}** (${data.change24h || '0.0%'})\n` +
+            `- **Sentiment**: **${data.sentiment}** | **Fear & Greed Index**: **${data.fearGreedIndex}/100**\n` +
+            `- **RSI (14)**: **${data.rsi14}** | **Support**: **${data.support}** | **Resistance**: **${data.resistance}**\n` +
+            `- **Quantitative Signal**: **${data.signal}**\n\n` +
+            `> **Trading Thesis**: ${data.thesis}\n\n*Master Sri, Midas standing by for order execution.*`
+          setJarvisResponse(markdown)
+          speakVoice(data.spokenSummary || `Master Sri, ${asset} telemetry indicates ${data.sentiment} momentum with a ${data.signal} signal.`, 'en-IN')
+          setIsProcessing(false)
+          return
+        }
+      } catch (err) {
+        console.error('Trading telemetry error:', err)
+      }
+    }
+
+    // 0.56 FLOWSINT OSINT & DOMAIN RECONNAISSANCE
+    if (
+      lower.includes('osint') ||
+      lower.includes('recon') ||
+      lower.includes('flowsint') ||
+      lower.includes('audit domain') ||
+      lower.includes('domain recon') ||
+      lower.includes('whois') ||
+      lower.includes('security posture')
+    ) {
+      let target = 'shopify.com'
+      const domainMatch = cmd.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/i)
+      if (domainMatch) target = domainMatch[1].toLowerCase()
+
+      setActiveAgent(AGENTS.cerebro)
+      activeAgentRef.current = AGENTS.cerebro
+      setJarvisResponse(`Cerebro initiating flowsint deep OSINT reconnaissance on "${target}"...`)
+      speakVoice(`Master Sri, Cerebro executing deep reconnaissance against ${target}. Mapping edge infrastructure, open ports, and cyber posture now.`, 'en-CA')
+
+      try {
+        const res = await fetch(`/api/tools/osint?target=${encodeURIComponent(target)}`, { headers: jsonAuthHeaders() })
+        if (res.ok) {
+          const body = await res.json()
+          const data = body.data || {}
+          setCurrentAction({
+            type: 'osint',
+            title: `flowsint OSINT Recon: ${target}`,
+            query: target,
+            osintData: data
+          })
+          const markdown = `### 🌐 flowsint Autonomous Reconnaissance: ${data.target || target}\n` +
+            `- **Infrastructure**: **${data.infrastructure}**\n` +
+            `- **Tech Stack**: ${Array.isArray(data.techStack) ? data.techStack.join(', ') : data.techStack}\n` +
+            `- **Security Posture**: **${data.securityPosture}**\n` +
+            `- **Competitor Threat Level**: **${data.competitorThreatLevel}**\n\n` +
+            `> **Intelligence Executive Summary**: ${data.executiveSummary}\n\n*Master Sri, Cerebro perimeter analysis logged.*`
+          setJarvisResponse(markdown)
+          speakVoice(data.spokenSummary || `Master Sri, reconnaissance on ${target} concluded. Edge security is graded at ${data.securityPosture}.`, 'en-CA')
+          setIsProcessing(false)
+          return
+        }
+      } catch (err) {
+        console.error('OSINT recon error:', err)
       }
     }
 
@@ -2711,20 +2840,20 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const AgentIcon = activeAgent.icon
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-2xl animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-2xl animate-in fade-in duration-300">
       <div className={cn(
-        "relative w-full max-w-2xl rounded-2xl sm:rounded-3xl border transition-all duration-500 p-4 sm:p-7 shadow-[0_0_80px_rgba(6,182,212,0.3)] overflow-hidden max-h-[94dvh] overflow-y-auto no-scrollbar",
+        "relative w-full max-w-2xl rounded-3xl border transition-all duration-500 p-4 sm:p-6 shadow-[0_0_90px_rgba(6,182,212,0.25)] overflow-hidden max-h-[94dvh] overflow-y-auto no-scrollbar",
         securityAlert
-          ? "border-rose-500 bg-gradient-to-b from-rose-950/40 via-slate-950 to-slate-950 shadow-[0_0_60px_rgba(244,63,94,0.4)]"
+          ? "border-rose-500/80 bg-gradient-to-b from-rose-950/40 via-slate-950 to-slate-950 shadow-[0_0_60px_rgba(244,63,94,0.4)]"
           : isSleeping
-          ? "border-indigo-500/40 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950/60 shadow-[0_0_50px_rgba(99,102,241,0.25)]"
-          : "border-cyan-500/50 bg-gradient-to-b from-slate-900/98 via-slate-950/98 to-slate-950"
+          ? "border-indigo-500/30 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950/50 shadow-[0_0_50px_rgba(99,102,241,0.2)]"
+          : "border-cyan-500/30 bg-gradient-to-b from-slate-900/98 via-slate-950/98 to-slate-950"
       )}>
 
         {/* Ambient Holographic Reactor Aura */}
         <div className={cn(
-          "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none transition-all duration-700",
-          securityAlert ? "bg-rose-500/15" : isSleeping ? "bg-indigo-500/10" : "bg-cyan-500/10"
+          "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-60",
+          securityAlert ? "bg-rose-500/20" : isSleeping ? "bg-indigo-500/15" : isSpeaking ? "bg-amber-500/15" : isListening ? "bg-cyan-500/20" : "bg-cyan-500/10"
         )} />
 
         {/* Hidden File Input for Vision / Image Upload */}
@@ -2749,86 +2878,85 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           </div>
         )}
 
-        {/* Top Controls: Continuous Toggle & Tools & Sleep & Close */}
-        <div className="flex items-center justify-between w-full relative z-20 mb-3">
-          <div className="flex items-center flex-wrap gap-2">
+        {/* Sleek Minimalist Top Navigation Header */}
+        <div className="flex items-center justify-between w-full relative z-20 mb-3 pb-2.5 border-b border-slate-800/80">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => isSleeping ? wakeUp() : goToSleep()}
               className={cn(
-                "px-3 py-1 rounded-full border text-[10px] font-mono tracking-wider flex items-center gap-1.5 transition-all",
+                "px-3 py-1.5 rounded-full border text-[10px] font-mono tracking-wider flex items-center gap-1.5 transition-all shadow-sm",
                 isSleeping
                   ? "bg-indigo-500/20 border-indigo-400 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.3)]"
-                  : "bg-slate-800/80 border-slate-700 text-slate-300 hover:border-indigo-500/40"
+                  : "bg-slate-900/90 border-cyan-500/30 text-cyan-300 hover:border-cyan-400"
               )}
-              title={isSleeping ? "Tap to wake up JARVIS" : "Put JARVIS into standby sleep mode"}
+              title={isSleeping ? "Tap to wake up J.A.R.V.I.S." : "Put J.A.R.V.I.S. into standby sleep mode"}
             >
               {isSleeping ? <Sun className="w-3 h-3 text-amber-400" /> : <Moon className="w-3 h-3 text-indigo-400" />}
-              {isSleeping ? 'STANDBY: TAP TO WAKE' : 'REST / STANDBY'}
+              <span>{isSleeping ? 'STANDBY: TAP TO WAKE' : 'REST / STANDBY'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const next = engineType === 'Deepgram' ? 'WebSpeech' : 'Deepgram'
+                setEngineType(next)
+                if (isListening) stopListening()
+              }}
+              className={cn(
+                "px-2.5 py-1.5 rounded-full border text-[10px] font-mono flex items-center gap-1 transition-all",
+                engineType === 'Deepgram'
+                  ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                  : "border-slate-800 bg-slate-900/80 text-slate-400 hover:text-slate-200"
+              )}
+              title="Toggle STT Engine: Deepgram Nova-2 Neural STT vs Browser WebSpeech"
+            >
+              <Mic className="w-3 h-3 text-emerald-400" />
+              <span>{engineType === 'Deepgram' ? 'DEEPGRAM NOVA-2' : 'WEBSPEECH'}</span>
             </button>
 
             <button
               onClick={() => setSovereignLock(!sovereignLock)}
               className={cn(
-                "px-2.5 py-1 rounded-full border text-[10px] font-mono tracking-wider flex items-center gap-1 transition-all",
+                "px-2.5 py-1.5 rounded-full border text-[10px] font-mono tracking-wider hidden sm:flex items-center gap-1 transition-all",
                 sovereignLock
-                  ? "bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-                  : "bg-slate-800/60 border-slate-700 text-slate-400"
+                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                  : "bg-slate-900/80 border-slate-800 text-slate-400"
               )}
               title="Biometric Sovereign Voiceprint Lock: Enforces that only Master Sri can issue commands"
             >
               {sovereignLock ? <Lock className="w-3 h-3 text-emerald-400" /> : <Unlock className="w-3 h-3 text-slate-400" />}
-              {sovereignLock ? 'SOVEREIGN VOICE: LOCKED' : 'VOICE LOCK: OFF'}
+              <span>{sovereignLock ? 'SRI LOCKED' : 'LOCK OFF'}</span>
             </button>
+          </div>
 
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const next = engineType === 'Whisper-Turbo' ? 'WebSpeech' : 'Whisper-Turbo'
-                setEngineType(next)
-                if (isListening) stopListening()
-              }}
-              className={cn(
-                "px-2.5 py-1 rounded-full border text-[10px] font-mono flex items-center gap-1 transition-all",
-                engineType === 'Whisper-Turbo'
-                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)]"
-                  : "border-slate-700 bg-slate-800/60 text-slate-400 hover:text-slate-200"
-              )}
-              title="Toggle STT Engine: Whisper-Turbo (Groq/Gemini LPU Neural) vs WebSpeech (Browser local)"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition-all"
+              title="Vision: Upload photo or blueprint for Gemini Flash Vision"
             >
-              <Mic className="w-3 h-3 text-emerald-400" />
-              STT: {engineType === 'Whisper-Turbo' ? 'GROQ WHISPER' : 'WEBSPEECH'}
+              <ImageIcon className="w-4 h-4" />
             </button>
 
             <button
               onClick={triggerSelfEvolution}
-              className="px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-500/15 hover:bg-purple-500/25 text-[10px] font-mono text-purple-300 flex items-center gap-1 transition-all"
-              title="Self-Evolution Engine: Assimilate global open-source AI models & DeepSeek tools"
+              className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-purple-300 hover:text-purple-200 hover:border-purple-500/40 transition-all"
+              title="Self-Evolution: Assimilate open-source AI models & skills"
             >
-              <RefreshCw className="w-3 h-3 text-purple-400 animate-spin" style={{ animationDuration: '4s' }} />
-              SELF-EVOLVE
-            </button>
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-[10px] font-mono text-cyan-300 flex items-center gap-1 transition-all"
-              title="Upload photo / roof image / blueprint for Gemini 3.8 Flash Vision"
-            >
-              <ImageIcon className="w-3 h-3" />
-              {isUploading ? 'ANALYZING...' : 'VISION'}
+              <RefreshCw className="w-4 h-4 text-purple-400 animate-spin" style={{ animationDuration: '6s' }} />
             </button>
 
             {/* Quick Arsenal Modules Menu */}
             <div className="relative">
               <button
                 onClick={() => setShowQuickTools(!showQuickTools)}
-                className="px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/40 text-[10px] font-mono text-cyan-300 flex items-center gap-1 transition-all"
+                className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-cyan-300 hover:text-white hover:border-cyan-500/40 transition-all"
                 title="Stark OS Autonomous Arsenal Tools"
               >
-                <Zap className="w-3 h-3 text-cyan-400" />
-                ARSENAL
+                <Zap className="w-4 h-4 text-cyan-400" />
               </button>
               {showQuickTools && (
-                <div className="absolute left-0 mt-2 z-50 flex flex-col gap-1.5 p-2 bg-slate-900/95 border border-cyan-500/40 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-xl min-w-[160px]">
+                <div className="absolute right-0 mt-2 z-50 flex flex-col gap-1.5 p-2 bg-slate-900/98 border border-cyan-500/40 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-xl min-w-[170px]">
                   <button
                     onClick={() => { setShowQuickTools(false); handleGenerateExcel(); }}
                     className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-mono text-emerald-300 hover:bg-emerald-500/20 transition-all text-left"
@@ -2856,66 +2984,52 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-mono text-cyan-400/80 hidden sm:inline">
-              1HR+ SESSION: {Math.floor(sessionUptime / 60)}m {sessionUptime % 60}s
-            </span>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-400 hover:text-white hover:border-cyan-500/40 transition-all"
+              className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:border-cyan-500/40 transition-all"
+              title="Close Voice HUD"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex flex-col items-center text-center space-y-4 relative z-10">
-          {/* Header & Clearance */}
+        <div className="flex flex-col items-center text-center space-y-3.5 relative z-10">
+          {/* Header Identity */}
           <div className="space-y-1">
-            <div className={cn(
-              "inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-mono tracking-widest uppercase transition-all",
-              securityAlert
-                ? "bg-rose-500/20 border-rose-500 text-rose-300"
-                : isSleeping
-                ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-300"
-                : "bg-cyan-500/15 border-cyan-500/40 text-cyan-300"
-            )}>
-              <Zap className="w-3 h-3 text-cyan-400 animate-spin" />
-              {securityAlert
-                ? 'CYBER GUARDIAN // INTRUSION BLOCKED'
-                : isSleeping
-                ? 'STANDBY SLEEP // WAKE WORD: "HEY JARVIS"'
-                : "SRI'S J.A.R.V.I.S. MARK-V // DEEPSEEK HARNESS ACTIVE"}
+            <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[10px] font-mono tracking-widest uppercase text-cyan-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span>MARK-V BLEEDING EDGE CORE // DUPLEX SPEECH MATRIX</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-wider text-white flex items-center justify-center gap-2">
-              SRI'S J.A.R.V.I.S. MARK-V
+            <h2 className="text-lg sm:text-xl font-black tracking-wider text-white">
+              J.A.R.V.I.S. VOICE OPERATING SYSTEM
             </h2>
-            <p className="text-xs text-slate-400 font-mono">
-              Dedicated Sovereign 2nd-in-Command for Master Sri (Srimanikandan K)
-            </p>
           </div>
 
-          {/* Subordinate Agent Switcher Dock (Mark-V Cybernetic Pill Dock) */}
+          {/* Subordinate Swarm Carousel with Gender & Voice Identifiers */}
           {!isSleeping && (
-            <div className="w-full">
-              <div className="flex items-center justify-between mb-1.5 px-1">
-                <div className="text-[10px] font-mono text-cyan-400 flex items-center gap-1.5">
-                  <Layers className="w-3 h-3 text-cyan-400" />
-                  <span className="tracking-wider">SUBORDINATE SWARM:</span>
+            <div className="w-full bg-slate-950/60 rounded-2xl p-2.5 border border-slate-800/80">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <div className="text-[11px] font-mono text-slate-300 flex items-center gap-1.5">
+                  <span className="font-bold text-cyan-400">{activeAgent.name}</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full border border-slate-700 bg-slate-900 text-slate-400">
+                    {activeAgent.gender === 'male' ? '♂ Male' : '♀ Female'} • {activeAgent.voiceName}
+                  </span>
                 </div>
                 <button
                   onClick={() => runAgentRollcall()}
                   disabled={isProcessing}
-                  className="px-2.5 py-0.5 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/40 text-[10px] font-mono text-cyan-300 font-bold flex items-center gap-1 transition-all"
+                  className="px-2.5 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/40 text-[10px] font-mono text-cyan-300 font-bold flex items-center gap-1 transition-all"
                   title="Command all agents to report and declare their capabilities one by one"
                 >
-                  <Radio className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
+                  <Radio className="w-3 h-3 text-cyan-400 animate-pulse" />
                   <span>SWARM ROLLCALL</span>
                 </button>
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth w-full">
+
+              {/* Horizontally scrollable agent chips */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth w-full">
                 {Object.values(AGENTS).map((agent) => {
                   const isCurrent = activeAgent.id === agent.id
                   const Icon = agent.icon
@@ -2924,22 +3038,22 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                       key={agent.id}
                       onClick={() => switchAgent(agent)}
                       className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono transition-all shrink-0",
+                        "flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono transition-all shrink-0 select-none",
                         isCurrent
-                          ? `${agent.bg} ${agent.border} shadow-[0_0_15px_rgba(6,182,212,0.4)] ring-1 ring-cyan-400/50 scale-100`
-                          : "bg-slate-900/70 border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100"
+                          ? `${agent.bg} ${agent.border} shadow-[0_0_15px_rgba(6,182,212,0.35)] ring-1 ring-cyan-400/50 scale-100`
+                          : "bg-slate-900/70 border-slate-800/80 hover:border-slate-700 opacity-75 hover:opacity-100"
                       )}
                     >
                       <Icon className={cn("w-3.5 h-3.5", agent.color)} />
                       <span className={cn("font-bold text-[11px]", agent.color)}>
                         {agent.name}
                       </span>
-                      <span className="text-[8px] text-slate-400 uppercase font-mono px-1 py-0.5 rounded bg-slate-800">
-                        {agent.lang.split('-')[1]}
+                      <span className={cn(
+                        "text-[9px] font-bold px-1 py-0.2 rounded",
+                        agent.gender === 'female' ? "text-rose-400 bg-rose-950/60" : "text-cyan-400 bg-cyan-950/60"
+                      )}>
+                        {agent.gender === 'female' ? '♀' : '♂'}
                       </span>
-                      {isCurrent && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                      )}
                     </button>
                   )
                 })}
@@ -2947,73 +3061,93 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             </div>
           )}
 
-          {/* Central Holographic Reactor Orb */}
+          {/* Central Apple Siri Holographic Fluid Reactor Core */}
           <div
-            className="relative group cursor-pointer my-1"
+            className="relative flex items-center justify-center cursor-pointer my-3 group select-none"
             onClick={isSleeping ? wakeUp : (isSpeaking ? handleInterrupt : (isListening ? stopListening : startListening))}
           >
-            {/* Outer spinning ring */}
+            {/* Concentric Audio Reactive Fluid Halo */}
             <div className={cn(
-              "w-32 h-32 rounded-full border-2 border-dashed transition-all duration-700 flex items-center justify-center",
-              isSleeping
-                ? "border-indigo-500/50 animate-pulse shadow-[0_0_35px_rgba(99,102,241,0.4)]"
-                : isListening
-                ? "border-cyan-400 animate-spin shadow-[0_0_50px_rgba(6,182,212,0.7)]"
+              "absolute w-44 h-44 rounded-full transition-all duration-700 blur-xl opacity-60",
+              securityAlert
+                ? "bg-rose-500 animate-pulse"
+                : isSleeping
+                ? "bg-indigo-600/30"
                 : isSpeaking
-                ? "border-amber-400 animate-pulse shadow-[0_0_50px_rgba(251,191,36,0.7)]"
-                : "border-slate-700 shadow-[0_0_20px_rgba(6,182,212,0.2)]"
-            )}>
-              {/* Inner Core */}
+                ? "bg-gradient-to-r from-amber-400 via-cyan-400 to-emerald-400 animate-pulse scale-110"
+                : isListening
+                ? "bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 animate-pulse scale-105"
+                : isProcessing
+                ? "bg-gradient-to-r from-fuchsia-500 to-cyan-500 animate-spin"
+                : "bg-cyan-500/20 group-hover:bg-cyan-500/40 scale-95"
+            )} />
+
+            {/* Dynamic Rotating Fluid Ring */}
+            <div className={cn(
+              "w-36 h-36 rounded-full p-[2px] transition-all duration-500 flex items-center justify-center",
+              securityAlert
+                ? "bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_40px_rgba(244,63,94,0.6)]"
+                : isSleeping
+                ? "bg-gradient-to-r from-indigo-700 to-slate-800 shadow-[0_0_25px_rgba(99,102,241,0.3)]"
+                : isSpeaking
+                ? "bg-gradient-to-tr from-amber-400 via-emerald-400 to-cyan-400 shadow-[0_0_50px_rgba(6,182,212,0.6)] animate-spin"
+                : isListening
+                ? "bg-gradient-to-tr from-cyan-400 via-blue-400 to-violet-500 shadow-[0_0_55px_rgba(6,182,212,0.7)] animate-pulse"
+                : isProcessing
+                ? "bg-gradient-to-r from-purple-500 via-cyan-400 to-amber-400 shadow-[0_0_40px_rgba(168,85,247,0.5)] animate-spin"
+                : "bg-gradient-to-tr from-cyan-500/40 via-slate-700 to-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.25)] group-hover:shadow-[0_0_35px_rgba(6,182,212,0.4)]"
+            )} style={{ animationDuration: isProcessing ? '3s' : isSpeaking ? '6s' : '4s' }}>
+              
+              {/* Inner Glossy Siri Orb Core */}
               <div className={cn(
-                "w-24 h-24 rounded-full flex flex-col items-center justify-center transition-all duration-300 border",
-                isSleeping
-                  ? "bg-slate-950 border-indigo-400/50"
-                  : isListening
-                  ? "bg-gradient-to-tr from-cyan-600/40 to-blue-500/40 border-cyan-400/90 scale-105"
+                "w-full h-full rounded-full flex flex-col items-center justify-center transition-all duration-300 backdrop-blur-xl relative overflow-hidden",
+                securityAlert
+                  ? "bg-rose-950/90 text-rose-200"
+                  : isSleeping
+                  ? "bg-slate-950/95 text-indigo-300"
                   : isSpeaking
-                  ? "bg-gradient-to-tr from-amber-600/40 to-cyan-500/40 border-amber-400/90 scale-105"
-                  : "bg-slate-900/90 border-cyan-500/40 hover:border-cyan-400"
+                  ? "bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-cyan-950/80 text-cyan-200"
+                  : isListening
+                  ? "bg-gradient-to-b from-cyan-950/80 via-slate-950/95 to-blue-950/90 text-cyan-100"
+                  : isProcessing
+                  ? "bg-gradient-to-b from-purple-950/80 via-slate-950/95 to-slate-900/90 text-purple-200"
+                  : "bg-slate-950/90 text-slate-300 group-hover:text-white"
               )}>
+                {/* Core Icon */}
                 {isSleeping ? (
-                  <Moon className="w-8 h-8 text-indigo-400 animate-pulse" />
+                  <Moon className="w-10 h-10 text-indigo-400 animate-pulse" />
                 ) : isListening ? (
-                  <Mic className="w-8 h-8 text-cyan-300 animate-pulse" />
+                  <Mic className="w-10 h-10 text-cyan-300 animate-bounce" />
                 ) : isSpeaking ? (
-                  <Volume2 className="w-8 h-8 text-amber-300 animate-bounce" />
+                  <Volume2 className="w-10 h-10 text-amber-300 animate-pulse" />
+                ) : isProcessing ? (
+                  <Sparkles className="w-10 h-10 text-purple-300 animate-spin" />
                 ) : (
-                  <Mic className="w-8 h-8 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                  <Mic className="w-10 h-10 text-slate-400 group-hover:text-cyan-300 transition-colors" />
                 )}
-                <span className="text-[8px] font-mono font-bold tracking-wider uppercase mt-1 text-slate-200">
-                  {isSleeping ? 'ASLEEP' : isListening ? 'LISTENING' : isSpeaking ? 'SPEAKING' : 'TAP TO SPEAK'}
-                </span>
-                <span className="text-[7px] font-mono text-cyan-400/80">
-                  {isSleeping ? '[SAY "HEY JARVIS"]' : `[${engineType}]`}
-                </span>
               </div>
             </div>
           </div>
 
-          {/* Live Real-time Voice Feedback Banner */}
-          {isListening && (
-            <div className="w-full max-w-md px-4 py-2.5 rounded-2xl bg-cyan-950/80 border border-cyan-400/50 text-cyan-200 text-xs font-mono flex items-center justify-between gap-3 shadow-[0_0_25px_rgba(6,182,212,0.35)] animate-pulse">
-              <div className="flex items-center gap-2 truncate">
-                <Mic className="w-4 h-4 text-cyan-400 shrink-0 animate-bounce" />
-                <span className="truncate font-bold">
-                  {transcript ? `Hearing: "${transcript}"` : "Listening to Master Sri..."}
-                </span>
-              </div>
-              <span className="text-[9px] px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 uppercase font-black tracking-wider shrink-0 border border-cyan-400/40">
-                ACTIVE VAD
-              </span>
+          {/* Core State Caption */}
+          <div className="space-y-0.5">
+            <div className="text-xs font-mono font-bold tracking-wider text-slate-200">
+              {isSleeping
+                ? 'STANDBY MODE'
+                : isListening
+                ? 'LISTENING TO MASTER SRI (5S SILENCE GRACE)'
+                : isSpeaking
+                ? `SPEAKING AS ${activeAgent.name.toUpperCase()} (TAP ORB TO INTERRUPT)`
+                : isProcessing
+                ? 'DEEPSEEK REASONING & SWARM MATRIX EXECUTING...'
+                : 'TAP ORB TO SPEAK OR SAY "HEY JARVIS"'}
             </div>
-          )}
-
-          {isProcessing && (
-            <div className="w-full max-w-md px-4 py-2.5 rounded-2xl bg-amber-950/80 border border-amber-400/50 text-amber-200 text-xs font-mono flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] animate-pulse">
-              <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
-              <span className="font-bold">DeepSeek Reasoning & Swarm Matrix Executing...</span>
+            <div className="text-[10px] font-mono text-cyan-400/80">
+              {isSleeping
+                ? 'Say "Hey Jarvis" or tap to wake'
+                : `Engine: ${engineType} Nova-2 • Voice: ${activeAgent.voiceName}`}
             </div>
-          )}
+          </div>
 
           {/* Equalizer Waveform */}
           {!isSleeping && (
@@ -3061,7 +3195,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             </div>
           )}
 
-          {/* Active Action Card (YouTube, Shopify, E-Commerce, Instagram, LinkedIn Job Pitch) */}
+          {/* Action Cards: TradingAgents & FinceptTerminal, flowsint OSINT, E-Commerce Deal Recon, YouTube */}
           {currentAction && (
             <div className="w-full rounded-2xl border border-cyan-400/50 bg-slate-900/90 p-4 text-left space-y-2.5 animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between">
@@ -3081,6 +3215,103 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                 )}
               </div>
 
+              {/* TradingAgents & FinceptTerminal Quant Velocity Card */}
+              {currentAction.type === 'trading' && currentAction.tradingData && (
+                <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-emerald-500/40 space-y-3 shadow-[0_0_25px_rgba(16,185,129,0.15)]">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white font-mono">{currentAction.tradingData.asset} / USD</div>
+                        <div className="text-[9px] text-slate-400 font-mono">TradingAgents & FinceptTerminal Quant Engine</div>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono tracking-wider border",
+                      currentAction.tradingData.signal === 'BUY' || currentAction.tradingData.signal === 'ACCUMULATE'
+                        ? "bg-emerald-500/20 border-emerald-400 text-emerald-300"
+                        : "bg-amber-500/20 border-amber-400 text-amber-300"
+                    )}>
+                      SIGNAL: {currentAction.tradingData.signal}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-[8px] font-mono text-slate-400 block">PRICE</span>
+                      <span className="text-xs font-black font-mono text-white">{currentAction.tradingData.price}</span>
+                      <span className="text-[9px] font-mono text-emerald-400 block">{currentAction.tradingData.change24h}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-[8px] font-mono text-slate-400 block">FEAR & GREED</span>
+                      <span className="text-xs font-black font-mono text-cyan-300">{currentAction.tradingData.fearGreedIndex}/100</span>
+                      <span className="text-[9px] font-mono text-slate-400 block">{currentAction.tradingData.sentiment}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-[8px] font-mono text-slate-400 block">RSI (14)</span>
+                      <span className="text-xs font-black font-mono text-amber-300">{currentAction.tradingData.rsi14}</span>
+                      <span className="text-[9px] font-mono text-slate-400 block">Oscillator</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-[8px] font-mono text-slate-400 block">SUP / RES</span>
+                      <span className="text-[11px] font-bold font-mono text-slate-200">{currentAction.tradingData.support}</span>
+                      <span className="text-[9px] font-mono text-slate-400 block">{currentAction.tradingData.resistance}</span>
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300 font-sans leading-relaxed">
+                    <strong className="text-emerald-400 font-mono">Quant Thesis: </strong>
+                    {currentAction.tradingData.thesis}
+                  </div>
+                </div>
+              )}
+
+              {/* flowsint Autonomous OSINT Recon Card */}
+              {currentAction.type === 'osint' && currentAction.osintData && (
+                <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-purple-500/40 space-y-3 shadow-[0_0_25px_rgba(168,85,247,0.15)]">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white font-mono">{currentAction.osintData.target}</div>
+                        <div className="text-[9px] text-slate-400 font-mono">flowsint Autonomous Perimeter Recon</div>
+                      </div>
+                    </div>
+                    <div className="px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-400 text-purple-300 text-[10px] font-black font-mono">
+                      {currentAction.osintData.securityPosture}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 space-y-0.5">
+                      <span className="text-[8px] font-mono text-slate-400 block">INFRASTRUCTURE</span>
+                      <span className="text-xs font-bold font-mono text-slate-200">{currentAction.osintData.infrastructure}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 space-y-0.5">
+                      <span className="text-[8px] font-mono text-slate-400 block">COMPETITOR THREAT LEVEL</span>
+                      <span className="text-xs font-bold font-mono text-amber-300">{currentAction.osintData.competitorThreatLevel}</span>
+                    </div>
+                  </div>
+                  {Array.isArray(currentAction.osintData.techStack) && (
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-mono text-slate-400 block">DETECTED TECH STACK</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentAction.osintData.techStack.map((tech: string, i: number) => (
+                          <span key={i} className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-[9px] font-mono text-purple-300">
+                            {tech}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300 font-sans leading-relaxed">
+                    <strong className="text-purple-400 font-mono">Executive Summary: </strong>
+                    {currentAction.osintData.executiveSummary}
+                  </div>
+                </div>
+              )}
+
               {/* Embedded Holographic Audio/Video Stream Player */}
               {currentAction.embedUrl && (
                 <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-cyan-500/50 bg-black shadow-[0_0_30px_rgba(6,182,212,0.35)] my-2">
@@ -3099,7 +3330,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                 <div className="space-y-3 pt-1">
                   {currentAction.deals.map((deal: any, idx: number) => (
                     <div key={idx} className="p-3.5 rounded-2xl bg-slate-950/90 border border-cyan-500/30 space-y-3 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
-                      {/* Product Header & Winner Badge */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800/80 pb-2.5">
                         <div>
                           <div className="text-xs font-bold text-white tracking-wide">{deal.productName}</div>
@@ -3110,9 +3340,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                         </div>
                       </div>
 
-                      {/* Side-by-Side Comparison Columns */}
                       <div className="grid grid-cols-2 gap-2.5">
-                        {/* Amazon Column */}
                         <div className="p-3 rounded-xl bg-slate-900/80 border border-amber-500/30 flex flex-col justify-between space-y-2">
                           <div>
                             <div className="flex items-center justify-between text-[10px] font-mono font-bold text-amber-400">
@@ -3135,7 +3363,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                           </a>
                         </div>
 
-                        {/* Flipkart Column */}
                         <div className="p-3 rounded-xl bg-slate-900/80 border border-blue-500/30 flex flex-col justify-between space-y-2">
                           <div>
                             <div className="flex items-center justify-between text-[10px] font-mono font-bold text-blue-400">
@@ -3159,7 +3386,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                         </div>
                       </div>
 
-                      {/* Quality & Sentiment Scores */}
                       <div className="grid grid-cols-2 gap-2 text-[10px] font-mono bg-slate-900/50 p-2 rounded-xl border border-slate-800">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">Quality Score:</span>
@@ -3171,7 +3397,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                         </div>
                       </div>
 
-                      {/* Verdict Text */}
                       {deal.comparison?.verdict && (
                         <div className="text-[11px] text-slate-300 font-sans leading-relaxed bg-cyan-950/20 border border-cyan-500/20 p-2.5 rounded-xl">
                           <strong className="text-cyan-300">J.A.R.V.I.S. Recon Verdict: </strong>
@@ -3275,8 +3500,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             </div>
           )}
 
-          {/* Live Transcript / Dialogue Box */}
-          <div className="w-full bg-slate-950/90 border border-slate-800 rounded-2xl p-4 text-left space-y-2.5 max-h-44 overflow-y-auto">
+          {/* Executive Dialogue Box (Master Sri & J.A.R.V.I.S.) */}
+          <div className="w-full bg-slate-950/90 border border-slate-800/80 rounded-2xl p-4 text-left space-y-2.5 max-h-48 overflow-y-auto">
             {transcript && (
               <div className="space-y-1 pb-2 border-b border-slate-800/80">
                 <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">
@@ -3289,45 +3514,54 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             )}
 
             <div className="space-y-1">
-              <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                {activeAgent.name} Response:
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  {activeAgent.name} ({activeAgent.voiceName}):
+                </span>
+                <span className="text-[9px] font-mono text-slate-500">
+                  {activeAgent.title}
+                </span>
+              </div>
               <p className="text-sm text-slate-200 leading-relaxed font-sans whitespace-pre-line">
                 {isProcessing ? 'Synthesizing directive across neural swarms...' : jarvisResponse}
               </p>
             </div>
           </div>
 
-          {/* Quick Voice Directives */}
+          {/* Executive Quick Directives */}
           {!isSleeping && (
-            <div className="w-full space-y-2">
+            <div className="w-full space-y-1.5 pt-1">
               <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block text-center">
                 Executive Voice Directives
               </span>
-              <div className="flex flex-wrap items-center justify-center gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar justify-start sm:justify-center w-full">
                 {[
-                  'Jarvis, fix the issue',
-                  'Switch to Dashboard',
-                  'Play AC/DC on YouTube',
-                  'Open LinkedIn and find AI Lead jobs',
-                  'Evolve and scout open source AI',
-                  'Generate Excel report',
-                  'Go and rest, Jarvis',
-                ].map((cmd, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      setTranscript(cmd)
-                      transcriptRef.current = cmd
-                      processCommand(cmd)
-                    }}
-                    className="px-3 py-1 rounded-xl bg-slate-900/90 hover:bg-cyan-500/20 border border-slate-800 hover:border-cyan-500/40 text-[11px] font-mono text-slate-300 hover:text-cyan-300 transition-all flex items-center gap-1.5"
-                  >
-                    <ArrowRight className="w-3 h-3 text-cyan-400" />
-                    {cmd}
-                  </button>
-                ))}
+                  { text: 'Jarvis, fix the issue', icon: Zap },
+                  { text: 'Analyze BTC Quant Signals', icon: TrendingUp },
+                  { text: 'Audit shopify.com with flowsint', icon: Globe },
+                  { text: 'Compare iPhone 16 Pro Deals', icon: ExternalLink },
+                  { text: 'Swarm Rollcall', icon: Radio },
+                  { text: 'Play AC/DC on YouTube', icon: Play },
+                  { text: 'Generate Excel report', icon: FileSpreadsheet },
+                  { text: 'Go and rest, Jarvis', icon: Moon }
+                ].map((item, i) => {
+                  const ItemIcon = item.icon
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setTranscript(item.text)
+                        transcriptRef.current = item.text
+                        processCommand(item.text)
+                      }}
+                      className="px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-cyan-500/15 border border-slate-800 hover:border-cyan-500/40 text-[11px] font-mono text-slate-300 hover:text-cyan-300 transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      <ItemIcon className="w-3 h-3 text-cyan-400" />
+                      <span>{item.text}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
