@@ -153,8 +153,8 @@ Important:
       let responseText = '';
       try {
         if (aiCaller) {
-          const aiRes = await aiCaller(baseSystemPrompt, historyMessages);
-          responseText = aiRes.text;
+          const aiRes: any = await aiCaller(baseSystemPrompt, historyMessages);
+          responseText = typeof aiRes === 'string' ? aiRes : (aiRes?.text || '');
         } else {
           // Fallback to internal completion if aiCaller not passed
           responseText = `Thought: Simulating step ${stepNum}\nFinal Answer: Task completed in sandbox.`;

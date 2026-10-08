@@ -2030,7 +2030,7 @@ Context: ${JSON.stringify(contextData || {})}`
           try {
             if (aiCaller) {
               const aiRes = await aiCaller(baseSystemPrompt, historyMessages);
-              responseText = aiRes.text;
+              responseText = typeof aiRes === "string" ? aiRes : aiRes?.text || "";
             } else {
               responseText = `Thought: Simulating step ${stepNum}
 Final Answer: Task completed in sandbox.`;
@@ -10232,29 +10232,35 @@ async function callDirectGeminiPool(keys, system, messages) {
     parts: [{ text: m.content }]
   }));
   const errors = [];
+  const validModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
   for (let i = 0; i < keys.length; i++) {
     const key = keys[(geminiKeyIndex + i) % keys.length];
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents }),
-          signal: AbortSignal.timeout(6e4)
+    for (const model of validModels) {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents }),
+            signal: AbortSignal.timeout(6e4)
+          }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text?.trim()) {
+            geminiKeyIndex = (geminiKeyIndex + i + 1) % keys.length;
+            return text;
+          }
         }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text?.trim()) {
-          geminiKeyIndex = (geminiKeyIndex + i + 1) % keys.length;
-          return text;
+        if (res.status === 429) {
+          errors.push(`Gemini key #${(geminiKeyIndex + i) % keys.length + 1} (${model}) rate limited (429)`);
+          break;
         }
+      } catch (e) {
+        errors.push(e.message);
       }
-      errors.push(`Gemini key #${(geminiKeyIndex + i) % keys.length + 1} status ${res.status}`);
-    } catch (e) {
-      errors.push(e.message);
     }
   }
   throw new Error(`Gemini Pool exhausted: ${errors.join(", ")}`);
@@ -11309,7 +11315,6 @@ app.get("/swarm/status/:taskId", requireAuth, async (c) => {
   }
   return c.json({ ok: true, data: swarm });
 });
-var DEEPGRAM_DEFAULT_KEY = "34070f5f5deec2580a70abf0d8b94f6884a43a5d";
 var ELEVENLABS_DEFAULT_KEY = "sk_da60f0e4de182e85118e7fca5b676a224a95d9ab5d814b8f";
 var AGENT_VOICE_MAP = {
   jarvis: { voiceId: "pNInz6obpgDQGcFmaJgB", gender: "male", name: "Adam (Grand Commander)" },
@@ -11339,84 +11344,6 @@ app.get("/voice/profiles", async (c) => {
     duplexLatency: "~180ms",
     profiles: AGENT_VOICE_MAP
   });
-});
-app.post("/voice/transcribe", async (c) => {
-  try {
-    const deepgramKey = process.env.DEEPGRAM_API_KEY || DEEPGRAM_DEFAULT_KEY;
-    const body = await c.req.parseBody().catch(() => ({}));
-    let audioBuffer = null;
-    let contentType = "audio/webm";
-    if (body.file && typeof body.file === "object" && "arrayBuffer" in body.file) {
-      const ab = await body.file.arrayBuffer();
-      audioBuffer = Buffer.from(ab);
-      contentType = body.file.type || "audio/webm";
-    } else {
-      const rawBytes = await c.req.arrayBuffer().catch(() => null);
-      if (rawBytes && rawBytes.byteLength > 0) {
-        audioBuffer = Buffer.from(rawBytes);
-        contentType = c.req.header("content-type") || "audio/webm";
-      }
-    }
-    if (!audioBuffer || audioBuffer.length < 100) {
-      return c.json({ ok: false, error: "No audio data received" }, 400);
-    }
-    try {
-      const dgRes = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&language=en", {
-        method: "POST",
-        headers: {
-          "Authorization": `Token ${deepgramKey}`,
-          "Content-Type": contentType
-        },
-        body: audioBuffer
-      });
-      if (dgRes.ok) {
-        const dgData = await dgRes.json();
-        const transcript = dgData.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim();
-        const confidence = dgData.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0.95;
-        if (transcript) {
-          return c.json({
-            ok: true,
-            text: transcript,
-            confidence,
-            engine: "Deepgram-Nova2"
-          });
-        }
-      }
-    } catch (dgErr) {
-      console.warn("[VoiceSTT] Deepgram transcription failed, falling back:", dgErr);
-    }
-    const groqKey = process.env.GROQ_API_KEY;
-    if (groqKey) {
-      try {
-        const formData = new FormData();
-        const blob = new Blob([audioBuffer], { type: contentType });
-        formData.append("file", blob, "audio.webm");
-        formData.append("model", "whisper-large-v3-turbo");
-        formData.append("language", "en");
-        const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${groqKey}` },
-          body: formData
-        });
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          if (groqData.text?.trim()) {
-            return c.json({
-              ok: true,
-              text: groqData.text.trim(),
-              confidence: 0.9,
-              engine: "Groq-Whisper-v3"
-            });
-          }
-        }
-      } catch (groqErr) {
-        console.warn("[VoiceSTT] Groq Whisper fallback failed:", groqErr);
-      }
-    }
-    return c.json({ ok: false, error: "Transcription unavailable from neural providers" }, 502);
-  } catch (err) {
-    return c.json({ ok: false, error: err.message }, 500);
-  }
 });
 app.all("/voice/speak", async (c) => {
   try {
@@ -11471,20 +11398,58 @@ app.all("/voice/speak", async (c) => {
       console.warn("[ElevenLabsTTS] Exception:", elErr);
     }
     try {
-      const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText.slice(0, 200))}&tl=en-GB&client=tw-ob`;
-      const gRes = await fetch(googleUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+      const sentenceRegex = /[^.!?]+[.!?]+|[^.!?]+/g;
+      const rawSentences = cleanText.match(sentenceRegex) || [cleanText];
+      const chunks = [];
+      let currentChunk = "";
+      for (const s of rawSentences) {
+        if ((currentChunk + " " + s).trim().length <= 180) {
+          currentChunk = (currentChunk + " " + s).trim();
+        } else {
+          if (currentChunk) chunks.push(currentChunk);
+          if (s.length > 180) {
+            const words = s.split(" ");
+            let sub = "";
+            for (const w of words) {
+              if ((sub + " " + w).trim().length <= 180) {
+                sub = (sub + " " + w).trim();
+              } else {
+                if (sub) chunks.push(sub);
+                sub = w;
+              }
+            }
+            if (sub) chunks.push(sub);
+            currentChunk = "";
+          } else {
+            currentChunk = s.trim();
+          }
         }
-      });
-      if (gRes.ok) {
-        const gBuffer = await gRes.arrayBuffer();
-        return c.body(gBuffer, 200, {
-          "Content-Type": "audio/mpeg"
+      }
+      if (currentChunk) chunks.push(currentChunk);
+      const maxChunks = chunks.slice(0, 10);
+      const audioBuffers = [];
+      for (const chunk of maxChunks) {
+        const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=en-GB&client=tw-ob`;
+        const gRes = await fetch(googleUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+          },
+          signal: AbortSignal.timeout(6e3)
+        });
+        if (gRes.ok) {
+          const gBuffer = Buffer.from(await gRes.arrayBuffer());
+          audioBuffers.push(gBuffer);
+        }
+      }
+      if (audioBuffers.length > 0) {
+        const fullAudio = Buffer.concat(audioBuffers);
+        return c.body(fullAudio, 200, {
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "public, max-age=86400"
         });
       }
     } catch (gErr) {
-      console.warn("[GoogleTTS] Exception:", gErr);
+      console.warn("[GoogleTTS] Multi-chunk exception:", gErr);
     }
     return c.json({ ok: false, error: "TTS synthesis unavailable" }, 502);
   } catch (err) {

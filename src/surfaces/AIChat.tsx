@@ -53,12 +53,13 @@ interface Message {
 }
 
 const QUICK_ACTIONS = [
+  { icon: '🎧', label: 'Best TWS Under ₹2,000', query: 'I plan to buy a new TWS in this festival season so can you analyze in Flipkart and Amazon for the best deal and my budget is 2000 rupees' },
+  { icon: '📈', label: 'Quant Scan (NVDA & BTC)', query: 'Run quantitative market scan for NVDA and BTC with RSI, MACD, and Bollinger Bands using TradingAgents' },
+  { icon: '🛡️', label: 'flowsint OSINT Recon', query: 'Execute flowsint perimeter and SSL security audit for render.com' },
   { icon: '✈️', label: 'Mumbai to Miami Flights', query: 'Hey Jarvis, can you look for flights from Mumbai to Miami today? Find the best deal and direct booking options.' },
-  { icon: '📱', label: 'Analyze Flipkart & Amazon Mobiles', query: 'Hey Jarvis, I plan to buy a mobile so analyze Flipkart and Amazon and list out the best mobiles for me with specs and prices.' },
-  { icon: '🛡️', label: 'Build Full-Stack SaaS', query: 'Aegis, scaffold a complete full-stack AI Business OS architecture using Next.js 15, FastAPI, SQLite, and Tailwind CSS.' },
+  { icon: '📱', label: 'Flagship Mobile Recon', query: 'Analyze Flipkart and Amazon for the best deals on Samsung Galaxy S24 Ultra and iPhone 16 Pro.' },
   { icon: '⚡', label: 'Export n8n Automation', query: 'Vortex, generate a complete copy-pasteable n8n workflow JSON for lead qualification and Zoho CRM quotation.' },
   { icon: '💰', label: 'Make Me Money (B2B Retainer)', query: 'Midas, generate a high-ticket client acquisition pitch and cold outreach strategy to sell ₹1,50,000 automated CRM quotation engines.' },
-  { icon: '🍔', label: 'Order Food in Erode', query: 'Order food for me in Erode' },
 ]
 
 function generateId() {
@@ -669,7 +670,7 @@ export default function AIChat() {
       </div>
 
       {/* Messages Feed */}
-      <div className="relative min-h-[380px] max-h-[62vh] sm:max-h-[600px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-4 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
+      <div className="relative h-[50vh] sm:h-[58vh] sm:max-h-[620px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-3 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -931,11 +932,11 @@ export default function AIChat() {
           className="w-full bg-transparent px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none resize-none font-mono"
         />
 
-        <div className="flex items-center justify-between pt-1 px-2 border-t border-slate-800/80">
-          <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
-            <span>COMMANDER: <strong className="text-slate-300">MASTER SRI</strong></span>
-            <span>•</span>
-            <span>TARGET: <strong className="text-cyan-400 uppercase">{selectedAgent}</strong></span>
+        <div className="flex items-center justify-between pt-1 px-2 border-t border-slate-800/80 gap-2">
+          <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500 truncate min-w-0">
+            <span className="truncate">COMMANDER: <strong className="text-slate-300">MASTER SRI</strong></span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">TARGET: <strong className="text-cyan-400 uppercase">{selectedAgent}</strong></span>
           </div>
 
           <div className="flex items-center gap-2">

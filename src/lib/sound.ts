@@ -282,24 +282,74 @@ function fallbackWebSpeech(
 
   try {
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(cleanText)
-    const voices = window.speechSynthesis.getVoices()
 
+    // Break text into sentences to prevent Chromium/Safari 15s/30s audio truncation
+    const sentences = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+/g)?.map(s => s.trim()).filter(Boolean) || [cleanText]
+    if (sentences.length === 0) {
+      if (onEnd) onEnd()
+      return
+    }
+
+    const voices = window.speechSynthesis.getVoices()
     const voice =
       voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2))) ||
       voices.find(v => v.name.includes('Daniel') || v.name.includes('Oliver') || v.name.includes('Ryan') || v.name.includes('George')) ||
       voices.find(v => v.lang.startsWith('en'))
 
-    if (voice) utterance.voice = voice
-    utterance.rate = 1.0
-    utterance.pitch = 0.98
+    let currentIndex = 0
+    let hasStarted = false
 
-    utterance.onstart = () => { if (onStart) onStart() }
-    utterance.onend = () => { if (onEnd) onEnd() }
-    utterance.onerror = () => { if (onError) onError() }
+    // Chromium keep-alive heartbeat: periodically pause/resume to prevent garbage collection
+    const keepAliveTimer = setInterval(() => {
+      if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
+        window.speechSynthesis.pause()
+        window.speechSynthesis.resume()
+      } else {
+        clearInterval(keepAliveTimer)
+      }
+    }, 10000)
 
-    window.speechSynthesis.speak(utterance)
+    const speakNext = () => {
+      if (currentIndex >= sentences.length) {
+        clearInterval(keepAliveTimer)
+        if (onEnd) onEnd()
+        return
+      }
+
+      const utterance = new SpeechSynthesisUtterance(sentences[currentIndex])
+      if (voice) utterance.voice = voice
+      utterance.rate = 1.05
+      utterance.pitch = 0.98
+
+      utterance.onstart = () => {
+        if (!hasStarted) {
+          hasStarted = true
+          if (onStart) onStart()
+        }
+      }
+
+      utterance.onend = () => {
+        currentIndex++
+        speakNext()
+      }
+
+      utterance.onerror = (e) => {
+        console.warn('[WebSpeech] Utterance error:', e)
+        currentIndex++
+        if (currentIndex < sentences.length) {
+          speakNext()
+        } else {
+          clearInterval(keepAliveTimer)
+          if (onEnd) onEnd()
+        }
+      }
+
+      window.speechSynthesis.speak(utterance)
+    }
+
+    speakNext()
   } catch {
     if (onError) onError()
   }
 }
+

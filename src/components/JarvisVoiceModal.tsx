@@ -418,25 +418,16 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         }
       } catch {}
 
-      // Dynamic situational greeting generated on modal open
-      const now = new Date()
-      const h = now.getHours()
-      let timeGreeting = 'Good evening'
-      if (h >= 5 && h < 12) timeGreeting = 'Good morning'
-      else if (h >= 12 && h < 17) timeGreeting = 'Good afternoon'
-      else if (h >= 22 || h < 5) timeGreeting = 'Late night system active'
-
-      const greetings = [
-        `Master Sri, greetings and welcome back. Grand Marshal J.A.R.V.I.S. online. All 20 sovereign agents standing by. Say 'Hey Jarvis' or tap the core to command.`,
-        `Master Sri, greetings and welcome back. Sovereign Mark-V online, Deepgram neural STT and ElevenLabs voice armed. Standing by for your directive.`,
-        `Master Sri, greetings and welcome back. J.A.R.V.I.S. Command Center synchronized and standing by. What shall we engineer today, Sire?`
-      ]
-      const chosenGreeting = greetings[now.getMinutes() % greetings.length]
-      setJarvisResponse(chosenGreeting)
-      speakVoice(chosenGreeting, 'en-GB', () => {
-        // Automatically settle into STANDBY REST MODE after greeting
-        setIsSleeping(true)
-        isSleepingRef.current = true
+      // Instant crisp greeting on modal open, immediately transition to listening
+      const greeting = `Grand Marshal J.A.R.V.I.S. online, Master Sri. All systems armed at 100% full capacity. What is your directive?`
+      setJarvisResponse(greeting)
+      setIsSleeping(false)
+      isSleepingRef.current = false
+      speakVoice(greeting, 'en-GB', () => {
+        // Immediately engage active microphone listening after speaking
+        setIsSleeping(false)
+        isSleepingRef.current = false
+        startListening()
       })
     }
     if (!isOpen) {
@@ -1047,7 +1038,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
     // 1. Assistant wake & identity phonetic mishearings
     text = text.replace(/\b(drivers|service|travis|java|jarvise|jarvis's)\b/gi, 'jarvis')
-    text = text.replace(/\b(are on full power|are you in full power|are you full power|is on full power)\b/gi, 'are you on full power')
+    text = text.replace(/\b(are on full power|are you in full power|are you full power|is on full power|pull power|pool power|fool power|on full power)\b/gi, 'are you on full power')
 
     // 2. E-commerce platforms & brands
     text = text.replace(/\b(flip card|flip cart|flip cards|flipchart|flip chart)\b/gi, 'flipkart')

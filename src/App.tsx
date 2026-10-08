@@ -709,13 +709,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Arc Reactor Voice Comm Button (Always Accessible) */}
+      {/* Floating Arc Reactor Voice Comm Button (Desktop Dock Access) */}
       <button
         onClick={() => {
           playJarvisChime('wake')
           setVoiceModalOpen(true)
         }}
-        className="fixed bottom-20 md:bottom-6 right-5 z-40 p-3 sm:px-4 sm:py-3 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-slate-950 font-black shadow-[0_0_35px_rgba(6,182,212,0.6)] hover:shadow-[0_0_50px_rgba(6,182,212,0.9)] hover:scale-105 transition-all flex items-center gap-2.5"
+        className="hidden md:flex fixed bottom-6 right-6 z-40 px-4 py-3 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-slate-950 font-black shadow-[0_0_35px_rgba(6,182,212,0.6)] hover:shadow-[0_0_50px_rgba(6,182,212,0.9)] hover:scale-105 transition-all items-center gap-2.5"
         title="Engage J.A.R.V.I.S. Voice Transceiver"
       >
         <div className="relative">
