@@ -158,22 +158,25 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       <Card className="w-full max-w-md bg-slate-900/90 border-cyan-500/40 backdrop-blur-2xl shadow-[0_0_80px_rgba(6,182,212,0.2)] rounded-3xl relative z-10 overflow-hidden">
         
         {/* Holographic Header Band */}
-        <div className="bg-gradient-to-r from-cyan-950/60 via-slate-900 to-cyan-950/60 p-6 text-center border-b border-cyan-500/20 relative">
-          <div className="w-16 h-16 mx-auto mb-3 rounded-full border-2 border-cyan-400/80 bg-slate-950/80 flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.6)] relative group">
-            <div className="w-10 h-10 rounded-full border border-dashed border-cyan-300 animate-spin flex items-center justify-center">
-              <Zap className="w-5 h-5 text-cyan-300" />
+        <div className="bg-gradient-to-r from-cyan-950/70 via-slate-900 to-cyan-950/70 p-6 text-center border-b border-cyan-500/20 relative">
+          <div className="relative flex items-center justify-center my-2">
+            <div className="absolute w-20 h-20 rounded-full bg-cyan-500/30 blur-xl animate-pulse" />
+            <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-cyan-400 via-blue-500 to-indigo-500 shadow-[0_0_35px_rgba(6,182,212,0.6)] flex items-center justify-center animate-spin" style={{ animationDuration: '8s' }}>
+              <div className="w-full h-full rounded-full bg-slate-950 flex items-center justify-center backdrop-blur-xl">
+                <Zap className="w-7 h-7 text-cyan-300 drop-shadow-[0_0_10px_#22d3ee]" />
+              </div>
             </div>
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono tracking-widest uppercase mb-1">
-            <Sparkles className="w-3 h-3 text-cyan-400" />
-            STARK INDUSTRIES // MARK-IV
+            <Sparkles className="w-3 h-3 text-cyan-400 animate-pulse" />
+            J.A.R.V.I.S. MARK-V // SOVEREIGN CLOUD OS
           </div>
           <h1 className="text-xl font-black tracking-wider text-white">
-            J.A.R.V.I.S. COMMAND CENTER
+            J.A.R.V.I.S. COMMAND INTERFACE
           </h1>
           <p className="text-xs text-slate-400 font-mono mt-0.5">
-            Personal Artificial Intelligence for Master Sri
+            Dedicated Autonomous AI for Master Sri (Srimanikandan K)
           </p>
         </div>
 

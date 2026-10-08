@@ -262,22 +262,62 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
     }
   }
 
+  // Quick Quant & OSINT Tools (TradingAgents & flowsint)
+  const [tradingResult, setTradingResult] = useState<any>(null)
+  const [isTradingLoading, setIsTradingLoading] = useState(false)
+  const [osintResult, setOsintResult] = useState<any>(null)
+  const [isOsintLoading, setIsOsintLoading] = useState(false)
+
+  const runQuickTrading = async (symbol = 'NVDA') => {
+    setIsTradingLoading(true)
+    playJarvisChime('wake')
+    try {
+      const res = await fetch(`/api/tools/trading?symbol=${symbol}`, { headers: authHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setTradingResult(data)
+        playJarvisChime('execute')
+      }
+    } catch (e) {
+      console.warn('Trading telemetry error:', e)
+    } finally {
+      setIsTradingLoading(false)
+    }
+  }
+
+  const runQuickOsint = async (target = 'render.com') => {
+    setIsOsintLoading(true)
+    playJarvisChime('wake')
+    try {
+      const res = await fetch(`/api/tools/osint?target=${target}`, { headers: authHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setOsintResult(data)
+        playJarvisChime('execute')
+      }
+    } catch (e) {
+      console.warn('OSINT error:', e)
+    } finally {
+      setIsOsintLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 stark-bg text-slate-100 min-h-screen">
       {/* =========================================================================
           STARK GLASSMORPHISM COCKPIT BANNER WITH REACTIVE ARC REACTOR
           ========================================================================= */}
-      <div className="relative rounded-3xl stark-glass border border-cyan-500/30 p-6 md:p-8 shadow-[0_0_60px_rgba(6,182,212,0.18)] overflow-hidden">
+      <div className="relative rounded-3xl bg-slate-900/90 border border-cyan-500/30 p-5 md:p-8 shadow-[0_0_70px_rgba(6,182,212,0.2)] overflow-hidden backdrop-blur-2xl">
         {/* Ambient Arc Core Radial Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-indigo-500/15 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#08334415_1px,transparent_1px),linear-gradient(to_bottom,#08334415_1px,transparent_1px)] bg-[size:1.75rem_1.75rem] pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
           {/* Left Info & Salutation */}
           <div className="space-y-3 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[10px] font-mono tracking-widest uppercase shadow-[0_0_15px_rgba(6,182,212,0.25)]">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
-              SRI'S J.A.R.V.I.S. MARK-V // STARK GLASSMORPHISM HUD
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              <span>SRI'S J.A.R.V.I.S. MARK-V // DUPLEX NEURAL COCKPIT</span>
             </div>
 
             <div>
@@ -285,23 +325,23 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
                 {getTimeGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-amber-300">Master Sri</span>.
               </h1>
               <p className="text-xs text-slate-300 mt-1 font-mono">
-                Arc Reactor Core at {coreOutput}% | Neon Cloud Database Durable | 5 Specialist Agents Armed
+                Arc Core at {coreOutput}% • 20 Autonomous Swarms • Deepgram Nova-2 + ElevenLabs Turbo Online
               </p>
             </div>
 
-            {/* Badges */}
+            {/* Telemetry Badges */}
             <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono">
                 <Shield className="w-3 h-3 text-emerald-400" />
-                SOVEREIGN BIOMETRIC LOCK: VERIFIED
+                SOVEREIGN VOICEPRINT: LOCKED TO SRI
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono">
+                <Radio className="w-3 h-3 text-cyan-400 animate-pulse" />
+                SIRI DUPLEX VAD: 5S SILENCE GRACE
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[10px] font-mono">
                 <Database className="w-3 h-3 text-blue-400" />
-                NEON POSTGRESQL: CONNECTED
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-mono stark-gold-glow">
-                <Zap className="w-3 h-3 text-amber-400" />
-                SILENT REFRESH: 15M LOOP
+                POSTGRESQL DURABLE CLOUD
               </span>
             </div>
 
@@ -317,28 +357,32 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
             </div>
           </div>
 
-          {/* Central / Right: Reactive Arc-Reactor Visualizer & Voice Orb */}
+          {/* Central / Right: Apple Siri Fluid Glowing Liquid Arc Reactor */}
           <div className="flex flex-col sm:flex-row items-center gap-6 w-full lg:w-auto justify-end">
             <div
               onClick={handleVoiceClick}
               className="relative group cursor-pointer flex flex-col items-center select-none"
-              title="Tap Arc-Reactor to toggle J.A.R.V.I.S. Voice Transceiver"
+              title="Tap Liquid Arc Core to initialize J.A.R.V.I.S. Siri duplex voice transceiver"
             >
-              {/* Outer Pulsing Glow Ring */}
-              <div className="w-28 h-28 rounded-full border-2 border-dashed border-cyan-400/50 animate-arc-spin flex items-center justify-center shadow-[0_0_35px_rgba(6,182,212,0.4)] group-hover:border-cyan-300 group-hover:shadow-[0_0_55px_rgba(6,182,212,0.7)] transition-all">
-                {/* Inner Counter-Rotating Ring */}
-                <div className="w-20 h-20 rounded-full border border-amber-400/50 animate-arc-spin-reverse flex items-center justify-center">
-                  {/* Glowing Core */}
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-500/40 via-blue-600/30 to-slate-950 border border-cyan-400 flex items-center justify-center shadow-[0_0_25px_rgba(6,182,212,0.6)] animate-arc-breathe">
-                    <Mic className="w-6 h-6 text-cyan-300 group-hover:scale-110 transition-transform" />
-                  </div>
+              {/* Concentric Ambient Blur Halo */}
+              <div className="absolute w-36 h-36 rounded-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-fuchsia-500 blur-2xl opacity-60 group-hover:opacity-90 transition-opacity animate-pulse" />
+
+              {/* Dynamic Smooth Neon Fluid Ring (NO DASHED LINES) */}
+              <div className="w-28 h-28 rounded-full p-[2px] bg-gradient-to-tr from-cyan-400 via-blue-500 to-indigo-500 shadow-[0_0_45px_rgba(6,182,212,0.6)] group-hover:shadow-[0_0_65px_rgba(6,182,212,0.85)] flex items-center justify-center animate-spin transition-all" style={{ animationDuration: '6s' }}>
+                {/* Inner Siri Glass Core */}
+                <div className="w-full h-full rounded-full bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-cyan-950/80 flex flex-col items-center justify-center backdrop-blur-xl border border-cyan-400/40 group-hover:border-cyan-300">
+                  <Mic className="w-7 h-7 text-cyan-300 group-hover:scale-115 drop-shadow-[0_0_12px_#22d3ee] transition-transform animate-pulse" />
+                  <span className="text-[7px] font-mono font-bold text-cyan-300 uppercase mt-0.5 tracking-wider">
+                    SIRI VOICE
+                  </span>
                 </div>
               </div>
+
               <span className="text-[10px] font-mono font-bold text-cyan-300 mt-2 uppercase tracking-wider">
-                ARC-REACTOR VOICE
+                DUPLEX VOICE ENGINE
               </span>
               <span className="text-[8px] font-mono text-slate-400">
-                [CLICK TO INITIALIZE]
+                [TAP TO SPEAK // 5S GRACE]
               </span>
             </div>
           </div>
@@ -561,13 +605,13 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
             <div className="p-4 rounded-2xl stark-glass-card border border-slate-800">
               <div className="text-[10px] font-mono text-slate-500 uppercase">Defense Grid</div>
               <div className="text-xl font-black text-emerald-400 font-mono mt-1">LEVEL 10</div>
-              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">● Sovereign Gate</div>
+              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">● Zero-Trust Shield</div>
             </div>
 
             <div className="p-4 rounded-2xl stark-glass-card border border-slate-800">
-              <div className="text-[10px] font-mono text-slate-500 uppercase">Active Agents</div>
-              <div className="text-xl font-black text-purple-400 font-mono mt-1">5 SPECIALISTS</div>
-              <div className="text-[10px] text-purple-300 font-mono mt-0.5">● Primed</div>
+              <div className="text-[10px] font-mono text-slate-500 uppercase">Autonomous Swarms</div>
+              <div className="text-xl font-black text-purple-400 font-mono mt-1">20 AGENTS</div>
+              <div className="text-[10px] text-purple-300 font-mono mt-0.5">● Deepgram + ElevenLabs</div>
             </div>
           </div>
 
@@ -610,6 +654,103 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* SPECIALIST INTELLIGENCE RADAR (TradingAgents & flowsint OSINT) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* TradingAgents / FinceptTerminal Quant Card */}
+            <div className="p-5 rounded-2xl bg-slate-900/90 border border-amber-500/30 backdrop-blur-xl space-y-3 shadow-[0_0_30px_rgba(245,158,11,0.12)]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  <span className="text-[10px] font-mono font-bold text-amber-300 uppercase tracking-wider">
+                    TradingAgents Quant Deck
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                  FinceptTerminal
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Multi-factor technicals, RSI, Bollinger Bands & Volume deltas.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => runQuickTrading('NVDA')}
+                  disabled={isTradingLoading}
+                  className="flex-1 py-1.5 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[10px] font-mono font-bold text-amber-300 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <TrendingUp className="w-3 h-3" />
+                  {isTradingLoading ? 'Scanning...' : 'Scan NVDA'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runQuickTrading('BTC')}
+                  disabled={isTradingLoading}
+                  className="flex-1 py-1.5 px-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[10px] font-mono text-slate-300 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  Scan BTC
+                </button>
+              </div>
+              {tradingResult && (
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-[10px] font-mono text-slate-300 space-y-1 animate-in fade-in">
+                  <div className="flex justify-between text-amber-300 font-bold">
+                    <span>{tradingResult.symbol}: ${tradingResult.price}</span>
+                    <span className={tradingResult.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {tradingResult.change >= 0 ? '+' : ''}{tradingResult.change}%
+                    </span>
+                  </div>
+                  <div className="text-slate-400 text-[9px]">{tradingResult.summary}</div>
+                </div>
+              )}
+            </div>
+
+            {/* flowsint OSINT Reconnaissance Card */}
+            <div className="p-5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 backdrop-blur-xl space-y-3 shadow-[0_0_30px_rgba(6,182,212,0.12)]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                  <span className="text-[10px] font-mono font-bold text-cyan-300 uppercase tracking-wider">
+                    flowsint OSINT Radar
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                  Perimeter Audit
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Autonomous DNS, SSL, MX security and attack-surface reconnaissance.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => runQuickOsint('render.com')}
+                  disabled={isOsintLoading}
+                  className="flex-1 py-1.5 px-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[10px] font-mono font-bold text-cyan-300 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Shield className="w-3 h-3" />
+                  {isOsintLoading ? 'Auditing...' : 'Audit Cloud'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runQuickOsint('github.com')}
+                  disabled={isOsintLoading}
+                  className="flex-1 py-1.5 px-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[10px] font-mono text-slate-300 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  Audit GitHub
+                </button>
+              </div>
+              {osintResult && (
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-cyan-500/30 text-[10px] font-mono text-slate-300 space-y-1 animate-in fade-in">
+                  <div className="flex justify-between text-cyan-300 font-bold">
+                    <span>{osintResult.target}</span>
+                    <span className="text-emerald-400">Risk: {osintResult.riskScore}/100</span>
+                  </div>
+                  <div className="text-slate-400 text-[9px] truncate">IP: {osintResult.ip} • SSL: {osintResult.sslStatus}</div>
+                </div>
+              )}
             </div>
           </div>
         </div>

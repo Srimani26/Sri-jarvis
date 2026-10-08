@@ -59,15 +59,14 @@ export default function ArcReactorHUD({
             className="group relative cursor-pointer"
             title="Arc Reactor Core: Click to trigger Voice Interaction"
           >
-            {/* Outer spinning ring */}
-            <div className="absolute -inset-1.5 rounded-full border border-dashed border-cyan-400/40 animate-[spin_10s_linear_infinite]" />
-            {/* Middle counter-spinning ring */}
-            <div className="absolute -inset-0.5 rounded-full border border-cyan-300/30 animate-[spin_6s_linear_infinite_reverse]" />
-            
+            {/* Ambient Blur Glow */}
+            <div className="absolute -inset-2 rounded-full bg-cyan-500/30 blur-md opacity-70 group-hover:opacity-100 transition-opacity" />
+            {/* Outer fluid glowing ring */}
+            <div className="absolute -inset-1 rounded-full p-[1.5px] bg-gradient-to-tr from-cyan-400 via-indigo-500 to-sky-400 animate-spin transition-all" style={{ animationDuration: '6s' }} />
             {/* Glowing Core */}
             <div
               className={cn(
-                'relative w-12 h-12 rounded-full bg-gradient-to-tr border flex items-center justify-center transition-all duration-300',
+                'relative w-12 h-12 rounded-full bg-gradient-to-tr border flex items-center justify-center transition-all duration-300 shadow-[0_0_25px_rgba(6,182,212,0.6)]',
                 getStatusColor()
               )}
             >
@@ -79,16 +78,16 @@ export default function ArcReactorHUD({
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black tracking-widest text-cyan-300 uppercase font-mono">
-                J.A.R.V.I.S. MARK-IV
+              <span className="text-xs font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-200 to-amber-200 uppercase font-mono">
+                J.A.R.V.I.S. MARK-V
               </span>
               <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                ONLINE
+                SIRI DUPLEX
               </span>
               <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
                 <Shield className="w-2.5 h-2.5 text-cyan-400" />
-                LEVEL 10 ALPHA
+                SOVEREIGN ALPHA
               </span>
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse">
                 <Zap className="w-2.5 h-2.5 text-purple-400" />
@@ -150,7 +149,7 @@ export default function ArcReactorHUD({
 
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[10px] font-mono text-slate-400">
             <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-            <span>SWARM: 7 ACTIVE</span>
+            <span>SWARM: 20 ACTIVE</span>
           </div>
 
           {telemetry.batteryLevel !== undefined && (
