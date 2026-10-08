@@ -53,6 +53,8 @@ interface Message {
 }
 
 const QUICK_ACTIONS = [
+  { icon: '🏗️', label: 'Full-Stack Project End-to-End', query: 'Swarm, build a full-stack SaaS project end to end: AI Roof Inspection and Automated Quotation Portal with database models, frontend HUD, and API routes.' },
+  { icon: '⚡', label: 'Multitask Parallel Swarm', query: 'Execute parallel multitasking: Daedalus design API schema, Friday implement auth routes, Aegis scan vulnerabilities, and Midas compute unit economics concurrently.' },
   { icon: '🎧', label: 'Best TWS Under ₹2,000', query: 'I plan to buy a new TWS in this festival season so can you analyze in Flipkart and Amazon for the best deal and my budget is 2000 rupees' },
   { icon: '📈', label: 'Quant Scan (NVDA & BTC)', query: 'Run quantitative market scan for NVDA and BTC with RSI, MACD, and Bollinger Bands using TradingAgents' },
   { icon: '🛡️', label: 'flowsint OSINT Recon', query: 'Execute flowsint perimeter and SSL security audit for render.com' },
