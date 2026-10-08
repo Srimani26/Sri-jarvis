@@ -170,13 +170,15 @@ export default function AIChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<any>(null)
+  const sendMessageRef = useRef<(text: string, opts?: any) => Promise<void>>(() => Promise.resolve())
+  const isSendingSpeechRef = useRef(false)
 
   const GREETING: Message = {
     id: generateId(),
     role: 'assistant',
-    content: "Greetings, Master Sri. I am **J.A.R.V.I.S. Mark-IV** — your personal autonomous AI right-hand and multi-agent command center.\n\nThe **Arc Reactor** is at 100% power, voice sentinel is primed, and the MoA neural engine understands your workflow, lifestyle, and business goals with deep emotional precision.\n\nSay **'Hey Jarvis'** anytime or command me directly:\n- ✈️ *'Look for flights from Mumbai to Miami today'*\n- 📱 *'Analyze Flipkart and Amazon to find the best mobile for me'*\n- 🛡️ *'Aegis, scaffold a full-stack Next.js + FastAPI SaaS'*\n- ⚡ *'Vortex, generate an n8n quotation workflow JSON'*\n- 💰 *'Midas, make me money: create a ₹1,50,000 CRM client proposal'*\n\n**I am ready for your command, Master. How may I serve you today?**",
+    content: "Greetings, Master Sri. I am **J.A.R.V.I.S. Mark-V** — your sovereign autonomous AI right-hand and multi-agent command center.\n\nThe **Liquid Arc Core** is running at full power, Deepgram Nova-2 and ElevenLabs voice transceivers are armed, and the 20-agent sovereign swarm understands your workflow, lifestyle, and business goals with deep precision.\n\nCommand me directly or tap the voice transceiver:\n- 🎧 *'Analyze Flipkart and Amazon for the best TWS earbuds under 2000'* \n- ✈️ *'Look for flights from Mumbai to Miami today'*\n- 📈 *'Run quantitative trading scan for NVDA and BTC'*\n- 🛡️ *'Aegis, scaffold a full-stack Next.js + FastAPI SaaS'*\n- ⚡ *'Vortex, generate an n8n quotation workflow JSON'*\n- 💰 *'Midas, make me money: create a ₹1,50,000 CRM client proposal'*\n\n**I am ready for your command, Master. How may I serve you today?**",
     timestamp: new Date(),
-    source: 'J.A.R.V.I.S. Core (Argon Swarm)',
+    source: 'J.A.R.V.I.S. Mark-V Core',
   }
 
   // Text-To-Speech (British J.A.R.V.I.S. Audio)
@@ -332,11 +334,20 @@ export default function AIChat() {
       lower.includes('search this product and give me which is best deal')
     ) {
       let product = text
-        .replace(/^(hey jarvis|jarvis|can you|please|analyze|compare|search this product and give me which is best deal and review and quality|search this product|find the best deal for|look up|check)/i, '')
-        .replace(/between flipkart and amazon|on flipkart and amazon|flipkart and amazon|and give me which is best deal and review and quality|and give me best deal/gi, '')
+        .replace(/^(hey jarvis|jarvis|can you|please|analyze|compare|search this product and give me which is best deal and review and quality|search this product|find the best deal for|look up|check|i plan to buy a new|i plan to buy|i want to buy a new|i want to buy)/i, '')
+        .replace(/between flipkart and amazon|on flipkart and amazon|in flipkart and amazon|flipkart and amazon|and give me which is best deal and review and quality|and give me best deal/gi, '')
         .replace(/and list out the best.*with specs and prices/gi, '')
+        .replace(/for the best deal and my budget is|for the best deal|and my budget is|my budget is/gi, '')
+        .replace(/in this festivel seson|in this festival season|festivel seson|festival season/gi, '')
         .trim()
-      if (!product || product.length < 2) product = 'smartphones 5G'
+
+      if (lower.includes('tws') || lower.includes('earbuds') || lower.includes('earphone')) {
+        const budgetMatch = lower.match(/\b\d{3,5}\b/)
+        const budget = budgetMatch ? budgetMatch[0] : '2000'
+        product = `TWS earbuds under ${budget}`
+      } else if (!product || product.length < 2) {
+        product = 'top smartphones 5G'
+      }
 
       playJarvisChime('execute')
       try {
@@ -482,47 +493,65 @@ export default function AIChat() {
     }
   }, [messages, isTyping, selectedModel, moaMode, speakJarvisResponse])
 
+  useEffect(() => {
+    sendMessageRef.current = sendMessage
+  }, [sendMessage])
+
   // Continuous "Hey Jarvis" Speech Sentinel setup
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (SpeechRecognition) {
-      setVoiceSupported(true)
-      const recognition = new SpeechRecognition()
-      recognition.continuous = true
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
+    if (!SpeechRecognition) return
 
-      recognition.onresult = (event: any) => {
-        let transcript = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript
-        }
-        const lower = transcript.toLowerCase().trim()
+    setVoiceSupported(true)
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
 
-        // Check for wake word in speech stream
-        if (lower.includes('hey jarvis') || lower.includes('hello jarvis') || lower.includes('jarvis wake up')) {
-          playJarvisChime('wake')
-          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 60, 40])
-        }
+    recognition.onresult = (event: any) => {
+      let transcript = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      const lower = transcript.toLowerCase().trim()
 
-        setInput(transcript)
-        if (event.results[event.results.length - 1].isFinal) {
-          setIsListening(false)
-          setTimeout(() => sendMessage(transcript), 350)
-        }
+      // Check for wake word in speech stream
+      if (lower.includes('hey jarvis') || lower.includes('hello jarvis') || lower.includes('jarvis wake up')) {
+        playJarvisChime('wake')
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 60, 40])
       }
 
-      recognition.onerror = () => setIsListening(false)
-      recognition.onend = () => {
-        if (sentinelActive) {
-          try { recognition.start() } catch {}
-        } else {
-          setIsListening(false)
+      setInput(transcript)
+      if (event.results[event.results.length - 1].isFinal) {
+        setIsListening(false)
+        if (!isSendingSpeechRef.current && transcript.trim()) {
+          isSendingSpeechRef.current = true
+          setTimeout(() => {
+            sendMessageRef.current(transcript)
+            setTimeout(() => {
+              isSendingSpeechRef.current = false
+            }, 1200)
+          }, 350)
         }
       }
-      recognitionRef.current = recognition
     }
-  }, [sentinelActive, sendMessage])
+
+    recognition.onerror = () => setIsListening(false)
+    recognition.onend = () => {
+      if (sentinelActive) {
+        try { recognition.start() } catch {}
+      } else {
+        setIsListening(false)
+      }
+    }
+    recognitionRef.current = recognition
+
+    return () => {
+      try {
+        recognition.abort()
+      } catch {}
+    }
+  }, [sentinelActive])
 
   const toggleSentinel = () => {
     if (!recognitionRef.current) return
@@ -672,7 +701,7 @@ export default function AIChat() {
             >
               <div className="flex items-center justify-between gap-4 pb-1 border-b border-slate-800/60 text-[10px] font-mono text-slate-400">
                 <span className="font-bold text-cyan-400 uppercase">
-                  {msg.role === 'user' ? 'Master Sri' : 'J.A.R.V.I.S. Mark-IV'}
+                  {msg.role === 'user' ? 'Master Sri' : 'J.A.R.V.I.S. Mark-V'}
                 </span>
                 <span>{formatTime(msg.timestamp)}</span>
               </div>
@@ -743,11 +772,13 @@ export default function AIChat() {
                           </span>
                         </div>
                         <p className="text-[11px] font-mono text-cyan-300/90">{rec.verdict}</p>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-mono text-slate-400">
-                          <div><strong>Chip:</strong> {rec.processor}</div>
-                          <div><strong>Display:</strong> {rec.display}</div>
-                          <div><strong>Camera:</strong> {rec.camera}</div>
-                          <div><strong>Battery:</strong> {rec.battery}</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 text-[10px] font-mono text-slate-300">
+                          {(rec.specs && rec.specs.length > 0 ? rec.specs : [rec.processor, rec.display, rec.camera, rec.battery]).filter(Boolean).map((sp: string, spIdx: number) => (
+                            <div key={spIdx} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
+                              <span className="truncate">{sp}</span>
+                            </div>
+                          ))}
                         </div>
 
                         <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">

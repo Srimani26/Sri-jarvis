@@ -1682,7 +1682,7 @@ Produce a valid JSON object ONLY with no markdown wrapping, no thinking tags, an
             const aiRes = await effectiveCaller(systemPrompt, [
               { role: "user", content: `Perform live price, review, and quality analysis for "${cleanQuery}" across Amazon and Flipkart.` }
             ]);
-            let rawText = aiRes.text || "";
+            let rawText = typeof aiRes === "string" ? aiRes : aiRes?.text || "";
             rawText = rawText.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
             const jsonMatch = rawText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
@@ -1835,16 +1835,28 @@ Produce a valid JSON object ONLY with no markdown wrapping, no thinking tags, an
             basePrice = 64999;
             specs = ["Snapdragon 8 Gen 3", "Hasselblad 4th Gen Camera System", "5400mAh Battery + 100W Wired / 50W Wireless"];
           }
-        } else if (q.includes("headphone") || q.includes("sony") || q.includes("earbuds") || q.includes("audio")) {
-          cat = "Premium Audio";
+        } else if (q.includes("tws") || q.includes("earbuds") || q.includes("earphone") || q.includes("buds") || q.includes("headphone") || q.includes("sony") || q.includes("audio")) {
+          cat = "True Wireless Stereo // TWS";
           if (q.includes("airpods")) {
             pName = "Apple AirPods Pro (2nd Generation with USB-C)";
             basePrice = 24900;
             specs = ["H2 Chip with Active Noise Cancellation", "Adaptive Audio & Transparency Mode", "MagSafe Charging Case with Speaker & Lanyard"];
-          } else {
+          } else if (q.includes("sony") && (q.includes("xm5") || q.includes("xm4") || q.includes("headphone"))) {
             pName = "Sony WH-1000XM5 Wireless Noise Cancelling Headphones";
             basePrice = 28990;
             specs = ["Industry-Leading Active Noise Cancellation (Dual Processor V1)", "30-Hour Battery Life with Quick Charge", "High-Res Audio LDAC & Speak-to-Chat"];
+          } else if (q.includes("realme")) {
+            pName = "Realme Buds T310 (46dB Hybrid ANC, 360\xB0 Spatial Audio)";
+            basePrice = 1899;
+            specs = ["46dB Hybrid Active Noise Cancellation", "360\xB0 Dynamic Spatial Audio", "40 Hours Playback with Fast Charging", "Dual Device Multipoint Bluetooth 5.4"];
+          } else if (q.includes("cmf") || q.includes("nothing")) {
+            pName = "CMF by Nothing Buds Pro 2 (50dB ANC, Smart Dial)";
+            basePrice = 1999;
+            specs = ["Customizable Smart Dial on Case", "50dB Hybrid ANC with Ultra Bass 2.0", "43 Hours Total Playback", "Dual Connection Bluetooth 5.3"];
+          } else {
+            pName = "OnePlus Nord Buds 3 (32dB Active Noise Cancellation)";
+            basePrice = 1799;
+            specs = ["32dB Active Noise Cancellation", "43 Hours Total Battery Life", "Fast Charge: 10 mins = 11 Hours", "BassWave 2.0 Dynamic Enhancement"];
           }
         } else if (q.includes("laptop") || q.includes("macbook")) {
           cat = "Ultrabook & Computing";
@@ -11118,10 +11130,12 @@ app.get("/tools/products", requireAuth, async (c) => {
     const recon = await ECommerceReconEngine2.analyzeDeals(rawQuery, (sys, msgs) => callAI(sys, msgs));
     const recommendations = recon.deals.map((d) => ({
       name: d.productName,
-      processor: d.comparison.keySpecs[0] || "High Performance Architecture",
-      display: d.comparison.keySpecs[1] || "Super Retina / AMOLED Display",
-      camera: d.comparison.keySpecs[2] || "Multi-lens Flagship System",
-      battery: d.comparison.keySpecs[3] || "All-Day Battery Life",
+      category: d.category || "Consumer Electronics",
+      specs: d.comparison.keySpecs || [],
+      processor: d.comparison.keySpecs[0] || "Top Benchmark Performance",
+      display: d.comparison.keySpecs[1] || "Premium Build & Engineering",
+      camera: d.comparison.keySpecs[2] || "Fast Charging & Low Latency",
+      battery: d.comparison.keySpecs[3] || "All-Day Long Battery Life",
       amazonPrice: d.amazon.price,
       flipkartPrice: d.flipkart.price,
       verdict: d.comparison.verdict,
@@ -11586,7 +11600,7 @@ app.post("/github/analyze-repo", requireAuth, async (c) => {
     const [owner, repo] = parts;
     const metaRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: {
-        "User-Agent": "JARVIS-Mark-IV-AI-OS",
+        "User-Agent": "JARVIS-Mark-V-AI-OS",
         "Accept": "application/vnd.github.v3+json"
       }
     });
@@ -12546,7 +12560,7 @@ app.post("/task/plan", requireAuth, async (c) => {
   try {
     const { task } = await c.req.json();
     if (!task) return c.json({ error: "task string required" }, 400);
-    const plannerPrompt = `You are J.A.R.V.I.S. Mark-IV, Sovereign Master Sri's executive 2nd-in-Command and Chief of Staff.
+    const plannerPrompt = `You are J.A.R.V.I.S. Mark-V, Sovereign Master Sri's executive 2nd-in-Command and Chief of Staff.
 Master Sri has commanded:
 "${task}"
 

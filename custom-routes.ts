@@ -2181,10 +2181,12 @@ app.get('/tools/products', requireAuth, async (c) => {
     // Map deals to backward-compatible recommendations structure
     const recommendations = recon.deals.map(d => ({
       name: d.productName,
-      processor: d.comparison.keySpecs[0] || 'High Performance Architecture',
-      display: d.comparison.keySpecs[1] || 'Super Retina / AMOLED Display',
-      camera: d.comparison.keySpecs[2] || 'Multi-lens Flagship System',
-      battery: d.comparison.keySpecs[3] || 'All-Day Battery Life',
+      category: d.category || 'Consumer Electronics',
+      specs: d.comparison.keySpecs || [],
+      processor: d.comparison.keySpecs[0] || 'Top Benchmark Performance',
+      display: d.comparison.keySpecs[1] || 'Premium Build & Engineering',
+      camera: d.comparison.keySpecs[2] || 'Fast Charging & Low Latency',
+      battery: d.comparison.keySpecs[3] || 'All-Day Long Battery Life',
       amazonPrice: d.amazon.price,
       flipkartPrice: d.flipkart.price,
       verdict: d.comparison.verdict,
@@ -2752,7 +2754,7 @@ app.post('/github/analyze-repo', requireAuth, async (c) => {
     // Fetch repository metadata from GitHub public API
     const metaRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: {
-        'User-Agent': 'JARVIS-Mark-IV-AI-OS',
+        'User-Agent': 'JARVIS-Mark-V-AI-OS',
         'Accept': 'application/vnd.github.v3+json',
       },
     });
@@ -3881,7 +3883,7 @@ app.post('/task/plan', requireAuth, async (c) => {
     const { task } = await c.req.json()
     if (!task) return c.json({ error: 'task string required' }, 400)
 
-    const plannerPrompt = `You are J.A.R.V.I.S. Mark-IV, Sovereign Master Sri's executive 2nd-in-Command and Chief of Staff.
+    const plannerPrompt = `You are J.A.R.V.I.S. Mark-V, Sovereign Master Sri's executive 2nd-in-Command and Chief of Staff.
 Master Sri has commanded:
 "${task}"
 

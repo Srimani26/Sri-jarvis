@@ -1,27 +1,16 @@
-// Sovereign J.A.R.V.I.S. Mark-VI PWA Service Worker
-// Enables offline app shell, caching, and instant startup when PC is powered off.
+// Sovereign J.A.R.V.I.S. Mark-V PWA Service Worker (NETWORK-FIRST STRATEGY)
+// Guarantees mobile always gets the latest deployed bundle and UI updates immediately.
 
-const CACHE_NAME = 'jarvis-sovereign-v6'
-const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg',
-  '/welcome.mp3'
-]
+const CACHE_NAME = 'jarvis-mark5-v1-network-first'
 
 self.addEventListener('install', (e) => {
   self.skipWaiting()
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE).catch(() => {})
-    })
-  )
 })
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) => {
+      // Purge all old caches immediately
       return Promise.all(
         keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
       )
@@ -32,7 +21,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url)
 
-  // Network first for dynamic API calls
+  // API calls: strictly network-first
   if (url.pathname.startsWith('/api/')) {
     e.respondWith(
       fetch(e.request).catch(() => {
@@ -49,21 +38,24 @@ self.addEventListener('fetch', (e) => {
     return
   }
 
-  // Cache first for static assets
+  // HTML documents, JS modules, CSS: NETWORK-FIRST (Fall back to cache only if strictly offline)
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached
-      return fetch(e.request).then((res) => {
-        if (res.status === 200 && e.request.method === 'GET') {
-          const clone = res.clone()
+    fetch(e.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && e.request.method === 'GET') {
+          const clone = networkResponse.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone))
         }
-        return res
-      }).catch(() => {
-        if (e.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('/index.html')
-        }
+        return networkResponse
       })
-    })
+      .catch(() => {
+        // Only return cached asset when network is truly down
+        return caches.match(e.request).then((cached) => {
+          if (cached) return cached
+          if (e.request.headers.get('accept')?.includes('text/html')) {
+            return caches.match('/') || caches.match('/index.html')
+          }
+        })
+      })
   )
 })

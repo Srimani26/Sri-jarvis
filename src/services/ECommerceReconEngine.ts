@@ -64,7 +64,7 @@ export interface ECommerceReconResult {
 export type ECommerceAiCaller = (
   systemPrompt: string,
   messages: Array<{ role: string; content: string }>
-) => Promise<{ text: string }>;
+) => Promise<any> | any;
 
 export class ECommerceReconEngine {
   private static defaultAiCaller?: ECommerceAiCaller;
@@ -166,11 +166,11 @@ Produce a valid JSON object ONLY with no markdown wrapping, no thinking tags, an
   "spokenSummary": "1 to 2 spoken sentences for J.A.R.V.I.S. voice output directly informing Master Sri which platform has the best deal."
 }`;
 
-        const aiRes = await effectiveCaller(systemPrompt, [
+        const aiRes: any = await effectiveCaller(systemPrompt, [
           { role: 'user', content: `Perform live price, review, and quality analysis for "${cleanQuery}" across Amazon and Flipkart.` }
         ]);
 
-        let rawText = aiRes.text || '';
+        let rawText = typeof aiRes === 'string' ? aiRes : (aiRes?.text || '');
         // Strip out DeepSeek <think>...</think> blocks if present
         rawText = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
@@ -355,17 +355,30 @@ Produce a valid JSON object ONLY with no markdown wrapping, no thinking tags, an
         specs = ['Snapdragon 8 Gen 3', 'Hasselblad 4th Gen Camera System', '5400mAh Battery + 100W Wired / 50W Wireless'];
       }
     }
-    // 5. AUDIO & HEADPHONES
-    else if (q.includes('headphone') || q.includes('sony') || q.includes('earbuds') || q.includes('audio')) {
-      cat = 'Premium Audio';
+    // 5. AUDIO & HEADPHONES (TWS Earbuds & Audiophile Gear)
+    else if (q.includes('tws') || q.includes('earbuds') || q.includes('earphone') || q.includes('buds') || q.includes('headphone') || q.includes('sony') || q.includes('audio')) {
+      cat = 'True Wireless Stereo // TWS';
       if (q.includes('airpods')) {
         pName = 'Apple AirPods Pro (2nd Generation with USB-C)';
         basePrice = 24900;
         specs = ['H2 Chip with Active Noise Cancellation', 'Adaptive Audio & Transparency Mode', 'MagSafe Charging Case with Speaker & Lanyard'];
-      } else {
+      } else if (q.includes('sony') && (q.includes('xm5') || q.includes('xm4') || q.includes('headphone'))) {
         pName = 'Sony WH-1000XM5 Wireless Noise Cancelling Headphones';
         basePrice = 28990;
         specs = ['Industry-Leading Active Noise Cancellation (Dual Processor V1)', '30-Hour Battery Life with Quick Charge', 'High-Res Audio LDAC & Speak-to-Chat'];
+      } else if (q.includes('realme')) {
+        pName = 'Realme Buds T310 (46dB Hybrid ANC, 360° Spatial Audio)';
+        basePrice = 1899;
+        specs = ['46dB Hybrid Active Noise Cancellation', '360° Dynamic Spatial Audio', '40 Hours Playback with Fast Charging', 'Dual Device Multipoint Bluetooth 5.4'];
+      } else if (q.includes('cmf') || q.includes('nothing')) {
+        pName = 'CMF by Nothing Buds Pro 2 (50dB ANC, Smart Dial)';
+        basePrice = 1999;
+        specs = ['Customizable Smart Dial on Case', '50dB Hybrid ANC with Ultra Bass 2.0', '43 Hours Total Playback', 'Dual Connection Bluetooth 5.3'];
+      } else {
+        // Universal Best Value Under 2000 INR
+        pName = 'OnePlus Nord Buds 3 (32dB Active Noise Cancellation)';
+        basePrice = 1799;
+        specs = ['32dB Active Noise Cancellation', '43 Hours Total Battery Life', 'Fast Charge: 10 mins = 11 Hours', 'BassWave 2.0 Dynamic Enhancement'];
       }
     }
     // 6. LAPTOPS & ULTRABOOKS
