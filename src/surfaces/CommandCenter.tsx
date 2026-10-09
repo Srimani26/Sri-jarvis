@@ -382,7 +382,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
                 DUPLEX VOICE ENGINE
               </span>
               <span className="text-[8px] font-mono text-slate-400">
-                [TAP TO SPEAK // 5S GRACE]
+                [HANDS-FREE DUPLEX VOICE]
               </span>
             </div>
           </div>

@@ -13787,52 +13787,6 @@ app.all("/voice/speak", async (c) => {
       return c.json({ ok: false, error: "Text required" }, 400);
     }
     const cleanText = text.replace(/```[\s\S]*?```/g, "I have generated the production code.").replace(/https?:\/\/[^\s]+/g, "link provided on screen.").replace(/[*_#`~>]/g, "").replace(/\{[\s\S]*?\}/g, "").replace(/\s+/g, " ").trim().slice(0, 2500);
-    const audioDir = join9(process.cwd(), "public", "audio");
-    let staticAudioFile = null;
-    const lowerClean = cleanText.toLowerCase();
-    if (lowerClean.includes("greetings and welcome back") || lowerClean.includes("master sri, greetings") || lowerClean.includes("master sri, grand marshal") || lowerClean.includes("orchestrating your sovereign") || lowerClean.includes("master sri") && (lowerClean.includes("online") || lowerClean.includes("standing by") || lowerClean.includes("welcome") || lowerClean.includes("at your service") || lowerClean.includes("at your command") || lowerClean.includes("ready to assist"))) {
-      staticAudioFile = join9(process.cwd(), "public", "welcome.mp3");
-      if (!existsSync9(staticAudioFile)) staticAudioFile = join9(audioDir, "welcome.mp3");
-    } else if (cleanText.includes("DeepSeek reasoning core primed")) {
-      staticAudioFile = join9(audioDir, "agent_deepseek.mp3");
-    } else if (cleanText.includes("AutoGen roundtable moderator active")) {
-      staticAudioFile = join9(audioDir, "agent_autogen.mp3");
-    } else if (cleanText.includes("CrewAI commander operational")) {
-      staticAudioFile = join9(audioDir, "agent_crewai.mp3");
-    } else if (cleanText.includes("Browser-Use reconnaissance core ready")) {
-      staticAudioFile = join9(audioDir, "agent_browser_use.mp3");
-    } else if (cleanText.includes("MetaGPT software company initialized")) {
-      staticAudioFile = join9(audioDir, "agent_metagpt.mp3");
-    } else if (cleanText.includes("Antigravity Agent Foundry ready")) {
-      staticAudioFile = join9(audioDir, "agent_foundry.mp3");
-    } else if (cleanText.includes("OpenHands autonomous software engineer reporting")) {
-      staticAudioFile = join9(audioDir, "agent_openhands.mp3");
-    } else if (cleanText.includes("Smolagents high-speed code-action runner active")) {
-      staticAudioFile = join9(audioDir, "agent_smolagent.mp3");
-    } else if (cleanText.includes("CAMEL communicative inception society engaged")) {
-      staticAudioFile = join9(audioDir, "agent_camel.mp3");
-    } else if (cleanText.includes("LangGraph stateful cyclical supervisor online")) {
-      staticAudioFile = join9(audioDir, "agent_langgraph.mp3");
-    } else if (cleanText.includes("Aegis online, Master Sri")) {
-      staticAudioFile = join9(audioDir, "agent_aegis.mp3");
-    } else if (cleanText.includes("Vortex operational, Master Sri")) {
-      staticAudioFile = join9(audioDir, "agent_vortex.mp3");
-    } else if (cleanText.includes("Midas at your service, Master Sri")) {
-      staticAudioFile = join9(audioDir, "agent_midas.mp3");
-    } else if (cleanText.includes("Cerebro activated, Master Sri")) {
-      staticAudioFile = join9(audioDir, "agent_cerebro.mp3");
-    } else if (cleanText.includes("Stark OS here, Master Sri")) {
-      staticAudioFile = join9(audioDir, "agent_stark_os.mp3");
-    } else if (cleanText.includes("J.A.R.V.I.S. Grand Marshal core reporting") || cleanText.includes("commanding the subordinate") || cleanText.includes("commanding the supreme intelligence swarm")) {
-      staticAudioFile = join9(audioDir, "rollcall_jarvis.mp3");
-    }
-    if (staticAudioFile && existsSync9(staticAudioFile)) {
-      const buffer = readFileSync6(staticAudioFile);
-      return c.body(buffer, 200, {
-        "Content-Type": "audio/mpeg",
-        "Cache-Control": "public, max-age=86400"
-      });
-    }
     const voiceConfig = AGENT_VOICE_MAP[agentId.toLowerCase()] || AGENT_VOICE_MAP.jarvis;
     const voiceId = requestedVoiceId || voiceConfig.voiceId;
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY || ELEVENLABS_DEFAULT_KEY;

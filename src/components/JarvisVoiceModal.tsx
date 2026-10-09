@@ -426,14 +426,34 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     if (hour >= 4 && hour < 12) timeStr = 'Good morning'
     else if (hour >= 12 && hour < 17) timeStr = 'Good afternoon'
     else if (hour >= 17 && hour < 22) timeStr = 'Good evening'
-    else timeStr = 'Night shift protocols engaged'
+    else timeStr = 'Good evening'
+
+    const id = (agentBadge?.id || 'jarvis').toLowerCase()
+
+    if (id === 'friday') {
+      return `${timeStr}, Boss. F.R.I.D.A.Y. online. Revenue channels, communications, and executive directives synchronized. Awaiting your orders.`
+    }
+    if (id === 'aegis') {
+      return `${timeStr}, Master Sri. Aegis online. Full-stack architecture, compiler sandbox, and cyber defense protocols armed. Standing by.`
+    }
+    if (id === 'vortex') {
+      return `${timeStr}, Master Sri. Vortex operational. Enterprise workflows, n8n swarms, and data pipelines standing by.`
+    }
+    if (id === 'midas') {
+      return `${timeStr}, Master Sri. M.I.D.A.S. online. Capital velocity, freelance bounty hunting, and quant trading intelligence primed.`
+    }
+    if (id === 'openhands') {
+      return `${timeStr}, Master Sri. OpenHands autonomous software engineer reporting. Ready to code, debug, and execute in sandbox.`
+    }
+    if (id === 'cerebro') {
+      return `${timeStr}, Master Sri. Cerebro activated. Deep market intelligence, neural indexing, and telemetry online.`
+    }
 
     const pool = [
-      `${timeStr}, Master Sri. ${agentBadge.name} online. All 16 sovereign agents are synchronized, base station operating at 100% full capacity. Awaiting your executive directive.`,
-      `${timeStr}, Master Sri. Grand Marshal ${agentBadge.name} reporting. Workspace sandboxes, neural compilers, and automated business swarms are standing by. What shall we conquer today?`,
-      `${timeStr}, Master Sri. ${agentBadge.name} standing by. Multi-agent architecture primed, server latency minimal, and all sub-agents alert. At your service, Sire.`,
-      `${timeStr}, Master Sri. Sovereign intelligence matrix initialized. Daedalus, Friday, Aegis, and Vortex are primed for deployment. How may I serve you, Master?`,
-      `${timeStr}, Master Sri. ${agentBadge.name} at your command. Cloud infrastructure nominal, memory recall armed. Ready for your command.`
+      `${timeStr}, Master Sri. Grand Marshal J.A.R.V.I.S. online. All 20 sovereign neural agent swarms are synchronized and armed. System telemetry at peak performance. What is your directive, Sire?`,
+      `${timeStr}, Master Sri. J.A.R.V.I.S. Mark-V operational. Core matrix primed, database links nominal, and all specialist agents standing by for your voice command.`,
+      `${timeStr}, Master Sri. Grand Marshal J.A.R.V.I.S. reporting. Autonomous execution engines and intelligence networks ready. How may I serve you, Sire?`,
+      `${timeStr}, Master Sri. J.A.R.V.I.S. online and at your command. Fleet orchestrator active, 16 autonomous sub-agents ready. Standing by for your voice directives.`
     ]
     const idx = (Math.floor(Date.now() / 20000) + hour) % pool.length
     return pool[idx]
@@ -453,17 +473,16 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
       // Instant dynamic intelligent greeting on modal open, then settle into hands-free standby
       const currentAgent = activeAgentRef.current || AGENTS.jarvis
-      const greeting = currentAgent.id === 'jarvis'
-        ? 'Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.'
-        : (currentAgent.greeting || 'Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.')
+      const greeting = getDynamicExecutiveGreeting(currentAgent)
       setJarvisResponse(greeting)
       setIsSleeping(false)
       isSleepingRef.current = false
+      playJarvisChime('wake')
       speakVoice(greeting, currentAgent?.lang || 'en-GB', () => {
         // Settle into resting standby sleep mode; mic stays awake listening for Master Sri's voice command
         setIsSleeping(true)
         isSleepingRef.current = true
-        setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Speak your directive or call any specialist agent (**"Friday"**, **"Aegis"**, **"OpenHands"**, **"Vortex"**) to command hands-free.*`)
+        setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Ear is active. Speak your directive or call any specialist agent (**"Friday"**, **"Aegis"**, **"OpenHands"**, **"Vortex"**) to command hands-free.*`)
         startListening()
       })
     }
@@ -616,12 +635,12 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
   // Sleep / Rest Mode Handler
   const goToSleep = () => {
-    stopListening()
     stopNeuralSpeech()
     setIsSleeping(true)
     isSleepingRef.current = true
     playJarvisChime('wake')
-    setJarvisResponse("### 🌙 Sovereign Standby Mode Active\n*Resting in low-power standby. Tap the Arc Reactor or speak anytime to command.*")
+    setJarvisResponse("### 🌙 Sovereign Standby Mode Active\n*Resting in low-power standby. Ear is active. Speak anytime or call any specialist agent to command.*")
+    startListening()
   }
 
   // Wake Up Handler: immediately opens microphone for Master Sri without canned interruptions
@@ -1147,31 +1166,35 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 0.1 WAKE UP IF IN STANDBY
+    // 0.1 WAKE UP & SPECIALIST AGENT ROUTING (STANDBY OR AWAKE)
     if (isSleepingRef.current) {
       setIsSleeping(false)
       isSleepingRef.current = false
       playJarvisChime('wake')
+    }
 
-      const wakeMatch = lower.match(/^(?:hey\s+)?(jarvis|friday|aegis|daedalus|vortex|midas|cerebro|stark|wake\s*up)(.*)/i)
-      const targetAgentKey = wakeMatch ? wakeMatch[1].toLowerCase().replace(/\s+/g, '') : ''
-      if (targetAgentKey && AGENTS[targetAgentKey]) {
-        setActiveAgent(AGENTS[targetAgentKey])
-        activeAgentRef.current = AGENTS[targetAgentKey]
+    const agentWakeMatch = cmd.match(/^(?:hey\s+)?(jarvis|friday|aegis|vortex|midas|cerebro|stark|stark_os|deepseek|autogen|crewai|browser_use|browser\s*use|metagpt|foundry|openhands|smolagents|smolagent|camel|langgraph|wake\s*up)[,\s:]*(.*)/i)
+    if (agentWakeMatch) {
+      let rawKey = agentWakeMatch[1].toLowerCase().replace(/\s+/g, '_')
+      if (rawKey === 'browseruse') rawKey = 'browser_use'
+      if (rawKey === 'smolagent') rawKey = 'smolagents'
+      if (rawKey === 'stark') rawKey = 'stark_os'
+      if (rawKey !== 'wake_up' && AGENTS[rawKey]) {
+        setActiveAgent(AGENTS[rawKey])
+        activeAgentRef.current = AGENTS[rawKey]
       }
 
-      // If only wake word was uttered (e.g. "Hey Jarvis", "Friday", "Wake up")
-      const trailingCmd = (wakeMatch ? wakeMatch[2] : cmd.replace(/^(?:hey\s+)?(jarvis|friday|aegis|daedalus|vortex|midas)[,\s:]*/i, '')).trim()
-      if (!trailingCmd || trailingCmd === 'please' || trailingCmd === 'online') {
-        const awakeMsg = `Online and awake, Sovereign Master Sri. What is your directive?`
-        setJarvisResponse(awakeMsg)
-        speakVoice(awakeMsg, activeAgentRef.current?.lang || 'en-GB')
+      const remainder = (agentWakeMatch[2] || '').trim()
+      if (!remainder || remainder.toLowerCase() === 'please' || remainder.toLowerCase() === 'online') {
+        const agentName = activeAgentRef.current?.name || 'J.A.R.V.I.S.'
+        const dynamicWake = `${agentName} online, Master Sri. I am listening. What is your directive?`
+        setJarvisResponse(dynamicWake)
+        speakVoice(dynamicWake, activeAgentRef.current?.lang || 'en-GB')
         setIsProcessing(false)
         return
       }
 
-      // Execute trailing directive directly
-      cmd = trailingCmd
+      cmd = remainder
       lower = cmd.toLowerCase()
     }
 
@@ -3110,19 +3133,29 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         }
 
         recognition.onerror = (e: any) => {
-          if (e.error === 'no-speech') {
+          if (e.error === 'no-speech' || e.error === 'aborted') {
             setIsListening(false)
             isListeningRef.current = false
-            if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
               setTimeout(() => {
-                if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
                   startListening()
                 }
               }, 400)
             }
             return
           }
-          if (e.error === 'not-allowed' || e.error === 'network') {
+          if (e.error === 'network') {
+            setIsListening(false)
+            isListeningRef.current = false
+            setTimeout(() => {
+              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                startListening()
+              }
+            }, 600)
+            return
+          }
+          if (e.error === 'not-allowed') {
             setEngineType('Deepgram')
             startWhisperRecording()
           }
@@ -3138,10 +3171,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           setTranscript('')
           if (finalRecordedText && !isSpeakingRef.current && !isProcessingRef.current) {
             processCommand(finalRecordedText)
-          } else if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-            // Keep Standby listening alive!
+          } else if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            // Keep hands-free Standby listening alive continuous!
             setTimeout(() => {
-              if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
                 startListening()
               }
             }, 300)
@@ -3468,7 +3501,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               securityAlert
                 ? "bg-rose-500 animate-pulse"
                 : isSleeping
-                ? "bg-indigo-600/30"
+                ? "bg-cyan-500/30 animate-pulse"
                 : isSpeaking
                 ? "bg-gradient-to-r from-amber-400 via-cyan-400 to-emerald-400 animate-pulse scale-110"
                 : isListening
@@ -3484,7 +3517,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               securityAlert
                 ? "bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_40px_rgba(244,63,94,0.6)]"
                 : isSleeping
-                ? "bg-gradient-to-r from-indigo-700 to-slate-800 shadow-[0_0_25px_rgba(99,102,241,0.3)]"
+                ? "bg-gradient-to-r from-cyan-500 via-indigo-600 to-blue-500 shadow-[0_0_35px_rgba(6,182,212,0.45)] animate-pulse"
                 : isSpeaking
                 ? "bg-gradient-to-tr from-amber-400 via-emerald-400 to-cyan-400 shadow-[0_0_50px_rgba(6,182,212,0.6)] animate-spin"
                 : isListening
@@ -3500,7 +3533,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                 securityAlert
                   ? "bg-rose-950/90 text-rose-200"
                   : isSleeping
-                  ? "bg-slate-950/95 text-indigo-300"
+                  ? "bg-slate-950/95 text-cyan-300 ring-1 ring-cyan-500/40"
                   : isSpeaking
                   ? "bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-cyan-950/80 text-cyan-200"
                   : isListening
@@ -3511,7 +3544,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               )}>
                 {/* Core Icon */}
                 {isSleeping ? (
-                  <Moon className="w-10 h-10 text-indigo-400 animate-pulse" />
+                  <div className="flex flex-col items-center justify-center animate-pulse">
+                    <Mic className="w-8 h-8 text-cyan-300" />
+                    <span className="text-[8px] font-mono text-cyan-400 font-black mt-0.5 tracking-wider uppercase">EAR ACTIVE</span>
+                  </div>
                 ) : isListening ? (
                   <Mic className="w-10 h-10 text-cyan-300 animate-bounce" />
                 ) : isSpeaking ? (
@@ -3529,41 +3565,41 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           <div className="space-y-0.5">
             <div className="text-xs font-mono font-bold tracking-wider text-slate-200">
               {isSleeping
-                ? 'STANDBY MODE'
+                ? 'STANDBY // EAR ACTIVE (SPEAK ANY DIRECTIVE)'
                 : isListening
-                ? 'LISTENING TO MASTER SRI (5S SILENCE GRACE)'
+                ? 'LISTENING TO MASTER SRI (SPEAK ANY DIRECTIVE)'
                 : isSpeaking
                 ? `SPEAKING AS ${activeAgent.name.toUpperCase()} (TAP ORB TO INTERRUPT)`
                 : isProcessing
                 ? 'DEEPSEEK REASONING & SWARM MATRIX EXECUTING...'
-                : 'TAP ORB TO SPEAK OR SAY "HEY JARVIS"'}
+                : 'SPEAK ANY DIRECTIVE OR SAY "HEY JARVIS"'}
             </div>
             <div className="text-[10px] font-mono text-cyan-400/80">
               {isSleeping
-                ? 'Say "Hey Jarvis" or tap to wake'
+                ? 'Listening hands-free • Say any directive or call "Friday", "Aegis", "OpenHands", "Midas"'
                 : `Engine: ${engineType} Nova-2 • Voice: ${activeAgent.voiceName}`}
             </div>
           </div>
 
           {/* Equalizer Waveform */}
-          {!isSleeping && (
-            <div className="flex items-center justify-center gap-1.5 h-6 w-full max-w-xs">
-              {voiceVolume.map((vol, i) => (
-                <span
-                  key={i}
-                  style={{ height: `${vol}%` }}
-                  className={cn(
-                    "w-1.5 rounded-full transition-all duration-150",
-                    isListening
-                      ? "bg-gradient-to-t from-cyan-500 to-blue-400"
-                      : isSpeaking
-                      ? "bg-gradient-to-t from-amber-400 to-cyan-400"
-                      : "bg-slate-800 h-2"
-                  )}
-                />
-              ))}
-            </div>
-          )}
+          <div className="flex items-center justify-center gap-1.5 h-6 w-full max-w-xs">
+            {voiceVolume.map((vol, i) => (
+              <span
+                key={i}
+                style={{ height: isSleeping ? `${Math.max(18, ((i * 7) % 35) + 10)}%` : `${vol}%` }}
+                className={cn(
+                  "w-1.5 rounded-full transition-all duration-150",
+                  isListening
+                    ? "bg-gradient-to-t from-cyan-500 to-blue-400"
+                    : isSpeaking
+                    ? "bg-gradient-to-t from-amber-400 to-cyan-400"
+                    : isSleeping
+                    ? "bg-cyan-500/40 animate-pulse"
+                    : "bg-slate-800 h-2"
+                )}
+              />
+            ))}
+          </div>
 
           {/* Active Autonomous Task HUD (Prominent placement right under Reactor) */}
           {activeTask && (

@@ -2669,61 +2669,8 @@ app.all('/voice/speak', async (c) => {
       .trim()
       .slice(0, 2500);
 
-    // 0. Instant Zero-Latency Pre-rendered Studio Audio
-    const audioDir = join(process.cwd(), 'public', 'audio');
-    let staticAudioFile: string | null = null;
-    const lowerClean = cleanText.toLowerCase();
-
-    if (
-      lowerClean.includes('greetings and welcome back') ||
-      lowerClean.includes('master sri, greetings') ||
-      lowerClean.includes('master sri, grand marshal') ||
-      lowerClean.includes('orchestrating your sovereign') ||
-      (lowerClean.includes('master sri') && (lowerClean.includes('online') || lowerClean.includes('standing by') || lowerClean.includes('welcome') || lowerClean.includes('at your service') || lowerClean.includes('at your command') || lowerClean.includes('ready to assist')))
-    ) {
-      staticAudioFile = join(process.cwd(), 'public', 'welcome.mp3');
-      if (!existsSync(staticAudioFile)) staticAudioFile = join(audioDir, 'welcome.mp3');
-    } else if (cleanText.includes('DeepSeek reasoning core primed')) {
-      staticAudioFile = join(audioDir, 'agent_deepseek.mp3');
-    } else if (cleanText.includes('AutoGen roundtable moderator active')) {
-      staticAudioFile = join(audioDir, 'agent_autogen.mp3');
-    } else if (cleanText.includes('CrewAI commander operational')) {
-      staticAudioFile = join(audioDir, 'agent_crewai.mp3');
-    } else if (cleanText.includes('Browser-Use reconnaissance core ready')) {
-      staticAudioFile = join(audioDir, 'agent_browser_use.mp3');
-    } else if (cleanText.includes('MetaGPT software company initialized')) {
-      staticAudioFile = join(audioDir, 'agent_metagpt.mp3');
-    } else if (cleanText.includes('Antigravity Agent Foundry ready')) {
-      staticAudioFile = join(audioDir, 'agent_foundry.mp3');
-    } else if (cleanText.includes('OpenHands autonomous software engineer reporting')) {
-      staticAudioFile = join(audioDir, 'agent_openhands.mp3');
-    } else if (cleanText.includes('Smolagents high-speed code-action runner active')) {
-      staticAudioFile = join(audioDir, 'agent_smolagent.mp3');
-    } else if (cleanText.includes('CAMEL communicative inception society engaged')) {
-      staticAudioFile = join(audioDir, 'agent_camel.mp3');
-    } else if (cleanText.includes('LangGraph stateful cyclical supervisor online')) {
-      staticAudioFile = join(audioDir, 'agent_langgraph.mp3');
-    } else if (cleanText.includes('Aegis online, Master Sri')) {
-      staticAudioFile = join(audioDir, 'agent_aegis.mp3');
-    } else if (cleanText.includes('Vortex operational, Master Sri')) {
-      staticAudioFile = join(audioDir, 'agent_vortex.mp3');
-    } else if (cleanText.includes('Midas at your service, Master Sri')) {
-      staticAudioFile = join(audioDir, 'agent_midas.mp3');
-    } else if (cleanText.includes('Cerebro activated, Master Sri')) {
-      staticAudioFile = join(audioDir, 'agent_cerebro.mp3');
-    } else if (cleanText.includes('Stark OS here, Master Sri')) {
-      staticAudioFile = join(audioDir, 'agent_stark_os.mp3');
-    } else if (cleanText.includes('J.A.R.V.I.S. Grand Marshal core reporting') || cleanText.includes('commanding the subordinate') || cleanText.includes('commanding the supreme intelligence swarm')) {
-      staticAudioFile = join(audioDir, 'rollcall_jarvis.mp3');
-    }
-
-    if (staticAudioFile && existsSync(staticAudioFile)) {
-      const buffer = readFileSync(staticAudioFile);
-      return c.body(buffer, 200, {
-        'Content-Type': 'audio/mpeg',
-        'Cache-Control': 'public, max-age=86400',
-      });
-    }
+    // Dynamic Neural Audio Generation (ElevenLabs + Google Neural Fallback)
+    // Ensures all responses and greetings are 100% dynamic, context-aware and intelligent
 
     const voiceConfig = AGENT_VOICE_MAP[agentId.toLowerCase()] || AGENT_VOICE_MAP.jarvis;
     const voiceId = requestedVoiceId || voiceConfig.voiceId;
