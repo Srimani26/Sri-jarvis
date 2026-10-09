@@ -88,6 +88,36 @@ export function stopNeuralSpeech() {
   }
 }
 
+export function isNeuralSpeechActive(): boolean {
+  return Boolean(activeAudio || (typeof window !== 'undefined' && window.speechSynthesis?.speaking))
+}
+
+/**
+ * Primes browser audio subsystem in direct user gesture context.
+ * Unlocks HTML5 audio playback and Web Speech synthesis without browser policy blocking.
+ */
+export function primeAudioPlayback() {
+  if (typeof window === 'undefined') return
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    if (AudioCtx) {
+      const ctx = new AudioCtx()
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+    }
+    if (window.speechSynthesis) {
+      window.speechSynthesis.resume()
+    }
+    const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA')
+    silentAudio.volume = 0.01
+    const p = silentAudio.play()
+    if (p !== undefined) {
+      p.then(() => {
+        silentAudio.pause()
+      }).catch(() => {})
+    }
+  } catch {}
+}
+
 /**
  * Bulletproof Neural Voice Synthesizer
  * Uses backend Google Neural Audio stream (/api/voice/speak) for true human audio
@@ -372,6 +402,9 @@ function fallbackWebSpeech(
       }
 
       window.speechSynthesis.speak(utterance)
+      if (typeof window.speechSynthesis.resume === 'function') {
+        window.speechSynthesis.resume()
+      }
     }
 
     speakNext()

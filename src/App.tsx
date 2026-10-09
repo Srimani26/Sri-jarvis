@@ -31,7 +31,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } from '@/lib/api'
-import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
+import { playJarvisChime, playNeuralSpeech, primeAudioPlayback } from '@/lib/sound'
 
 const primaryNav = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ Core', mobileLabel: 'HQ' },
@@ -218,18 +218,7 @@ export default function App() {
   const [sovereignAwakened, setSovereignAwakened] = useState(true)
 
   const handleOpenVoiceComms = (agentId?: string) => {
-    try {
-      if (typeof window !== 'undefined') {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-        if (AudioCtx) {
-          const ctx = new AudioCtx()
-          if (ctx.state === 'suspended') ctx.resume().catch(() => {})
-        }
-        if (window.speechSynthesis) {
-          window.speechSynthesis.resume()
-        }
-      }
-    } catch {}
+    primeAudioPlayback()
     playJarvisChime('wake')
     if (agentId) {
       try { localStorage.setItem('jarvis_initial_agent', agentId) } catch {}
@@ -553,7 +542,7 @@ export default function App() {
           <div className="flex items-center gap-1.5">
             {/* Quick Voice Trigger on Mobile Header */}
             <button
-              onClick={() => setVoiceModalOpen(true)}
+              onClick={() => handleOpenVoiceComms()}
               className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 text-[10px] font-mono font-black flex items-center gap-1 shadow-[0_0_15px_rgba(6,182,212,0.4)] active:scale-95"
               aria-label="Open Neural Voice"
             >

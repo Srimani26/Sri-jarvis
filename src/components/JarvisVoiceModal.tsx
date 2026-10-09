@@ -384,7 +384,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [deepseekReasoning, setDeepseekReasoning] = useState<string | null>(null)
   const [showReasoning, setShowReasoning] = useState(false)
   const [activeAgent, setActiveAgent] = useState<AgentBadge>(AGENTS.jarvis)
-  const [engineType, setEngineType] = useState<'Deepgram' | 'WebSpeech'>('Deepgram')
+  const [engineType, setEngineType] = useState<'Deepgram' | 'WebSpeech'>('WebSpeech')
   const [voiceVolume, setVoiceVolume] = useState<number[]>([25, 45, 30, 70, 50, 85, 40, 60, 35, 55, 45, 65, 30, 50])
   const [currentPlan, setCurrentPlan] = useState<TacticalPlan | null>(null)
   const [isExecutingPlan, setIsExecutingPlan] = useState(false)
@@ -513,10 +513,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return () => clearInterval(timer)
   }, [isOpen])
 
-  // Push-to-Talk Shortcut Listener (Space or 'v' when not typing)
+  // Keyboard listener: Escape to close HUD, Space or 'v' for Push-to-Talk
   useEffect(() => {
     if (!isOpen) return
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
       const target = e.target as HTMLElement
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
       if ((e.code === 'KeyV' || e.code === 'Space') && !e.repeat) {
@@ -528,7 +533,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen])
+  }, [isOpen, onClose])
 
   // Real vocal speech player using backend Google Neural stream with hard microphone isolation
   const speakVoice = (text: string, lang?: string, onDone?: () => void) => {
@@ -563,15 +568,28 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         isSpeakingRef.current = true
       },
       () => {
-        // Deterministic speech completion: mic stays strictly OFF until user deliberately initiates
+        // Deterministic speech completion: return to standby mode and keep listening
         setIsSpeaking(false)
         isSpeakingRef.current = false
         lastActiveRef.current = Date.now()
-        if (onDone) onDone()
+        if (onDone) {
+          onDone()
+        } else if (isOpenRef.current) {
+          setIsSleeping(true)
+          isSleepingRef.current = true
+          startListening()
+        }
       },
       () => {
         setIsSpeaking(false)
         isSpeakingRef.current = false
+        if (onDone) {
+          onDone()
+        } else if (isOpenRef.current) {
+          setIsSleeping(true)
+          isSleepingRef.current = true
+          startListening()
+        }
       },
       activeAgentRef.current?.id || 'jarvis'
     )
@@ -2890,7 +2908,12 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
 
-      // 16kHz Web Audio API filters & RMS energy gate VAD (1.3s rapid conversational turn-taking)
+      let hasSpoken = false
+      let silenceStartTime: number | null = null
+      const SILENCE_THRESHOLD_RMS = 0.005 // Lowered so ordinary room voice triggers VAD
+      const SILENCE_DURATION_MS = 1400
+
+      let rmsInterval: any = null
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
         const audioCtx = new AudioCtx({ sampleRate: 16000 })
@@ -2901,12 +2924,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         source.connect(analyser)
         const timeDomainData = new Float32Array(analyser.fftSize)
 
-        let hasSpoken = false
-        let silenceStartTime: number | null = null
-        const SILENCE_THRESHOLD_RMS = 0.018 // Accurate speech energy gate: ignores floor background noise
-        const SILENCE_DURATION_MS = 1300 // 1.3 seconds of sustained silence after speaking -> fast turnaround
-
-        let rmsInterval: any = null
         const checkRMSGate = () => {
           if (!isListeningRef.current || recorder.state !== 'recording') {
             if (rmsInterval) clearInterval(rmsInterval)
@@ -2927,7 +2944,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             if (!silenceStartTime) {
               silenceStartTime = Date.now()
             } else if (Date.now() - silenceStartTime >= SILENCE_DURATION_MS) {
-              // 1.3 seconds of silence after speaking -> stop immediately for <1.5s turnaround
               if (rmsInterval) clearInterval(rmsInterval)
               if (recorder.state === 'recording') {
                 recorder.stop()
@@ -2936,12 +2952,12 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             }
           }
         }
-        rmsInterval = setInterval(checkRMSGate, 120) // Throttled to 120ms: ultra-low mobile CPU overhead
+        rmsInterval = setInterval(checkRMSGate, 120)
       } catch (vadErr) {
         console.warn('VAD setup skipped:', vadErr)
       }
 
-      // Safety timeout: max 12 seconds per turn (was 30s)
+      // Safety timeout: max 12 seconds per turn
       if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
       maxRecordingTimerRef.current = setTimeout(() => {
         if (recorder.state === 'recording') {
@@ -2954,6 +2970,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
 
       recorder.onstop = async () => {
+        if (rmsInterval) clearInterval(rmsInterval)
         if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
         if (mediaStreamRef.current) {
           try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
@@ -2968,11 +2985,17 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         setIsListening(false)
         isListeningRef.current = false
 
-        // Critical: If user did NOT speak, or audio is pure room silence, do NOT send to server!
-        // This eliminates phantom repeats and infinite prompt loops.
-        if (!hasSpoken || audioBlob.size < 1200) {
+        // Filter out empty clicks (< 400 bytes)
+        if (audioBlob.size < 400) {
           setIsProcessing(false)
           isProcessingRef.current = false
+          if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            setTimeout(() => {
+              if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                startListening()
+              }
+            }, 400)
+          }
           return
         }
 
@@ -3000,6 +3023,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         } finally {
           setIsProcessing(false)
           isProcessingRef.current = false
+          if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            setTimeout(() => {
+              if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                startListening()
+              }
+            }, 400)
+          }
         }
       }
 
@@ -3013,112 +3043,121 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }
 
-  // Primary Speech Recognition (Deepgram Nova-2 Neural STT or Calibrated en-IN WebSpeech)
+  // Primary Speech Recognition (Native WebSpeech or Deepgram Nova-2 Fallback)
   const startListening = () => {
     if (isSpeakingRef.current || isProcessingRef.current) return
 
-    // Prefer Deepgram Neural STT by default: zero duplicates and ultra-fast
-    if (engineType === 'Deepgram' || typeof (window as any).webkitSpeechRecognition === 'undefined') {
-      startWhisperRecording()
-      return
-    }
-
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
-    if (!SpeechRecognition) {
-      startWhisperRecording()
-      return
-    }
-
-    try {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort() } catch {}
-      }
-
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = true
-      recognition.lang = 'en-IN'
-
-      recognition.onstart = () => {
-        setIsListening(true)
-        isListeningRef.current = true
-        setEngineType('WebSpeech')
-        setTranscript('')
-        transcriptRef.current = ''
-        lastActiveRef.current = Date.now()
-      }
-
-      recognition.onresult = (event: any) => {
-        let bestText = ''
-        // Look at the latest result to prevent prefix duplication on Android Chrome
-        for (let i = event.results.length - 1; i >= 0; i--) {
-          const res = event.results[i]
-          if (res && res[0]?.transcript) {
-            bestText = res[0].transcript
-            break
-          }
-        }
-        if (!bestText && event.results.length > 0) {
-          bestText = event.results[event.results.length - 1]?.[0]?.transcript || ''
+    // Prefer native browser WebSpeech for instant zero-latency speech recognition
+    if (SpeechRecognition && engineType !== 'Deepgram') {
+      try {
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort() } catch {}
         }
 
-        const cleaned = cleanAndDeduplicateTranscript(bestText.trim())
-        if (cleaned) {
-          setTranscript(cleaned)
-          transcriptRef.current = cleaned
+        const recognition = new SpeechRecognition()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = activeAgentRef.current?.lang || 'en-IN'
+
+        recognition.onstart = () => {
+          setIsListening(true)
+          isListeningRef.current = true
+          setEngineType('WebSpeech')
+          setTranscript('')
+          transcriptRef.current = ''
           lastActiveRef.current = Date.now()
         }
 
-        // Intelligent Responsive Debounce: 450ms on final utterance, 1200ms on interim
-        const lastResult = event.results[event.results.length - 1]
-        const isFinal = lastResult && lastResult.isFinal
-
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-        if (cleaned.length > 0) {
-          const timeoutDelay = isFinal ? 450 : 1200
-          silenceTimerRef.current = setTimeout(() => {
-            const captured = transcriptRef.current.trim()
-            if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
-              transcriptRef.current = ''
-              setTranscript('')
-              stopListening()
-              processCommand(captured)
+        recognition.onresult = (event: any) => {
+          let bestText = ''
+          for (let i = event.results.length - 1; i >= 0; i--) {
+            const res = event.results[i]
+            if (res && res[0]?.transcript) {
+              bestText = res[0].transcript
+              break
             }
-          }, timeoutDelay)
-        }
-      }
+          }
+          if (!bestText && event.results.length > 0) {
+            bestText = event.results[event.results.length - 1]?.[0]?.transcript || ''
+          }
 
-      recognition.onerror = (e: any) => {
-        if (e.error === 'no-speech') {
+          const cleaned = cleanAndDeduplicateTranscript(bestText.trim())
+          if (cleaned) {
+            setTranscript(cleaned)
+            transcriptRef.current = cleaned
+            lastActiveRef.current = Date.now()
+          }
+
+          // Responsive Debounce: 600ms on final utterance, 1100ms on interim
+          const lastResult = event.results[event.results.length - 1]
+          const isFinal = lastResult && lastResult.isFinal
+
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+          if (cleaned.length > 0) {
+            const timeoutDelay = isFinal ? 600 : 1100
+            silenceTimerRef.current = setTimeout(() => {
+              const captured = transcriptRef.current.trim()
+              if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
+                transcriptRef.current = ''
+                setTranscript('')
+                stopListening()
+                processCommand(captured)
+              }
+            }, timeoutDelay)
+          }
+        }
+
+        recognition.onerror = (e: any) => {
+          if (e.error === 'no-speech') {
+            setIsListening(false)
+            isListeningRef.current = false
+            if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              setTimeout(() => {
+                if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                  startListening()
+                }
+              }, 400)
+            }
+            return
+          }
+          if (e.error === 'not-allowed' || e.error === 'network') {
+            setEngineType('Deepgram')
+            startWhisperRecording()
+          }
+        }
+
+        recognition.onend = () => {
           setIsListening(false)
           isListeningRef.current = false
-          return
+
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+          const finalRecordedText = transcriptRef.current.trim()
+          transcriptRef.current = ''
+          setTranscript('')
+          if (finalRecordedText && !isSpeakingRef.current && !isProcessingRef.current) {
+            processCommand(finalRecordedText)
+          } else if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            // Keep Standby listening alive!
+            setTimeout(() => {
+              if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                startListening()
+              }
+            }, 300)
+          }
         }
-        if (e.error === 'not-allowed' || e.error === 'network') {
-          setEngineType('Whisper-Turbo')
-          startWhisperRecording()
-        }
+
+        recognitionRef.current = recognition
+        recognition.start()
+        return
+      } catch (e) {
+        startWhisperRecording()
+        return
       }
-
-      recognition.onend = () => {
-        setIsListening(false)
-        isListeningRef.current = false
-
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-        const finalRecordedText = transcriptRef.current.trim()
-        transcriptRef.current = ''
-        setTranscript('')
-        if (finalRecordedText && !isSpeakingRef.current && !isProcessingRef.current) {
-          processCommand(finalRecordedText)
-        }
-      }
-
-      recognitionRef.current = recognition
-      recognition.start()
-    } catch (e) {
-      startWhisperRecording()
     }
+
+    startWhisperRecording()
   }
 
   const stopListening = () => {
@@ -3161,7 +3200,22 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const AgentIcon = activeAgent.icon
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-2xl animate-in fade-in duration-300">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-2xl animate-in fade-in duration-300"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      {/* Fixed Floating Close Button (Always reachable on mobile & desktop) */}
+      <button
+        onClick={onClose}
+        className="fixed top-3 right-3 sm:top-5 sm:right-5 z-[80] p-2.5 sm:px-3.5 sm:py-2 rounded-2xl bg-slate-900/95 hover:bg-rose-600 border border-slate-700 hover:border-rose-400 text-slate-300 hover:text-white shadow-2xl backdrop-blur-xl transition-all cursor-pointer flex items-center gap-1.5 font-mono text-xs font-bold active:scale-95"
+        title="Close Voice HUD (Esc)"
+      >
+        <X className="w-4 h-4 text-rose-400" />
+        <span className="hidden sm:inline">EXIT HUD</span>
+      </button>
+
       <div className={cn(
         "relative w-full max-w-2xl rounded-3xl border transition-all duration-500 p-4 sm:p-6 shadow-[0_0_90px_rgba(6,182,212,0.25)] overflow-hidden max-h-[94dvh] overflow-y-auto no-scrollbar",
         securityAlert
@@ -3200,8 +3254,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         )}
 
         {/* Sleek Minimalist Top Navigation Header */}
-        <div className="flex items-center justify-between w-full relative z-20 mb-3 pb-2.5 border-b border-slate-800/80">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 w-full relative z-20 mb-3 pb-2.5 border-b border-slate-800/80">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => isSleeping ? wakeUp() : goToSleep()}
               className={cn(
@@ -3328,10 +3382,11 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:border-cyan-500/40 transition-all"
-              title="Close Voice HUD"
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-600 border border-rose-500/30 hover:border-rose-400 text-rose-300 hover:text-white transition-all flex items-center gap-1.5 font-mono text-xs font-bold shrink-0 ml-auto cursor-pointer"
+              title="Close Voice HUD (Esc)"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 text-rose-400" />
+              <span>CLOSE</span>
             </button>
           </div>
         </div>
@@ -3934,6 +3989,21 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               </div>
             </div>
           )}
+
+          {/* Bottom Close HUD Bar (Easily accessible from bottom of card) */}
+          <div className="w-full pt-3 mt-2 border-t border-slate-800/80 flex items-center justify-between gap-3 text-xs font-mono">
+            <span className="text-slate-500 text-[11px] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span>J.A.R.V.I.S. Mark-V Neural Voice System</span>
+            </span>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-slate-900/90 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-300 hover:text-rose-300 font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <X className="w-3.5 h-3.5 text-rose-400" />
+              <span>Close Voice Page</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
