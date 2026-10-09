@@ -69,6 +69,20 @@ const AGENTS: Record<string, AgentBadge> = {
     greeting: 'Master Sri, Grand Marshal J.A.R.V.I.S. online. Orchestrating your sovereign AI empire.',
     icon: Bot
   },
+  friday: {
+    id: 'friday',
+    name: "F.R.I.D.A.Y.",
+    title: 'Executive Sovereign AI Assistant',
+    role: 'Tactical Operations, Client Comms & Autonomous Revenue',
+    gender: 'female',
+    voiceName: 'Rachel (Executive Voice)',
+    color: 'text-rose-300',
+    bg: 'bg-rose-500/20',
+    border: 'border-rose-400',
+    lang: 'en-GB',
+    greeting: 'Boss, Friday online. Ready to manage communications, revenue streams, and executive directives.',
+    icon: Sparkles
+  },
   aegis: {
     id: 'aegis',
     name: 'Aegis',
@@ -1150,6 +1164,130 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       // Execute trailing directive
       cmd = trailingCmd
       lower = cmd.toLowerCase()
+    }
+
+    // 0.15 AUTONOMOUS MONEY MAKING & FREELANCE REVENUE HUNTER ("make money", "find jobs", "earn money", "apply jobs")
+    if (
+      lower.includes('make money') ||
+      lower.includes('earn money') ||
+      lower.includes('find job') ||
+      lower.includes('find jobs') ||
+      lower.includes('apply job') ||
+      lower.includes('apply jobs') ||
+      lower.includes('freelance') ||
+      lower.includes('bounty') ||
+      lower.includes('revenue hunter')
+    ) {
+      setActiveAgent(AGENTS.midas)
+      activeAgentRef.current = AGENTS.midas
+      playJarvisChime('execute')
+
+      const notifyMsg = "Scanning global freelance and open bounty feeds now, Master Sri. M.I.D.A.S. is identifying high-yield opportunities matching your verified full-stack architecture skills."
+      setJarvisResponse(`### 💰 M.I.D.A.S. Autonomous Revenue Agent Engaged\n- **Target**: Real-Money Contracts & Bounties (Upwork, RemoteOK, Web3)\n- **Action**: Scanning highest-yield opportunities...\n- **Stack Matching**: React, Node.js, Python, PostgreSQL, Next.js`)
+      speakVoice(notifyMsg, 'en-IN')
+
+      try {
+        const oppsRes = await fetch('/api/revenue/opportunities')
+        if (oppsRes.ok) {
+          const opps = await oppsRes.json()
+          const topOpp = opps[0]
+          if (topOpp) {
+            // Apply autonomously
+            await fetch('/api/revenue/apply', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ opportunityId: topOpp.id })
+            })
+
+            const speechDone = `Master Sri, I have scanned and autonomously applied to the top bounty: ${topOpp.title} paying ₹${topOpp.budgetInr.toLocaleString()}. I will execute the deliverable and notify you to collect your payout.`
+            setJarvisResponse(`### 💰 M.I.D.A.S. Autonomous Contract Applied\n- **Client**: ${topOpp.client} (${topOpp.source})\n- **Contract**: **${topOpp.title}**\n- **Payout**: **₹${topOpp.budgetInr.toLocaleString()}** ($${topOpp.budgetUsd} USD)\n- **Status**: Applied with tailored proposal!\n\n> *Master Sri, go to the **Revenue ($)** tab to inspect deliverables, bank direct deposits, or claim collected funds.*`)
+            speakVoice(speechDone, 'en-IN')
+            setIsProcessing(false)
+            return
+          }
+        }
+      } catch (err) {
+        console.error('Revenue voice hunt error:', err)
+      }
+
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.16 DAILY EXECUTIVE BRIEFING & NEWS REPORT ("daily report", "give me report", "today news", "briefing")
+    if (
+      lower.includes('daily report') ||
+      lower.includes('give me report') ||
+      lower.includes('daily briefing') ||
+      lower.includes('today news') ||
+      lower.includes('tech news') ||
+      lower.includes('weather') ||
+      lower.includes('executive report')
+    ) {
+      playJarvisChime('wake')
+      setJarvisResponse("Compiling real-time daily executive intelligence briefing: weather, tech news, financial markets, and pending client comms...")
+      speakVoice("Compiling your real-time executive intelligence briefing now, Master Sri. Scanning weather satellites, hot tech breakthroughs, and incoming messages.", activeAgentRef.current?.lang || 'en-GB')
+
+      try {
+        const briefRes = await fetch('/api/briefing/daily')
+        if (briefRes.ok) {
+          const briefing = await briefRes.json()
+          const md = `### 🌐 Executive Morning Intelligence Briefing\n` +
+            `- **Location & Weather**: ${briefing.weather.location} — **${briefing.weather.temp}**, ${briefing.weather.condition}\n` +
+            `- **Markets**: ${briefing.markets.map((m: any) => `${m.asset}: ${m.price} (${m.change})`).join(' | ')}\n\n` +
+            `#### 🚀 Hot Tech & AI Breakthroughs:\n` +
+            briefing.techNews.map((n: any) => `- **${n.headline}**: ${n.summary}`).join('\n') +
+            `\n\n#### 📬 Pending Client Inquiries Requiring Approval:\n` +
+            briefing.pendingMessages.map((m: any) => `- **${m.sender}** (${m.channel}): "${m.preview}"\n  *Proposed Action*: ${m.proposedReply}`).join('\n')
+
+          setJarvisResponse(md)
+          speakVoice(briefing.spokenBriefing, activeAgentRef.current?.lang || 'en-GB')
+          setIsProcessing(false)
+          return
+        }
+      } catch (err) {
+        console.error('Briefing error:', err)
+      }
+
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.17 HIGH-LEVEL 3D & FULL-STACK WEBSITE BUILDER ("build 3d website", "create 3d site", "build website")
+    if (
+      lower.includes('3d website') ||
+      lower.includes('3d site') ||
+      lower.includes('build high level website') ||
+      lower.includes('build 3d')
+    ) {
+      setActiveAgent(AGENTS.aegis)
+      activeAgentRef.current = AGENTS.aegis
+      playJarvisChime('execute')
+
+      const ack3d = "Master Sri, Aegis WebGL engine armed. Generating high-end interactive 3D WebGL website in the sandbox now."
+      setJarvisResponse(`### 🌐 Aegis Autonomous 3D WebGL Studio Initialized\n- **Engine**: Three.js r128 WebGL Canvas\n- **Target**: High-value responsive interactive 3D site\n- **Status**: Compiling procedural shaders and lighting...`)
+      speakVoice(ack3d, 'en-US')
+
+      try {
+        const buildRes = await fetch('/api/revenue/execute-deliverable', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ opportunityId: 'opp_3d_webgl_01' })
+        })
+        if (buildRes.ok) {
+          const bData = await buildRes.json()
+          const successSpoken = `Master Sri, I have built and rendered your 3D WebGL website. Production code is compiled, and the live preview is ready on your screen.`
+          setJarvisResponse(`### 🚀 3D WebGL Website Built & Live\n- **Deliverable**: Interactive Three.js Orbital Cyber-Space Canvas\n- **Live Sandbox Preview**: [Open 3D Website](${bData.opportunity?.demoUrl || '/workspaces/bounty_opp_3d_webgl_01/index.html'})\n- **Status**: Completed and ready for client delivery!`)
+          speakVoice(successSpoken, 'en-US')
+          setIsProcessing(false)
+          return
+        }
+      } catch (err) {
+        console.error('3D website builder error:', err)
+      }
+
+      setIsProcessing(false)
+      return
     }
 
     // 0.2 FULL POWER STATUS INQUIRY
@@ -3092,6 +3230,26 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             >
               <Mic className="w-3 h-3 text-emerald-400" />
               <span>{engineType === 'Deepgram' ? 'DEEPGRAM NOVA-2' : 'WEBSPEECH'}</span>
+            </button>
+
+            {/* Quick Gender Persona Switcher: Male (J.A.R.V.I.S.) vs Female (F.R.I.D.A.Y.) */}
+            <button
+              onClick={() => {
+                if (activeAgent.id === 'jarvis') {
+                  switchAgent(AGENTS.friday)
+                } else {
+                  switchAgent(AGENTS.jarvis)
+                }
+              }}
+              className={cn(
+                "px-2.5 py-1.5 rounded-full border text-[10px] font-mono flex items-center gap-1 transition-all shadow-sm",
+                activeAgent.gender === 'female'
+                  ? "bg-rose-500/20 border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.3)]"
+                  : "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+              )}
+              title="Switch Voice Gender: Male J.A.R.V.I.S. vs Female F.R.I.D.A.Y."
+            >
+              <span>{activeAgent.gender === 'female' ? '♀ FEMALE (F.R.I.D.A.Y.)' : '♂ MALE (J.A.R.V.I.S.)'}</span>
             </button>
 
             <button

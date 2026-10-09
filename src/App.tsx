@@ -20,13 +20,14 @@ import Profile from './surfaces/Profile'
 import Inbox from './surfaces/Inbox'
 import CyberThreatDefense from './surfaces/CyberThreatDefense'
 import OmniApiArsenal from './surfaces/OmniApiArsenal'
+import { RevenueHunter } from './surfaces/RevenueHunter'
 import JarvisVoiceModal from './components/JarvisVoiceModal'
 import ActiveTaskExecutionPanel from './components/ActiveTaskExecutionPanel'
 import {
   LayoutDashboard, MessageSquare, Layers, Code2, Workflow,
   CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe,
   Menu, X, Settings, Lock, Shield, ShieldAlert, LogOut, Eye, EyeOff, AlertTriangle,
-  ChevronRight, ChevronDown, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic, Sparkles, Activity
+  ChevronRight, ChevronDown, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic, Sparkles, Activity, DollarSign
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } from '@/lib/api'
@@ -34,6 +35,7 @@ import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
 
 const primaryNav = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ Core', mobileLabel: 'HQ' },
+  { id: 'revenue', icon: <DollarSign className="w-4 h-4 text-emerald-400" />, label: 'Revenue ($)', mobileLabel: 'Revenue' },
   { id: 'tasks', icon: <Activity className="w-4 h-4" />, label: 'Missions & Tasks', mobileLabel: 'Tasks' },
   { id: 'chat', icon: <MessageSquare className="w-4 h-4" />, label: 'AI Chat', mobileLabel: 'Chat' },
   { id: 'swarms', icon: <Bot className="w-4 h-4" />, label: 'Agent Swarm', mobileLabel: 'Swarm' },
@@ -592,6 +594,7 @@ export default function App() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 pb-28 md:pb-6">
         {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => setVoiceModalOpen(true)} />}
+        {activeTab === 'revenue' && <RevenueHunter />}
         {activeTab === 'tasks' && <ActiveTaskExecutionPanel onTriggerTask={(t) => console.log('task triggered', t)} />}
         {activeTab === 'chat' && <AIChat />}
         {activeTab === 'swarms' && (
@@ -643,7 +646,22 @@ export default function App() {
                 key={tab.id}
                 onClick={() => {
                   if (tab.id === 'more') setMobileMenuOpen(true)
-                  else if (tab.id === 'voice') setVoiceModalOpen(true)
+                  else if (tab.id === 'voice') {
+                    // Pre-unlock mobile browser AudioContext & SpeechSynthesis on physical user tap
+                    try {
+                      if (typeof window !== 'undefined') {
+                        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+                        if (AudioCtx) {
+                          const ctx = new AudioCtx()
+                          if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+                        }
+                        if (window.speechSynthesis) {
+                          window.speechSynthesis.resume()
+                        }
+                      }
+                    } catch {}
+                    setVoiceModalOpen(true)
+                  }
                   else handleNavigate(tab.id)
                 }}
                 className={cn(

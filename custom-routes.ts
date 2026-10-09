@@ -58,6 +58,9 @@ import { WorkspaceManager } from './src/workspace/WorkspaceManager'
 import { AutonomousReActEngine } from './src/agents/AutonomousReActEngine'
 import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
 import { ECommerceReconEngine } from './src/services/ECommerceReconEngine'
+import { RevenueHunterEngine } from './src/agents/RevenueHunterEngine'
+import { DailyBriefingEngine } from './src/agents/DailyBriefingEngine'
+import { SkillCreationEngine } from './src/agents/SkillCreationEngine'
 
 function loadJwtSecret(): string {
   return SovereignGate.getJwtSecret()
@@ -5419,6 +5422,128 @@ app.get('/workspaces/preview/:projectName/:file', async (c) => {
     });
   } catch (err: any) {
     return c.text(`Error serving file: ${err.message}`, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// REVENUE HUNTER & EARNINGS LEDGER ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/revenue/opportunities — Scanned freelance and bounty gigs
+app.get('/revenue/opportunities', requireAuth, (c) => {
+  try {
+    const opps = RevenueHunterEngine.getOpportunities();
+    const ledger = RevenueHunterEngine.getLedgerMetrics();
+    return c.json({ ok: true, opportunities: opps, ledger });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/revenue/ledger — Cash pipeline, completed deliverables & payout stats
+app.get('/revenue/ledger', requireAuth, (c) => {
+  try {
+    const ledger = RevenueHunterEngine.getLedgerMetrics();
+    const settings = RevenueHunterEngine.getSettings();
+    return c.json({ ok: true, ledger, settings });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/revenue/apply — Autonomous job application and tailored winning proposal
+app.post('/revenue/apply', requireAuth, async (c) => {
+  try {
+    const { opportunityId, customNotes } = await c.req.json();
+    if (!opportunityId) return c.json({ ok: false, error: 'opportunityId is required' }, 400);
+    const result = await RevenueHunterEngine.applyToOpportunity(opportunityId, customNotes);
+    return c.json({ ok: true, ...result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/revenue/execute-deliverable — Synthesize production code deliverable in sandbox
+app.post('/revenue/execute-deliverable', requireAuth, async (c) => {
+  try {
+    const { opportunityId } = await c.req.json();
+    if (!opportunityId) return c.json({ ok: false, error: 'opportunityId is required' }, 400);
+    const result = await RevenueHunterEngine.buildDeliverable(opportunityId);
+    return c.json({ ok: true, ...result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/revenue/collect — Mark payout as collected/disbursed to bank/UPI
+app.post('/revenue/collect', requireAuth, async (c) => {
+  try {
+    const { opportunityId } = await c.req.json();
+    if (!opportunityId) return c.json({ ok: false, error: 'opportunityId is required' }, 400);
+    const updated = RevenueHunterEngine.markPayoutCollected(opportunityId);
+    return c.json({ ok: true, opportunity: updated, message: `Payout marked collected into Master Sri account.` });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET & POST /api/revenue/payout-settings — Bank Account & UPI configuration
+app.get('/revenue/payout-settings', requireAuth, (c) => {
+  try {
+    const settings = RevenueHunterEngine.getSettings();
+    return c.json({ ok: true, settings });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+app.post('/revenue/payout-settings', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json();
+    const updated = RevenueHunterEngine.updateSettings(body);
+    return c.json({ ok: true, settings: updated });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// DAILY EXECUTIVE INTELLIGENCE BRIEFING & MESSAGE APPROVALS
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/briefing/daily — Today's Hot Tech News, Markets, Weather, Job Pipeline & WhatsApp
+app.get('/briefing/daily', requireAuth, async (c) => {
+  try {
+    const report = await DailyBriefingEngine.generateReport();
+    return c.json({ ok: true, report });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// DYNAMIC SKILL CREATION ENGINE
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/skills/custom — List all dynamically synthesized skills
+app.get('/skills/custom', requireAuth, (c) => {
+  try {
+    const skills = SkillCreationEngine.getSkills();
+    return c.json({ ok: true, skills });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/skills/create — Autonomous skill synthesis & optimization
+app.post('/skills/create', requireAuth, async (c) => {
+  try {
+    const { name, description, assignedAgent, triggerKeywords } = await c.req.json();
+    if (!name || !description) return c.json({ ok: false, error: 'name and description required' }, 400);
+    const skill = SkillCreationEngine.createSkill(name, description, assignedAgent, triggerKeywords);
+    return c.json({ ok: true, skill, message: `Skill "${name}" synthesized and registered.` });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
   }
 });
 
