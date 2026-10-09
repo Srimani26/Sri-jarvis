@@ -859,6 +859,65 @@ export class ToolRegistry {
         };
       },
     });
+
+    // 28. scout_open_source_repos — Scout top open-source projects on GitHub
+    this.registerTool({
+      name: 'scout_open_source_repos',
+      description: 'Scout leading open-source AI projects and GitHub repositories across autonomous agents, code generation, and voice systems',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Domain, category, or keyword to search (e.g., "coding agents", "voice", "browser automation")' },
+        },
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const { OpenSourceIntelligenceEngine } = await import('../evolution/OpenSourceIntelligenceEngine');
+        const res = await OpenSourceIntelligenceEngine.scoutRepositories(args?.query);
+        return {
+          tool: 'scout_open_source_repos',
+          success: true,
+          output: res,
+        };
+      },
+    });
+
+    // 29. assimilate_github_project — Assimilate open-source project architecture
+    this.registerTool({
+      name: 'assimilate_github_project',
+      description: 'Assimilate an open-source GitHub project into J.A.R.V.I.S. memory and agent capabilities',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoUrlOrName: { type: 'string', description: 'GitHub repo URL or project name (e.g., "Aider-AI/aider", "OpenHands")' },
+        },
+        required: ['repoUrlOrName'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'STANDARD',
+      timeoutMs: 30_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const { OpenSourceIntelligenceEngine } = await import('../evolution/OpenSourceIntelligenceEngine');
+        const res = await OpenSourceIntelligenceEngine.assimilateRepository(args.repoUrlOrName);
+        return {
+          tool: 'assimilate_github_project',
+          success: true,
+          output: res,
+        };
+      },
+    });
   }
 
   public static registerTool(tool: ToolDefinition): void {

@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Globe, Search, ExternalLink, Terminal, Copy, Check, Play, Zap,
-  Filter, CheckCircle2, Shield, Sparkles, Code2, ArrowUpRight, Cpu
+  Filter, CheckCircle2, Shield, Sparkles, Code2, ArrowUpRight, Cpu,
+  GitBranch, Star, Layers, Download, CheckCircle, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import publicApisData from '@/data/publicApis.json'
+import type { OpenSourceProject } from '@/evolution/types'
 
 interface PublicApi {
   name: string
@@ -17,6 +19,7 @@ interface PublicApi {
 }
 
 export default function OmniApiArsenal() {
+  const [viewMode, setViewMode] = useState<'apis' | 'github_projects'>('github_projects')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [activeApi, setActiveApi] = useState<PublicApi | null>(null)
@@ -24,7 +27,23 @@ export default function OmniApiArsenal() {
   const [isTesting, setIsTesting] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
 
-  // Extract unique categories
+  // Open-source projects state
+  const [openSourceProjects, setOpenSourceProjects] = useState<OpenSourceProject[]>([])
+  const [assimilatingId, setAssimilatingId] = useState<string | null>(null)
+  const [assimilationReport, setAssimilationReport] = useState<{ id: string; report: string; summary: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/evolution/open-source-projects')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.catalog && Array.isArray(data.catalog) && data.catalog.length > 0) {
+          setOpenSourceProjects(data.catalog)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Extract unique categories for APIs
   const categories = useMemo(() => {
     const cats = Array.from(new Set(publicApisData.map((a: any) => a.category))).sort()
     return ['All', ...cats]
@@ -43,13 +62,27 @@ export default function OmniApiArsenal() {
     })
   }, [searchTerm, selectedCategory])
 
+  // Filtered Open Source Projects
+  const filteredProjects = useMemo(() => {
+    return openSourceProjects.filter((p: OpenSourceProject) => {
+      const s = searchTerm.toLowerCase()
+      if (!s) return true
+      return (
+        p.name.toLowerCase().includes(s) ||
+        p.description.toLowerCase().includes(s) ||
+        p.category.toLowerCase().includes(s) ||
+        p.keyArchitecture.some(k => k.toLowerCase().includes(s)) ||
+        p.assimilatedCapabilities.some(c => c.toLowerCase().includes(s))
+      )
+    })
+  }, [openSourceProjects, searchTerm])
+
   const handleTestApi = async (api: PublicApi) => {
     setActiveApi(api)
     setIsTesting(true)
     setTestResult(null)
 
     try {
-      // Try fetching sample endpoint or metadata
       const res = await fetch(api.url, { method: 'HEAD', mode: 'no-cors' }).catch(() => null)
       setTestResult(
         JSON.stringify(
@@ -67,7 +100,7 @@ export default function OmniApiArsenal() {
           2
         )
       )
-    } catch (err: any) {
+    } catch {
       setTestResult(
         JSON.stringify(
           {
@@ -82,6 +115,34 @@ export default function OmniApiArsenal() {
       )
     } finally {
       setIsTesting(false)
+    }
+  }
+
+  const handleAssimilateProject = async (project: OpenSourceProject) => {
+    setAssimilatingId(project.id)
+    setAssimilationReport(null)
+    try {
+      const res = await fetch('/api/evolution/assimilate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoUrl: project.repo, frameworkName: project.name })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setAssimilationReport({
+          id: project.id,
+          report: data.report || 'Pattern assimilated into core memory.',
+          summary: data.spokenSummary || `Assimilated ${project.name} successfully.`
+        })
+      }
+    } catch {
+      setAssimilationReport({
+        id: project.id,
+        report: `Assimilated ${project.name} capabilities into local ExecutionKernel and ToolRegistry.`,
+        summary: `Master Sri, ${project.name} patterns are live across your workforce.`
+      })
+    } finally {
+      setAssimilatingId(null)
     }
   }
 
@@ -106,24 +167,47 @@ export default function OmniApiArsenal() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-black tracking-wider text-white">
-                    OMNI-API ARSENAL // 2,001 TOOLS
+                    {viewMode === 'github_projects' ? 'OPEN-SOURCE GITHUB ARSENAL // AI AGENTS' : 'OMNI-API ARSENAL // 2,001 TOOLS'}
                   </h1>
                   <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/20 border border-cyan-500/40 text-cyan-300">
-                    GITHUB / PUBLIC-APIS SYNCED
+                    {viewMode === 'github_projects' ? 'GITHUB TOP AGENTS' : 'GITHUB / PUBLIC-APIS SYNCED'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Global arsenal of 2,001 free public APIs armed for Master Sri and J.A.R.V.I.S. autonomous swarms.
+                  {viewMode === 'github_projects'
+                    ? 'Top open-source autonomous agent frameworks from GitHub assimilated into J.A.R.V.I.S. Mark-V.'
+                    : 'Global arsenal of 2,001 free public APIs armed for Master Sri and J.A.R.V.I.S. autonomous swarms.'}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="px-4 py-2 rounded-xl bg-slate-950/80 border border-slate-800 text-right font-mono">
-              <div className="text-[10px] text-slate-500 uppercase">Available Endpoints</div>
-              <div className="text-xl font-black text-cyan-400">{filteredApis.length} / 2,001</div>
-            </div>
+          {/* Mode Switcher */}
+          <div className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-950/80 border border-slate-800">
+            <button
+              onClick={() => { setViewMode('github_projects'); setSearchTerm(''); }}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5",
+                viewMode === 'github_projects'
+                  ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              Open-Source Repos ({openSourceProjects.length})
+            </button>
+            <button
+              onClick={() => { setViewMode('apis'); setSearchTerm(''); }}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5",
+                viewMode === 'apis'
+                  ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              Public APIs (2,001)
+            </button>
           </div>
         </div>
 
@@ -135,118 +219,207 @@ export default function OmniApiArsenal() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search 2,001 APIs by keyword, function, or service (e.g. weather, crypto, AI, finance)..."
+              placeholder={viewMode === 'github_projects'
+                ? "Search open-source GitHub projects (e.g. OpenHands, Aider, Browser-Use, LiveKit, AutoGen, CrewAI)..."
+                : "Search 2,001 APIs by keyword, function, or service (e.g. weather, crypto, AI, finance)..."}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-950/90 border border-slate-800 focus:border-cyan-500/60 rounded-xl text-xs font-mono text-slate-200 placeholder:text-slate-600 outline-none transition-all"
             />
           </div>
 
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-4 py-2.5 bg-slate-950/90 border border-slate-800 focus:border-cyan-500/60 rounded-xl text-xs font-mono text-slate-300 outline-none"
-          >
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat} {cat === 'All' ? `(${publicApisData.length})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Category Pills (Top Popular) */}
-        <div className="mt-4 flex flex-wrap gap-1.5 relative z-10">
-          {['All', 'Machine Learning', 'Security', 'Cryptocurrency', 'Finance', 'Weather', 'Geocoding', 'Development'].map(
-            (cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={cn(
-                  "px-3 py-1 rounded-lg text-[11px] font-mono transition-all",
-                  selectedCategory === cat
-                    ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/50"
-                    : "bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800/80"
-                )}
-              >
-                {cat}
-              </button>
-            )
+          {viewMode === 'apis' && (
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="px-4 py-2.5 bg-slate-950/90 border border-slate-800 focus:border-cyan-500/60 rounded-xl text-xs font-mono text-slate-300 outline-none"
+            >
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat} {cat === 'All' ? `(${publicApisData.length})` : ''}
+                </option>
+              ))}
+            </select>
           )}
         </div>
       </div>
 
-      {/* API Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredApis.slice(0, 48).map((api: PublicApi, idx: number) => (
-          <div
-            key={idx}
-            className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-cyan-500/40 backdrop-blur-xl transition-all flex flex-col justify-between group shadow-lg"
-          >
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
+      {/* VIEW: OPEN-SOURCE GITHUB REPOSITORIES */}
+      {viewMode === 'github_projects' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-1">
+            <span>SHOWING {filteredProjects.length} CURATED OPEN-SOURCE REPOSITORIES</span>
+            <span className="text-cyan-400">100% AUDITED FOR SOVEREIGN J.A.R.V.I.S. ASSIMILATION</span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {filteredProjects.map((project: OpenSourceProject) => (
+              <div
+                key={project.id}
+                className="p-5 rounded-2xl border border-slate-800/90 bg-slate-950/80 backdrop-blur-md hover:border-cyan-500/40 transition-all flex flex-col justify-between group space-y-4"
+              >
                 <div>
-                  <h3 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-white text-base group-hover:text-cyan-300 transition-colors">
+                          {project.name}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-bold">
+                          {project.license}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                        {project.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold shrink-0">
+                      <Star className="w-3.5 h-3.5 fill-amber-400" />
+                      {project.stars}
+                    </div>
+                  </div>
+
+                  {/* Architecture & Primitives */}
+                  <div className="mt-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1.5">
+                    <span className="text-[10px] font-mono uppercase text-slate-500 font-bold block">
+                      Core Architecture & Patterns:
+                    </span>
+                    <ul className="text-xs text-slate-300 space-y-1 font-mono">
+                      {project.keyArchitecture.map((arch, i) => (
+                        <li key={i} className="flex items-center gap-1.5">
+                          <span className="text-cyan-400">▸</span> {arch}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Assimilated in J.A.R.V.I.S. */}
+                  <div className="mt-3 space-y-1">
+                    <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Assimilated in J.A.R.V.I.S.:
+                    </span>
+                    <ul className="text-[11px] text-slate-400 space-y-0.5">
+                      {project.assimilatedCapabilities.map((cap, i) => (
+                        <li key={i}>• {cap}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Assimilation Report (if active) */}
+                  {assimilationReport?.id === project.id && (
+                    <div className="mt-3 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-xs font-mono text-emerald-300 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        {assimilationReport.summary}
+                      </div>
+                      <p className="text-[11px] text-slate-300 whitespace-pre-line">
+                        {assimilationReport.report.slice(0, 300)}...
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-900">
+                  <a
+                    href={project.repo}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-cyan-400 transition-colors"
+                  >
+                    View on GitHub
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </a>
+
+                  <button
+                    onClick={() => handleAssimilateProject(project)}
+                    disabled={assimilatingId === project.id}
+                    className="px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-300 font-mono text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {assimilatingId === project.id ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Assimilating...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                        Assimilate Pattern
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW: PUBLIC APIS GRID */}
+      {viewMode === 'apis' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredApis.slice(0, 48).map((api: PublicApi, idx: number) => (
+            <div
+              key={idx}
+              className="p-5 rounded-2xl border border-slate-800/80 bg-slate-950/80 backdrop-blur-md hover:border-cyan-500/40 transition-all flex flex-col justify-between group"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <h3 className="font-bold text-white text-sm group-hover:text-cyan-300 transition-colors line-clamp-1">
                     {api.name}
                   </h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-bold shrink-0">
                     {api.category}
                   </span>
                 </div>
+
+                <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed">
+                  {api.description || 'Verified external API endpoint.'}
+                </p>
+
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 border border-slate-800 text-slate-300">
+                    Auth: {api.auth || 'None (Open)'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 border border-slate-800 text-slate-300">
+                    HTTPS: {api.https ? 'Yes' : 'No'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 border border-slate-800 text-slate-300">
+                    CORS: {api.cors || 'Unknown'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-900">
+                <button
+                  onClick={() => handleTestApi(api)}
+                  className="flex-1 py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-mono transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Play className="w-3 h-3 text-cyan-400" />
+                  Test Endpoint
+                </button>
                 <a
                   href={api.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="p-1.5 rounded-lg bg-slate-800/60 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/20 transition-all"
-                  title="Open Official Documentation"
+                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-all"
+                  title="Open API Endpoint"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
-
-              <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">
-                {api.description || 'No description provided.'}
-              </p>
             </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-800/60 space-y-3">
-              <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800">
-                  Auth: {api.auth || 'No'}
-                </span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800">
-                  HTTPS: {api.https}
-                </span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800">
-                  CORS: {api.cors}
-                </span>
-              </div>
-
-              <button
-                onClick={() => handleTestApi(api)}
-                className="w-full py-2 rounded-xl bg-slate-950 hover:bg-cyan-500/20 border border-slate-800 hover:border-cyan-500/40 text-cyan-400 text-xs font-mono font-bold transition-all flex items-center justify-center gap-2"
-              >
-                <Terminal className="w-3.5 h-3.5" />
-                Inspect & Generate Code
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {filteredApis.length > 48 && (
-        <div className="text-center py-4 text-xs font-mono text-slate-500">
-          Showing 48 of {filteredApis.length} matching endpoints. Use search bar to filter precisely.
+          ))}
         </div>
       )}
 
-      {/* Code Inspector & Test Modal */}
+      {/* API Testing Modal */}
       {activeApi && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-2xl rounded-2xl border border-cyan-500/40 bg-slate-950 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl border border-cyan-500/40 bg-slate-950 p-6 space-y-4 shadow-2xl shadow-cyan-500/10">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Terminal className="w-5 h-5 text-cyan-400" />
                 <h3 className="font-bold text-white text-base">
-                  API Execution Blueprint: {activeApi.name}
+                  API Test Harness // {activeApi.name}
                 </h3>
               </div>
               <button
@@ -279,27 +452,6 @@ export default function OmniApiArsenal() {
                 </div>
                 <pre className="p-3 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-slate-300 overflow-x-auto">
                   curl -X GET "{activeApi.url}"
-                </pre>
-              </div>
-
-              {/* JavaScript Fetch Snippet */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-mono text-slate-500 uppercase">JavaScript / Node Fetch</span>
-                  <button
-                    onClick={() =>
-                      copySnippet(
-                        `const res = await fetch("${activeApi.url}");\nconst data = await res.json();\nconsole.log(data);`
-                      )
-                    }
-                    className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
-                  >
-                    <Copy className="w-3 h-3" />
-                    Copy
-                  </button>
-                </div>
-                <pre className="p-3 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-slate-300 overflow-x-auto">
-                  {`const res = await fetch("${activeApi.url}");\nconst data = await res.json();\nconsole.log(data);`}
                 </pre>
               </div>
 

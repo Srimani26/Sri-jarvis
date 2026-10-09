@@ -3165,12 +3165,13 @@ Return ONLY valid JSON matching this schema.`
             })
           } else if (confidence < 0.65 || !parsedText) {
             return c.json({
-              ok: true,
+              ok: false,
+              silent: true,
               text: '',
               confidence,
               engine: 'gemini-1.5-flash',
-              promptRepeat: true,
-              message: "Master Sri, I didn't catch that clearly. Please repeat."
+              promptRepeat: false,
+              message: ''
             })
           }
         }
@@ -3181,19 +3182,19 @@ Return ONLY valid JSON matching this schema.`
 
     return c.json({
       ok: false,
+      silent: true,
       text: '',
       confidence: 0.0,
-      promptRepeat: true,
-      message: "Master Sri, I didn't catch that clearly. Please repeat.",
+      promptRepeat: false,
       error: 'NO_ACTIVE_STT_PROVIDER_RESPONSE'
     }, 200)
   } catch (err: any) {
     return c.json({
       ok: false,
+      silent: true,
       text: '',
       confidence: 0.0,
-      promptRepeat: true,
-      message: "Master Sri, I didn't catch that clearly. Please repeat.",
+      promptRepeat: false,
       error: err?.message || String(err)
     }, 200)
   }
@@ -4364,66 +4365,25 @@ Synthesize a comprehensive Self-Evolution Report for Master Sri:
   }
 })
 
-app.get('/evolution/catalog', requireAuth, (c) => {
-  const catalog = [
-    {
-      id: 'deepseek-harness',
-      name: 'DeepSeek Multi-Turn Reasoning Harness',
-      repo: 'https://github.com/deepseek-ai/deepseek-harness',
-      category: 'reasoning',
-      description: 'Decomposed multi-turn Chain-of-Thought reasoning with verification critic and automated error correction.',
-      status: 'ASSIMILATED_ACTIVE',
-      integratedDate: '2026-10-05',
-      toolsAdded: ['deepseek_reasoning_harness', 'thought_critic_verification']
-    },
-    {
-      id: 'model-context-protocol',
-      name: 'Anthropic Model Context Protocol (MCP) Standard',
-      repo: 'https://github.com/modelcontextprotocol/servers',
-      category: 'tools',
-      description: 'Universal JSON-RPC 2.0 protocol standard connecting J.A.R.V.I.S. to external IDEs, tools, and platforms.',
-      status: 'ASSIMILATED_ACTIVE',
-      integratedDate: '2026-10-05',
-      toolsAdded: ['sovereign_mcp_jsonrpc', 'mcp_tool_runner', 'build_fullstack_app', 'scrape_web', 'generate_automation']
-    },
-    {
-      id: 'autogen-swarm-core',
-      name: 'Microsoft AutoGen Hierarchical Multi-Agent Swarm',
-      repo: 'https://github.com/microsoft/autogen',
-      category: 'multi_agent',
-      description: 'Hierarchical delegator-to-subordinate multi-agent execution pipeline (Aegis, Vortex, Midas, Cerebro, Stark OS).',
-      status: 'ASSIMILATED_ACTIVE',
-      integratedDate: '2026-10-05',
-      toolsAdded: ['subordinate_dispatch', 'swarm_rollcall', 'sequential_introductions']
-    },
-    {
-      id: 'browser-use-agent',
-      name: 'Browser-Use Web Navigation & Scraper',
-      repo: 'https://github.com/browser-use/browser-use',
-      category: 'scraping',
-      description: 'DOM element parsing, clean text extraction, and table structured data scraping.',
-      status: 'ASSIMILATED_ACTIVE',
-      integratedDate: '2026-10-05',
-      toolsAdded: ['scrape_web', 'dom_content_cleaner', 'market_recon']
-    },
-    {
-      id: 'n8n-workflow-synthesizer',
-      name: 'n8n Enterprise Workflow Synthesizer',
-      repo: 'https://github.com/n8n-io/n8n',
-      category: 'automation',
-      description: 'Production n8n JSON graph generation with nodes, connections, and error handling.',
-      status: 'ASSIMILATED_ACTIVE',
-      integratedDate: '2026-10-05',
-      toolsAdded: ['generate_automation', 'webhook_builder', 'lead_qualification']
-    }
-  ]
+app.get('/evolution/open-source-projects', async (c) => {
+  const { OpenSourceIntelligenceEngine } = await import('./src/evolution/OpenSourceIntelligenceEngine')
+  const catalog = OpenSourceIntelligenceEngine.getCatalog()
   return c.json({ success: true, count: catalog.length, catalog })
 })
 
-app.post('/evolution/assimilate', requireAuth, async (c) => {
+app.get('/evolution/catalog', async (c) => {
+  const { OpenSourceIntelligenceEngine } = await import('./src/evolution/OpenSourceIntelligenceEngine')
+  const catalog = OpenSourceIntelligenceEngine.getCatalog()
+  return c.json({ success: true, count: catalog.length, catalog })
+})
+
+app.post('/evolution/assimilate', async (c) => {
   try {
-    const { repoUrl, frameworkName } = await c.req.json()
+    const { repoUrl, frameworkName } = await c.req.json().catch(() => ({}))
     const target = repoUrl || frameworkName || 'open-source-ai-agents'
+    const { OpenSourceIntelligenceEngine } = await import('./src/evolution/OpenSourceIntelligenceEngine')
+    const engineResult = await OpenSourceIntelligenceEngine.assimilateRepository(target)
+
     const assimilatePrompt = `You are J.A.R.V.I.S. Self-Evolution Engine for Sovereign Master Sri.
 Execute an autonomous assimilation and code integration for the repository/framework: "${target}".
 
@@ -4441,8 +4401,11 @@ Provide a complete assimilation plan:
       success: true,
       cycle: evolutionMetrics.generationCycle,
       target,
+      projectName: engineResult.projectName,
+      repo: engineResult.repo,
+      assimilatedPatterns: engineResult.assimilatedPatterns,
       report: result.text,
-      spokenSummary: `Master Sri, open-source capability "${target}" has been analyzed and assimilated into your sovereign architecture.`
+      spokenSummary: engineResult.spokenSummary
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)

@@ -23,3 +23,17 @@ export interface EvolutionBenchmarkResult {
   optimizedMs: number;
   regressionDetected: boolean;
 }
+
+export interface OpenSourceProject {
+  id: string;
+  name: string;
+  repo: string;
+  stars: string;
+  license: string;
+  category: 'autonomous_agents' | 'code_generation' | 'multi_agent' | 'voice_multimodal' | 'tools_mcp' | 'local_ai';
+  description: string;
+  keyArchitecture: string[];
+  assimilatedCapabilities: string[];
+  sourceFilesOrPatterns: string[];
+  status: 'ASSIMILATED_ACTIVE' | 'INTEGRATED_ADAPTER' | 'MONITORED';
+}
