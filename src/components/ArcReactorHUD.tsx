@@ -20,16 +20,11 @@ export default function ArcReactorHUD({
   onToggleMute,
   onVoiceTrigger,
 }: ArcReactorHUDProps) {
-  const [pulse, setPulse] = useState(0)
   const [telemetry, setTelemetry] = useState<any>({ batteryLevel: 100, charging: false, isMobile: false })
   const [evolutionStats, setEvolutionStats] = useState(SelfEvolutionEngine.getEvolutionStats())
 
   useEffect(() => {
     getDeviceTelemetry().then(setTelemetry).catch(() => {})
-    const interval = setInterval(() => {
-      setPulse((p) => (p + 1) % 100)
-    }, 100)
-    return () => clearInterval(interval)
   }, [])
 
 
@@ -111,10 +106,13 @@ export default function ArcReactorHUD({
               <span
                 key={i}
                 style={{
-                  height: status === 'speaking' || status === 'thinking' ? `${Math.max(15, (h * (pulse % 3 + 1)) % 100)}%` : '25%',
+                  height: status === 'speaking' || status === 'thinking' ? `${h}%` : '25%',
+                  animationDelay: `${i * 120}ms`,
+                  animationDuration: status === 'speaking' ? '0.7s' : '1.4s'
                 }}
                 className={cn(
-                  'w-0.5 rounded-full transition-all duration-150',
+                  'w-0.5 rounded-full transition-all duration-300',
+                  (status === 'speaking' || status === 'thinking') && 'animate-pulse',
                   status === 'speaking'
                     ? 'bg-amber-400'
                     : status === 'thinking'

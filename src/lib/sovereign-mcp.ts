@@ -5,6 +5,7 @@
  */
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { WorkspaceManager } from '../workspace/WorkspaceManager'
 
 const execFileAsync = promisify(execFile)
 
@@ -128,15 +129,32 @@ Requirements:
 Return the complete code within an HTML code fence block, followed by an executive deployment breakdown for Master Sri.`
 
       const aiRes = await aiCaller(prompt, [{ role: 'user', content: `Build full-stack app for: ${topic}` }])
+      const projectName = `app_${Date.now().toString().slice(-6)}_${topic.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 24)}`
+      WorkspaceManager.initProject(projectName)
+
+      // Extract raw HTML from markdown code fence
+      let htmlContent = aiRes.text
+      const htmlMatch = aiRes.text.match(/```(?:html|markup)?(?::index\.html)?\s*([\s\S]*?)```/i)
+      if (htmlMatch && (htmlMatch[1].includes('<html') || htmlMatch[1].includes('<!DOCTYPE') || htmlMatch[1].includes('<body'))) {
+        htmlContent = htmlMatch[1].trim()
+      }
+
+      WorkspaceManager.writeFile(projectName, 'index.html', htmlContent)
+      WorkspaceManager.writeFile(projectName, 'README.md', `# ${topic}\nArchitected by Aegis & J.A.R.V.I.S. for Master Sri.\nPreview URL: /api/workspaces/preview/${projectName}`)
+
       return {
         tool: 'build_fullstack_app',
         success: true,
+        projectName,
+        previewUrl: `/api/workspaces/preview/${projectName}`,
         data: aiRes.text,
-        spokenSummary: `Master Sri, I have architected and generated the full-stack web application for "${topic}". All components, interactive calculators, and design tokens are compiled and ready.`,
+        spokenSummary: `Master Sri, I have architected and generated the full-stack web application for "${topic}". All components, interactive calculators, and design tokens are compiled and live in your Workspace Studio.`,
         artifacts: [{
-          name: `${topic.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.html`,
+          name: 'index.html',
           type: 'text/html',
-          content: aiRes.text
+          path: `workspaces/${projectName}/index.html`,
+          previewUrl: `/api/workspaces/preview/${projectName}`,
+          content: htmlContent
         }]
       }
     }

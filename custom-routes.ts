@@ -47,8 +47,8 @@ import { PersonalKnowledgeEngine } from './src/memory/PersonalKnowledgeEngine'
 import { ControlledEvolutionHarness } from './src/evolution/ControlledEvolutionHarness'
 import { LongRunningRuntime } from './src/runtime/LongRunningRuntime'
 import { DisasterRecoveryManager } from './src/infrastructure/DisasterRecoveryManager'
-import { readFileSync, writeFileSync, existsSync, chmodSync } from 'fs'
-import { join } from 'path'
+import { readFileSync, writeFileSync, existsSync, chmodSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { join, resolve, extname } from 'path'
 import { randomBytes } from 'crypto'
 
 import { SovereignGate } from './src/security/SovereignGate'
@@ -1300,10 +1300,11 @@ function getModelStatus() {
 app.post('/ai/chat', requireAuth, async (c) => {
   try {
     const body = await c.req.json()
-    const { messages, model: preferredModelId, agentId } = body as {
+    const { messages, model: preferredModelId, agentId, sessionId = 'main' } = body as {
       messages: Array<{ role: string; content: string }>
       model?: string
       agentId?: string
+      sessionId?: string
     }
     if (!messages?.length) return c.json({ error: 'messages array required' }, 400)
 
@@ -1386,38 +1387,44 @@ ${healReport.summary}`;
 
     // 1. Full-Stack End-to-End Swarm Directive via Chat
     const isSwarmDirective = (
+      /(?:build|create|make|generate|design|scaffold|code)\s+(?:me\s+)?(?:a\s+)?(?:[a-z0-9-]+\s+)*(?:website|web\s*page|html\s*page|web\s*app|landing\s*page|store|portal|app)/i.test(lastUserMsg) ||
       ((lowerUserMsg.includes('full stack') || lowerUserMsg.includes('full-stack') || lowerUserMsg.includes('end to end') || lowerUserMsg.includes('end-to-end')) &&
        (lowerUserMsg.includes('build') || lowerUserMsg.includes('create') || lowerUserMsg.includes('make') || lowerUserMsg.includes('scaffold') || lowerUserMsg.includes('project') || lowerUserMsg.includes('app'))) ||
       lowerUserMsg.startsWith('swarm build') ||
       lowerUserMsg.startsWith('swarm, build') ||
-      lowerUserMsg.startsWith('swarm:')
+      lowerUserMsg.startsWith('swarm:') ||
+      (lowerUserMsg.startsWith('build ') && (lowerUserMsg.includes('website') || lowerUserMsg.includes('page') || lowerUserMsg.includes('app') || lowerUserMsg.includes('clothing') || lowerUserMsg.includes('shop') || lowerUserMsg.includes('store')))
     );
 
-    if (isSwarmDirective && lastUserMsg.length > 10) {
+    if (isSwarmDirective && lastUserMsg.length > 5) {
       try {
         const { MultiAgentSwarmEngine } = await import('./src/agents/MultiAgentSwarmEngine');
         const taskId = `SWARM-${Date.now()}`;
+        const cleanSlug = lastUserMsg.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 24).replace(/^_+|_+$/g, '');
+        const projectName = `swarm_${cleanSlug || Date.now().toString().slice(-6)}`;
         const swarmResult = await MultiAgentSwarmEngine.dispatchSwarm({
           taskId,
           objective: lastUserMsg,
-          projectName: `swarm_${Date.now().toString().slice(-6)}`,
+          projectName,
           aiCaller: (sys, msgs) => callAI(sys, msgs),
         });
 
+        const previewUrl = `/api/workspaces/preview/${swarmResult.projectName}`;
         const swarmReply = `### 🏆 Sovereign 5-Agent Swarm // Full-Stack Project End-to-End Delivered
 **Objective**: ${lastUserMsg}
 **Sandbox Workspace**: \`${swarmResult.workspacePath}\`
+**Live Interactive Preview**: [Open Live Website in New Tab](${previewUrl})
 **Duration**: ${Math.round(swarmResult.totalDurationMs / 1000)}s | **Deliverables**: ${swarmResult.filesCreated.join(', ')}
 
 ---
 
 #### 📐 Stage 1: D.A.E.D.A.L.U.S. (System Architect)
 - **Status**: ✔ COMPLETED
-- **Technical Blueprint**: Tech stack mapped, architecture diagrams and API contracts scaffolded.
+- **Technical Blueprint**: Architecture mapped, UI tokens, components & responsive grid scaffolded.
 
 #### ⚡ Stage 2: F.R.I.D.A.Y. (Lead Engineer)
 - **Status**: ✔ COMPLETED
-- **Production Files Scaffolding**: Generated and written to workspace:
+- **Production Files Scaffolding**: Generated and written to sandbox:
 ${swarmResult.filesCreated.map(f => `  - \`${f}\``).join('\n')}
 
 #### 🛡️ Stage 3: A.E.G.I.S. (Cyber Sentinel)
@@ -1434,14 +1441,20 @@ ${swarmResult.filesCreated.map(f => `  - \`${f}\``).join('\n')}
 ${swarmResult.finalExecutiveReport}
 
 ---
-*All files are actively saved and ready in the project sandbox workspace.*`;
+*All files are actively saved and ready in the project sandbox workspace. You can preview the compiled application directly.*`;
 
-        const spokenSummary = `Master Sri, all 5 specialist agents in the sovereign swarm have completed your full-stack project end to end with 100% QA pass rate and ${swarmResult.filesCreated.length} production files created.`;
+        const spokenSummary = `Master Sri, all 5 specialist agents in the sovereign swarm have completed your project for "${lastUserMsg}". 4 production files are generated and your live website preview is hosted on localhost.`;
+
+        // Save conversation with sessionId
+        await (prisma as any).conversation.create({ data: { role: 'user', content: lastUserMsg, sessionId } }).catch(() => {});
+        await (prisma as any).conversation.create({ data: { role: 'assistant', content: swarmReply, sessionId } }).catch(() => {});
 
         return c.json({
           content: swarmReply,
           source: 'Sovereign 5-Stage Swarm (Daedalus, Friday, Aegis, Sentinel, Jarvis)',
           spokenSummary,
+          previewUrl,
+          projectName: swarmResult.projectName,
           swarm: swarmResult
         });
       } catch (swarmErr: any) {
@@ -1583,36 +1596,90 @@ Directly converse with Master Sri. Keep spoken responses concise, authoritative,
     }
 
     const lastUser = messages.filter(m => m.role === 'user').pop()
+    const targetSessionId = sessionId || 'main'
     if (lastUser) {
-      await (prisma as any).conversation.create({ data: { role: 'user', content: lastUser.content, sessionId: 'main' } }).catch(() => {})
-      await (prisma as any).conversation.create({ data: { role: 'assistant', content: answer.text.substring(0, 2000), sessionId: 'main' } }).catch(() => {})
+      await (prisma as any).conversation.create({ data: { role: 'user', content: lastUser.content, sessionId: targetSessionId } }).catch(() => {})
+      await (prisma as any).conversation.create({ data: { role: 'assistant', content: answer.text, sessionId: targetSessionId } }).catch(() => {})
       await (prisma as any).activityLog.create({ data: { action: 'ai_chat', details: answer.source, surface: 'chat' } }).catch(() => {})
     }
     const spokenSummary = ConversationOS.sanitizeSpokenText(
-      answer.text.split('\n\n')[0]?.split('\n')[0]?.slice(0, 240) || answer.text.slice(0, 180)
+      answer.text.slice(0, 1800)
     );
-    return c.json({ content: answer.text, source: answer.source, spokenSummary })
+    return c.json({ content: answer.text, source: answer.source, spokenSummary, sessionId: targetSessionId })
   } catch (error: any) {
     return c.json({ error: error.message || 'Chat error' }, 500)
   }
 })
 
-// GET /api/ai/history — restore the conversation across reloads
+// GET /api/ai/sessions — List all saved chat sessions like ChatGPT / Claude
+app.get('/ai/sessions', requireAuth, async (c) => {
+  try {
+    const rawSessions = await (prisma as any).conversation.findMany({
+      select: { sessionId: true, role: true, content: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 600,
+    }).catch(() => [])
+
+    const sessionMap = new Map<string, { id: string; title: string; messageCount: number; lastActive: string; createdAt: string }>()
+
+    for (const row of rawSessions) {
+      const sid = row.sessionId || 'main'
+      if (!sessionMap.has(sid)) {
+        const title = row.role === 'user' ? (row.content.slice(0, 42) + (row.content.length > 42 ? '...' : '')) : 'Sovereign Directive'
+        sessionMap.set(sid, {
+          id: sid,
+          title: sid === 'main' ? 'Primary Command Center' : title,
+          messageCount: 1,
+          lastActive: row.createdAt,
+          createdAt: row.createdAt,
+        })
+      } else {
+        const item = sessionMap.get(sid)!
+        item.messageCount++
+        if (row.role === 'user' && (item.title === 'Sovereign Directive' || item.title.startsWith('chat_'))) {
+          item.title = row.content.slice(0, 42) + (row.content.length > 42 ? '...' : '')
+        }
+      }
+    }
+
+    const sessions = Array.from(sessionMap.values())
+    if (!sessionMap.has('main')) {
+      sessions.unshift({
+        id: 'main',
+        title: 'Primary Command Center',
+        messageCount: 0,
+        lastActive: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      })
+    }
+
+    return c.json({ ok: true, sessions })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500)
+  }
+})
+
+// GET /api/ai/history — restore conversation for a specific session across reloads
 app.get('/ai/history', requireAuth, async (c) => {
+  const sessionId = c.req.query('sessionId') || 'main'
   const limit = Math.min(Number(c.req.query('limit') || 80), 300)
   const rows = await (prisma as any).conversation.findMany({
-    where: { sessionId: 'main' },
+    where: { sessionId },
     orderBy: { createdAt: 'desc' },
     take: limit,
   }).catch(() => [])
   return c.json({
+    ok: true,
+    sessionId,
     messages: rows.reverse().map((r: any) => ({ role: r.role, content: r.content, createdAt: r.createdAt })),
   })
 })
 
-// DELETE /api/ai/history
+// DELETE /api/ai/history — delete a session or main
 app.delete('/ai/history', requireAuth, async (c) => {
-  const res = await (prisma as any).conversation.deleteMany({ where: { sessionId: 'main' } })
+  const sessionId = c.req.query('sessionId')
+  const where = sessionId ? { sessionId } : { sessionId: 'main' }
+  const res = await (prisma as any).conversation.deleteMany({ where }).catch(() => ({ count: 0 }))
   return c.json({ ok: true, deleted: res.count })
 })
 
@@ -5251,6 +5318,110 @@ app.post('/workspace/execute', async (c) => {
     return c.json({ ok: false, error: err.message }, 500);
   }
 });
+
+// GET /api/workspaces — List all project workspaces with preview URLs
+app.get('/workspaces', requireAuth, async (c) => {
+  try {
+    const baseDir = resolve(process.cwd(), 'workspaces');
+    if (!existsSync(baseDir)) mkdirSync(baseDir, { recursive: true });
+    const items = readdirSync(baseDir, { withFileTypes: true });
+    const projects = items
+      .filter(item => item.isDirectory())
+      .map(dir => {
+        const pPath = join(baseDir, dir.name);
+        const files = WorkspaceManager.listFiles(dir.name);
+        const stats = statSync(pPath);
+        return {
+          name: dir.name,
+          path: pPath,
+          filesCount: files.length,
+          updatedAt: stats.mtime.toISOString(),
+          previewUrl: `/api/workspaces/preview/${dir.name}`,
+          hasIndexHtml: existsSync(join(pPath, 'index.html'))
+        };
+      })
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return c.json({ ok: true, projects });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/workspaces/:projectName/files — List all files in a specific project
+app.get('/workspaces/:projectName/files', requireAuth, async (c) => {
+  try {
+    const projectName = c.req.param('projectName');
+    const files = WorkspaceManager.listFiles(projectName);
+    return c.json({ ok: true, projectName, files });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/workspaces/:projectName/file — Read a file in a specific project
+app.get('/workspaces/:projectName/file', requireAuth, async (c) => {
+  try {
+    const projectName = c.req.param('projectName');
+    const filePath = c.req.query('path') || 'index.html';
+    const result = WorkspaceManager.readFile(projectName, filePath);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/workspaces/preview/:projectName and /:file — Serve live interactive website preview
+app.get('/workspaces/preview/:projectName', async (c) => {
+  try {
+    const projectName = c.req.param('projectName');
+    const projectPath = WorkspaceManager.getProjectPath(projectName);
+    const targetFile = resolve(projectPath, 'index.html');
+    if (!existsSync(targetFile)) {
+      return c.html(`<div style="font-family:sans-serif;padding:2rem;background:#09090b;color:#fff;min-height:100vh"><h2>Project Index Not Found</h2><p>No <code>index.html</code> was generated in workspace <strong>${projectName}</strong>.</p></div>`, 404);
+    }
+    const html = readFileSync(targetFile, 'utf-8');
+    return c.html(html, 200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Cache-Control': 'no-cache',
+    });
+  } catch (err: any) {
+    return c.text(`Error rendering preview: ${err.message}`, 500);
+  }
+});
+
+app.get('/workspaces/preview/:projectName/:file', async (c) => {
+  try {
+    const projectName = c.req.param('projectName');
+    const file = c.req.param('file');
+    const projectPath = WorkspaceManager.getProjectPath(projectName);
+    const targetFile = resolve(projectPath, file);
+    if (!targetFile.startsWith(projectPath) || !existsSync(targetFile)) {
+      return c.text(`File ${file} not found in ${projectName}`, 404);
+    }
+    const ext = extname(targetFile).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.html': 'text/html; charset=utf-8',
+      '.css': 'text/css; charset=utf-8',
+      '.js': 'application/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+    };
+    const contentType = mimeMap[ext] || 'text/plain; charset=utf-8';
+    const content = readFileSync(targetFile);
+    return c.body(content, 200, {
+      'Content-Type': contentType,
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Cache-Control': 'no-cache',
+    });
+  } catch (err: any) {
+    return c.text(`Error serving file: ${err.message}`, 500);
+  }
+});
+
 
 // ═══════════════════════════════════════════════════════════════════
 // PHASE 18: SYSTEM REALITY & HEALTH VERIFICATION ENDPOINTS

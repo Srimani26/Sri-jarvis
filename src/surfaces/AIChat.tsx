@@ -3,7 +3,7 @@ import {
   Send, Search, Mic, Bot, User, Sparkles, ArrowUpRight, RotateCcw,
   Loader2, AlertTriangle, Cpu, RefreshCw, Volume2, VolumeX, Shield,
   Code2, Workflow, DollarSign, Brain, Laptop, Layers, Zap, ExternalLink, Play,
-  Plane, ShoppingCart, Radio, PhoneCall, Check, Compass
+  Plane, ShoppingCart, Radio, PhoneCall, Check, Compass, MessageSquare, Plus, History, X
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
@@ -169,6 +169,11 @@ export default function AIChat() {
   const [selectedAgent, setSelectedAgent] = useState<string>('all')
   const [activeTasks, setActiveTasks] = useState<any[]>([])
   const [moaMode, setMoaMode] = useState(true)
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    try { return localStorage.getItem('jarvis_active_session') || `session_${Date.now().toString().slice(-6)}` } catch { return `session_${Date.now().toString().slice(-6)}` }
+  })
+  const [sessions, setSessions] = useState<Array<{ id: string; title: string; messageCount: number; updatedAt: string }>>([])
+  const [isSessionDrawerOpen, setIsSessionDrawerOpen] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -228,12 +233,58 @@ export default function AIChat() {
     })
   }
 
-  // Restore history
+  // Fetch all saved sessions (ChatGPT / Claude style history)
+  const fetchSessions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai/sessions', { headers: authHeaders() })
+      if (res.ok) {
+        const body = await res.json()
+        setSessions(body.sessions || [])
+      }
+    } catch {}
+  }, [])
+
+  // Switch to a chosen session
+  const switchSession = useCallback(async (targetSessionId: string) => {
+    setCurrentSessionId(targetSessionId)
+    try { localStorage.setItem('jarvis_active_session', targetSessionId) } catch {}
+    setIsSessionDrawerOpen(false)
+    try {
+      const res = await fetch(`/api/ai/history?sessionId=${encodeURIComponent(targetSessionId)}&limit=50`, { headers: authHeaders() })
+      if (res.ok) {
+        const body = await res.json()
+        const restored: Message[] = (body?.messages || [])
+          .filter((msg: any) => msg?.role === 'user' || msg?.role === 'assistant')
+          .map((msg: any) => ({
+            id: generateId(),
+            role: msg.role as 'user' | 'assistant',
+            content: String(msg.content || ''),
+            timestamp: new Date(msg.createdAt || Date.now()),
+          }))
+        setMessages(restored.length ? restored : [GREETING])
+      }
+    } catch {
+      setMessages([GREETING])
+    }
+  }, [GREETING])
+
+  // Create a brand new clean chat session
+  const createNewChat = useCallback(() => {
+    const newSessionId = `session_${Date.now().toString().slice(-6)}`
+    setCurrentSessionId(newSessionId)
+    try { localStorage.setItem('jarvis_active_session', newSessionId) } catch {}
+    setMessages([GREETING])
+    setIsSessionDrawerOpen(false)
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
+  }, [GREETING])
+
+  // Restore history for active session & list sessions on mount
   useEffect(() => {
     let cancelled = false
+    fetchSessions()
     ;(async () => {
       try {
-        const res = await fetch('/api/ai/history?limit=40', { headers: authHeaders() })
+        const res = await fetch(`/api/ai/history?sessionId=${encodeURIComponent(currentSessionId)}&limit=40`, { headers: authHeaders() })
         const body = await res.json().catch(() => ({}))
         const restored: Message[] = (body?.messages || [])
           .filter((msg: any) => msg?.role === 'user' || msg?.role === 'assistant')
@@ -250,7 +301,7 @@ export default function AIChat() {
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [currentSessionId, fetchSessions])
 
   // Live models
   useEffect(() => {
@@ -265,7 +316,7 @@ export default function AIChat() {
     : (models.find((mm) => mm.id === selectedModel)?.name || selectedModel)
 
   const resetChat = useCallback(async () => {
-    fetch('/api/ai/history', { method: 'DELETE', headers: authHeaders() }).catch(() => {})
+    fetch(`/api/ai/history?sessionId=${encodeURIComponent(currentSessionId)}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {})
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
     setMessages([{
       id: generateId(),
@@ -274,13 +325,14 @@ export default function AIChat() {
       timestamp: new Date(),
       source: 'J.A.R.V.I.S. Core',
     }])
-  }, [])
+    fetchSessions()
+  }, [currentSessionId, fetchSessions])
 
-  
-  // Real-time task execution polling
+  // Real-time task execution polling (Throttled & paused when tab/phone screen is hidden to prevent heating)
   useEffect(() => {
     let mounted = true
     const pollActiveTasks = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return
       try {
         const res = await fetch('/api/tasks/active', { headers: authHeaders() })
         if (!res.ok) return
@@ -289,7 +341,7 @@ export default function AIChat() {
       } catch {}
     }
     pollActiveTasks()
-    const interval = setInterval(pollActiveTasks, 2500)
+    const interval = setInterval(pollActiveTasks, 5000)
     return () => { mounted = false; clearInterval(interval) }
   }, [])
 
@@ -466,6 +518,7 @@ export default function AIChat() {
             })),
           model: selectedModel === 'auto' ? undefined : selectedModel,
           agentId: selectedAgent !== 'all' ? selectedAgent : undefined,
+          sessionId: currentSessionId,
         }),
       })
 
@@ -477,6 +530,7 @@ export default function AIChat() {
 
       if (data.content) {
         updateAssistant(data.content, data.source)
+        fetchSessions()
         return
       }
 
@@ -493,8 +547,9 @@ export default function AIChat() {
       )
     } finally {
       setIsTyping(false)
+      fetchSessions()
     }
-  }, [messages, isTyping, selectedModel, moaMode, speakJarvisResponse])
+  }, [messages, isTyping, selectedModel, moaMode, speakJarvisResponse, currentSessionId, fetchSessions])
 
   useEffect(() => {
     sendMessageRef.current = sendMessage
@@ -646,7 +701,33 @@ export default function AIChat() {
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={createNewChat}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+            title="Start fresh ChatGPT / Claude style chat session"
+          >
+            <Plus className="w-3 h-3" />
+            <span className="hidden sm:inline">NEW CHAT</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setIsSessionDrawerOpen(!isSessionDrawerOpen)
+              fetchSessions()
+            }}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-mono border transition-all',
+              isSessionDrawerOpen
+                ? 'bg-cyan-500/30 text-cyan-200 border-cyan-400'
+                : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-white'
+            )}
+            title="View previous conversation history"
+          >
+            <History className="w-3 h-3 text-cyan-400" />
+            <span>CHATS ({sessions.length})</span>
+          </button>
+
           <button
             onClick={() => setMoaMode(!moaMode)}
             className={cn(
@@ -658,18 +739,80 @@ export default function AIChat() {
             title="Mixture of Agents: Parallel multi-model consensus"
           >
             <Sparkles className="w-3 h-3 text-purple-400" />
-            <span>MoA 3-LAYER: {moaMode ? 'ARMED' : 'OFF'}</span>
+            <span className="hidden sm:inline">MoA: {moaMode ? 'ARMED' : 'OFF'}</span>
           </button>
 
           <button
             onClick={resetChat}
             className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-slate-900 border border-transparent hover:border-red-500/20"
-            title="Clear conversation"
+            title="Clear active conversation"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
+
+      {/* ChatGPT / Claude Style Session History Drawer */}
+      {isSessionDrawerOpen && (
+        <div className="p-4 rounded-3xl border border-cyan-500/40 bg-slate-950/95 backdrop-blur-2xl space-y-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                Conversation Archives ({sessions.length})
+              </span>
+            </div>
+            <button
+              onClick={() => setIsSessionDrawerOpen(false)}
+              className="p-1 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
+            <button
+              onClick={createNewChat}
+              className="p-3 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-dashed border-cyan-500/40 text-left transition-all flex items-center justify-between group"
+            >
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-cyan-300 font-mono block">+ New Chat Session</span>
+                <span className="text-[10px] text-cyan-400/70 font-mono">Clean neural state</span>
+              </div>
+              <Plus className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+            </button>
+
+            {sessions.map((s) => {
+              const isActive = s.id === currentSessionId
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => switchSession(s.id)}
+                  className={cn(
+                    'p-3 rounded-2xl border text-left transition-all cursor-pointer space-y-1',
+                    isActive
+                      ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                      : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white truncate max-w-[80%]">
+                      {s.title || 'Conversation Session'}
+                    </span>
+                    {isActive && (
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
+                    <span>{s.messageCount} messages</span>
+                    <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Messages Feed */}
       <div className="relative h-[50vh] sm:h-[58vh] sm:max-h-[620px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-3 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
@@ -710,6 +853,47 @@ export default function AIChat() {
               </div>
 
               <div>{renderMarkdown(msg.content)}</div>
+
+              {/* Live Workspace Sandbox Embedded Preview Card */}
+              {msg.content && msg.content.includes('/api/workspaces/preview/') && (
+                <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/40 shadow-xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2 text-emerald-400">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="font-bold text-xs font-mono">LIVE WORKSPACE COMPILED // SANDBOX HOSTED</span>
+                    </div>
+                    {(() => {
+                      const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
+                      const previewHref = match ? match[0] : '';
+                      return previewHref ? (
+                        <a
+                          href={previewHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                        >
+                          <span>OPEN LIVE SITE</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : null;
+                    })()}
+                  </div>
+                  {(() => {
+                    const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
+                    const previewHref = match ? match[0] : '';
+                    return previewHref ? (
+                      <div className="relative w-full h-80 rounded-xl overflow-hidden border border-emerald-500/30 bg-white shadow-inner">
+                        <iframe
+                          src={previewHref}
+                          title="Workspace Live Preview"
+                          className="w-full h-full border-0 bg-white"
+                          sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+                        />
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              )}
 
               {/* Interactive Flight Intelligence Card */}
               {msg.flightData && msg.flightData.length > 0 && (

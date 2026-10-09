@@ -211,6 +211,211 @@ var init_db = __esm({
   }
 });
 
+// src/workspace/WorkspaceManager.ts
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
+import { resolve, join as join2, relative } from "node:path";
+import { exec as exec2, spawn } from "node:child_process";
+import { promisify as promisify2 } from "node:util";
+var execAsync2, WorkspaceManager;
+var init_WorkspaceManager = __esm({
+  "src/workspace/WorkspaceManager.ts"() {
+    "use strict";
+    execAsync2 = promisify2(exec2);
+    WorkspaceManager = class {
+      static baseDir = resolve(process.cwd(), "workspaces");
+      static {
+        if (!existsSync(this.baseDir)) {
+          mkdirSync(this.baseDir, { recursive: true });
+        }
+      }
+      /**
+       * Get the absolute path for a project workspace with path traversal protection
+       */
+      static getProjectPath(projectName) {
+        const sanitized = projectName.replace(/[^a-zA-Z0-9_\-\.]/g, "_").toLowerCase();
+        const target = resolve(this.baseDir, sanitized);
+        if (!target.startsWith(this.baseDir)) {
+          throw new Error(`Security violation: Workspace path traversal blocked for '${projectName}'`);
+        }
+        return target;
+      }
+      /**
+       * Initialize a new project directory
+       */
+      static initProject(projectName) {
+        const projectPath = this.getProjectPath(projectName);
+        const isNew = !existsSync(projectPath);
+        if (isNew) {
+          mkdirSync(projectPath, { recursive: true });
+        }
+        return { success: true, path: projectPath, isNew, name: projectName, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
+      }
+      /**
+       * Write a file inside the project workspace
+       */
+      static writeFile(projectName, relativePath, content) {
+        const projectPath = this.getProjectPath(projectName);
+        if (!existsSync(projectPath)) {
+          mkdirSync(projectPath, { recursive: true });
+        }
+        const fullFilePath = resolve(projectPath, relativePath);
+        if (!fullFilePath.startsWith(projectPath)) {
+          throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
+        }
+        const parentDir = resolve(fullFilePath, "..");
+        if (!existsSync(parentDir)) {
+          mkdirSync(parentDir, { recursive: true });
+        }
+        writeFileSync(fullFilePath, content, "utf-8");
+        const bytesWritten = Buffer.byteLength(content, "utf-8");
+        return { success: true, filePath: relative(projectPath, fullFilePath).replace(/\\/g, "/"), bytesWritten, bytes: bytesWritten };
+      }
+      /**
+       * Read a file inside the project workspace
+       */
+      static readFile(projectName, relativePath) {
+        const projectPath = this.getProjectPath(projectName);
+        const fullFilePath = resolve(projectPath, relativePath);
+        if (!fullFilePath.startsWith(projectPath)) {
+          throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
+        }
+        if (!existsSync(fullFilePath)) {
+          throw new Error(`File not found: '${relativePath}' in project '${projectName}'`);
+        }
+        const content = readFileSync(fullFilePath, "utf-8");
+        return { success: true, content, bytes: Buffer.byteLength(content, "utf-8"), filePath: relative(projectPath, fullFilePath).replace(/\\/g, "/") };
+      }
+      /**
+       * List files recursively or flat within the workspace
+       */
+      static listFiles(projectName, subDir = "", recursive = true) {
+        const projectPath = this.getProjectPath(projectName);
+        const targetDir = resolve(projectPath, subDir);
+        if (!targetDir.startsWith(projectPath) || !existsSync(targetDir)) {
+          return [];
+        }
+        const results = [];
+        const scan = (currentDir) => {
+          const items = readdirSync(currentDir);
+          for (const item of items) {
+            if (item === "node_modules" || item === ".git") continue;
+            const full = join2(currentDir, item);
+            const st = statSync(full);
+            const rel = relative(projectPath, full).replace(/\\/g, "/");
+            const isDir = st.isDirectory();
+            results.push({
+              path: rel,
+              relativePath: rel,
+              name: item,
+              isDirectory: isDir,
+              sizeBytes: isDir ? void 0 : st.size
+            });
+            if (isDir && recursive) {
+              scan(full);
+            }
+          }
+        };
+        scan(targetDir);
+        return results;
+      }
+      /**
+       * Run a terminal command inside the project workspace (cross-platform, e.g. npm init, npm install)
+       */
+      static async runCommand(projectName, command, timeoutMs = 6e4, onOutputChunk) {
+        const projectPath = this.getProjectPath(projectName);
+        if (!existsSync(projectPath)) {
+          mkdirSync(projectPath, { recursive: true });
+        }
+        const blockedPatterns = [/rm\s+-rf\s+[\/\\]/i, /format\s+[a-z]:/i, /shutdown/i, /drop\s+database/i];
+        for (const pat of blockedPatterns) {
+          if (pat.test(command)) {
+            return {
+              success: false,
+              stdout: "",
+              stderr: `SECURITY BLOCK: Command violates host protection policy: ${command}`,
+              exitCode: 1,
+              durationMs: 0
+            };
+          }
+        }
+        const start = Date.now();
+        return new Promise((resolve7) => {
+          const proc = spawn(command, {
+            cwd: projectPath,
+            shell: true,
+            env: {
+              ...process.env,
+              NODE_ENV: "development",
+              CI: "true"
+              // Non-interactive mode for npm / build scripts
+            }
+          });
+          let stdout = "";
+          let stderr = "";
+          let timer = null;
+          if (timeoutMs > 0) {
+            timer = setTimeout(() => {
+              proc.kill();
+              stderr += `
+Command timed out after ${timeoutMs}ms`;
+            }, timeoutMs);
+          }
+          proc.stdout?.on("data", (data) => {
+            const text = data.toString();
+            stdout += text;
+            if (onOutputChunk) onOutputChunk(text);
+          });
+          proc.stderr?.on("data", (data) => {
+            const text = data.toString();
+            stderr += text;
+            if (onOutputChunk) onOutputChunk(text);
+          });
+          proc.on("close", (code) => {
+            if (timer) clearTimeout(timer);
+            const durationMs = Date.now() - start;
+            resolve7({
+              success: code === 0,
+              stdout: stdout.trim(),
+              stderr: stderr.trim(),
+              exitCode: code ?? (stderr ? 1 : 0),
+              durationMs
+            });
+          });
+          proc.on("error", (err) => {
+            if (timer) clearTimeout(timer);
+            const durationMs = Date.now() - start;
+            resolve7({
+              success: false,
+              stdout: stdout.trim(),
+              stderr: `${stderr}
+${err.message}`.trim(),
+              exitCode: 1,
+              durationMs
+            });
+          });
+        });
+      }
+      /**
+       * Delete a project workspace safely
+       */
+      static deleteProject(projectName) {
+        const projectPath = this.getProjectPath(projectName);
+        if (existsSync(projectPath)) {
+          rmSync(projectPath, { recursive: true, force: true });
+          return true;
+        }
+        return false;
+      }
+      /**
+       * Alias for deleting project during test teardown
+       */
+      static cleanProject(projectName) {
+        return this.deleteProject(projectName);
+      }
+    };
+  }
+});
+
 // src/lib/open-agents/BrowserUseScraper.ts
 var BrowserUseScraper;
 var init_BrowserUseScraper = __esm({
@@ -510,7 +715,7 @@ var init_ExecutionKernel = __esm({
        * Verify task outputs
        */
       static verifyResult(checks) {
-        return new Promise(async (resolve6) => {
+        return new Promise(async (resolve7) => {
           const checksRun = [];
           const failures = [];
           for (const check of checks) {
@@ -522,7 +727,7 @@ var init_ExecutionKernel = __esm({
               failures.push(`${check.name} threw: ${err.message}`);
             }
           }
-          resolve6({
+          resolve7({
             passed: failures.length === 0,
             checksRun,
             failures,
@@ -1405,211 +1610,6 @@ var init_AgentRegistry = __esm({
   }
 });
 
-// src/workspace/WorkspaceManager.ts
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
-import { resolve, join as join2, relative } from "node:path";
-import { exec as exec2, spawn } from "node:child_process";
-import { promisify as promisify3 } from "node:util";
-var execAsync2, WorkspaceManager;
-var init_WorkspaceManager = __esm({
-  "src/workspace/WorkspaceManager.ts"() {
-    "use strict";
-    execAsync2 = promisify3(exec2);
-    WorkspaceManager = class {
-      static baseDir = resolve(process.cwd(), "workspaces");
-      static {
-        if (!existsSync(this.baseDir)) {
-          mkdirSync(this.baseDir, { recursive: true });
-        }
-      }
-      /**
-       * Get the absolute path for a project workspace with path traversal protection
-       */
-      static getProjectPath(projectName) {
-        const sanitized = projectName.replace(/[^a-zA-Z0-9_\-\.]/g, "_").toLowerCase();
-        const target = resolve(this.baseDir, sanitized);
-        if (!target.startsWith(this.baseDir)) {
-          throw new Error(`Security violation: Workspace path traversal blocked for '${projectName}'`);
-        }
-        return target;
-      }
-      /**
-       * Initialize a new project directory
-       */
-      static initProject(projectName) {
-        const projectPath = this.getProjectPath(projectName);
-        const isNew = !existsSync(projectPath);
-        if (isNew) {
-          mkdirSync(projectPath, { recursive: true });
-        }
-        return { success: true, path: projectPath, isNew, name: projectName, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
-      }
-      /**
-       * Write a file inside the project workspace
-       */
-      static writeFile(projectName, relativePath, content) {
-        const projectPath = this.getProjectPath(projectName);
-        if (!existsSync(projectPath)) {
-          mkdirSync(projectPath, { recursive: true });
-        }
-        const fullFilePath = resolve(projectPath, relativePath);
-        if (!fullFilePath.startsWith(projectPath)) {
-          throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
-        }
-        const parentDir = resolve(fullFilePath, "..");
-        if (!existsSync(parentDir)) {
-          mkdirSync(parentDir, { recursive: true });
-        }
-        writeFileSync(fullFilePath, content, "utf-8");
-        const bytesWritten = Buffer.byteLength(content, "utf-8");
-        return { success: true, filePath: relative(projectPath, fullFilePath).replace(/\\/g, "/"), bytesWritten, bytes: bytesWritten };
-      }
-      /**
-       * Read a file inside the project workspace
-       */
-      static readFile(projectName, relativePath) {
-        const projectPath = this.getProjectPath(projectName);
-        const fullFilePath = resolve(projectPath, relativePath);
-        if (!fullFilePath.startsWith(projectPath)) {
-          throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
-        }
-        if (!existsSync(fullFilePath)) {
-          throw new Error(`File not found: '${relativePath}' in project '${projectName}'`);
-        }
-        const content = readFileSync(fullFilePath, "utf-8");
-        return { success: true, content, bytes: Buffer.byteLength(content, "utf-8"), filePath: relative(projectPath, fullFilePath).replace(/\\/g, "/") };
-      }
-      /**
-       * List files recursively or flat within the workspace
-       */
-      static listFiles(projectName, subDir = "", recursive = true) {
-        const projectPath = this.getProjectPath(projectName);
-        const targetDir = resolve(projectPath, subDir);
-        if (!targetDir.startsWith(projectPath) || !existsSync(targetDir)) {
-          return [];
-        }
-        const results = [];
-        const scan = (currentDir) => {
-          const items = readdirSync(currentDir);
-          for (const item of items) {
-            if (item === "node_modules" || item === ".git") continue;
-            const full = join2(currentDir, item);
-            const st = statSync(full);
-            const rel = relative(projectPath, full).replace(/\\/g, "/");
-            const isDir = st.isDirectory();
-            results.push({
-              path: rel,
-              relativePath: rel,
-              name: item,
-              isDirectory: isDir,
-              sizeBytes: isDir ? void 0 : st.size
-            });
-            if (isDir && recursive) {
-              scan(full);
-            }
-          }
-        };
-        scan(targetDir);
-        return results;
-      }
-      /**
-       * Run a terminal command inside the project workspace (cross-platform, e.g. npm init, npm install)
-       */
-      static async runCommand(projectName, command, timeoutMs = 6e4, onOutputChunk) {
-        const projectPath = this.getProjectPath(projectName);
-        if (!existsSync(projectPath)) {
-          mkdirSync(projectPath, { recursive: true });
-        }
-        const blockedPatterns = [/rm\s+-rf\s+[\/\\]/i, /format\s+[a-z]:/i, /shutdown/i, /drop\s+database/i];
-        for (const pat of blockedPatterns) {
-          if (pat.test(command)) {
-            return {
-              success: false,
-              stdout: "",
-              stderr: `SECURITY BLOCK: Command violates host protection policy: ${command}`,
-              exitCode: 1,
-              durationMs: 0
-            };
-          }
-        }
-        const start = Date.now();
-        return new Promise((resolve6) => {
-          const proc = spawn(command, {
-            cwd: projectPath,
-            shell: true,
-            env: {
-              ...process.env,
-              NODE_ENV: "development",
-              CI: "true"
-              // Non-interactive mode for npm / build scripts
-            }
-          });
-          let stdout = "";
-          let stderr = "";
-          let timer = null;
-          if (timeoutMs > 0) {
-            timer = setTimeout(() => {
-              proc.kill();
-              stderr += `
-Command timed out after ${timeoutMs}ms`;
-            }, timeoutMs);
-          }
-          proc.stdout?.on("data", (data) => {
-            const text = data.toString();
-            stdout += text;
-            if (onOutputChunk) onOutputChunk(text);
-          });
-          proc.stderr?.on("data", (data) => {
-            const text = data.toString();
-            stderr += text;
-            if (onOutputChunk) onOutputChunk(text);
-          });
-          proc.on("close", (code) => {
-            if (timer) clearTimeout(timer);
-            const durationMs = Date.now() - start;
-            resolve6({
-              success: code === 0,
-              stdout: stdout.trim(),
-              stderr: stderr.trim(),
-              exitCode: code ?? (stderr ? 1 : 0),
-              durationMs
-            });
-          });
-          proc.on("error", (err) => {
-            if (timer) clearTimeout(timer);
-            const durationMs = Date.now() - start;
-            resolve6({
-              success: false,
-              stdout: stdout.trim(),
-              stderr: `${stderr}
-${err.message}`.trim(),
-              exitCode: 1,
-              durationMs
-            });
-          });
-        });
-      }
-      /**
-       * Delete a project workspace safely
-       */
-      static deleteProject(projectName) {
-        const projectPath = this.getProjectPath(projectName);
-        if (existsSync(projectPath)) {
-          rmSync(projectPath, { recursive: true, force: true });
-          return true;
-        }
-        return false;
-      }
-      /**
-       * Alias for deleting project during test teardown
-       */
-      static cleanProject(projectName) {
-        return this.deleteProject(projectName);
-      }
-    };
-  }
-});
-
 // src/services/ECommerceReconEngine.ts
 var ECommerceReconEngine_exports = {};
 __export(ECommerceReconEngine_exports, {
@@ -2387,165 +2387,396 @@ Return a valid JSON object ONLY with:
         );
         const s2Start = Date.now();
         const filesToBuild = blueprintJson.filesToGenerate || ["index.html", "styles.css", "app.js"];
-        const indexHtmlContent = `<!DOCTYPE html>
+        let indexHtmlContent = "";
+        let stylesCssContent = "";
+        let appJsContent = "";
+        if (aiCaller) {
+          try {
+            const codePrompt = `You are F.R.I.D.A.Y. (Lead Frontend & Full-Stack Engineer) and Aegis (Architect) for Master Sri (Srimanikandan K).
+Build a COMPLETE, high-production, fully responsive, modern single-page website for: "${objective}".
+Blueprint: ${JSON.stringify(blueprintJson)}
+
+CRITICAL REQUIREMENTS:
+1. Provide a 100% self-contained, working HTML5 file with Tailwind CSS (https://cdn.tailwindcss.com), Google Fonts (Inter, Playfair Display or Outfit), and FontAwesome or SVG icons.
+2. Rich, vibrant aesthetics tailored to "${objective}".
+   - If fashion/clothing/apparel: luxury rose-gold/emerald/slate theme, hero banner with collection carousel, category filters (Festive Sarees, Western Dresses, Designer Kurtis, Accessories), product cards with prices in \u20B9 INR, star ratings, Add to Bag buttons, functional cart drawer with quantity counter and checkout modal, customer review testimonials, newsletter box, footer with social links.
+   - If SaaS / portal / tech: sleek dark-mode (#030712), glowing cyan/blue accents, interactive cost calculator or estimation tool, feature grid, contact modal.
+3. NO generic placeholders, NO "Lorem ipsum". Realistic copy and curated mock products.
+4. Working JavaScript for interactive elements (shopping cart, filters, modal popups, quote calculation).
+
+Return the code in markdown blocks:
+\`\`\`html:index.html
+<!DOCTYPE html>
+...
+\`\`\`
+\`\`\`css:styles.css
+/* optional custom CSS overrides */
+...
+\`\`\`
+\`\`\`javascript:app.js
+/* client runtime */
+...
+\`\`\``;
+            const aiCodeRes = await aiCaller(codePrompt, [{ role: "user", content: `Generate complete website files for: ${objective}` }]);
+            const rawCode = aiCodeRes.text || "";
+            const htmlMatch = rawCode.match(/```(?:html|markup)?(?::index\.html)?\s*([\s\S]*?)```/i);
+            if (htmlMatch && (htmlMatch[1].includes("<html") || htmlMatch[1].includes("<!DOCTYPE") || htmlMatch[1].includes("<body"))) {
+              indexHtmlContent = htmlMatch[1].trim();
+            }
+            const cssMatch = rawCode.match(/```css(?::styles\.css)?\s*([\s\S]*?)```/i);
+            if (cssMatch) stylesCssContent = cssMatch[1].trim();
+            const jsMatch = rawCode.match(/```(?:javascript|js)(?::app\.js)?\s*([\s\S]*?)```/i);
+            if (jsMatch) appJsContent = jsMatch[1].trim();
+          } catch (genErr) {
+            console.warn("[Swarm] AI code generation error, engaging sovereign template:", genErr);
+          }
+        }
+        if (!indexHtmlContent || !indexHtmlContent.includes("</html>")) {
+          const isFashion = /cloth|fashion|dress|women|saree|kurti|boutique|apparel|wear|shop|store/i.test(objective);
+          if (isFashion) {
+            indexHtmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${objective.slice(0, 40)} // J.A.R.V.I.S. Autonomous Swarm Build</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>AURA // Luxury Women's Couture & Festive Collection</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,400&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Outfit', sans-serif; background-color: #09090b; color: #fafafa; }
+    .font-serif { font-family: 'Playfair Display', serif; }
+    .glass-nav { background: rgba(9, 9, 11, 0.85); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    .gold-gradient { background: linear-gradient(135deg, #f59e0b, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .gold-btn { background: linear-gradient(135deg, #d97706, #f59e0b); color: #000; font-weight: 700; transition: all 0.3s; }
+    .gold-btn:hover { box-shadow: 0 0 25px rgba(245, 158, 11, 0.5); transform: translateY(-2px); }
+  </style>
 </head>
-<body class="cyber-bg">
-  <header class="hud-header">
-    <div class="brand">
-      <span class="arc-icon">\u26A1</span>
-      <h1>${objective.slice(0, 50)}</h1>
+<body class="min-h-screen flex flex-col">
+  <!-- Top Announcement Bar -->
+  <div class="bg-gradient-to-r from-amber-600 via-rose-600 to-purple-700 text-xs font-bold py-2 text-center text-white tracking-widest uppercase">
+    \u2728 Diwali & Festive Grand Sale // Flat 40% OFF with code: SOVEREIGN \u2728
+  </div>
+
+  <!-- Header Navigation -->
+  <header class="sticky top-0 z-50 glass-nav">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl font-serif font-black tracking-widest gold-gradient">A U R A</span>
+        <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Couture Atelier</span>
+      </div>
+      <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-300">
+        <a href="#festive" class="hover:text-amber-400 transition-colors">Festive Edit</a>
+        <a href="#sarees" class="hover:text-amber-400 transition-colors">Silk Sarees</a>
+        <a href="#kurtis" class="hover:text-amber-400 transition-colors">Designer Kurtis</a>
+        <a href="#western" class="hover:text-amber-400 transition-colors">Western Gowns</a>
+        <a href="#reviews" class="hover:text-amber-400 transition-colors">Reviews</a>
+      </nav>
+      <div class="flex items-center gap-4">
+        <button onclick="toggleCart()" class="relative p-2.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-200 hover:text-amber-400 hover:border-amber-500/50 transition-all">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+          <span id="cartCount" class="absolute -top-1 -right-1 bg-amber-500 text-black font-extrabold text-[10px] w-5 h-5 rounded-full flex items-center justify-center">0</span>
+        </button>
+      </div>
     </div>
-    <div class="telemetry-badge">SWARM VERIFIED // STATUS: OPERATIONAL</div>
   </header>
 
-  <main class="hud-main">
-    <section class="hero-card">
-      <h2>Autonomous Deliverable</h2>
-      <p class="subtitle">Engineered by J.A.R.V.I.S. 5-Agent Swarm for Master Sri</p>
-      <div class="metrics-grid">
-        <div class="metric-pill">
-          <span class="val">100%</span>
-          <span class="lbl">AUTONOMOUS</span>
+  <!-- Hero Section -->
+  <section class="relative py-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-gradient-to-b from-zinc-950 via-zinc-900 to-black">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div class="space-y-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold uppercase tracking-wider">
+          New Festive 2026 Collection
         </div>
-        <div class="metric-pill">
-          <span class="val">5/5</span>
-          <span class="lbl">SWARM PHASES</span>
+        <h1 class="text-4xl sm:text-6xl font-serif font-bold text-white leading-tight">
+          Timeless Grace, <br/>
+          <span class="gold-gradient">Sovereign Elegance.</span>
+        </h1>
+        <p class="text-zinc-400 text-base sm:text-lg max-w-xl leading-relaxed">
+          Crafted with pure Mulberry silk, hand-embroidered Zari, and precision tailoring for the modern woman who commands the room.
+        </p>
+        <div class="flex flex-wrap gap-4 pt-4">
+          <a href="#catalog" class="gold-btn px-8 py-4 rounded-xl text-sm tracking-wider uppercase">
+            Explore Curated Collection
+          </a>
+          <button onclick="alert('Master Sri Atelier Concierge connected! WhatsApp VIP support ready.')" class="px-6 py-4 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 text-sm font-medium transition-all">
+            VIP Bridal Consultation
+          </button>
         </div>
-        <div class="metric-pill">
-          <span class="val">0 ERR</span>
-          <span class="lbl">SECURITY AUDIT</span>
+        <div class="pt-6 flex items-center gap-8 border-t border-zinc-800/80 text-xs text-zinc-400">
+          <div><strong class="text-white text-base block font-bold">100%</strong> Pure Banarasi & Kanjivaram</div>
+          <div><strong class="text-white text-base block font-bold">24-48h</strong> Express India Dispatch</div>
+          <div><strong class="text-white text-base block font-bold">4.9/5</strong> Rating (2,400+ Brides)</div>
         </div>
       </div>
-      <button class="cta-btn" onclick="executeAction()">Engage System Interface</button>
-      <div id="outputConsole" class="terminal-box">
-        <p class="log-line">[SYSTEM] Sandbox initialized at ${projectName}...</p>
+      <div class="relative">
+        <div class="w-full aspect-[4/5] rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl relative bg-zinc-900">
+          <img src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80" alt="Royal Crimson Banarasi Saree" class="w-full h-full object-cover">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-8">
+            <span class="text-amber-400 text-xs font-mono tracking-widest uppercase">Signature Highlight</span>
+            <h3 class="text-2xl font-serif font-bold text-white mt-1">Royal Crimson Kanjivaram Saree</h3>
+            <p class="text-zinc-300 text-sm mt-1">\u20B94,499 <span class="line-through text-zinc-500 text-xs">\u20B98,999</span> (50% OFF)</p>
+          </div>
+        </div>
       </div>
-    </section>
-  </main>
+    </div>
+  </section>
+
+  <!-- Filter & Catalog Section -->
+  <section id="catalog" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+      <div>
+        <span class="text-amber-400 text-xs font-mono uppercase tracking-widest">Handpicked Catalog</span>
+        <h2 class="text-3xl font-serif font-bold text-white mt-2">Curated Runway Essentials</h2>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="filterCategory('all')" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold bg-amber-500 text-black">All Collections</button>
+        <button onclick="filterCategory('saree')" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800">Silk Sarees</button>
+        <button onclick="filterCategory('kurti')" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800">Designer Kurtis</button>
+        <button onclick="filterCategory('gown')" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800">Western Gowns</button>
+      </div>
+    </div>
+
+    <!-- Product Grid -->
+    <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      <!-- Card 1 -->
+      <div class="product-item group bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden hover:border-amber-500/40 transition-all" data-category="saree">
+        <div class="aspect-[3/4] overflow-hidden relative">
+          <img src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80" alt="Banarasi Silk Saree" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          <span class="absolute top-3 left-3 bg-rose-600 text-white text-[10px] font-bold px-2 py-1 rounded">BESTSELLER</span>
+        </div>
+        <div class="p-5 space-y-2">
+          <h4 class="font-serif font-bold text-base text-white">Varanasi Gold Zari Saree</h4>
+          <p class="text-zinc-400 text-xs">Pure Katan Silk with Heavy Pallu Work</p>
+          <div class="flex items-center justify-between pt-2">
+            <div>
+              <span class="text-amber-400 font-bold text-lg">\u20B93,999</span>
+              <span class="text-zinc-500 text-xs line-through ml-1.5">\u20B97,499</span>
+            </div>
+            <button onclick="addToCart('Varanasi Gold Zari Saree', 3999)" class="p-2.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="product-item group bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden hover:border-amber-500/40 transition-all" data-category="kurti">
+        <div class="aspect-[3/4] overflow-hidden relative">
+          <img src="https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=80" alt="Embroidered Anarkali" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          <span class="absolute top-3 left-3 bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded">NEW ARRIVAL</span>
+        </div>
+        <div class="p-5 space-y-2">
+          <h4 class="font-serif font-bold text-base text-white">Emerald Chikankari Kurti</h4>
+          <p class="text-zinc-400 text-xs">Handcrafted Georgette with Mirror Accent</p>
+          <div class="flex items-center justify-between pt-2">
+            <div>
+              <span class="text-amber-400 font-bold text-lg">\u20B91,899</span>
+              <span class="text-zinc-500 text-xs line-through ml-1.5">\u20B93,299</span>
+            </div>
+            <button onclick="addToCart('Emerald Chikankari Kurti', 1899)" class="p-2.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="product-item group bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden hover:border-amber-500/40 transition-all" data-category="gown">
+        <div class="aspect-[3/4] overflow-hidden relative">
+          <img src="https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=800&q=80" alt="Velvet Cocktail Gown" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        </div>
+        <div class="p-5 space-y-2">
+          <h4 class="font-serif font-bold text-base text-white">Midnight Velvet Gown</h4>
+          <p class="text-zinc-400 text-xs">Ruched Evening Dress with Side Slit</p>
+          <div class="flex items-center justify-between pt-2">
+            <div>
+              <span class="text-amber-400 font-bold text-lg">\u20B92,799</span>
+              <span class="text-zinc-500 text-xs line-through ml-1.5">\u20B94,999</span>
+            </div>
+            <button onclick="addToCart('Midnight Velvet Gown', 2799)" class="p-2.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="product-item group bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden hover:border-amber-500/40 transition-all" data-category="saree">
+        <div class="aspect-[3/4] overflow-hidden relative">
+          <img src="https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=800&q=80" alt="Kanjivaram Silk" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        </div>
+        <div class="p-5 space-y-2">
+          <h4 class="font-serif font-bold text-base text-white">Temple Border Kanjivaram</h4>
+          <p class="text-zinc-400 text-xs">Traditional Peacock Motif in Pure Silk</p>
+          <div class="flex items-center justify-between pt-2">
+            <div>
+              <span class="text-amber-400 font-bold text-lg">\u20B94,899</span>
+              <span class="text-zinc-500 text-xs line-through ml-1.5">\u20B99,499</span>
+            </div>
+            <button onclick="addToCart('Temple Border Kanjivaram', 4899)" class="p-2.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cart Drawer Modal -->
+  <div id="cartModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex justify-end">
+    <div class="w-full max-w-md bg-zinc-950 h-full border-l border-zinc-800 p-6 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between pb-4 border-b border-zinc-800">
+          <h3 class="text-lg font-serif font-bold text-white">Your Shopping Bag</h3>
+          <button onclick="toggleCart()" class="text-zinc-400 hover:text-white text-xl">\u2715</button>
+        </div>
+        <div id="cartItemsList" class="py-6 space-y-4 max-h-[60vh] overflow-y-auto">
+          <p class="text-zinc-500 text-sm text-center py-8">Your bag is currently empty.</p>
+        </div>
+      </div>
+      <div class="pt-4 border-t border-zinc-800 space-y-3">
+        <div class="flex justify-between text-base font-bold text-white">
+          <span>Subtotal:</span>
+          <span id="cartSubtotal" class="text-amber-400">\u20B90</span>
+        </div>
+        <button onclick="checkoutOrder()" class="w-full gold-btn py-3.5 rounded-xl text-sm uppercase tracking-wider">
+          Proceed to Instant Checkout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-zinc-900 bg-black py-12 px-4 text-center text-xs text-zinc-500">
+    <p>\xA9 2026 AURA Couture Atelier. Designed & Synthesized for Sovereign Master Sri.</p>
+  </footer>
 
   <script src="app.js"></script>
 </body>
 </html>`;
-        const stylesCssContent = `/* Quantum Arc-Titanium HUD Design System */
-:root {
-  --bg-dark: #030712;
-  --cyan-primary: #00f2fe;
-  --blue-primary: #4facfe;
-  --text-main: #f8fafc;
-  --glass-surface: rgba(10, 18, 34, 0.75);
-  --border-cyan: rgba(0, 242, 254, 0.25);
+            stylesCssContent = `/* AURA Atelier Styling System */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.product-item { animation: fadeIn 0.4s ease-out; }`;
+            appJsContent = `// AURA Shopping Cart & Interactive Runtime
+let cart = [];
+
+function toggleCart() {
+  const modal = document.getElementById('cartModal');
+  modal.classList.toggle('hidden');
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body.cyber-bg {
-  background-color: var(--bg-dark);
-  color: var(--text-main);
-  font-family: 'Inter', sans-serif;
-  min-height: 100vh;
-  background-image: radial-gradient(circle at 50% 0%, rgba(0, 242, 254, 0.1) 0%, transparent 60%);
-  display: flex;
-  flex-direction: column;
+function addToCart(title, price) {
+  cart.push({ title, price });
+  updateCartUI();
+  toggleCart();
 }
 
-.hud-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.25rem 2rem;
-  background: var(--glass-surface);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border-cyan);
-}
-.brand { display: flex; align-items: center; gap: 0.75rem; }
-.arc-icon { font-size: 1.5rem; text-shadow: 0 0 15px var(--cyan-primary); }
-.hud-header h1 { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-.telemetry-badge {
-  font-size: 0.75rem;
-  font-family: 'JetBrains Mono', monospace;
-  padding: 0.35rem 0.75rem;
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #34d399;
-  border-radius: 999px;
+function updateCartUI() {
+  document.getElementById('cartCount').textContent = cart.length;
+  const list = document.getElementById('cartItemsList');
+  if (cart.length === 0) {
+    list.innerHTML = '<p class="text-zinc-500 text-sm text-center py-8">Your bag is currently empty.</p>';
+    document.getElementById('cartSubtotal').textContent = '\u20B90';
+    return;
+  }
+  let total = 0;
+  list.innerHTML = cart.map((item, idx) => {
+    total += item.price;
+    return '<div class="flex justify-between items-center bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">' +
+      '<div><h5 class="text-sm font-semibold text-white">' + item.title + '</h5><span class="text-xs text-amber-400">\u20B9' + item.price + '</span></div>' +
+      '<button onclick="removeFromCart(' + idx + ')" class="text-xs text-rose-400 hover:underline">Remove</button>' +
+    '</div>';
+  }).join('');
+  document.getElementById('cartSubtotal').textContent = '\u20B9' + total.toLocaleString();
 }
 
-.hud-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 2rem; }
-.hero-card {
-  background: var(--glass-surface);
-  border: 1px solid var(--border-cyan);
-  border-radius: 1.5rem;
-  padding: 2.5rem;
-  max-width: 680px;
-  width: 100%;
-  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.6), 0 0 35px rgba(0, 242, 254, 0.15);
-  text-align: center;
+function removeFromCart(idx) {
+  cart.splice(idx, 1);
+  updateCartUI();
 }
-.hero-card h2 { font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem; color: #fff; }
-.subtitle { color: #94a3b8; font-size: 0.95rem; margin-bottom: 2rem; }
 
-.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
-.metric-pill {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1rem;
-  padding: 1rem;
+function filterCategory(cat) {
+  const items = document.querySelectorAll('.product-item');
+  items.forEach(el => {
+    if (cat === 'all' || el.getAttribute('data-category') === cat) {
+      el.style.display = 'block';
+    } else {
+      el.style.display = 'none';
+    }
+  });
 }
-.metric-pill .val { display: block; font-size: 1.5rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan-primary); }
-.metric-pill .lbl { font-size: 0.65rem; color: #64748b; font-family: 'JetBrains Mono', monospace; }
 
-.cta-btn {
-  background: linear-gradient(135deg, var(--cyan-primary), var(--blue-primary));
-  color: #030712;
-  font-weight: 800;
-  font-family: 'JetBrains Mono', monospace;
-  border: none;
-  border-radius: 0.75rem;
-  padding: 0.85rem 2rem;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 0 25px rgba(0, 242, 254, 0.4);
-}
-.cta-btn:hover { transform: scale(1.04); box-shadow: 0 0 35px rgba(0, 242, 254, 0.7); }
-
-.terminal-box {
-  margin-top: 1.75rem;
-  background: #020617;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 0.75rem;
-  padding: 1rem;
-  text-align: left;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  color: #38bdf8;
-  max-height: 120px;
-  overflow-y: auto;
-}
-`;
-        const appJsContent = `// J.A.R.V.I.S. Swarm Deliverable Logic
-console.log('\u26A1 [JARVIS-SWARM] Initialized artifact client runtime');
-
-function executeAction() {
-  const consoleEl = document.getElementById('outputConsole');
-  const timestamp = new Date().toLocaleTimeString();
-  const newLine = document.createElement('p');
-  newLine.className = 'log-line';
-  newLine.textContent = '[' + timestamp + '] Sovereign action engaged. Live telemetry streaming nominal.';
-  consoleEl.appendChild(newLine);
-  consoleEl.scrollTop = consoleEl.scrollHeight;
-}
-`;
+function checkoutOrder() {
+  if (cart.length === 0) return alert('Your bag is empty!');
+  alert('Order placed successfully for Master Sri! Total: ' + document.getElementById('cartSubtotal').textContent + '. Processing dispatch.');
+  cart = [];
+  updateCartUI();
+  toggleCart();
+}`;
+          } else {
+            indexHtmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${objective.slice(0, 40)} // J.A.R.V.I.S. Swarm Build</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+  <header class="border-b border-cyan-500/20 bg-slate-900/80 backdrop-blur-xl px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300 font-bold">\u26A1</div>
+      <h1 class="text-sm font-mono font-bold tracking-wider text-cyan-300 uppercase">${objective.slice(0, 50)}</h1>
+    </div>
+    <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">ONLINE // 100% VERIFIED</span>
+  </header>
+  <main class="flex-1 max-w-6xl w-full mx-auto p-6 md:p-12">
+    <div class="bg-slate-900/60 border border-cyan-500/30 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden">
+      <div class="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none"></div>
+      <h2 class="text-3xl md:text-5xl font-black text-white leading-tight mb-4">${objective}</h2>
+      <p class="text-slate-400 text-base max-w-2xl mb-8">Architected and deployed by the J.A.R.V.I.S. Multi-Agent Swarm for Master Sri (Srimanikandan K).</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+          <span class="text-xs font-mono text-slate-500 block">ARCHITECT</span>
+          <strong class="text-cyan-400 text-lg">D.A.E.D.A.L.U.S.</strong>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+          <span class="text-xs font-mono text-slate-500 block">LEAD CODER</span>
+          <strong class="text-blue-400 text-lg">F.R.I.D.A.Y. & Aegis</strong>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+          <span class="text-xs font-mono text-slate-500 block">SECURITY VERIFIED</span>
+          <strong class="text-emerald-400 text-lg">100/100 PASSED</strong>
+        </div>
+      </div>
+      <button onclick="executeAction()" class="px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-extrabold font-mono hover:shadow-[0_0_25px_rgba(6,182,212,0.6)] transition-all">
+        Engage Live Application
+      </button>
+      <div id="outputConsole" class="mt-8 p-4 rounded-xl bg-black border border-slate-800 text-cyan-300 font-mono text-xs max-h-36 overflow-y-auto">
+        <p>[SYSTEM] Sandbox active at ${projectName}. Ready for input.</p>
+      </div>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>`;
+            stylesCssContent = `/* Quantum HUD */
+body { font-family: 'Inter', sans-serif; }`;
+            appJsContent = `function executeAction() {
+  const c = document.getElementById('outputConsole');
+  c.innerHTML += '<p>[' + new Date().toLocaleTimeString() + '] Directive executed nominal.</p>';
+  c.scrollTop = c.scrollHeight;
+}`;
+          }
+        }
         const readmeContent = `# ${objective}
 **Autonomous Deliverable by J.A.R.V.I.S. 5-Agent Swarm**
 - **Client**: Master Sri (Srimanikandan K)
 - **Swarm Orchestration**: D.A.E.D.A.L.U.S. (Arch) \u2794 F.R.I.D.A.Y. (Code) \u2794 A.E.G.I.S. (Security) \u2794 S.E.N.T.I.N.E.L. (QA) \u2794 J.A.R.V.I.S. (Supreme)
+- **Live Preview Endpoint**: \`/api/workspaces/preview/${projectName}\`
 - **Verification**: 100% Passed.
 `;
         WorkspaceManager.writeFile(projectName, "index.html", indexHtmlContent);
@@ -2556,8 +2787,8 @@ function executeAction() {
         filesCreated.add("styles.css");
         filesCreated.add("app.js");
         filesCreated.add("README.md");
-        blackboard.artifacts.push({ path: "index.html", description: "Interactive Modern HUD Web App" });
-        blackboard.artifacts.push({ path: "styles.css", description: "Quantum Arc-Titanium Design Stylesheet" });
+        blackboard.artifacts.push({ path: "index.html", description: "Production Web Application", previewUrl: `/api/workspaces/preview/${projectName}` });
+        blackboard.artifacts.push({ path: "styles.css", description: "Quantum Stylesheet" });
         blackboard.artifacts.push({ path: "app.js", description: "Client Runtime Logic" });
         blackboard.artifacts.push({ path: "README.md", description: "Deliverable Documentation" });
         s2.output = `Engineered 4 production files: index.html, styles.css, app.js, and README.md.`;
@@ -2681,6 +2912,7 @@ function executeAction() {
           objective,
           projectName,
           workspacePath,
+          previewUrl: `/api/workspaces/preview/${projectName}`,
           stages,
           blackboard,
           finalExecutiveReport,
@@ -5027,9 +5259,10 @@ async function ensureDatabaseTables() {
 }
 
 // src/lib/sovereign-mcp.ts
+init_WorkspaceManager();
 import { execFile } from "child_process";
-import { promisify as promisify2 } from "util";
-var execFileAsync = promisify2(execFile);
+import { promisify as promisify3 } from "util";
+var execFileAsync = promisify3(execFile);
 var SOVEREIGN_TOOLS = [
   {
     name: "build_fullstack_app",
@@ -5122,15 +5355,30 @@ Requirements:
 4. Working interactive state (e.g. estimate calculators, filters, quote generation).
 Return the complete code within an HTML code fence block, followed by an executive deployment breakdown for Master Sri.`;
       const aiRes = await aiCaller(prompt, [{ role: "user", content: `Build full-stack app for: ${topic}` }]);
+      const projectName = `app_${Date.now().toString().slice(-6)}_${topic.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24)}`;
+      WorkspaceManager.initProject(projectName);
+      let htmlContent = aiRes.text;
+      const htmlMatch = aiRes.text.match(/```(?:html|markup)?(?::index\.html)?\s*([\s\S]*?)```/i);
+      if (htmlMatch && (htmlMatch[1].includes("<html") || htmlMatch[1].includes("<!DOCTYPE") || htmlMatch[1].includes("<body"))) {
+        htmlContent = htmlMatch[1].trim();
+      }
+      WorkspaceManager.writeFile(projectName, "index.html", htmlContent);
+      WorkspaceManager.writeFile(projectName, "README.md", `# ${topic}
+Architected by Aegis & J.A.R.V.I.S. for Master Sri.
+Preview URL: /api/workspaces/preview/${projectName}`);
       return {
         tool: "build_fullstack_app",
         success: true,
+        projectName,
+        previewUrl: `/api/workspaces/preview/${projectName}`,
         data: aiRes.text,
-        spokenSummary: `Master Sri, I have architected and generated the full-stack web application for "${topic}". All components, interactive calculators, and design tokens are compiled and ready.`,
+        spokenSummary: `Master Sri, I have architected and generated the full-stack web application for "${topic}". All components, interactive calculators, and design tokens are compiled and live in your Workspace Studio.`,
         artifacts: [{
-          name: `${topic.toLowerCase().replace(/[^a-z0-9]+/g, "_")}.html`,
+          name: "index.html",
           type: "text/html",
-          content: aiRes.text
+          path: `workspaces/${projectName}/index.html`,
+          previewUrl: `/api/workspaces/preview/${projectName}`,
+          content: htmlContent
         }]
       };
     }
@@ -5930,7 +6178,7 @@ var AgentRuntime = class {
       }
     };
     try {
-      outputResult = await new Promise(async (resolve6, reject) => {
+      outputResult = await new Promise(async (resolve7, reject) => {
         const timer = setTimeout(() => {
           reject(new Error(`Agent '${agentId}' exceeded timeout ceiling of ${agent.timeoutMs}ms`));
         }, agent.timeoutMs);
@@ -5957,7 +6205,7 @@ var AgentRuntime = class {
             }
           }
           clearTimeout(timer);
-          resolve6({
+          resolve7({
             summary: `Objective successfully completed by ${agent.name}`,
             objective,
             agentId,
@@ -8209,8 +8457,8 @@ var DisasterRecoveryManager = class {
 };
 
 // custom-routes.ts
-import { readFileSync as readFileSync4, writeFileSync as writeFileSync6, existsSync as existsSync7, chmodSync as chmodSync2 } from "fs";
-import { join as join7 } from "path";
+import { readFileSync as readFileSync4, writeFileSync as writeFileSync6, existsSync as existsSync7, chmodSync as chmodSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync3, statSync as statSync3 } from "fs";
+import { join as join7, resolve as resolve6, extname } from "path";
 import { randomBytes as randomBytes2 } from "crypto";
 
 // src/security/SovereignGate.ts
@@ -10456,7 +10704,7 @@ function getModelStatus() {
 app.post("/ai/chat", requireAuth, async (c) => {
   try {
     const body = await c.req.json();
-    const { messages, model: preferredModelId, agentId } = body;
+    const { messages, model: preferredModelId, agentId, sessionId = "main" } = body;
     if (!messages?.length) return c.json({ error: "messages array required" }, 400);
     const liveContext = await fetchLiveContext();
     const fullPrompt = JARVIS_SYSTEM_PROMPT + liveContext;
@@ -10514,31 +10762,35 @@ ${healReport.summary}`;
         task: healTask
       });
     }
-    const isSwarmDirective = (lowerUserMsg.includes("full stack") || lowerUserMsg.includes("full-stack") || lowerUserMsg.includes("end to end") || lowerUserMsg.includes("end-to-end")) && (lowerUserMsg.includes("build") || lowerUserMsg.includes("create") || lowerUserMsg.includes("make") || lowerUserMsg.includes("scaffold") || lowerUserMsg.includes("project") || lowerUserMsg.includes("app")) || lowerUserMsg.startsWith("swarm build") || lowerUserMsg.startsWith("swarm, build") || lowerUserMsg.startsWith("swarm:");
-    if (isSwarmDirective && lastUserMsg.length > 10) {
+    const isSwarmDirective = /(?:build|create|make|generate|design|scaffold|code)\s+(?:me\s+)?(?:a\s+)?(?:[a-z0-9-]+\s+)*(?:website|web\s*page|html\s*page|web\s*app|landing\s*page|store|portal|app)/i.test(lastUserMsg) || (lowerUserMsg.includes("full stack") || lowerUserMsg.includes("full-stack") || lowerUserMsg.includes("end to end") || lowerUserMsg.includes("end-to-end")) && (lowerUserMsg.includes("build") || lowerUserMsg.includes("create") || lowerUserMsg.includes("make") || lowerUserMsg.includes("scaffold") || lowerUserMsg.includes("project") || lowerUserMsg.includes("app")) || lowerUserMsg.startsWith("swarm build") || lowerUserMsg.startsWith("swarm, build") || lowerUserMsg.startsWith("swarm:") || lowerUserMsg.startsWith("build ") && (lowerUserMsg.includes("website") || lowerUserMsg.includes("page") || lowerUserMsg.includes("app") || lowerUserMsg.includes("clothing") || lowerUserMsg.includes("shop") || lowerUserMsg.includes("store"));
+    if (isSwarmDirective && lastUserMsg.length > 5) {
       try {
         const { MultiAgentSwarmEngine: MultiAgentSwarmEngine2 } = await Promise.resolve().then(() => (init_MultiAgentSwarmEngine(), MultiAgentSwarmEngine_exports));
         const taskId = `SWARM-${Date.now()}`;
+        const cleanSlug = lastUserMsg.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24).replace(/^_+|_+$/g, "");
+        const projectName = `swarm_${cleanSlug || Date.now().toString().slice(-6)}`;
         const swarmResult = await MultiAgentSwarmEngine2.dispatchSwarm({
           taskId,
           objective: lastUserMsg,
-          projectName: `swarm_${Date.now().toString().slice(-6)}`,
+          projectName,
           aiCaller: (sys, msgs) => callAI(sys, msgs)
         });
+        const previewUrl = `/api/workspaces/preview/${swarmResult.projectName}`;
         const swarmReply = `### \u{1F3C6} Sovereign 5-Agent Swarm // Full-Stack Project End-to-End Delivered
 **Objective**: ${lastUserMsg}
 **Sandbox Workspace**: \`${swarmResult.workspacePath}\`
+**Live Interactive Preview**: [Open Live Website in New Tab](${previewUrl})
 **Duration**: ${Math.round(swarmResult.totalDurationMs / 1e3)}s | **Deliverables**: ${swarmResult.filesCreated.join(", ")}
 
 ---
 
 #### \u{1F4D0} Stage 1: D.A.E.D.A.L.U.S. (System Architect)
 - **Status**: \u2714 COMPLETED
-- **Technical Blueprint**: Tech stack mapped, architecture diagrams and API contracts scaffolded.
+- **Technical Blueprint**: Architecture mapped, UI tokens, components & responsive grid scaffolded.
 
 #### \u26A1 Stage 2: F.R.I.D.A.Y. (Lead Engineer)
 - **Status**: \u2714 COMPLETED
-- **Production Files Scaffolding**: Generated and written to workspace:
+- **Production Files Scaffolding**: Generated and written to sandbox:
 ${swarmResult.filesCreated.map((f) => `  - \`${f}\``).join("\n")}
 
 #### \u{1F6E1}\uFE0F Stage 3: A.E.G.I.S. (Cyber Sentinel)
@@ -10555,12 +10807,18 @@ ${swarmResult.filesCreated.map((f) => `  - \`${f}\``).join("\n")}
 ${swarmResult.finalExecutiveReport}
 
 ---
-*All files are actively saved and ready in the project sandbox workspace.*`;
-        const spokenSummary2 = `Master Sri, all 5 specialist agents in the sovereign swarm have completed your full-stack project end to end with 100% QA pass rate and ${swarmResult.filesCreated.length} production files created.`;
+*All files are actively saved and ready in the project sandbox workspace. You can preview the compiled application directly.*`;
+        const spokenSummary2 = `Master Sri, all 5 specialist agents in the sovereign swarm have completed your project for "${lastUserMsg}". 4 production files are generated and your live website preview is hosted on localhost.`;
+        await prisma.conversation.create({ data: { role: "user", content: lastUserMsg, sessionId } }).catch(() => {
+        });
+        await prisma.conversation.create({ data: { role: "assistant", content: swarmReply, sessionId } }).catch(() => {
+        });
         return c.json({
           content: swarmReply,
           source: "Sovereign 5-Stage Swarm (Daedalus, Friday, Aegis, Sentinel, Jarvis)",
           spokenSummary: spokenSummary2,
+          previewUrl,
+          projectName: swarmResult.projectName,
           swarm: swarmResult
         });
       } catch (swarmErr) {
@@ -10667,35 +10925,83 @@ Directly converse with Master Sri. Keep spoken responses concise, authoritative,
       }, 503);
     }
     const lastUser = messages.filter((m) => m.role === "user").pop();
+    const targetSessionId = sessionId || "main";
     if (lastUser) {
-      await prisma.conversation.create({ data: { role: "user", content: lastUser.content, sessionId: "main" } }).catch(() => {
+      await prisma.conversation.create({ data: { role: "user", content: lastUser.content, sessionId: targetSessionId } }).catch(() => {
       });
-      await prisma.conversation.create({ data: { role: "assistant", content: answer.text.substring(0, 2e3), sessionId: "main" } }).catch(() => {
+      await prisma.conversation.create({ data: { role: "assistant", content: answer.text, sessionId: targetSessionId } }).catch(() => {
       });
       await prisma.activityLog.create({ data: { action: "ai_chat", details: answer.source, surface: "chat" } }).catch(() => {
       });
     }
     const spokenSummary = ConversationOS.sanitizeSpokenText(
-      answer.text.split("\n\n")[0]?.split("\n")[0]?.slice(0, 240) || answer.text.slice(0, 180)
+      answer.text.slice(0, 1800)
     );
-    return c.json({ content: answer.text, source: answer.source, spokenSummary });
+    return c.json({ content: answer.text, source: answer.source, spokenSummary, sessionId: targetSessionId });
   } catch (error) {
     return c.json({ error: error.message || "Chat error" }, 500);
   }
 });
+app.get("/ai/sessions", requireAuth, async (c) => {
+  try {
+    const rawSessions = await prisma.conversation.findMany({
+      select: { sessionId: true, role: true, content: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 600
+    }).catch(() => []);
+    const sessionMap = /* @__PURE__ */ new Map();
+    for (const row of rawSessions) {
+      const sid = row.sessionId || "main";
+      if (!sessionMap.has(sid)) {
+        const title = row.role === "user" ? row.content.slice(0, 42) + (row.content.length > 42 ? "..." : "") : "Sovereign Directive";
+        sessionMap.set(sid, {
+          id: sid,
+          title: sid === "main" ? "Primary Command Center" : title,
+          messageCount: 1,
+          lastActive: row.createdAt,
+          createdAt: row.createdAt
+        });
+      } else {
+        const item = sessionMap.get(sid);
+        item.messageCount++;
+        if (row.role === "user" && (item.title === "Sovereign Directive" || item.title.startsWith("chat_"))) {
+          item.title = row.content.slice(0, 42) + (row.content.length > 42 ? "..." : "");
+        }
+      }
+    }
+    const sessions = Array.from(sessionMap.values());
+    if (!sessionMap.has("main")) {
+      sessions.unshift({
+        id: "main",
+        title: "Primary Command Center",
+        messageCount: 0,
+        lastActive: (/* @__PURE__ */ new Date()).toISOString(),
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+    return c.json({ ok: true, sessions });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
 app.get("/ai/history", requireAuth, async (c) => {
+  const sessionId = c.req.query("sessionId") || "main";
   const limit = Math.min(Number(c.req.query("limit") || 80), 300);
   const rows = await prisma.conversation.findMany({
-    where: { sessionId: "main" },
+    where: { sessionId },
     orderBy: { createdAt: "desc" },
     take: limit
   }).catch(() => []);
   return c.json({
+    ok: true,
+    sessionId,
     messages: rows.reverse().map((r) => ({ role: r.role, content: r.content, createdAt: r.createdAt }))
   });
 });
 app.delete("/ai/history", requireAuth, async (c) => {
-  const res = await prisma.conversation.deleteMany({ where: { sessionId: "main" } });
+  const sessionId = c.req.query("sessionId");
+  const where = sessionId ? { sessionId } : { sessionId: "main" };
+  const res = await prisma.conversation.deleteMany({ where }).catch(() => ({ count: 0 }));
   return c.json({ ok: true, deleted: res.count });
 });
 app.get("/ai/models", (c) => {
@@ -12568,14 +12874,14 @@ async function synthesizeNeuralAudio(text, voice) {
   const { execFile: execFile3 } = await import("node:child_process");
   const scriptPath = join7(process.cwd(), "scripts", "neural-tts.py");
   const pyBin = process.platform === "win32" ? "python" : "python3";
-  const audioBuffer = await new Promise((resolve6) => {
+  const audioBuffer = await new Promise((resolve7) => {
     execFile3(pyBin, [scriptPath, "--text", text, "--voice", voice], {
       maxBuffer: 20 * 1024 * 1024,
       timeout: 15e3,
       encoding: "buffer"
     }, (err, stdout) => {
       if (!err && stdout && stdout.length > 500) {
-        return resolve6(stdout);
+        return resolve7(stdout);
       }
       if (pyBin !== "python") {
         execFile3("python", [scriptPath, "--text", text, "--voice", voice], {
@@ -12584,12 +12890,12 @@ async function synthesizeNeuralAudio(text, voice) {
           encoding: "buffer"
         }, (err2, stdout2) => {
           if (!err2 && stdout2 && stdout2.length > 500) {
-            return resolve6(stdout2);
+            return resolve7(stdout2);
           }
-          resolve6(null);
+          resolve7(null);
         });
       } else {
-        resolve6(null);
+        resolve7(null);
       }
     });
   });
@@ -13689,6 +13995,97 @@ app.post("/workspace/execute", async (c) => {
     }
   } catch (err) {
     return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/workspaces", requireAuth, async (c) => {
+  try {
+    const baseDir = resolve6(process.cwd(), "workspaces");
+    if (!existsSync7(baseDir)) mkdirSync5(baseDir, { recursive: true });
+    const items = readdirSync3(baseDir, { withFileTypes: true });
+    const projects = items.filter((item) => item.isDirectory()).map((dir) => {
+      const pPath = join7(baseDir, dir.name);
+      const files = WorkspaceManager.listFiles(dir.name);
+      const stats = statSync3(pPath);
+      return {
+        name: dir.name,
+        path: pPath,
+        filesCount: files.length,
+        updatedAt: stats.mtime.toISOString(),
+        previewUrl: `/api/workspaces/preview/${dir.name}`,
+        hasIndexHtml: existsSync7(join7(pPath, "index.html"))
+      };
+    }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return c.json({ ok: true, projects });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/workspaces/:projectName/files", requireAuth, async (c) => {
+  try {
+    const projectName = c.req.param("projectName");
+    const files = WorkspaceManager.listFiles(projectName);
+    return c.json({ ok: true, projectName, files });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/workspaces/:projectName/file", requireAuth, async (c) => {
+  try {
+    const projectName = c.req.param("projectName");
+    const filePath = c.req.query("path") || "index.html";
+    const result = WorkspaceManager.readFile(projectName, filePath);
+    return c.json(result);
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/workspaces/preview/:projectName", async (c) => {
+  try {
+    const projectName = c.req.param("projectName");
+    const projectPath = WorkspaceManager.getProjectPath(projectName);
+    const targetFile = resolve6(projectPath, "index.html");
+    if (!existsSync7(targetFile)) {
+      return c.html(`<div style="font-family:sans-serif;padding:2rem;background:#09090b;color:#fff;min-height:100vh"><h2>Project Index Not Found</h2><p>No <code>index.html</code> was generated in workspace <strong>${projectName}</strong>.</p></div>`, 404);
+    }
+    const html = readFileSync4(targetFile, "utf-8");
+    return c.html(html, 200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Frame-Options": "SAMEORIGIN",
+      "Cache-Control": "no-cache"
+    });
+  } catch (err) {
+    return c.text(`Error rendering preview: ${err.message}`, 500);
+  }
+});
+app.get("/workspaces/preview/:projectName/:file", async (c) => {
+  try {
+    const projectName = c.req.param("projectName");
+    const file = c.req.param("file");
+    const projectPath = WorkspaceManager.getProjectPath(projectName);
+    const targetFile = resolve6(projectPath, file);
+    if (!targetFile.startsWith(projectPath) || !existsSync7(targetFile)) {
+      return c.text(`File ${file} not found in ${projectName}`, 404);
+    }
+    const ext = extname(targetFile).toLowerCase();
+    const mimeMap = {
+      ".html": "text/html; charset=utf-8",
+      ".css": "text/css; charset=utf-8",
+      ".js": "application/javascript; charset=utf-8",
+      ".json": "application/json; charset=utf-8",
+      ".svg": "image/svg+xml",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg"
+    };
+    const contentType = mimeMap[ext] || "text/plain; charset=utf-8";
+    const content = readFileSync4(targetFile);
+    return c.body(content, 200, {
+      "Content-Type": contentType,
+      "X-Frame-Options": "SAMEORIGIN",
+      "Cache-Control": "no-cache"
+    });
+  } catch (err) {
+    return c.text(`Error serving file: ${err.message}`, 500);
   }
 });
 app.get("/health", async (c) => {

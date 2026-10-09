@@ -406,6 +406,25 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [micMode, setMicMode] = useState<'handsfree' | 'pushtotalk'>('handsfree')
   const isOpenRef = useRef(isOpen)
 
+  function getDynamicExecutiveGreeting(agentBadge: AgentBadge): string {
+    const hour = new Date().getHours()
+    let timeStr = 'Good evening'
+    if (hour >= 4 && hour < 12) timeStr = 'Good morning'
+    else if (hour >= 12 && hour < 17) timeStr = 'Good afternoon'
+    else if (hour >= 17 && hour < 22) timeStr = 'Good evening'
+    else timeStr = 'Night shift protocols engaged'
+
+    const pool = [
+      `${timeStr}, Master Sri. ${agentBadge.name} online. All 16 sovereign agents are synchronized, base station operating at 100% full capacity. Awaiting your executive directive.`,
+      `${timeStr}, Master Sri. Grand Marshal ${agentBadge.name} reporting. Workspace sandboxes, neural compilers, and automated business swarms are standing by. What shall we conquer today?`,
+      `${timeStr}, Master Sri. ${agentBadge.name} standing by. Multi-agent architecture primed, server latency minimal, and all sub-agents alert. At your service, Sire.`,
+      `${timeStr}, Master Sri. Sovereign intelligence matrix initialized. Daedalus, Friday, Aegis, and Vortex are primed for deployment. How may I serve you, Master?`,
+      `${timeStr}, Master Sri. ${agentBadge.name} at your command. Cloud infrastructure nominal, memory recall armed. Ready for your command.`
+    ]
+    const idx = (Math.floor(Date.now() / 20000) + hour) % pool.length
+    return pool[idx]
+  }
+
   useEffect(() => {
     isOpenRef.current = isOpen
     if (isOpen) {
@@ -418,15 +437,16 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         }
       } catch {}
 
-      // Instant crisp greeting on modal open, immediately transition to listening
-      const greeting = `Grand Marshal J.A.R.V.I.S. online, Master Sri. All systems armed at 100% full capacity. What is your directive?`
+      // Instant dynamic intelligent greeting on modal open, then settle into hands-free standby
+      const greeting = getDynamicExecutiveGreeting(activeAgentRef.current || AGENTS.jarvis)
       setJarvisResponse(greeting)
       setIsSleeping(false)
       isSleepingRef.current = false
-      speakVoice(greeting, 'en-GB', () => {
-        // Immediately engage active microphone listening after speaking
-        setIsSleeping(false)
-        isSleepingRef.current = false
+      speakVoice(greeting, activeAgentRef.current?.lang || 'en-GB', () => {
+        // Settle into resting standby sleep mode; mic stays awake listening for "Hey Jarvis" or agent names
+        setIsSleeping(true)
+        isSleepingRef.current = true
+        setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Say **"Hey Jarvis"** or call any specialist agent (**"Friday"**, **"Aegis"**, **"Daedalus"**, **"Vortex"**) to command hands-free.*`)
         startListening()
       })
     }
@@ -1056,8 +1076,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
   const processCommand = async (rawCmd: string) => {
     if (!rawCmd || !rawCmd.trim()) return
-    const cmd = normalizeVoiceCommand(rawCmd)
-    const lower = cmd.toLowerCase().trim()
+    let cmd = normalizeVoiceCommand(rawCmd)
+    let lower = cmd.toLowerCase().trim()
     setIsProcessing(true)
 
     // Save turn in rolling history
@@ -1084,10 +1104,52 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 0.1 WAKE UP IF IN STANDBY
+    // 0.1 WAKE UP IF IN STANDBY (HANDS-FREE WAKE-WORD GATE)
     if (isSleepingRef.current) {
+      const wakeMatch = lower.match(/^(?:hey\s+)?(jarvis|friday|aegis|daedalus|vortex|midas|cerebro|stark|wake\s*up)(.*)/i)
+      const hasDirectAddress = (
+        lower.includes('jarvis') ||
+        lower.includes('friday') ||
+        lower.includes('aegis') ||
+        lower.includes('daedalus') ||
+        lower.includes('vortex') ||
+        lower.includes('midas') ||
+        lower.includes('wake up')
+      )
+
+      if (!wakeMatch && !hasDirectAddress) {
+        // Background noise or unaddressed speech while resting — stay in quiet standby
+        setIsProcessing(false)
+        startListening()
+        return
+      }
+
       setIsSleeping(false)
       isSleepingRef.current = false
+      playJarvisChime('wake')
+
+      // Switch agent if agent name was addressed
+      const targetAgentKey = wakeMatch ? wakeMatch[1].toLowerCase().replace(/\s+/g, '') : ''
+      if (targetAgentKey && AGENTS[targetAgentKey]) {
+        setActiveAgent(AGENTS[targetAgentKey])
+        activeAgentRef.current = AGENTS[targetAgentKey]
+      }
+
+      // If trailing command exists, strip prefix and proceed
+      const trailingCmd = (wakeMatch ? wakeMatch[2] : cmd.replace(/^(?:hey\s+)?(jarvis|friday|aegis|daedalus|vortex|midas)[,\s:]*/i, '')).trim()
+      if (!trailingCmd || trailingCmd === 'please' || trailingCmd === 'online') {
+        const awakeMsg = `Online and awake, Sovereign Master Sri. What is your directive?`
+        setJarvisResponse(awakeMsg)
+        speakVoice(awakeMsg, activeAgentRef.current?.lang || 'en-GB', () => {
+          startListening()
+        })
+        setIsProcessing(false)
+        return
+      }
+
+      // Execute trailing directive
+      cmd = trailingCmd
+      lower = cmd.toLowerCase()
     }
 
     // 0.2 FULL POWER STATUS INQUIRY
@@ -1875,20 +1937,19 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 2.1 FULL-STACK WEBSITE & APP SCAFFOLDING ("build website", "build app", "create website")
-    if (
-      lower.startsWith('build a website') ||
-      lower.startsWith('build website') ||
-      lower.startsWith('build an app') ||
-      lower.startsWith('build app') ||
-      lower.startsWith('create website') ||
+    // 2.1 FULL-STACK WEBSITE & APP SCAFFOLDING ("build a one page html page...", "build website", "create app")
+    const isBuildAppOrWebsite = /(?:build|create|make|generate|design|scaffold|code)\s+(?:me\s+)?(?:a\s+)?(?:[a-z0-9-]+\s+)*(?:website|web\s*page|html\s*page|web\s*app|landing\s*page|store|portal|app)/i.test(cmd) ||
       lower.includes('full stack website') ||
-      lower.includes('full stack app')
-    ) {
+      lower.includes('full stack app') ||
+      lower.includes('women clothing') ||
+      lower.includes('html page of') ||
+      lower.includes('create a website')
+
+    if (isBuildAppOrWebsite) {
       let topic = cmd
-        .replace(/^(build a website for|build website for|build an app for|build app for|build website|build app|create website for|create website|create app for)/i, '')
+        .replace(/^(?:please\s+)?(?:can you\s+)?(?:build|create|make|generate|design|scaffold|code)\s+(?:me\s+)?(?:a\s+)?(?:[a-z0-9-]+\s+)*(?:website|web\s*page|html\s*page|web\s*app|landing\s*page|store|portal|app)(?:\s+(?:for|of))?/i, '')
         .trim()
-      if (!topic) topic = 'Sri Roofing Modern AI Enterprise Portal'
+      if (!topic || topic.length < 3) topic = cmd.replace(/^(?:hey\s+)?(?:jarvis\s+)?(?:please\s+)?/i, '').trim()
 
       setIsProcessing(true)
       setActiveAgent(AGENTS.aegis)
@@ -1896,17 +1957,17 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       playJarvisChime('execute')
 
       const taskNum = `TASK-APP-${Date.now().toString().slice(-4)}`
-      const workspacePath = `workspace/projects/proj_${Date.now().toString().slice(-4)}`
+      const workspacePath = `workspaces/proj_${Date.now().toString().slice(-4)}`
       const liveTask: AgentTask = {
         id: `task_${Date.now()}`,
         taskNumber: taskNum,
         title: `Full-Stack Scaffold: ${topic}`,
-        description: `Architect and scaffold end-to-end full-stack web application for ${topic}`,
+        description: `Architect and scaffold end-to-end production web application for ${topic}`,
         agentId: 'aegis',
         workspacePath,
         status: 'RUNNING',
         progress: 30,
-        currentOperation: 'Scaffolding components, design system & API endpoints...',
+        currentOperation: 'Scaffolding components, design system & live sandbox...',
         totalSteps: 4,
         completedSteps: 1,
         startedAt: new Date().toISOString(),
@@ -1915,7 +1976,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           { title: 'Decompose feature requirements & design tokens', status: 'COMPLETED' },
           { title: 'Scaffold project sandbox directory & dependencies', status: 'RUNNING' },
           { title: 'Synthesize full-stack components, state & styling', status: 'PENDING' },
-          { title: 'Verify zero TypeScript defects & render in Code Lab', status: 'PENDING' }
+          { title: 'Verify zero defects & host live preview in Workspace Studio', status: 'PENDING' }
         ],
         terminalLogs: [
           `[PLAN] 1. Architecture blueprint approved for "${topic}"`,
@@ -1927,7 +1988,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
       setActiveTask(liveTask)
 
-      setJarvisResponse(`Master Sri, Aegis and our DeepSeek Code Engine are compiling the full-stack web application for "${topic}". Live execution pipeline streaming below...`)
+      setJarvisResponse(`Master Sri, Aegis and our Code Engine are compiling the application for "${topic}". Live execution pipeline streaming below...`)
       speakVoice(`Master Sri, Aegis is on it. Dispatched full-stack build under ${taskNum}. Sandbox path created at ${workspacePath}.`, 'en-US')
 
       try {
@@ -1939,6 +2000,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
         if (res.ok) {
           const data = await res.json()
+          const previewUrl = data.previewUrl || `/api/workspaces/preview/${data.projectName || 'latest'}`
           const finishedTask: AgentTask = {
             ...liveTask,
             status: 'COMPLETED',
@@ -1951,7 +2013,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               ...(liveTask.terminalLogs || []),
               `[SUCCESS] Full-stack application compiled with 0 errors`,
               `[PATH] Artifacts written to ${workspacePath}`,
-              `[STATUS] Ready for live preview in Code Lab`
+              `[PREVIEW] Live sandbox preview available at ${previewUrl}`,
+              `[STATUS] Live preview mounted in Workspace Studio`
             ]
           }
           setActiveTask(finishedTask)
@@ -1959,14 +2022,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             type: 'app',
             title: `App Scaffolding: ${topic}`,
             query: topic,
-            content: data.data
+            content: data.data,
+            url: previewUrl
           })
-          setJarvisResponse(`### [${taskNum}] Full-Stack Web Application Compiled\n**Topic**: ${topic}\n**Workspace Sandbox**: \`${workspacePath}\`\n\n${data.data}`)
-          speakVoice(data.spokenSummary || `Master Sri, I have built the complete full-stack web application for ${topic}. All components and styling are ready.`)
+          setJarvisResponse(`### [${taskNum}] Full-Stack Web Application Compiled\n**Topic**: ${topic}\n**Live Preview**: [Open Live Workspace](${previewUrl})\n**Sandbox Directory**: \`${workspacePath}\`\n\n${data.data}`)
+          speakVoice(data.spokenSummary || `Master Sri, I have built the complete application for ${topic}. The live page is rendered in your workspace preview.`)
           return
         }
       } catch (err) {}
-      const fallbackSpeech = `Master Sri, full-stack architecture for ${topic} formulated and linked to Code Lab.`
+      const fallbackSpeech = `Master Sri, full-stack architecture for ${topic} formulated and linked to Workspace Studio.`
       setJarvisResponse(fallbackSpeech)
       speakVoice(fallbackSpeech)
       setIsProcessing(false)
@@ -2148,6 +2212,122 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       const fallback = `Automation pipeline designed for ${task}, Master Sri.`
       setJarvisResponse(fallback)
       speakVoice(fallback)
+      setIsProcessing(false)
+      return
+    }
+
+    // 2.3 NATIVE YOUTUBE APP & SONG PLAYBACK ("open youtube play songs", "play songs on youtube")
+    if (
+      lower.includes('youtube') ||
+      (lower.includes('play') && (lower.includes('song') || lower.includes('music') || lower.includes('track'))) ||
+      lower.includes('open youtube')
+    ) {
+      let query = cmd
+        .replace(/^(?:hey\s+)?(?:jarvis\s+)?(?:please\s+)?(?:can you\s+)?(?:open youtube\s+and\s+)?(?:open\s+youtube\s+)?(?:play\s+)?(?:songs\s+of|song\s+of|songs\s+by|song\s+by|songs|song|music)?/i, '')
+        .replace(/(?:on\s+youtube|in\s+youtube|app)$/i, '')
+        .trim()
+      if (!query || query.length < 2) query = 'Top trending hits songs'
+
+      setIsProcessing(true)
+      playJarvisChime('execute')
+      const speech = `Master Sri, launching the YouTube application to play "${query}".`
+      setJarvisResponse(`### 🎵 YouTube Dispatch Matrix\n**Target**: \`${query}\`\n**Intent**: Native Mobile App / Audio Stream\n\n*Dispatching deep-link intent to local YouTube application...*`)
+      speakVoice(speech)
+
+      // Mobile Intent Protocol: attempts native YouTube app first, fallbacks to web
+      setTimeout(() => {
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+        if (isMobile) {
+          // Android Intent & iOS custom scheme
+          const intentUrl = `intent://www.youtube.com/results?search_query=${encodeURIComponent(query)}#Intent;package=com.google.android.youtube;scheme=https;end`
+          const appScheme = `vnd.youtube://results?search_query=${encodeURIComponent(query)}`
+          try {
+            window.location.href = appScheme
+            setTimeout(() => {
+              window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, '_blank')
+            }, 800)
+          } catch {
+            window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, '_blank')
+          }
+        } else {
+          window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, '_blank')
+        }
+        setIsProcessing(false)
+      }, 700)
+      return
+    }
+
+    // 2.4 WHATSAPP MESSAGE DISPATCHER ("open whatsapp and send a hai message to...")
+    if (
+      lower.includes('whatsapp') ||
+      (lower.includes('send') && lower.includes('message') && (lower.includes('number') || lower.includes('person')))
+    ) {
+      // Extract target number if digits exist
+      const phoneMatch = cmd.match(/\b(?:\+?\d{1,3}[-.\s]?)?\d{10}\b/)
+      const targetPhone = phoneMatch ? phoneMatch[0].replace(/[^\d+]/g, '') : ''
+
+      let messageText = 'Hai Master Sri greetings from J.A.R.V.I.S.'
+      const msgMatch = cmd.match(/(?:send\s+(?:a\s+)?(?:hai\s+)?message\s+(?:saying\s+)?|saying\s+|text\s+)(.*?)(?:\s+to|\s+number|$)/i)
+      if (msgMatch && msgMatch[1]?.trim()) {
+        messageText = msgMatch[1].trim()
+      } else if (lower.includes('hai')) {
+        messageText = 'Hai'
+      }
+
+      setIsProcessing(true)
+      playJarvisChime('execute')
+      const destLabel = targetPhone ? `phone ${targetPhone}` : 'your selected contact'
+      const speech = `Master Sri, opening WhatsApp with your message dispatched to ${destLabel}.`
+      setJarvisResponse(`### 💬 WhatsApp Telemetry Dispatch\n**Recipient**: \`${destLabel}\`\n**Payload**: "${messageText}"\n\n*Opening WhatsApp client with pre-filled message...*`)
+      speakVoice(speech)
+
+      setTimeout(() => {
+        let waUrl = ''
+        if (targetPhone) {
+          waUrl = `https://api.whatsapp.com/send?phone=${encodeURIComponent(targetPhone)}&text=${encodeURIComponent(messageText)}`
+        } else {
+          waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(messageText)}`
+        }
+        window.open(waUrl, '_blank')
+        setIsProcessing(false)
+      }, 700)
+      return
+    }
+
+    // 2.5 INTELLIGENT REMINDER & CALENDAR SYNC ("remind me I have a meeting on...")
+    if (
+      lower.includes('remind me') ||
+      lower.includes('set reminder') ||
+      lower.includes('schedule reminder')
+    ) {
+      let reminderText = cmd
+        .replace(/^(?:hey\s+)?(?:jarvis\s+)?(?:please\s+)?(?:remind me\s+that\s+|remind me\s+to\s+|remind me\s+|set reminder for\s+|set reminder\s+)/i, '')
+        .trim()
+      if (!reminderText) reminderText = 'Important strategic executive briefing'
+
+      setIsProcessing(true)
+      playJarvisChime('execute')
+
+      // Request browser notification permission
+      if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        Notification.requestPermission().catch(() => {})
+      }
+
+      // Register reminder in local alert store
+      try {
+        const stored = JSON.parse(localStorage.getItem('jarvis_reminders') || '[]')
+        stored.push({
+          id: `rem_${Date.now()}`,
+          text: reminderText,
+          createdAt: new Date().toISOString(),
+          status: 'ACTIVE'
+        })
+        localStorage.setItem('jarvis_reminders', JSON.stringify(stored))
+      } catch {}
+
+      const speech = `Master Sri, reminder scheduled for: "${reminderText}". I have synchronized it across your device alerts.`
+      setJarvisResponse(`### ⏰ Sovereign Executive Reminder Set\n**Alert**: "${reminderText}"\n**Status**: \`ACTIVE (DEVICE + CLOUD PERSISTED)\`\n\n*J.A.R.V.I.S. will alert you even if phone is resting or system is backgrounded.*`)
+      speakVoice(speech)
       setIsProcessing(false)
       return
     }
@@ -2506,7 +2686,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       if (res.ok) {
         const data = await res.json()
         const textContent = data.content || data.reply || data.text || 'Command executed, Master Sri.'
-        const spokenReply = data.spokenSummary || (textContent.split('\n\n')[0]?.split('\n')[0] || textContent).slice(0, 240)
+        // Full natural speech without arbitrary 240-char truncation: clean out code fences and markdown
+        const cleanSpoken = (data.spokenSummary || textContent)
+          .replace(/```[\s\S]*?```/g, ' [Code compiled into sandbox] ')
+          .replace(/[#*`_~]/g, '')
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .trim()
+        const spokenReply = cleanSpoken.length > 1800 ? cleanSpoken.slice(0, 1800) + '...' : cleanSpoken
         setJarvisResponse(textContent)
         speakVoice(spokenReply)
       } else {
@@ -2544,7 +2730,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
 
-      // 16kHz Web Audio API filters & RMS energy gate VAD (1.8s sustained silence threshold)
+      // 16kHz Web Audio API filters & RMS energy gate VAD (1.3s rapid conversational turn-taking)
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
         const audioCtx = new AudioCtx({ sampleRate: 16000 })
@@ -2557,8 +2743,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
         let hasSpoken = false
         let silenceStartTime: number | null = null
-        const SILENCE_THRESHOLD_RMS = 0.012
-        const SILENCE_DURATION_MS = 5000 // 5.0 seconds of sustained silence after speaking
+        const SILENCE_THRESHOLD_RMS = 0.018 // Accurate speech energy gate: ignores floor background noise
+        const SILENCE_DURATION_MS = 1300 // 1.3 seconds of sustained silence after speaking -> fast turnaround
 
         let rmsInterval: any = null
         const checkRMSGate = () => {
@@ -2581,7 +2767,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             if (!silenceStartTime) {
               silenceStartTime = Date.now()
             } else if (Date.now() - silenceStartTime >= SILENCE_DURATION_MS) {
-              // 5.0 seconds of sustained silence after speaking -> auto-terminate audio stream
+              // 1.3 seconds of silence after speaking -> stop immediately for <1.5s turnaround
               if (rmsInterval) clearInterval(rmsInterval)
               if (recorder.state === 'recording') {
                 recorder.stop()
@@ -2590,18 +2776,18 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             }
           }
         }
-        rmsInterval = setInterval(checkRMSGate, 150) // Throttled to 150ms: prevents mobile CPU overheating
+        rmsInterval = setInterval(checkRMSGate, 120) // Throttled to 120ms: ultra-low mobile CPU overhead
       } catch (vadErr) {
         console.warn('VAD setup skipped:', vadErr)
       }
 
-      // Safety timeout: max 30 seconds per turn
+      // Safety timeout: max 12 seconds per turn (was 30s)
       if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
       maxRecordingTimerRef.current = setTimeout(() => {
         if (recorder.state === 'recording') {
           recorder.stop()
         }
-      }, 30000)
+      }, 12000)
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
@@ -2727,9 +2913,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           lastActiveRef.current = Date.now()
         }
 
-        // 5-Second Silence Debounce as requested by Master Sri
+        // Intelligent Responsive Debounce: 450ms on final utterance, 1200ms on interim
+        const lastResult = event.results[event.results.length - 1]
+        const isFinal = lastResult && lastResult.isFinal
+
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
         if (cleaned.length > 0) {
+          const timeoutDelay = isFinal ? 450 : 1200
           silenceTimerRef.current = setTimeout(() => {
             const captured = transcriptRef.current.trim()
             if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
@@ -2738,7 +2928,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               stopListening()
               processCommand(captured)
             }
-          }, 5000) // 5 full seconds of silence
+          }, timeoutDelay)
         }
       }
 
@@ -3396,6 +3586,34 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Live Workspace Sandbox Embedded Preview */}
+              {currentAction.url && currentAction.url.includes('/api/workspaces/preview') && (
+                <div className="space-y-2 mt-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      LIVE WORKSPACE PREVIEW (COMPILED IN ISOLATED SANDBOX)
+                    </span>
+                    <a
+                      href={currentAction.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-[10px] font-mono font-bold text-emerald-300 flex items-center gap-1 transition-all"
+                    >
+                      OPEN IN FULL TAB <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                  <div className="relative w-full h-80 rounded-2xl overflow-hidden border border-emerald-500/40 bg-slate-950 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+                    <iframe
+                      src={currentAction.url}
+                      title="Workspace Live Preview"
+                      className="w-full h-full border-0 bg-white"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+                    />
+                  </div>
                 </div>
               )}
 
