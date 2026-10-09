@@ -3362,6 +3362,8 @@ app.post('/agents/dispatch', async (c) => {
 
     return c.json({
       ok: true,
+      taskId: mission.missionId,
+      taskNumber: mission.taskNumber || mission.missionId,
       agentId: agentSpec.id,
       agent: agentSpec.name,
       status: mission.status,
@@ -3820,19 +3822,6 @@ Conclude with **Grand Marshal J.A.R.V.I.S. Executive Synthesis**: Exactly what M
       report: result.text,
       spokenSummary: 'Master Sri, Midas has mapped 3 actionable revenue streams. The blueprints and client outreach copy are ready in your Command Center.'
     })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-app.get('/revenue/opportunities', requireAuth, async (c) => {
-  try {
-    const opportunities = await (prisma as any).memory.findMany({
-      where: { category: 'revenue_opportunity' },
-      orderBy: { createdAt: 'desc' },
-      take: 15
-    })
-    return c.json({ opportunities })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

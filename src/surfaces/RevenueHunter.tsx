@@ -20,39 +20,49 @@ import {
 
 interface Opportunity {
   id: string;
-  source: string;
   title: string;
-  client: string;
-  budgetUsd: number;
-  budgetInr: number;
-  tags: string[];
+  platform: 'Upwork' | 'RemoteOK' | 'Freelancer' | 'Web3Bounties' | 'Fiverr' | 'GitHub Bounties';
+  category: string;
+  payoutUSD: number;
+  payoutINR: number;
+  clientName: string;
+  clientRating: number;
+  clientCountry: string;
+  deadlineDays: number;
   description: string;
-  deliverableType: string;
-  status: 'OPEN' | 'APPLIED' | 'COMPLETED' | 'PAYOUT_READY' | 'COLLECTED';
-  winningProposal?: string;
-  demoUrl?: string;
-  timestamp: string;
+  skillsRequired: string[];
+  matchScore: number;
+  status: 'OPEN' | 'PROPOSAL_GENERATED' | 'APPLIED' | 'IN_PROGRESS' | 'DELIVERABLE_READY' | 'PAYOUT_READY' | 'COLLECTED';
+  proposalText?: string;
+  deliverableProjectName?: string;
+  deliverablePreviewUrl?: string;
+  sourceUrl: string;
+  appliedAt?: string;
+  deliveredAt?: string;
+  payoutReadyAt?: string;
 }
 
 interface LedgerMetrics {
-  totalOpportunitiesTracked: number;
-  activeProposalsSubmitted: number;
-  tasksCompleted: number;
-  totalEarningsUsd: number;
-  totalEarningsInr: number;
-  spendablePayoutReadyUsd: number;
-  spendablePayoutReadyInr: number;
-  collectedUsd: number;
-  collectedInr: number;
+  collectedINR: number;
+  readyForPayoutINR: number;
+  inProgressINR: number;
+  totalPipelineINR: number;
+  collectedUSD: number;
+  readyForPayoutUSD: number;
+  totalPipelineUSD: number;
+  activeOpportunitiesCount: number;
+  payoutReadyCount: number;
+  appliedCount: number;
 }
 
 interface PayoutSettings {
-  bankName: string;
-  accountNumberMasked: string;
-  ifscCode: string;
-  upiId: string;
-  beneficiaryName: string;
-  autoCollectEnabled: boolean;
+  payoutMethod: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  upiId?: string;
+  accountHolderName?: string;
+  autoWithdrawThresholdINR?: number;
 }
 
 export const RevenueHunter: React.FC = () => {
@@ -68,39 +78,52 @@ export const RevenueHunter: React.FC = () => {
 
   // Editable settings form
   const [upiIdInput, setUpiIdInput] = useState<string>('master.sri@okaxis');
-  const [bankNameInput, setBankNameInput] = useState<string>('HDFC Bank');
-  const [accountNumInput, setAccountNumInput] = useState<string>('50100492817291');
-  const [ifscInput, setIfscInput] = useState<string>('HDFC0001234');
+  const [bankNameInput, setBankNameInput] = useState<string>('HDFC Bank Ltd');
+  const [accountNumInput, setAccountNumInput] = useState<string>('50100492817264');
+  const [ifscInput, setIfscInput] = useState<string>('HDFC0000128');
   const [beneficiaryInput, setBeneficiaryInput] = useState<string>('Master Sri');
+
+  const getHeaders = () => {
+    const token = localStorage.getItem('jarvis_token') || '';
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      const headers = getHeaders();
       const [oppsRes, ledgerRes, settingsRes] = await Promise.all([
-        fetch('/api/revenue/opportunities'),
-        fetch('/api/revenue/ledger'),
-        fetch('/api/revenue/payout-settings')
+        fetch('/api/revenue/opportunities', { headers }),
+        fetch('/api/revenue/ledger', { headers }),
+        fetch('/api/revenue/payout-settings', { headers })
       ]);
 
       if (oppsRes.ok) {
         const data = await oppsRes.json();
-        setOpportunities(data);
-        if (data.length > 0 && !selectedOpp) {
-          setSelectedOpp(data[0]);
+        const oppList = Array.isArray(data) ? data : (data.opportunities || []);
+        setOpportunities(oppList);
+        if (oppList.length > 0 && !selectedOpp) {
+          setSelectedOpp(oppList[0]);
         }
       }
 
       if (ledgerRes.ok) {
-        setLedger(await ledgerRes.json());
+        const data = await ledgerRes.json();
+        setLedger(data.ledger || data);
       }
 
       if (settingsRes.ok) {
-        const setts = await settingsRes.json();
+        const data = await settingsRes.json();
+        const setts = data.settings || data;
         setSettings(setts);
-        setUpiIdInput(setts.upiId);
-        setBankNameInput(setts.bankName);
-        setIfscInput(setts.ifscCode);
-        setBeneficiaryInput(setts.beneficiaryName);
+        if (setts.upiId) setUpiIdInput(setts.upiId);
+        if (setts.bankName) setBankNameInput(setts.bankName);
+        if (setts.accountNumber) setAccountNumInput(setts.accountNumber);
+        if (setts.ifscCode) setIfscInput(setts.ifscCode);
+        if (setts.accountHolderName) setBeneficiaryInput(setts.accountHolderName);
       }
     } catch (err) {
       console.error('Error fetching revenue data:', err);
@@ -271,10 +294,10 @@ export const RevenueHunter: React.FC = () => {
             <span>Payout Ready to Collect</span>
           </div>
           <div className="text-xl md:text-2xl font-black text-emerald-300 mt-1">
-            ₹{ledger?.spendablePayoutReadyInr.toLocaleString() || '0'}
+            ₹{ledger?.readyForPayoutINR?.toLocaleString() || '0'}
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
-            ${ledger?.spendablePayoutReadyUsd.toLocaleString() || '0'} USD spendable
+            ${ledger?.readyForPayoutUSD?.toLocaleString() || '0'} USD spendable
           </div>
         </div>
 
@@ -285,10 +308,10 @@ export const RevenueHunter: React.FC = () => {
             <span>Total Collected to Bank</span>
           </div>
           <div className="text-xl md:text-2xl font-black text-cyan-300 mt-1">
-            ₹{ledger?.collectedInr.toLocaleString() || '0'}
+            ₹{ledger?.collectedINR?.toLocaleString() || '0'}
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
-            ${ledger?.collectedUsd.toLocaleString() || '0'} USD transferred
+            ${ledger?.collectedUSD?.toLocaleString() || '0'} USD transferred
           </div>
         </div>
 
@@ -299,10 +322,10 @@ export const RevenueHunter: React.FC = () => {
             <span>Pipeline Value</span>
           </div>
           <div className="text-xl md:text-2xl font-black text-blue-300 mt-1">
-            ₹{ledger?.totalEarningsInr.toLocaleString() || '0'}
+            ₹{ledger?.totalPipelineINR?.toLocaleString() || '0'}
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
-            {ledger?.activeProposalsSubmitted || 0} active contracts applied
+            {ledger?.appliedCount || 0} active contracts applied
           </div>
         </div>
 
@@ -313,7 +336,7 @@ export const RevenueHunter: React.FC = () => {
             <span>Autonomous Tasks Done</span>
           </div>
           <div className="text-xl md:text-2xl font-black text-purple-300 mt-1">
-            {ledger?.tasksCompleted || 0} Deliverables
+            {ledger?.payoutReadyCount || 0} Deliverables
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
             100% verified production code
@@ -350,14 +373,14 @@ export const RevenueHunter: React.FC = () => {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                      {opp.source}
+                      {opp.platform}
                     </span>
                     <div className="text-right">
                       <div className="text-sm font-bold text-emerald-400">
-                        ₹{opp.budgetInr.toLocaleString()}
+                        ₹{opp.payoutINR?.toLocaleString()}
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        ${opp.budgetUsd} USD
+                        ${opp.payoutUSD} USD
                       </div>
                     </div>
                   </div>
@@ -373,7 +396,7 @@ export const RevenueHunter: React.FC = () => {
                   <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-800/80">
                     <div className="flex items-center gap-1 text-[10px] text-slate-400">
                       <Clock className="w-3 h-3 text-slate-500" />
-                      <span>{opp.client}</span>
+                      <span>{opp.clientName} ({opp.clientCountry})</span>
                     </div>
 
                     {/* Status Badge */}
@@ -381,7 +404,7 @@ export const RevenueHunter: React.FC = () => {
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                         opp.status === 'COLLECTED'
                           ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                          : opp.status === 'PAYOUT_READY'
+                          : (opp.status === 'PAYOUT_READY' || opp.status === 'DELIVERABLE_READY')
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
                           : opp.status === 'APPLIED'
                           ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
@@ -406,9 +429,9 @@ export const RevenueHunter: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-semibold">
-                      {selectedOpp.source} Contract
+                      {selectedOpp.platform} Contract
                     </span>
-                    <span className="text-xs text-slate-400">{selectedOpp.client}</span>
+                    <span className="text-xs text-slate-400">{selectedOpp.clientName}</span>
                   </div>
                   <h2 className="text-base md:text-lg font-bold text-slate-100 mt-1">
                     {selectedOpp.title}
@@ -417,10 +440,10 @@ export const RevenueHunter: React.FC = () => {
 
                 <div className="text-left md:text-right">
                   <div className="text-xl font-black text-emerald-400">
-                    ₹{selectedOpp.budgetInr.toLocaleString()}
+                    ₹{selectedOpp.payoutINR?.toLocaleString()}
                   </div>
                   <div className="text-xs text-slate-400">
-                    ${selectedOpp.budgetUsd} USD Payout
+                    ${selectedOpp.payoutUSD} USD Payout
                   </div>
                 </div>
               </div>
@@ -429,7 +452,7 @@ export const RevenueHunter: React.FC = () => {
               <div>
                 <h4 className="text-xs font-semibold text-slate-300 mb-1.5">Required Skills:</h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {selectedOpp.tags.map((tag) => (
+                  {(selectedOpp.skillsRequired || []).map((tag) => (
                     <span
                       key={tag}
                       className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60"
@@ -461,7 +484,7 @@ export const RevenueHunter: React.FC = () => {
               )}
 
               {/* Deliverable Preview Link if built */}
-              {selectedOpp.demoUrl && (
+              {(selectedOpp.deliverablePreviewUrl || selectedOpp.status === 'DELIVERABLE_READY' || selectedOpp.status === 'PAYOUT_READY') && (
                 <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileCode2 className="w-4 h-4 text-emerald-400" />
@@ -470,12 +493,12 @@ export const RevenueHunter: React.FC = () => {
                         Production Deliverable Generated & Stored
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        Live Sandbox: {selectedOpp.demoUrl}
+                        Live Sandbox: {selectedOpp.deliverablePreviewUrl || `/api/workspaces/preview/${selectedOpp.deliverableProjectName}`}
                       </div>
                     </div>
                   </div>
                   <a
-                    href={selectedOpp.demoUrl}
+                    href={selectedOpp.deliverablePreviewUrl || `/api/workspaces/preview/${selectedOpp.deliverableProjectName}`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow"
@@ -514,7 +537,7 @@ export const RevenueHunter: React.FC = () => {
                   </button>
                 )}
 
-                {selectedOpp.status === 'PAYOUT_READY' && (
+                {(selectedOpp.status === 'PAYOUT_READY' || selectedOpp.status === 'DELIVERABLE_READY') && (
                   <button
                     onClick={() => handleCollect(selectedOpp.id)}
                     disabled={actionLoading === selectedOpp.id}
@@ -522,7 +545,7 @@ export const RevenueHunter: React.FC = () => {
                   >
                     <DollarSign className="w-5 h-5" />
                     <span>
-                      {actionLoading === selectedOpp.id ? 'Processing Transfer...' : `Collect Payout (₹${selectedOpp.budgetInr.toLocaleString()})`}
+                      {actionLoading === selectedOpp.id ? 'Processing Transfer...' : `Collect Payout (₹${selectedOpp.payoutINR?.toLocaleString()})`}
                     </span>
                   </button>
                 )}
@@ -530,7 +553,7 @@ export const RevenueHunter: React.FC = () => {
                 {selectedOpp.status === 'COLLECTED' && (
                   <div className="w-full py-2.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold text-center flex items-center justify-center gap-2 border border-slate-700">
                     <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Payout of ₹{selectedOpp.budgetInr.toLocaleString()} Deposited to Master Sri</span>
+                    <span>Payout of ₹{selectedOpp.payoutINR?.toLocaleString()} Deposited to Master Sri</span>
                   </div>
                 )}
               </div>

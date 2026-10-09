@@ -12893,6 +12893,8 @@ ${parallelResults.map((r, i) => `#### [Task ${i + 1}] ${r.agentId.toUpperCase()}
     const spoken = mission.status === "COMPLETED" ? `${agentSpec.name} has completed your directive, Master Sri. Verification passed with zero errors.` : `${agentSpec.name} reported mission status: ${mission.status}. Deliverables recorded in telemetry.`;
     return c.json({
       ok: true,
+      taskId: mission.missionId,
+      taskNumber: mission.taskNumber || mission.missionId,
       agentId: agentSpec.id,
       agent: agentSpec.name,
       status: mission.status,
@@ -13287,18 +13289,6 @@ Conclude with **Grand Marshal J.A.R.V.I.S. Executive Synthesis**: Exactly what M
       report: result.text,
       spokenSummary: "Master Sri, Midas has mapped 3 actionable revenue streams. The blueprints and client outreach copy are ready in your Command Center."
     });
-  } catch (err) {
-    return c.json({ error: err.message }, 500);
-  }
-});
-app.get("/revenue/opportunities", requireAuth, async (c) => {
-  try {
-    const opportunities = await prisma.memory.findMany({
-      where: { category: "revenue_opportunity" },
-      orderBy: { createdAt: "desc" },
-      take: 15
-    });
-    return c.json({ opportunities });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }

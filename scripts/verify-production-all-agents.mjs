@@ -17,7 +17,7 @@ async function verifyAllAgents() {
   const loginRes = await fetch(`${PROD_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'SrimanikandanK', password: 'SriJarvisMaster2026!' })
+    body: JSON.stringify({ username: 'SrimanikandanK', password: 'sri2613M@' })
   });
 
   if (!loginRes.ok) {
