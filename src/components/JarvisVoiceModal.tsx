@@ -452,15 +452,18 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       } catch {}
 
       // Instant dynamic intelligent greeting on modal open, then settle into hands-free standby
-      const greeting = getDynamicExecutiveGreeting(activeAgentRef.current || AGENTS.jarvis)
+      const currentAgent = activeAgentRef.current || AGENTS.jarvis
+      const greeting = currentAgent.id === 'jarvis'
+        ? 'Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.'
+        : (currentAgent.greeting || 'Master Sri, greetings and welcome back. How may I help you? We are ready to assist you.')
       setJarvisResponse(greeting)
       setIsSleeping(false)
       isSleepingRef.current = false
-      speakVoice(greeting, activeAgentRef.current?.lang || 'en-GB', () => {
-        // Settle into resting standby sleep mode; mic stays awake listening for "Hey Jarvis" or agent names
+      speakVoice(greeting, currentAgent?.lang || 'en-GB', () => {
+        // Settle into resting standby sleep mode; mic stays awake listening for Master Sri's voice command
         setIsSleeping(true)
         isSleepingRef.current = true
-        setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Say **"Hey Jarvis"** or call any specialist agent (**"Friday"**, **"Aegis"**, **"Daedalus"**, **"Vortex"**) to command hands-free.*`)
+        setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Speak your directive or call any specialist agent (**"Friday"**, **"Aegis"**, **"OpenHands"**, **"Vortex"**) to command hands-free.*`)
         startListening()
       })
     }
@@ -469,7 +472,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       stopListening()
       stopNeuralSpeech()
       setIsSleeping(false)
+      isSleepingRef.current = false
+      setIsSpeaking(false)
+      isSpeakingRef.current = false
+      setIsListening(false)
+      isListeningRef.current = false
       setActiveTask(null)
+      setCurrentPlan(null)
+      setCurrentAction(null)
+      setSecurityAlert(null)
     }
   }, [isOpen])
 
@@ -3144,23 +3155,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }, [isListening, isSpeaking])
 
-  // Lifecycle on modal open/close: cleanup on close
-  useEffect(() => {
-    if (isOpen) {
-      setIsSleeping(false)
-      isSleepingRef.current = false
-    } else {
-      stopNeuralSpeech()
-      stopListening()
-      setIsListening(false)
-      setIsSpeaking(false)
-      isListeningRef.current = false
-      isSpeakingRef.current = false
-      setCurrentPlan(null)
-      setCurrentAction(null)
-      setSecurityAlert(null)
-    }
-  }, [isOpen])
 
   if (!isOpen) return null
 

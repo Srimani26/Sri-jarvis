@@ -217,11 +217,29 @@ export default function App() {
 
   const [sovereignAwakened, setSovereignAwakened] = useState(true)
 
+  const handleOpenVoiceComms = (agentId?: string) => {
+    try {
+      if (typeof window !== 'undefined') {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+        if (AudioCtx) {
+          const ctx = new AudioCtx()
+          if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+        }
+        if (window.speechSynthesis) {
+          window.speechSynthesis.resume()
+        }
+      }
+    } catch {}
+    playJarvisChime('wake')
+    if (agentId) {
+      try { localStorage.setItem('jarvis_initial_agent', agentId) } catch {}
+    }
+    setVoiceModalOpen(true)
+  }
+
   const handleAwakenSovereign = () => {
     setSovereignAwakened(true)
-    playJarvisChime('wake')
-    // Open voice modal which initiates a single, clear neural greeting without voice collision
-    setVoiceModalOpen(true)
+    handleOpenVoiceComms()
   }
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [currentPw, setCurrentPw] = useState('')
@@ -232,10 +250,7 @@ export default function App() {
   useEffect(() => {
     const handler = (e: any) => {
       const agentId = e.detail?.agentId
-      if (agentId) {
-        try { localStorage.setItem('jarvis_initial_agent', agentId) } catch {}
-      }
-      setVoiceModalOpen(true)
+      handleOpenVoiceComms(agentId)
     }
     window.addEventListener('open-jarvis-voice', handler)
     return () => window.removeEventListener('open-jarvis-voice', handler)
@@ -473,7 +488,7 @@ export default function App() {
           <div className="flex items-center gap-2.5">
             {/* Direct Voice Comms Trigger */}
             <button
-              onClick={() => setVoiceModalOpen(true)}
+              onClick={() => handleOpenVoiceComms()}
               className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 text-slate-950 text-xs font-mono font-black tracking-wider transition-all shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:shadow-[0_0_35px_rgba(6,182,212,0.8)] hover:scale-105 active:scale-95"
               title="Open J.A.R.V.I.S. Mark-V Neural Voice Comms"
             >
@@ -593,18 +608,13 @@ export default function App() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 pb-28 md:pb-6">
-        {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => setVoiceModalOpen(true)} />}
+        {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => handleOpenVoiceComms()} />}
         {activeTab === 'revenue' && <RevenueHunter />}
         {activeTab === 'tasks' && <ActiveTaskExecutionPanel onTriggerTask={(t) => console.log('task triggered', t)} />}
         {activeTab === 'chat' && <AIChat />}
         {activeTab === 'swarms' && (
           <AgentEcosystem
-            onOpenVoice={(agentId?: string) => {
-              if (agentId) {
-                try { localStorage.setItem('jarvis_initial_agent', agentId) } catch {}
-              }
-              setVoiceModalOpen(true)
-            }}
+            onOpenVoice={(agentId?: string) => handleOpenVoiceComms(agentId)}
           />
         )}
         {activeTab === 'cyber' && <CyberThreatDefense />}
@@ -646,22 +656,7 @@ export default function App() {
                 key={tab.id}
                 onClick={() => {
                   if (tab.id === 'more') setMobileMenuOpen(true)
-                  else if (tab.id === 'voice') {
-                    // Pre-unlock mobile browser AudioContext & SpeechSynthesis on physical user tap
-                    try {
-                      if (typeof window !== 'undefined') {
-                        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-                        if (AudioCtx) {
-                          const ctx = new AudioCtx()
-                          if (ctx.state === 'suspended') ctx.resume().catch(() => {})
-                        }
-                        if (window.speechSynthesis) {
-                          window.speechSynthesis.resume()
-                        }
-                      }
-                    } catch {}
-                    setVoiceModalOpen(true)
-                  }
+                  else if (tab.id === 'voice') handleOpenVoiceComms()
                   else handleNavigate(tab.id)
                 }}
                 className={cn(
@@ -729,10 +724,7 @@ export default function App() {
 
       {/* Floating Arc Reactor Voice Comm Button (Desktop Dock Access) */}
       <button
-        onClick={() => {
-          playJarvisChime('wake')
-          setVoiceModalOpen(true)
-        }}
+        onClick={() => handleOpenVoiceComms()}
         className="hidden md:flex fixed bottom-6 right-6 z-40 px-4 py-3 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-slate-950 font-black shadow-[0_0_35px_rgba(6,182,212,0.6)] hover:shadow-[0_0_50px_rgba(6,182,212,0.9)] hover:scale-105 transition-all items-center gap-2.5"
         title="Engage J.A.R.V.I.S. Voice Transceiver"
       >

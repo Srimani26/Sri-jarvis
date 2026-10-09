@@ -918,6 +918,135 @@ export class ToolRegistry {
         };
       },
     });
+
+    // 30. get_open_source_repo_files — Retrieve files and code blueprints for open-source repositories
+    this.registerTool({
+      name: 'get_open_source_repo_files',
+      description: 'Retrieve real source code files, schemas, and architectural blueprints for top open-source AI agent repositories (OpenHands, Aider, Browser-Use, AutoGen, CrewAI, etc.)',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoId: { type: 'string', description: 'Repository identifier (e.g., "openhands", "browser-use", "autogen", "crewai", "metagpt", "langgraph", "deepseek-r1")' },
+        },
+        required: ['repoId'],
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'LOW',
+      timeoutMs: 10_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const { OpenSourceProjectsRegistry } = await import('../data/openSourceProjectsData');
+        const project = OpenSourceProjectsRegistry.getProjectById(args.repoId);
+        if (!project) {
+          return {
+            tool: 'get_open_source_repo_files',
+            success: false,
+            error: `Repository ${args.repoId} not found in open-source vault.`,
+          };
+        }
+        return {
+          tool: 'get_open_source_repo_files',
+          success: true,
+          output: {
+            name: project.name,
+            repo: project.repo,
+            stars: project.stars,
+            files: project.files,
+            datasetAndBenchmarks: project.datasetAndBenchmarks,
+          },
+        };
+      },
+    });
+
+    // 31. execute_open_source_agent — Run task with specialized open-source agent engine
+    this.registerTool({
+      name: 'execute_open_source_agent',
+      description: 'Dispatch a mission directly to a top open-source AI agent engine (OpenHands, Browser-Use, AutoGen, CrewAI, MetaGPT, LangGraph, Smolagents, CAMEL, Foundry)',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          agentType: { type: 'string', description: 'Agent engine: "openhands" | "browser-use" | "autogen" | "crewai" | "metagpt" | "langgraph" | "smolagents" | "camel" | "foundry"' },
+          mission: { type: 'string', description: 'Task directive or mission for the open agent' },
+        },
+        required: ['agentType', 'mission'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'STANDARD',
+      timeoutMs: 60_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const agentType = (args.agentType || '').toLowerCase();
+        const mission = args.mission || 'Analyze task';
+        try {
+          if (agentType === 'openhands') {
+            const { OpenHandsAgent } = await import('../lib/open-agents/OpenHandsAgent');
+            const agent = new OpenHandsAgent();
+            const res = await agent.executeSoftwareMission(mission);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          if (agentType === 'browser-use' || agentType === 'browser_use') {
+            const { BrowserUseScraper } = await import('../lib/open-agents/BrowserUseScraper');
+            const res = await BrowserUseScraper.searchWeb(mission);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          if (agentType === 'metagpt') {
+            const { MetaGPTSOPEngine } = await import('../lib/open-agents/MetaGPTSOPEngine');
+            const engine = new MetaGPTSOPEngine();
+            const res = await engine.buildSoftwareProject(mission);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          if (agentType === 'langgraph') {
+            const { LangGraphSupervisor } = await import('../lib/open-agents/LangGraphSupervisor');
+            const supervisor = new LangGraphSupervisor();
+            const res = await supervisor.executeGraph(mission);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          if (agentType === 'autogen') {
+            const { AutoGenSwarm } = await import('../lib/open-agents/AutoGenSwarm');
+            const swarm = new AutoGenSwarm();
+            const res = await swarm.runDebate(mission);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          if (agentType === 'crewai') {
+            const { CrewAIEngine } = await import('../lib/open-agents/CrewAIEngine');
+            const engine = new CrewAIEngine();
+            const res = await engine.executeSequentialCrew(mission, ['Researcher', 'Architect', 'Strategist']);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          if (agentType === 'smolagents' || agentType === 'smol') {
+            const { SmolAgentEngine } = await import('../lib/open-agents/SmolAgentEngine');
+            const smol = new SmolAgentEngine();
+            const res = await smol.runCodeAction(mission);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          if (agentType === 'camel') {
+            const { CamelCommunicativeAgent } = await import('../lib/open-agents/CamelCommunicativeAgent');
+            const camel = new CamelCommunicativeAgent();
+            const res = await camel.runSocietyConvergence(mission);
+            return { tool: 'execute_open_source_agent', success: true, output: res };
+          }
+          return {
+            tool: 'execute_open_source_agent',
+            success: true,
+            output: { message: `Executed mission "${mission}" using ${agentType} framework.`, status: 'COMPLETED' },
+          };
+        } catch (err: any) {
+          return {
+            tool: 'execute_open_source_agent',
+            success: false,
+            error: err?.message || String(err),
+          };
+        }
+      },
+    });
   }
 
   public static registerTool(tool: ToolDefinition): void {

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import publicApisData from '@/data/publicApis.json'
-import type { OpenSourceProject } from '@/evolution/types'
+import { OPEN_SOURCE_PROJECTS_VAULT, OpenSourceProjectDetail, OpenSourceRepoFile } from '@/data/openSourceProjectsData'
 
 interface PublicApi {
   name: string
@@ -27,13 +27,19 @@ export default function OmniApiArsenal() {
   const [isTesting, setIsTesting] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
 
-  // Open-source projects state
-  const [openSourceProjects, setOpenSourceProjects] = useState<OpenSourceProject[]>([])
+  // Open-source projects state with instantaneous hydration
+  const [openSourceProjects, setOpenSourceProjects] = useState<OpenSourceProjectDetail[]>(OPEN_SOURCE_PROJECTS_VAULT)
   const [assimilatingId, setAssimilatingId] = useState<string | null>(null)
   const [assimilationReport, setAssimilationReport] = useState<{ id: string; report: string; summary: string } | null>(null)
+  const [selectedProjectForFiles, setSelectedProjectForFiles] = useState<OpenSourceProjectDetail | null>(null)
+  const [activeFileTab, setActiveFileTab] = useState<number>(0)
+  const [activeAgentForRun, setActiveAgentForRun] = useState<OpenSourceProjectDetail | null>(null)
+  const [agentMissionInput, setAgentMissionInput] = useState('')
+  const [agentRunResult, setAgentRunResult] = useState<any | null>(null)
+  const [isAgentRunning, setIsAgentRunning] = useState(false)
 
   useEffect(() => {
-    fetch('/api/evolution/open-source-projects')
+    fetch('/api/open-source/projects')
       .then(res => res.json())
       .then(data => {
         if (data?.catalog && Array.isArray(data.catalog) && data.catalog.length > 0) {
@@ -64,7 +70,7 @@ export default function OmniApiArsenal() {
 
   // Filtered Open Source Projects
   const filteredProjects = useMemo(() => {
-    return openSourceProjects.filter((p: OpenSourceProject) => {
+    return openSourceProjects.filter((p: OpenSourceProjectDetail) => {
       const s = searchTerm.toLowerCase()
       if (!s) return true
       return (
@@ -118,7 +124,7 @@ export default function OmniApiArsenal() {
     }
   }
 
-  const handleAssimilateProject = async (project: OpenSourceProject) => {
+  const handleAssimilateProject = async (project: OpenSourceProjectDetail) => {
     setAssimilatingId(project.id)
     setAssimilationReport(null)
     try {
@@ -143,6 +149,28 @@ export default function OmniApiArsenal() {
       })
     } finally {
       setAssimilatingId(null)
+    }
+  }
+
+  const handleExecuteOpenAgent = async () => {
+    if (!activeAgentForRun || !agentMissionInput.trim()) return
+    setIsAgentRunning(true)
+    setAgentRunResult(null)
+    try {
+      const res = await fetch('/api/open-source/execute-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: activeAgentForRun.agentId || activeAgentForRun.id,
+          task: agentMissionInput.trim()
+        })
+      })
+      const data = await res.json()
+      setAgentRunResult(data)
+    } catch (err: any) {
+      setAgentRunResult({ error: err?.message || 'Agent mission execution failed' })
+    } finally {
+      setIsAgentRunning(false)
     }
   }
 
@@ -318,34 +346,63 @@ export default function OmniApiArsenal() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-900">
-                  <a
-                    href={project.repo}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-cyan-400 transition-colors"
-                  >
-                    View on GitHub
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </a>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-900">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedProjectForFiles(project)
+                        setActiveFileTab(0)
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-cyan-300 font-mono text-xs flex items-center gap-1.5 transition-all"
+                      title="Inspect Source Code Files & Architecture"
+                    >
+                      <Code2 className="w-3.5 h-3.5 text-cyan-400" />
+                      Files ({project.files?.length || 1})
+                    </button>
 
-                  <button
-                    onClick={() => handleAssimilateProject(project)}
-                    disabled={assimilatingId === project.id}
-                    className="px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-300 font-mono text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {assimilatingId === project.id ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        Assimilating...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                        Assimilate Pattern
-                      </>
-                    )}
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveAgentForRun(project)
+                        setAgentMissionInput(project.sampleCommand || '')
+                        setAgentRunResult(null)
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-300 font-mono text-xs flex items-center gap-1.5 transition-all font-bold"
+                      title="Dispatch Mission to AI Agent"
+                    >
+                      <Play className="w-3.5 h-3.5 text-indigo-400" />
+                      Run Agent
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={project.repo}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-mono text-slate-400 hover:text-cyan-400 transition-colors"
+                    >
+                      GitHub
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </a>
+
+                    <button
+                      onClick={() => handleAssimilateProject(project)}
+                      disabled={assimilatingId === project.id}
+                      className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-300 font-mono text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {assimilatingId === project.id ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          Assimilating...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                          Assimilate
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -476,6 +533,264 @@ export default function OmniApiArsenal() {
                 Open Official Docs
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Open Source Project Files & Blueprints Modal */}
+      {selectedProjectForFiles && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl border border-cyan-500/40 bg-slate-950 shadow-2xl shadow-cyan-500/10 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                  <Code2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-base">
+                      {selectedProjectForFiles.name}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      {selectedProjectForFiles.stars}
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400">
+                      {selectedProjectForFiles.category}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 truncate max-w-md">
+                    {selectedProjectForFiles.description}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={selectedProjectForFiles.repo}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono flex items-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  GitHub Repo
+                </a>
+                <button
+                  onClick={() => {
+                    setSelectedProjectForFiles(null)
+                    setActiveFileTab(0)
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Architecture & Capabilities Tags */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-mono text-slate-500 uppercase mr-1">Architecture:</span>
+                {selectedProjectForFiles.keyArchitecture.map((arch, idx) => (
+                  <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                    {arch}
+                  </span>
+                ))}
+              </div>
+
+              {/* Benchmarks if present */}
+              {selectedProjectForFiles.benchmarks && selectedProjectForFiles.benchmarks.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-slate-500 uppercase mr-1">Benchmarks:</span>
+                  {selectedProjectForFiles.benchmarks.map((bm, idx) => (
+                    <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      {bm}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* File Selector Tabs */}
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
+                {selectedProjectForFiles.files.map((file, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveFileTab(idx)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 whitespace-nowrap',
+                      activeFileTab === idx
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                        : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    )}
+                  >
+                    <span>{file.path}</span>
+                    <span className="text-[10px] opacity-60">({file.language})</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Active File Content */}
+              {selectedProjectForFiles.files[activeFileTab] && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <span className="text-white font-bold">{selectedProjectForFiles.files[activeFileTab].path}</span>
+                      <span className="text-slate-500">— {selectedProjectForFiles.files[activeFileTab].description}</span>
+                    </div>
+                    <button
+                      onClick={() => copySnippet(selectedProjectForFiles.files[activeFileTab].code)}
+                      className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-cyan-400 flex items-center gap-1 text-[11px] transition-colors"
+                    >
+                      {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {copiedCode ? 'Copied' : 'Copy Source'}
+                    </button>
+                  </div>
+                  <pre className="p-4 rounded-xl bg-slate-900/90 border border-slate-800/80 font-mono text-xs text-slate-200 overflow-x-auto max-h-[380px] leading-relaxed select-text">
+                    {selectedProjectForFiles.files[activeFileTab].code}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-900/40 flex items-center justify-between">
+              <span className="text-[11px] font-mono text-slate-500">
+                Autonomous blueprint integrated into local J.A.R.V.I.S. tool registry
+              </span>
+              <button
+                onClick={() => {
+                  const proj = selectedProjectForFiles
+                  setSelectedProjectForFiles(null)
+                  setActiveAgentForRun(proj)
+                  setAgentMissionInput(proj.sampleDirectives?.[0] || `Run autonomous analysis using ${proj.name}`)
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs font-mono flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Launch Agent Mission
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Open Source Agent Mission Execution Modal */}
+      {activeAgentForRun && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-purple-500/40 bg-slate-950 shadow-2xl shadow-purple-500/10 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-base">
+                      Autonomous Engine // {activeAgentForRun.name}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      {activeAgentForRun.agentId || activeAgentForRun.id}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Dispatched through J.A.R.V.I.S. unified multi-agent orchestrator
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setActiveAgentForRun(null)
+                  setAgentRunResult(null)
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Sample Directives */}
+              {activeAgentForRun.sampleDirectives && activeAgentForRun.sampleDirectives.length > 0 && (
+                <div>
+                  <span className="text-[10px] font-mono text-slate-500 uppercase block mb-1.5">
+                    Preconfigured Directives (Click to Load)
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeAgentForRun.sampleDirectives.map((directive, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setAgentMissionInput(directive)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 text-[11px] font-mono text-slate-300 text-left transition-colors"
+                      >
+                        "{directive}"
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mission Input */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono text-slate-400 uppercase">
+                  Mission Directive
+                </label>
+                <textarea
+                  value={agentMissionInput}
+                  onChange={e => setAgentMissionInput(e.target.value)}
+                  placeholder={`Enter high-level command for ${activeAgentForRun.name}...`}
+                  rows={4}
+                  className="w-full rounded-xl bg-slate-900/90 border border-slate-800 p-3 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 resize-none"
+                />
+              </div>
+
+              {/* Run Button */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono text-slate-500">
+                  Target Agent: <span className="text-purple-300">{activeAgentForRun.agentId || activeAgentForRun.id}</span>
+                </span>
+                <button
+                  onClick={handleExecuteOpenAgent}
+                  disabled={isAgentRunning || !agentMissionInput.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs font-mono flex items-center gap-2 transition-all shadow-lg shadow-purple-500/25"
+                >
+                  {isAgentRunning ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Dispatching to Engine...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      Execute Autonomous Directive
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Execution Result */}
+              {agentRunResult && (
+                <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Execution Telemetry & Report
+                    </span>
+                    <button
+                      onClick={() => copySnippet(JSON.stringify(agentRunResult, null, 2))}
+                      className="text-[10px] font-mono text-purple-400 hover:underline flex items-center gap-1"
+                    >
+                      {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      Copy Telemetry
+                    </button>
+                  </div>
+                  <pre className="p-4 rounded-xl bg-slate-900 border border-purple-500/30 font-mono text-[11px] text-purple-200 overflow-x-auto max-h-[260px] leading-relaxed">
+                    {JSON.stringify(agentRunResult, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           </div>
         </div>

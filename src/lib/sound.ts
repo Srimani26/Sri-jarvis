@@ -122,7 +122,14 @@ export function playNeuralSpeech(
 
   // Match static pre-rendered studio quality audio
   let staticAudioPath: string | null = null
-  if (clean.includes('greetings and welcome back') || clean.includes('Master Sri, greetings')) {
+  const lowerClean = clean.toLowerCase()
+  if (
+    lowerClean.includes('greetings and welcome back') ||
+    lowerClean.includes('master sri, greetings') ||
+    lowerClean.includes('master sri, grand marshal') ||
+    lowerClean.includes('orchestrating your sovereign') ||
+    (lowerClean.includes('master sri') && (lowerClean.includes('online') || lowerClean.includes('standing by') || lowerClean.includes('welcome') || lowerClean.includes('at your service') || lowerClean.includes('at your command') || lowerClean.includes('ready to assist')))
+  ) {
     staticAudioPath = '/audio/welcome.mp3'
   } else if (clean.includes('DeepSeek reasoning core primed')) {
     staticAudioPath = '/audio/agent_deepseek.mp3'
@@ -248,6 +255,21 @@ export function playNeuralSpeech(
     }
 
     audio.onerror = () => {
+      if (staticAudioPath && staticAudioPath.startsWith('/audio/')) {
+        const altPath = staticAudioPath.replace('/audio/', '/')
+        const altAudio = new Audio(altPath)
+        activeAudio = altAudio
+        altAudio.onplay = () => { if (sessionId === activeSpeechSessionId && onStart) onStart() }
+        altAudio.onended = () => { activeAudio = null; if (sessionId === activeSpeechSessionId && onEnd) onEnd() }
+        altAudio.onerror = () => {
+          activeAudio = null
+          if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+        }
+        altAudio.play().catch(() => {
+          if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+        })
+        return
+      }
       console.warn('Streaming neural audio failed, falling back to Web Speech')
       activeAudio = null
       if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
@@ -277,11 +299,15 @@ function fallbackWebSpeech(
 ) {
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     if (onError) onError()
+    if (onEnd) onEnd()
     return
   }
 
   try {
     window.speechSynthesis.cancel()
+    if (typeof window.speechSynthesis.resume === 'function') {
+      window.speechSynthesis.resume()
+    }
 
     // Break text into sentences to prevent Chromium/Safari 15s/30s audio truncation
     const sentences = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+/g)?.map(s => s.trim()).filter(Boolean) || [cleanText]
@@ -307,7 +333,7 @@ function fallbackWebSpeech(
       } else {
         clearInterval(keepAliveTimer)
       }
-    }, 10000)
+    }, 4000)
 
     const speakNext = () => {
       if (currentIndex >= sentences.length) {
@@ -317,6 +343,7 @@ function fallbackWebSpeech(
       }
 
       const utterance = new SpeechSynthesisUtterance(sentences[currentIndex])
+      utterance.lang = lang || 'en-GB'
       if (voice) utterance.voice = voice
       utterance.rate = 1.05
       utterance.pitch = 0.98
@@ -350,6 +377,7 @@ function fallbackWebSpeech(
     speakNext()
   } catch {
     if (onError) onError()
+    if (onEnd) onEnd()
   }
 }
 

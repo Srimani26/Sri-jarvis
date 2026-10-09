@@ -25,4 +25,5 @@ workers/**/dist/
 !src/workspace/
 !src/workspace/**
 .tmp_*
-data/
+/data/
+!src/data/
