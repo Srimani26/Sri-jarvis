@@ -657,6 +657,103 @@ export class ToolRegistry {
       },
     });
 
+    // 20. workspace_start_daemon
+    this.registerTool({
+      name: 'workspace_start_daemon',
+      description: 'Start a long-running background server or dev process inside a workspace (e.g. node server.js, npm run dev) on a designated localhost port',
+      category: 'TERMINAL',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string' },
+          command: { type: 'string' },
+          port: { type: 'number' },
+        },
+        required: ['projectName', 'command'],
+      },
+      requiredPermission: 'SAFE_LOCAL',
+      riskLevel: 'HIGH',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const daemon = await WorkspaceManager.startDaemon(args.projectName, args.command, { port: args.port });
+          return {
+            tool: 'workspace_start_daemon',
+            success: daemon.status === 'RUNNING' || daemon.status === 'STARTING',
+            output: daemon,
+          };
+        } catch (err: any) {
+          return {
+            tool: 'workspace_start_daemon',
+            success: false,
+            output: null,
+            error: err.message,
+          };
+        }
+      },
+    });
+
+    // 21. workspace_stop_daemon
+    this.registerTool({
+      name: 'workspace_stop_daemon',
+      description: 'Stop an active background daemon process by its daemon ID',
+      category: 'TERMINAL',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          daemonId: { type: 'string' },
+        },
+        required: ['daemonId'],
+      },
+      requiredPermission: 'SAFE_LOCAL',
+      riskLevel: 'MEDIUM',
+      timeoutMs: 10_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const stopped = await WorkspaceManager.stopDaemon(args.daemonId);
+        return {
+          tool: 'workspace_stop_daemon',
+          success: stopped,
+          output: { daemonId: args.daemonId, stopped },
+        };
+      },
+    });
+
+    // 22. workspace_list_daemons
+    this.registerTool({
+      name: 'workspace_list_daemons',
+      description: 'List all running background workspace daemons and their status/ports',
+      category: 'TERMINAL',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string' },
+        },
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 5_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const daemons = WorkspaceManager.listDaemons(args.projectName);
+        return {
+          tool: 'workspace_list_daemons',
+          success: true,
+          output: { daemons, count: daemons.length },
+        };
+      },
+    });
+
     // 25. ecommerce_recon
     this.registerTool({
       name: 'ecommerce_recon',

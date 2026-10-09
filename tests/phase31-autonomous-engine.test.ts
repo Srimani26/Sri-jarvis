@@ -78,6 +78,20 @@ describe('J.A.R.V.I.S. MARK-V Phase 31: Autonomous Engine Verification', () => {
       assert.equal(res.success, false);
       assert.ok(res.exitCode > 0);
     });
+
+    test('startDaemon, listDaemons, and stopDaemon manage background localhost processes', async () => {
+      WorkspaceManager.writeFile(TEST_PROJECT, 'server.js', 'console.log("DAEMON_STARTED"); setInterval(() => {}, 1000);');
+      const daemon = await WorkspaceManager.startDaemon(TEST_PROJECT, 'node server.js', { port: 4899, startupWaitMs: 300 });
+      assert.ok(daemon.id.startsWith(`daemon_${TEST_PROJECT}`));
+      assert.equal(daemon.status, 'RUNNING');
+      assert.ok(daemon.pid && daemon.pid > 0);
+
+      const daemons = WorkspaceManager.listDaemons(TEST_PROJECT);
+      assert.ok(daemons.some(d => d.id === daemon.id));
+
+      const stopped = await WorkspaceManager.stopDaemon(daemon.id);
+      assert.equal(stopped, true);
+    });
   });
 
   // 2. ToolRegistry Workspace Integration
@@ -91,6 +105,9 @@ describe('J.A.R.V.I.S. MARK-V Phase 31: Autonomous Engine Verification', () => {
       assert.ok(toolNames.includes('workspace_write_file'));
       assert.ok(toolNames.includes('workspace_read_file'));
       assert.ok(toolNames.includes('workspace_list_files'));
+      assert.ok(toolNames.includes('workspace_start_daemon'));
+      assert.ok(toolNames.includes('workspace_stop_daemon'));
+      assert.ok(toolNames.includes('workspace_list_daemons'));
     });
 
     test('workspace_write_file tool executes via kernel', async () => {

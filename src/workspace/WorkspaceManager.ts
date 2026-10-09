@@ -247,4 +247,139 @@ export class WorkspaceManager {
   public static cleanProject(projectName: string): boolean {
     return this.deleteProject(projectName);
   }
+
+  // ========================================================================
+  // SOVEREIGN WORKSPACE DAEMON MANAGER (Background Servers & Dev Processes)
+  // ========================================================================
+  private static daemons: Map<string, { daemon: WorkspaceDaemon; proc: any }> = new Map();
+
+  /**
+   * Start a long-running background daemon inside project workspace (e.g. dev server, node api)
+   */
+  public static async startDaemon(
+    projectName: string,
+    command: string,
+    options?: { port?: number; env?: Record<string, string>; startupWaitMs?: number }
+  ): Promise<WorkspaceDaemon> {
+    const projectPath = this.getProjectPath(projectName);
+    if (!existsSync(projectPath)) {
+      mkdirSync(projectPath, { recursive: true });
+    }
+
+    const id = `daemon_${projectName}_${Date.now()}`;
+    const port = options?.port;
+    const startupWaitMs = options?.startupWaitMs ?? 2000;
+
+    const daemon: WorkspaceDaemon = {
+      id,
+      projectName,
+      command,
+      port,
+      status: 'STARTING',
+      startedAt: new Date().toISOString(),
+      logs: [],
+    };
+
+    const proc = spawn(command, {
+      cwd: projectPath,
+      shell: true,
+      env: {
+        ...process.env,
+        ...(port ? { PORT: String(port) } : {}),
+        ...(options?.env || {}),
+        NODE_ENV: 'development',
+      },
+    });
+
+    daemon.pid = proc.pid;
+
+    const appendLog = (line: string) => {
+      const trimmed = line.trimEnd();
+      if (!trimmed) return;
+      daemon.logs.push(trimmed);
+      if (daemon.logs.length > 500) {
+        daemon.logs.shift();
+      }
+    };
+
+    proc.stdout?.on('data', (d) => appendLog(d.toString()));
+    proc.stderr?.on('data', (d) => appendLog(d.toString()));
+
+    proc.on('exit', (code) => {
+      daemon.status = code === 0 ? 'STOPPED' : 'FAILED';
+      daemon.stoppedAt = new Date().toISOString();
+      appendLog(`[DAEMON EXITED] Process terminated with code ${code}`);
+    });
+
+    proc.on('error', (err) => {
+      daemon.status = 'FAILED';
+      daemon.stoppedAt = new Date().toISOString();
+      appendLog(`[DAEMON ERROR] ${err.message}`);
+    });
+
+    this.daemons.set(id, { daemon, proc });
+
+    // Wait short period to verify process didn't immediately crash
+    await new Promise((r) => setTimeout(r, startupWaitMs));
+    if (daemon.status === 'STARTING') {
+      daemon.status = 'RUNNING';
+    }
+
+    return { ...daemon };
+  }
+
+  /**
+   * Stop an active background daemon cleanly
+   */
+  public static async stopDaemon(id: string): Promise<boolean> {
+    const entry = this.daemons.get(id);
+    if (!entry) return false;
+
+    const { daemon, proc } = entry;
+    if (daemon.status === 'RUNNING' || daemon.status === 'STARTING') {
+      try {
+        if (process.platform === 'win32' && proc.pid) {
+          exec(`taskkill /pid ${proc.pid} /T /F`, () => {});
+        } else if (proc.pid) {
+          proc.kill('SIGTERM');
+        }
+      } catch (_) {}
+      daemon.status = 'STOPPED';
+      daemon.stoppedAt = new Date().toISOString();
+    }
+    return true;
+  }
+
+  /**
+   * List all background daemons
+   */
+  public static listDaemons(projectName?: string): WorkspaceDaemon[] {
+    const list: WorkspaceDaemon[] = [];
+    for (const entry of this.daemons.values()) {
+      if (!projectName || entry.daemon.projectName === projectName) {
+        list.push({ ...entry.daemon });
+      }
+    }
+    return list;
+  }
+
+  /**
+   * Get daemon details and recent logs
+   */
+  public static getDaemon(id: string): WorkspaceDaemon | null {
+    const entry = this.daemons.get(id);
+    return entry ? { ...entry.daemon } : null;
+  }
+}
+
+export interface WorkspaceDaemon {
+  id: string;
+  projectName: string;
+  command: string;
+  port?: number;
+  pid?: number;
+  status: 'STARTING' | 'RUNNING' | 'STOPPED' | 'FAILED';
+  startedAt: string;
+  stoppedAt?: string;
+  logs: string[];
 }

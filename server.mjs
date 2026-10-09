@@ -412,6 +412,109 @@ ${err.message}`.trim(),
       static cleanProject(projectName) {
         return this.deleteProject(projectName);
       }
+      // ========================================================================
+      // SOVEREIGN WORKSPACE DAEMON MANAGER (Background Servers & Dev Processes)
+      // ========================================================================
+      static daemons = /* @__PURE__ */ new Map();
+      /**
+       * Start a long-running background daemon inside project workspace (e.g. dev server, node api)
+       */
+      static async startDaemon(projectName, command, options) {
+        const projectPath = this.getProjectPath(projectName);
+        if (!existsSync(projectPath)) {
+          mkdirSync(projectPath, { recursive: true });
+        }
+        const id = `daemon_${projectName}_${Date.now()}`;
+        const port2 = options?.port;
+        const startupWaitMs = options?.startupWaitMs ?? 2e3;
+        const daemon = {
+          id,
+          projectName,
+          command,
+          port: port2,
+          status: "STARTING",
+          startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          logs: []
+        };
+        const proc = spawn(command, {
+          cwd: projectPath,
+          shell: true,
+          env: {
+            ...process.env,
+            ...port2 ? { PORT: String(port2) } : {},
+            ...options?.env || {},
+            NODE_ENV: "development"
+          }
+        });
+        daemon.pid = proc.pid;
+        const appendLog = (line) => {
+          const trimmed = line.trimEnd();
+          if (!trimmed) return;
+          daemon.logs.push(trimmed);
+          if (daemon.logs.length > 500) {
+            daemon.logs.shift();
+          }
+        };
+        proc.stdout?.on("data", (d) => appendLog(d.toString()));
+        proc.stderr?.on("data", (d) => appendLog(d.toString()));
+        proc.on("exit", (code) => {
+          daemon.status = code === 0 ? "STOPPED" : "FAILED";
+          daemon.stoppedAt = (/* @__PURE__ */ new Date()).toISOString();
+          appendLog(`[DAEMON EXITED] Process terminated with code ${code}`);
+        });
+        proc.on("error", (err) => {
+          daemon.status = "FAILED";
+          daemon.stoppedAt = (/* @__PURE__ */ new Date()).toISOString();
+          appendLog(`[DAEMON ERROR] ${err.message}`);
+        });
+        this.daemons.set(id, { daemon, proc });
+        await new Promise((r) => setTimeout(r, startupWaitMs));
+        if (daemon.status === "STARTING") {
+          daemon.status = "RUNNING";
+        }
+        return { ...daemon };
+      }
+      /**
+       * Stop an active background daemon cleanly
+       */
+      static async stopDaemon(id) {
+        const entry = this.daemons.get(id);
+        if (!entry) return false;
+        const { daemon, proc } = entry;
+        if (daemon.status === "RUNNING" || daemon.status === "STARTING") {
+          try {
+            if (process.platform === "win32" && proc.pid) {
+              exec2(`taskkill /pid ${proc.pid} /T /F`, () => {
+              });
+            } else if (proc.pid) {
+              proc.kill("SIGTERM");
+            }
+          } catch (_) {
+          }
+          daemon.status = "STOPPED";
+          daemon.stoppedAt = (/* @__PURE__ */ new Date()).toISOString();
+        }
+        return true;
+      }
+      /**
+       * List all background daemons
+       */
+      static listDaemons(projectName) {
+        const list = [];
+        for (const entry of this.daemons.values()) {
+          if (!projectName || entry.daemon.projectName === projectName) {
+            list.push({ ...entry.daemon });
+          }
+        }
+        return list;
+      }
+      /**
+       * Get daemon details and recent logs
+       */
+      static getDaemon(id) {
+        const entry = this.daemons.get(id);
+        return entry ? { ...entry.daemon } : null;
+      }
     };
   }
 });
@@ -3591,6 +3694,97 @@ var init_ToolRegistry = __esm({
               tool: "workspace_list_files",
               success: true,
               output: { files, total: files.length }
+            };
+          }
+        });
+        this.registerTool({
+          name: "workspace_start_daemon",
+          description: "Start a long-running background server or dev process inside a workspace (e.g. node server.js, npm run dev) on a designated localhost port",
+          category: "TERMINAL",
+          inputSchema: {
+            type: "object",
+            properties: {
+              projectName: { type: "string" },
+              command: { type: "string" },
+              port: { type: "number" }
+            },
+            required: ["projectName", "command"]
+          },
+          requiredPermission: "SAFE_LOCAL",
+          riskLevel: "HIGH",
+          timeoutMs: 15e3,
+          requiresConfirmation: false,
+          requiresAuth: false,
+          health: "ONLINE",
+          telemetry: this.createDefaultTelemetry(),
+          execute: async (args) => {
+            try {
+              const daemon = await WorkspaceManager.startDaemon(args.projectName, args.command, { port: args.port });
+              return {
+                tool: "workspace_start_daemon",
+                success: daemon.status === "RUNNING" || daemon.status === "STARTING",
+                output: daemon
+              };
+            } catch (err) {
+              return {
+                tool: "workspace_start_daemon",
+                success: false,
+                output: null,
+                error: err.message
+              };
+            }
+          }
+        });
+        this.registerTool({
+          name: "workspace_stop_daemon",
+          description: "Stop an active background daemon process by its daemon ID",
+          category: "TERMINAL",
+          inputSchema: {
+            type: "object",
+            properties: {
+              daemonId: { type: "string" }
+            },
+            required: ["daemonId"]
+          },
+          requiredPermission: "SAFE_LOCAL",
+          riskLevel: "MEDIUM",
+          timeoutMs: 1e4,
+          requiresConfirmation: false,
+          requiresAuth: false,
+          health: "ONLINE",
+          telemetry: this.createDefaultTelemetry(),
+          execute: async (args) => {
+            const stopped = await WorkspaceManager.stopDaemon(args.daemonId);
+            return {
+              tool: "workspace_stop_daemon",
+              success: stopped,
+              output: { daemonId: args.daemonId, stopped }
+            };
+          }
+        });
+        this.registerTool({
+          name: "workspace_list_daemons",
+          description: "List all running background workspace daemons and their status/ports",
+          category: "TERMINAL",
+          inputSchema: {
+            type: "object",
+            properties: {
+              projectName: { type: "string" }
+            }
+          },
+          requiredPermission: "READ_ONLY",
+          riskLevel: "SAFE",
+          timeoutMs: 5e3,
+          requiresConfirmation: false,
+          requiresAuth: false,
+          health: "ONLINE",
+          telemetry: this.createDefaultTelemetry(),
+          execute: async (args) => {
+            const daemons = WorkspaceManager.listDaemons(args.projectName);
+            return {
+              tool: "workspace_list_daemons",
+              success: true,
+              output: { daemons, count: daemons.length }
             };
           }
         });
@@ -14537,17 +14731,59 @@ app.get("/workspaces/:projectName/file", requireAuth, async (c) => {
     return c.json({ ok: false, error: err.message }, 500);
   }
 });
+var MIME_MAP = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".wasm": "application/wasm",
+  ".map": "application/json; charset=utf-8"
+};
+var serveWorkspaceFile = (projectName, subPath) => {
+  const projectPath = WorkspaceManager.getProjectPath(projectName);
+  let filePath = subPath ? resolve8(projectPath, subPath) : resolve8(projectPath, "index.html");
+  if (!filePath.startsWith(projectPath)) {
+    return { status: 403, error: "Path traversal denied" };
+  }
+  if (existsSync9(filePath) && statSync3(filePath).isDirectory()) {
+    filePath = resolve8(filePath, "index.html");
+  }
+  if (!existsSync9(filePath)) {
+    const rootIndex = resolve8(projectPath, "index.html");
+    if (existsSync9(rootIndex)) {
+      filePath = rootIndex;
+    } else {
+      return { status: 404, error: `File not found in ${projectName}` };
+    }
+  }
+  const ext = extname(filePath).toLowerCase();
+  const contentType = MIME_MAP[ext] || "text/plain; charset=utf-8";
+  const content = readFileSync6(filePath);
+  return { status: 200, contentType, content };
+};
 app.get("/workspaces/preview/:projectName", async (c) => {
   try {
     const projectName = c.req.param("projectName");
-    const projectPath = WorkspaceManager.getProjectPath(projectName);
-    const targetFile = resolve8(projectPath, "index.html");
-    if (!existsSync9(targetFile)) {
+    const res = serveWorkspaceFile(projectName);
+    if (res.status === 404) {
       return c.html(`<div style="font-family:sans-serif;padding:2rem;background:#09090b;color:#fff;min-height:100vh"><h2>Project Index Not Found</h2><p>No <code>index.html</code> was generated in workspace <strong>${projectName}</strong>.</p></div>`, 404);
     }
-    const html = readFileSync6(targetFile, "utf-8");
-    return c.html(html, 200, {
-      "Content-Type": "text/html; charset=utf-8",
+    if (res.status !== 200 || !res.content) {
+      return c.text(res.error || "Preview error", res.status || 500);
+    }
+    return c.body(res.content, 200, {
+      "Content-Type": res.contentType || "text/html; charset=utf-8",
       "X-Frame-Options": "SAMEORIGIN",
       "Cache-Control": "no-cache"
     });
@@ -14555,35 +14791,62 @@ app.get("/workspaces/preview/:projectName", async (c) => {
     return c.text(`Error rendering preview: ${err.message}`, 500);
   }
 });
-app.get("/workspaces/preview/:projectName/:file", async (c) => {
+app.get("/workspaces/preview/:projectName/:file{.*}", async (c) => {
   try {
     const projectName = c.req.param("projectName");
     const file = c.req.param("file");
-    const projectPath = WorkspaceManager.getProjectPath(projectName);
-    const targetFile = resolve8(projectPath, file);
-    if (!targetFile.startsWith(projectPath) || !existsSync9(targetFile)) {
-      return c.text(`File ${file} not found in ${projectName}`, 404);
+    const res = serveWorkspaceFile(projectName, file);
+    if (res.status !== 200 || !res.content) {
+      return c.text(res.error || "File not found", res.status || 404);
     }
-    const ext = extname(targetFile).toLowerCase();
-    const mimeMap = {
-      ".html": "text/html; charset=utf-8",
-      ".css": "text/css; charset=utf-8",
-      ".js": "application/javascript; charset=utf-8",
-      ".json": "application/json; charset=utf-8",
-      ".svg": "image/svg+xml",
-      ".png": "image/png",
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg"
-    };
-    const contentType = mimeMap[ext] || "text/plain; charset=utf-8";
-    const content = readFileSync6(targetFile);
-    return c.body(content, 200, {
-      "Content-Type": contentType,
+    return c.body(res.content, 200, {
+      "Content-Type": res.contentType || "text/plain; charset=utf-8",
       "X-Frame-Options": "SAMEORIGIN",
       "Cache-Control": "no-cache"
     });
   } catch (err) {
     return c.text(`Error serving file: ${err.message}`, 500);
+  }
+});
+app.get("/workspaces/daemons", async (c) => {
+  try {
+    const projectName = c.req.query("projectName");
+    const daemons = WorkspaceManager.listDaemons(projectName);
+    return c.json({ ok: true, daemons, count: daemons.length });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.post("/workspaces/daemons/start", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { projectName, command, port: port2 } = body;
+    if (!projectName || !command) {
+      return c.json({ ok: false, error: "projectName and command are required" }, 400);
+    }
+    const daemon = await WorkspaceManager.startDaemon(projectName, command, { port: port2 ? Number(port2) : void 0 });
+    return c.json({ ok: true, daemon });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.post("/workspaces/daemons/stop/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const stopped = await WorkspaceManager.stopDaemon(id);
+    return c.json({ ok: true, daemonId: id, stopped });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/workspaces/daemons/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const daemon = WorkspaceManager.getDaemon(id);
+    if (!daemon) return c.json({ ok: false, error: "Daemon not found" }, 404);
+    return c.json({ ok: true, daemon });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
   }
 });
 app.get("/revenue/opportunities", requireAuth, (c) => {

@@ -5362,18 +5362,69 @@ app.get('/workspaces/:projectName/file', requireAuth, async (c) => {
   }
 });
 
-// GET /api/workspaces/preview/:projectName and /:file — Serve live interactive website preview
+// GET /api/workspaces/preview/:projectName and /:file{.*} — Serve live interactive website preview
+const MIME_MAP: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.wasm': 'application/wasm',
+  '.map': 'application/json; charset=utf-8',
+};
+
+const serveWorkspaceFile = (projectName: string, subPath?: string) => {
+  const projectPath = WorkspaceManager.getProjectPath(projectName);
+  let filePath = subPath ? resolve(projectPath, subPath) : resolve(projectPath, 'index.html');
+
+  if (!filePath.startsWith(projectPath)) {
+    return { status: 403, error: 'Path traversal denied' };
+  }
+
+  // If path is a directory, look for index.html inside it
+  if (existsSync(filePath) && statSync(filePath).isDirectory()) {
+    filePath = resolve(filePath, 'index.html');
+  }
+
+  // If file doesn't exist, check fallback
+  if (!existsSync(filePath)) {
+    // If asking for a root preview or HTML route, fall back to root index.html
+    const rootIndex = resolve(projectPath, 'index.html');
+    if (existsSync(rootIndex)) {
+      filePath = rootIndex;
+    } else {
+      return { status: 404, error: `File not found in ${projectName}` };
+    }
+  }
+
+  const ext = extname(filePath).toLowerCase();
+  const contentType = MIME_MAP[ext] || 'text/plain; charset=utf-8';
+  const content = readFileSync(filePath);
+  return { status: 200, contentType, content };
+};
+
 app.get('/workspaces/preview/:projectName', async (c) => {
   try {
     const projectName = c.req.param('projectName');
-    const projectPath = WorkspaceManager.getProjectPath(projectName);
-    const targetFile = resolve(projectPath, 'index.html');
-    if (!existsSync(targetFile)) {
+    const res = serveWorkspaceFile(projectName);
+    if (res.status === 404) {
       return c.html(`<div style="font-family:sans-serif;padding:2rem;background:#09090b;color:#fff;min-height:100vh"><h2>Project Index Not Found</h2><p>No <code>index.html</code> was generated in workspace <strong>${projectName}</strong>.</p></div>`, 404);
     }
-    const html = readFileSync(targetFile, 'utf-8');
-    return c.html(html, 200, {
-      'Content-Type': 'text/html; charset=utf-8',
+    if (res.status !== 200 || !res.content) {
+      return c.text(res.error || 'Preview error', (res.status || 500) as any);
+    }
+    return c.body(res.content, 200, {
+      'Content-Type': res.contentType || 'text/html; charset=utf-8',
       'X-Frame-Options': 'SAMEORIGIN',
       'Cache-Control': 'no-cache',
     });
@@ -5382,35 +5433,69 @@ app.get('/workspaces/preview/:projectName', async (c) => {
   }
 });
 
-app.get('/workspaces/preview/:projectName/:file', async (c) => {
+app.get('/workspaces/preview/:projectName/:file{.*}', async (c) => {
   try {
     const projectName = c.req.param('projectName');
     const file = c.req.param('file');
-    const projectPath = WorkspaceManager.getProjectPath(projectName);
-    const targetFile = resolve(projectPath, file);
-    if (!targetFile.startsWith(projectPath) || !existsSync(targetFile)) {
-      return c.text(`File ${file} not found in ${projectName}`, 404);
+    const res = serveWorkspaceFile(projectName, file);
+    if (res.status !== 200 || !res.content) {
+      return c.text(res.error || 'File not found', (res.status || 404) as any);
     }
-    const ext = extname(targetFile).toLowerCase();
-    const mimeMap: Record<string, string> = {
-      '.html': 'text/html; charset=utf-8',
-      '.css': 'text/css; charset=utf-8',
-      '.js': 'application/javascript; charset=utf-8',
-      '.json': 'application/json; charset=utf-8',
-      '.svg': 'image/svg+xml',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-    };
-    const contentType = mimeMap[ext] || 'text/plain; charset=utf-8';
-    const content = readFileSync(targetFile);
-    return c.body(content, 200, {
-      'Content-Type': contentType,
+    return c.body(res.content, 200, {
+      'Content-Type': res.contentType || 'text/plain; charset=utf-8',
       'X-Frame-Options': 'SAMEORIGIN',
       'Cache-Control': 'no-cache',
     });
   } catch (err: any) {
     return c.text(`Error serving file: ${err.message}`, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// WORKSPACE DAEMON API (Localhost Background Servers)
+// ═══════════════════════════════════════════════════════════════════
+app.get('/workspaces/daemons', async (c) => {
+  try {
+    const projectName = c.req.query('projectName');
+    const daemons = WorkspaceManager.listDaemons(projectName);
+    return c.json({ ok: true, daemons, count: daemons.length });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+app.post('/workspaces/daemons/start', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { projectName, command, port } = body;
+    if (!projectName || !command) {
+      return c.json({ ok: false, error: 'projectName and command are required' }, 400);
+    }
+    const daemon = await WorkspaceManager.startDaemon(projectName, command, { port: port ? Number(port) : undefined });
+    return c.json({ ok: true, daemon });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+app.post('/workspaces/daemons/stop/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const stopped = await WorkspaceManager.stopDaemon(id);
+    return c.json({ ok: true, daemonId: id, stopped });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+app.get('/workspaces/daemons/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const daemon = WorkspaceManager.getDaemon(id);
+    if (!daemon) return c.json({ ok: false, error: 'Daemon not found' }, 404);
+    return c.json({ ok: true, daemon });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
   }
 });
 
