@@ -21,7 +21,7 @@
     "build:server": "esbuild server.tsx --bundle --platform=node --format=esm --packages=external --outfile=server.mjs",
     "tunnel": "node scripts/tunnel.mjs",
     "dev:remote": "concurrently \"node server.mjs\" \"vite\" \"node scripts/tunnel.mjs\"",
-    "start:revenue": "tsx src/server.tsx",
+    "start:revenue": "npx tsx src/server.tsx",
     "test": "npx tsx --test --test-concurrency=1 tests/**/*.test.ts"
   },
   "dependencies": {
