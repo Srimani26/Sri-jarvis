@@ -18,6 +18,7 @@ import { AutonomousScheduler } from '../scheduler/AutonomousScheduler';
 import { TaskStore } from '../kernel/TaskStore';
 import { LeadDeduplicationService } from '../services/LeadDeduplicationService';
 import { RealizedEarningsService } from '../services/RealizedEarningsService';
+import { FreelanceRevenueAgent, RevenueTaskAnalysis } from '../agents/FreelanceRevenueAgent';
 import { prisma } from '../lib/db';
 
 export class TelegramBotListener {
@@ -257,13 +258,86 @@ export class TelegramBotListener {
   }
 
   /**
+   * Mobile On-Demand Bid & Solution Generator:
+   * 1. Acknowledges brief with immediate typing notice
+   * 2. Engages FreelanceRevenueAgent with ModelRouter failover
+   * 3. Generates diagnosis, surgical patch, and 80-word proposal
+   * 4. Returns formatted card with interactive buttons ([Won ($)] & [Dismiss])
+   */
+  public static async generateOnDemandBid(
+    brief: string,
+    targetChatId?: string
+  ): Promise<{ success: boolean; analysis: RevenueTaskAnalysis; messageId?: number }> {
+    const chatId = targetChatId || this.AUTHORIZED_CHAT_ID;
+
+    // Send immediate acknowledgment
+    await TelegramNotifier.sendMessage(
+      '⚡ <i>Analyzing requirement & generating code fix...</i>',
+      { targetChatId: chatId }
+    );
+
+    // Extract title & description
+    const lines = brief.trim().split(/\r?\n/).filter(Boolean);
+    const title = lines[0].slice(0, 80);
+    const description = brief.trim();
+    const isUrl = /^https?:\/\//i.test(brief.trim());
+
+    const analysis = await FreelanceRevenueAgent.analyzeAndSolve({
+      title,
+      description,
+      url: isUrl ? brief.trim() : undefined,
+    });
+
+    // Create record in TaskStore
+    await TaskStore.createTask({
+      id: analysis.taskId,
+      title: `[On-Demand Bid] ${title}`,
+      description: `${description}\n\nTask ID: ${analysis.taskId}`,
+      agentId: 'software_engineer',
+      totalSteps: 4,
+      category: 'REVENUE_PIPELINE',
+    });
+
+    // Dispatch formatted card with interactive buttons
+    const dispatch = await TelegramNotifier.sendLeadAlert(analysis);
+
+    return {
+      success: dispatch.success,
+      analysis,
+      messageId: dispatch.messageId,
+    };
+  }
+
+  /**
    * Parse command and route to appropriate engine
    */
   private static async handleIncomingMessage(text: string, chatId: string): Promise<void> {
-    const command = text.split(' ')[0].toLowerCase();
+    const trimmed = text.trim();
+    const command = trimmed.split(' ')[0].toLowerCase();
 
-    console.log(`📱 [TelegramBotListener] Received command '${command}' from Master Sri`);
+    console.log(`📱 [TelegramBotListener] Received message '${trimmed.slice(0, 45)}...' from Master Sri`);
 
+    // 1. Direct /bid command
+    if (command === '/bid') {
+      const brief = trimmed.slice(4).trim();
+      if (!brief) {
+        await TelegramNotifier.sendMessage(
+          '⚠️ <b>Usage:</b> <code>/bid &lt;paste client requirement, job description, or Reddit URL&gt;</code>',
+          { targetChatId: chatId }
+        );
+        return;
+      }
+      await this.generateOnDemandBid(brief, chatId);
+      return;
+    }
+
+    // 2. Direct URL or raw requirement text (un-prefixed by '/')
+    if (!trimmed.startsWith('/') || /^https?:\/\//i.test(trimmed)) {
+      await this.generateOnDemandBid(trimmed, chatId);
+      return;
+    }
+
+    // 3. Standard command routing (/status, /scout, /eod, /help)
     try {
       const response = await this.executeCommand(command);
       if (response) {
@@ -346,10 +420,12 @@ ${leadSummary}
 Available commands for Master Sri:
 
 • <code>/status</code> - System uptime, active providers, realized cash & throughput
+• <code>/bid &lt;brief or URL&gt;</code> - Instant on-demand code fix & winning pitch
 • <code>/scout</code>  - Force immediate scraping cycle & dispatch fresh gigs
 • <code>/eod</code>    - On-demand Executive EOD Financial Audit report
 • <code>/help</code>   - Display this command manual
 
+💡 <i>Protip: You can also paste any raw client requirement or Reddit URL directly here to formulate an immediate fix & proposal.</i>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 <i>Sovereign Autonomous Architecture Active.</i>`;
       }
