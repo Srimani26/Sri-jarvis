@@ -24,6 +24,7 @@ import { AutonomousScheduler } from './src/scheduler/AutonomousScheduler'
 import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
 import { validateDatabaseConnectivity } from './src/lib/db'
 import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
+import { TelegramBotListener } from './src/notifications/TelegramBotListener'
 
 const app = new Hono()
 
@@ -110,5 +111,12 @@ AutonomousScheduler.scheduleJob({
   toolName: 'system_health',
   toolArgs: {},
 })
+
+// 24/7 Interactive Mobile Control: Mount TelegramBotListener for Master Sri
+try {
+  TelegramBotListener.startPolling()
+} catch (botErr: any) {
+  console.warn('⚠️ [TelegramBotListener] Boot fallback (offline or unconfigured):', botErr?.message || botErr)
+}
 
 serve({ port, fetch: app.fetch })
