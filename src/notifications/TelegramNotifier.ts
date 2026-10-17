@@ -56,7 +56,11 @@ export class TelegramNotifier {
    */
   public static async sendMessage(
     textOrHtml: string,
-    options?: { parseMode?: 'HTML' | 'Markdown' | null; targetChatId?: string }
+    options?: {
+      parseMode?: 'HTML' | 'Markdown' | null;
+      targetChatId?: string;
+      replyMarkup?: Record<string, any>;
+    }
   ): Promise<TelegramDispatchResult> {
     const { botToken, chatId: defaultChatId } = this.getCredentials();
     const chatId = options?.targetChatId || defaultChatId;
@@ -79,6 +83,9 @@ export class TelegramNotifier {
     if (parseMode) {
       bodyPayload.parse_mode = parseMode;
     }
+    if (options?.replyMarkup) {
+      bodyPayload.reply_markup = options.replyMarkup;
+    }
 
     try {
       const res = await fetch(endpoint, {
@@ -100,13 +107,16 @@ export class TelegramNotifier {
       // If failed with HTML parse error, retry plain text
       if (parseMode === 'HTML') {
         const plainText = textOrHtml.replace(/<[^>]+>/g, '');
+        const retryPayload: Record<string, any> = {
+          chat_id: chatId,
+          text: plainText,
+        };
+        if (options?.replyMarkup) retryPayload.reply_markup = options.replyMarkup;
+
         const retryRes = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: plainText,
-          }),
+          body: JSON.stringify(retryPayload),
           signal: AbortSignal.timeout(10000),
         });
         const retryData: any = await retryRes.json();
@@ -129,6 +139,36 @@ export class TelegramNotifier {
         chatId,
         error: `Telegram network error: ${err.message}`,
       };
+    }
+  }
+
+  /**
+   * Answer a Telegram callback query
+   */
+  public static async answerCallbackQuery(
+    callbackQueryId: string,
+    text?: string,
+    showAlert: boolean = false
+  ): Promise<boolean> {
+    const { botToken } = this.getCredentials();
+    if (!botToken || !callbackQueryId) return false;
+
+    const endpoint = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId,
+          text: text || 'Action acknowledged',
+          show_alert: showAlert,
+        }),
+        signal: AbortSignal.timeout(6000),
+      });
+      const data: any = await res.json();
+      return Boolean(res.ok && data.ok);
+    } catch {
+      return false;
     }
   }
 
@@ -182,55 +222,25 @@ export class TelegramNotifier {
 
 🤖 <i>Model: ${escapeHtml(task.modelUsed)} • Dispatched by J.A.R.V.I.S. Money Engine</i>`;
 
-    const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const jobUrl =
+      task.url && (task.url.startsWith('http://') || task.url.startsWith('https://'))
+        ? task.url
+        : 'https://reddit.com/r/shopify';
 
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: formattedHtml,
-          parse_mode: 'HTML',
-          disable_web_page_preview: true,
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
+    const inlineKeyboard = {
+      inline_keyboard: [
+        [
+          { text: '🚀 Open Job Post', url: jobUrl },
+          { text: '✅ Won ($)', callback_data: `won:${task.taskId}:${task.pricing.payoutINR}` },
+          { text: '❌ Dismiss', callback_data: `dismiss:${task.taskId}` },
+        ],
+      ],
+    };
 
-      const data: any = await res.json();
-
-      if (res.ok && data.ok) {
-        return {
-          success: true,
-          messageId: data.result?.message_id,
-          chatId,
-        };
-      }
-
-      // If HTML parsing fails, fallback to clean plaintext
-      const plainText = `⚡ J.A.R.V.I.S. REVENUE LEAD ALERT\n\nTitle: ${task.title}\nValue: $${task.pricing.payoutUSD} (₹${task.pricing.payoutINR})\n\nRoot Cause: ${task.rootCause}\n\nClient Proposal:\n${task.clientProposal}\n\nCode Patch:\n${task.codePatch}`;
-      const plainRes = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: plainText,
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
-
-      const plainData: any = await plainRes.json();
-      return {
-        success: plainRes.ok && plainData.ok,
-        messageId: plainData.result?.message_id,
-        chatId,
-        error: plainData.ok ? undefined : plainData.description,
-      };
-    } catch (err: any) {
-      return {
-        success: false,
-        error: `Telegram network error: ${err.message}`,
-      };
-    }
+    return this.sendMessage(formattedHtml, {
+      parseMode: 'HTML',
+      targetChatId: chatId,
+      replyMarkup: inlineKeyboard,
+    });
   }
 }

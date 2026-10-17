@@ -14,6 +14,7 @@ import { JobScoutTool, ScoutedJob } from '../tools/JobScoutTool';
 import { FreelanceRevenueAgent } from '../agents/FreelanceRevenueAgent';
 import { TelegramNotifier } from '../notifications/TelegramNotifier';
 import { LeadDeduplicationService } from '../services/LeadDeduplicationService';
+import { RealizedEarningsService } from '../services/RealizedEarningsService';
 import { prisma } from '../lib/db';
 
 export interface EODAuditData {
@@ -22,6 +23,8 @@ export interface EODAuditData {
   bidsGenerated: number;
   potentialUSD: number;
   potentialINR: number;
+  realizedUSD: number;
+  realizedINR: number;
   dailyTargetINR: number;
   targetAchieved: boolean;
   progressPercent: number;
@@ -419,10 +422,17 @@ export class AutonomousScheduler {
       }
     }
 
+    // Fetch confirmed realized revenue from ledger
+    const realizedLedger = await RealizedEarningsService.getTotalRealized(24);
+    let realizedINR = realizedLedger.totalINR;
+    let realizedUSD = realizedLedger.totalUSD;
+
     // Blend sampleData if provided (for tests or demonstration)
     if (options?.sampleData) {
       if (options.sampleData.potentialUSD !== undefined) totalUSD = options.sampleData.potentialUSD;
       if (options.sampleData.potentialINR !== undefined) totalINR = options.sampleData.potentialINR;
+      if (options.sampleData.realizedINR !== undefined) realizedINR = options.sampleData.realizedINR;
+      if (options.sampleData.realizedUSD !== undefined) realizedUSD = options.sampleData.realizedUSD;
       if (options.sampleData.topLeads !== undefined) topLeads.splice(0, topLeads.length, ...options.sampleData.topLeads);
     }
 
@@ -430,8 +440,9 @@ export class AutonomousScheduler {
     const totalScoutedLeads = Math.max(processedCount, bidsGenerated, options?.sampleData?.totalScoutedLeads || 0);
 
     const dailyTargetINR = 500;
-    const targetAchieved = totalINR >= dailyTargetINR;
-    const progressPercent = Math.round((totalINR / dailyTargetINR) * 100);
+    const effectiveProgressINR = Math.max(realizedINR, totalINR);
+    const targetAchieved = effectiveProgressINR >= dailyTargetINR;
+    const progressPercent = Math.round((effectiveProgressINR / dailyTargetINR) * 100);
 
     const auditData: EODAuditData = {
       date: new Date().toLocaleDateString('en-IN', {
@@ -445,6 +456,8 @@ export class AutonomousScheduler {
       bidsGenerated,
       potentialUSD: totalUSD,
       potentialINR: totalINR,
+      realizedUSD,
+      realizedINR,
       dailyTargetINR,
       targetAchieved,
       progressPercent,
@@ -492,11 +505,11 @@ export class AutonomousScheduler {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📅 <b>Date:</b> ${data.date} (9:00 PM IST)
 🎯 <b>Daily Target:</b> ₹${data.dailyTargetINR.toLocaleString('en-IN')} INR
-⚡ <b>Status:</b> ${targetBadge} (<b>₹${data.potentialINR.toLocaleString('en-IN')}</b> / ₹${data.dailyTargetINR} • <b>${data.progressPercent}%</b>)
+⚡ <b>Target Status:</b> ${targetBadge}
 
-💰 <b>FINANCIAL PIPELINE METRICS:</b>
-• 💵 <b>Total Pipeline Value (USD):</b> <code>$${data.potentialUSD} USD</code>
-• 🇮🇳 <b>Total Pipeline Value (INR):</b> <b>₹${data.potentialINR.toLocaleString('en-IN')} INR</b>
+💰 <b>FINANCIAL PERFORMANCE BREAKDOWN:</b>
+• 💵 <b>Realized Earnings (Confirmed Cash):</b> <b>₹${data.realizedINR.toLocaleString('en-IN')} INR</b> (<code>$${data.realizedUSD} USD</code>)
+• 🔭 <b>Pipeline Scouted (Potential Value):</b> <b>₹${data.potentialINR.toLocaleString('en-IN')} INR</b> (<code>$${data.potentialUSD} USD</code>)
 • 🔍 <b>Total Scouted Leads:</b> <code>${data.totalScoutedLeads}</code>
 • 📝 <b>Bids & Solutions Formulated:</b> <code>${data.bidsGenerated}</code>
 • ⏱️ <b>Avg Turnaround:</b> <code>30 - 45 Mins</code>

@@ -25,6 +25,7 @@ export interface RevenueTaskAnalysis {
   durationEstimate: string;
   modelUsed: string;
   generatedAt: string;
+  url?: string;
 }
 
 export class FreelanceRevenueAgent {
@@ -121,6 +122,7 @@ Analyze this requirement and output the JSON solution now.`;
       durationEstimate: classification.tier === 'MICRO' ? '25 - 45 mins' : '1 - 3 hours',
       modelUsed,
       generatedAt: new Date().toISOString(),
+      url: params.url,
     };
   }
 
