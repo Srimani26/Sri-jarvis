@@ -70,11 +70,75 @@ export class AutonomousScheduler {
   }
 
   /**
-   * Register Phase 2 background workers
+   * Register Phase 2 & 4 background workers
    */
   public static registerPhase2Jobs(): void {
     this.scheduleRevenueScoutLoop();
     this.scheduleDailyEODAudit();
+    this.scheduleRevenueHeartbeatJob();
+  }
+
+  /**
+   * Lifecycle start method for background workers
+   */
+  public static start(): void {
+    if (!this.ticker && typeof setInterval !== 'undefined') {
+      this.ticker = setInterval(() => {
+        this.tick().catch(() => {});
+      }, 5000);
+      if (this.ticker && typeof (this.ticker as any).unref === 'function') {
+        (this.ticker as any).unref();
+      }
+    }
+    this.registerPhase2Jobs();
+    console.log('⚡ [AutonomousScheduler] Started 24/7 Autonomous Workers Engine (Scout Loop + EOD Audit + Heartbeat).');
+  }
+
+  /**
+   * Graceful lifecycle stop method
+   */
+  public static stop(): void {
+    if (this.ticker) {
+      clearInterval(this.ticker);
+      this.ticker = null;
+    }
+    console.log('🛑 [AutonomousScheduler] Stopped Autonomous Workers Engine.');
+  }
+
+  /**
+   * Register lightweight 6-hour interval job 'system-revenue-heartbeat'
+   */
+  public static scheduleRevenueHeartbeatJob(): ScheduledJob {
+    const id = 'job_system_revenue_heartbeat';
+    const intervalMs = 6 * 60 * 60 * 1000; // 6 hours
+    const nextRunAt = new Date(Date.now() + intervalMs).toISOString();
+
+    const job: ScheduledJob = {
+      id,
+      name: 'system-revenue-heartbeat',
+      type: 'RECURRING_INTERVAL',
+      intervalMs,
+      targetAgentId: 'revenue_hunter',
+      objective: 'Lightweight 6-hour system status and health pulse dispatch',
+      nextRunAt,
+      runCount: 0,
+      enabled: true,
+    };
+
+    this.jobs.set(id, job);
+    return job;
+  }
+
+  /**
+   * Dispatch quick system status heartbeat to Master Sri via Telegram
+   */
+  public static async sendSystemRevenueHeartbeat(): Promise<{ success: boolean; message: string }> {
+    const scoutedCount = await LeadDeduplicationService.getProcessedCount();
+    const stats = this.getStats();
+    const text = `🟢 <b>J.A.R.V.I.S. Core Online (24/7)</b> | Scheduler: Active (${stats.activeJobs} jobs) | Providers: Healthy | Scouted Today: <b>${scoutedCount}</b> leads.`;
+
+    const res = await TelegramNotifier.sendRawAlert(text);
+    return { success: res.success, message: text };
   }
 
   /**
@@ -230,6 +294,13 @@ export class AutonomousScheduler {
       const eodPromise = this.runDailyEODAudit({ sendToTelegram: true });
       job.nextRunAt = this.getNextEODTime().toISOString();
       if (wait) await eodPromise;
+      return;
+    }
+
+    if (job.name === 'system-revenue-heartbeat') {
+      const heartbeatPromise = this.sendSystemRevenueHeartbeat();
+      job.nextRunAt = new Date(Date.now() + (job.intervalMs || 6 * 60 * 60 * 1000)).toISOString();
+      if (wait) await heartbeatPromise;
       return;
     }
 
@@ -605,3 +676,5 @@ function escapeHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
+
+export const autonomousScheduler = AutonomousScheduler;

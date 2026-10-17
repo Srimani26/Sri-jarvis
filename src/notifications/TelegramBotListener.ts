@@ -369,3 +369,11 @@ function scoutedResultSummary(res: any): string {
     )
     .join('\n');
 }
+
+export function startTelegramBotListener(): void {
+  TelegramBotListener.startPolling();
+}
+
+export function stopTelegramBotListener(): void {
+  TelegramBotListener.stopPolling();
+}

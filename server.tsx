@@ -20,11 +20,11 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import customRoutes from './custom-routes'
 import { CrashRecovery } from './src/kernel/CrashRecovery'
-import { AutonomousScheduler } from './src/scheduler/AutonomousScheduler'
+import { AutonomousScheduler, autonomousScheduler } from './src/scheduler/AutonomousScheduler'
 import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
 import { validateDatabaseConnectivity } from './src/lib/db'
 import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
-import { TelegramBotListener } from './src/notifications/TelegramBotListener'
+import { TelegramBotListener, startTelegramBotListener, stopTelegramBotListener } from './src/notifications/TelegramBotListener'
 
 const app = new Hono()
 
@@ -103,7 +103,9 @@ CrashRecovery.recoverInterruptedTasks().catch((err) => {
 // 24/7 Persistent Task Queue: Boot durable background worker daemon
 PersistentTaskQueue.startWorker(2000)
 
-// 24/7 Autonomous Scheduler: Boot background health monitor
+// 24/7 Autonomous Scheduler: Start revenue scout loop, daily 9:00 PM IST EOD audit, and heartbeat
+autonomousScheduler.start()
+
 AutonomousScheduler.scheduleJob({
   title: 'Autonomous System Health Audit',
   cronExpression: '*/30 * * * *',
@@ -114,9 +116,24 @@ AutonomousScheduler.scheduleJob({
 
 // 24/7 Interactive Mobile Control: Mount TelegramBotListener for Master Sri
 try {
-  TelegramBotListener.startPolling()
+  startTelegramBotListener()
 } catch (botErr: any) {
   console.warn('⚠️ [TelegramBotListener] Boot fallback (offline or unconfigured):', botErr?.message || botErr)
 }
+
+// Graceful shutdown hooks
+const shutdown = async (signal: string) => {
+  console.log(`\n🛑 [Server] Received ${signal}. Initiating graceful shutdown...`)
+  autonomousScheduler.stop()
+  stopTelegramBotListener()
+  try {
+    const { prisma } = await import('./src/lib/db')
+    await (prisma as any).$disconnect()
+  } catch {}
+  process.exit(0)
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))
 
 serve({ port, fetch: app.fetch })
