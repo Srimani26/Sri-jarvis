@@ -42,16 +42,16 @@ export class ProviderRegistry {
         healthy: true,
         tier: 'LOW_COST',
       },
-      // 3. Gemini 2.5 Flash (Fast, Generous Free Tier)
+      // 3. Gemini 3.8 Flash (Fast, Latest Frontier Tier)
       {
-        id: 'gemini-2.5-flash',
+        id: 'gemini-3.8-flash',
         provider: 'gemini',
-        name: 'Google Gemini 2.5 Flash',
-        capabilities: ['fast', 'vision', 'tools', 'coding'],
+        name: 'Google Gemini 3.8 Flash',
+        capabilities: ['fast', 'vision', 'tools', 'coding', 'reasoning'],
         contextWindow: 1_000_000,
         costPer1kInputTokens: 0.0001,
         costPer1kOutputTokens: 0.0004,
-        avgLatencyMs: 400,
+        avgLatencyMs: 350,
         healthy: true,
         tier: 'FREE',
       },

@@ -13,6 +13,7 @@ import { ToolDefinition, ToolCategory, ToolRiskLevel } from './types';
 import { ExecutionPolicy, KernelExecutionContext, KernelToolResult } from '../kernel/types';
 import { ExecutionKernel } from '../kernel/ExecutionKernel';
 import { WorkspaceManager } from '../workspace/WorkspaceManager';
+import { DiffPatcher } from '../coding/DiffPatcher';
 
 const execFileAsync = promisify(execFile);
 
@@ -230,6 +231,82 @@ export class ToolRegistry {
             commandsExecuted: [cmdStr],
           };
         }
+      },
+    });
+
+    // 5b. code_diff_apply (Surgical Diff Patcher)
+    this.registerTool({
+      name: 'code_diff_apply',
+      description: 'Apply surgical Aider-style Search/Replace diff blocks onto target code files without destruction',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string' },
+          patch: { type: 'string' },
+        },
+        required: ['path', 'patch'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'MEDIUM',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const cwd = resolve(process.cwd());
+        const filePath = resolve(cwd, args.path);
+        if (!filePath.startsWith(cwd)) {
+          return { tool: 'code_diff_apply', success: false, output: null, error: `Path traversal blocked: ${args.path}` };
+        }
+        if (!existsSync(filePath)) {
+          return { tool: 'code_diff_apply', success: false, output: null, error: `File not found: ${args.path}` };
+        }
+        const original = readFileSync(filePath, 'utf-8');
+        const patchRes = DiffPatcher.applyPatch(original, args.patch);
+        if (!patchRes.success) {
+          return { tool: 'code_diff_apply', success: false, output: null, error: patchRes.error || 'Patch failed' };
+        }
+        writeFileSync(filePath, patchRes.patchedContent, 'utf-8');
+        return {
+          tool: 'code_diff_apply',
+          success: true,
+          output: { path: args.path, blocksApplied: patchRes.blocksApplied },
+          filesTouched: [args.path],
+        };
+      },
+    });
+
+    // 5c. workspace_exec (Sandbox Workspace Command Execution)
+    this.registerTool({
+      name: 'workspace_exec',
+      description: 'Run commands inside an isolated project workspace sandbox',
+      category: 'TERMINAL',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string' },
+          command: { type: 'string' },
+          timeoutMs: { type: 'number' },
+        },
+        required: ['projectName', 'command'],
+      },
+      requiredPermission: 'SANDBOX',
+      riskLevel: 'MEDIUM',
+      timeoutMs: 60_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        const res = await WorkspaceManager.runCommand(args.projectName, args.command, args.timeoutMs || 60_000);
+        return {
+          tool: 'workspace_exec',
+          success: res.success,
+          output: { stdout: res.stdout, stderr: res.stderr, exitCode: res.exitCode, durationMs: res.durationMs },
+          commandsExecuted: [args.command],
+        };
       },
     });
 

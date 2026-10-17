@@ -42,7 +42,7 @@ export class GeminiAdapter implements ProviderAdapter {
       throw new Error('PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set');
     }
 
-    const model = options?.model || 'gemini-3.1-flash-lite';
+    const model = options?.model || 'gemini-3.8-flash';
     const contents = messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
