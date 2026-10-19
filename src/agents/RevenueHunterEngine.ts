@@ -8,6 +8,8 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { resolve, join } from 'path';
 import { WorkspaceManager } from '../workspace/WorkspaceManager';
+import { AIUIDesignSystem } from '../design/AIUIDesignSystem';
+import { OpenQodexReviewEngine } from '../quality/OpenQodexReviewEngine';
 
 export interface RevenueOpportunity {
   id: string;
@@ -90,6 +92,17 @@ export class RevenueHunterEngine {
     writeFileSync(this.opportunitiesFile, JSON.stringify(opps, null, 2), 'utf-8');
   }
 
+  public static addOrUpdateOpportunity(opp: RevenueOpportunity) {
+    const opps = this.getOpportunities();
+    const existingIdx = opps.findIndex(o => o.id === opp.id || o.sourceUrl === opp.sourceUrl);
+    if (existingIdx >= 0) {
+      opps[existingIdx] = { ...opps[existingIdx], ...opp };
+    } else {
+      opps.unshift(opp);
+    }
+    this.saveOpportunities(opps.slice(0, 50));
+  }
+
   public static getSettings(): PayoutSettings {
     this.ensureDataDir();
     try {
@@ -119,7 +132,7 @@ export class RevenueHunterEngine {
       .reduce((sum, o) => sum + o.payoutINR, 0);
 
     const inProgressINR = opps
-      .filter(o => o.status === 'APPLIED' || o.status === 'IN_PROGRESS')
+      .filter(o => o.status === 'APPLIED' || o.status === 'IN_PROGRESS' || o.status === 'PROPOSAL_GENERATED' || o.status === 'SCOUTED' || o.status === 'DISCOVERED')
       .reduce((sum, o) => sum + o.payoutINR, 0);
 
     const totalPipelineINR = collectedINR + readyForPayoutINR + inProgressINR;
@@ -134,7 +147,7 @@ export class RevenueHunterEngine {
       totalPipelineUSD: Math.round(totalPipelineINR / 84),
       activeOpportunitiesCount: opps.filter(o => o.status !== 'COLLECTED').length,
       payoutReadyCount: opps.filter(o => o.status === 'DELIVERABLE_READY' || o.status === 'PAYOUT_READY').length,
-      appliedCount: opps.filter(o => o.status === 'APPLIED' || o.status === 'IN_PROGRESS').length,
+      appliedCount: opps.filter(o => o.status === 'APPLIED' || o.status === 'IN_PROGRESS' || o.status === 'PROPOSAL_GENERATED').length,
     };
   }
 
@@ -186,97 +199,16 @@ Rate: $${opp.payoutUSD} (₹${opp.payoutINR.toLocaleString('en-IN')}) • Fixed 
     const projectName = `bounty_${opp.id.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
     WorkspaceManager.initProject(projectName);
 
-    let htmlContent = '';
-    if (opp.category === 'Landing Page' || opp.title.toLowerCase().includes('fashion') || opp.title.toLowerCase().includes('clothing')) {
-      htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${opp.title} // Client Deliverable</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body class="bg-[#030712] text-slate-100 min-h-screen font-sans selection:bg-rose-500/30 selection:text-rose-200">
-  <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-4 py-2 text-center text-xs font-mono font-bold text-white shadow-lg flex items-center justify-between">
-    <span>💎 VERIFIED DELIVERABLE COMPILED FOR ${opp.clientName.toUpperCase()} • MILESTONE: ₹${opp.payoutINR.toLocaleString('en-IN')} ($${opp.payoutUSD})</span>
-    <span class="px-2 py-0.5 rounded bg-black/40 text-emerald-300">STATUS: READY FOR PAYOUT</span>
-  </div>
-  <header class="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center font-serif text-xl font-black text-white shadow-lg">A</div>
-        <div>
-          <span class="text-lg font-black tracking-widest uppercase font-serif text-white">AURA COUTURE</span>
-          <span class="block text-[9px] font-mono text-rose-400 tracking-widest uppercase">Haute Atelier • Master Sri Edition</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-4">
-        <span class="text-xs font-mono text-emerald-400 font-bold">100% Responsive Clean Code</span>
-        <button class="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg">Client Staging Live</button>
-      </div>
-    </div>
-  </header>
-  <main class="max-w-7xl mx-auto px-4 py-12 space-y-12">
-    <div class="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 backdrop-blur-2xl text-center space-y-4">
-      <span class="px-3 py-1 rounded-full bg-rose-500/15 border border-rose-400 text-rose-300 text-xs font-mono">CLIENT DELIVERABLE VERIFIED</span>
-      <h1 class="text-4xl font-extrabold text-white font-serif">${opp.title}</h1>
-      <p class="max-w-2xl mx-auto text-slate-400 text-sm leading-relaxed">${opp.description}</p>
-      <div class="pt-4 flex items-center justify-center gap-4">
-        <div class="px-4 py-2 rounded-2xl bg-slate-950 border border-slate-800 text-left">
-          <span class="text-[10px] font-mono text-slate-500 block">DELIVERABLE RATING</span>
-          <span class="text-lg font-black text-amber-400 font-mono">★★★★★ 5.0/5.0</span>
-        </div>
-        <div class="px-4 py-2 rounded-2xl bg-slate-950 border border-slate-800 text-left">
-          <span class="text-[10px] font-mono text-slate-500 block">PENDING PAYOUT</span>
-          <span class="text-lg font-black text-emerald-400 font-mono">₹${opp.payoutINR.toLocaleString('en-IN')} ($${opp.payoutUSD})</span>
-        </div>
-      </div>
-    </div>
-  </main>
-</body>
-</html>`;
-    } else {
-      htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${opp.title} // Master Sri Sovereign Deliverable</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-[#030712] text-slate-100 min-h-screen p-8 font-sans">
-  <div class="max-w-4xl mx-auto p-8 rounded-3xl bg-slate-900/70 border border-cyan-500/40 shadow-2xl space-y-6">
-    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-      <div>
-        <span class="text-xs font-mono text-cyan-400 font-bold uppercase">${opp.platform} Milestone Deliverable</span>
-        <h1 class="text-2xl font-bold text-white mt-1">${opp.title}</h1>
-      </div>
-      <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-500/40">PAYOUT READY</span>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-        <span class="text-xs text-slate-400 block font-mono">Client</span>
-        <span class="text-base font-bold text-white">${opp.clientName} (${opp.clientCountry})</span>
-      </div>
-      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-        <span class="text-xs text-slate-400 block font-mono">Agreed Payout</span>
-        <span class="text-xl font-bold font-mono text-emerald-400">₹${opp.payoutINR.toLocaleString('en-IN')} ($${opp.payoutUSD})</span>
-      </div>
-    </div>
-    <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-      <span class="text-xs font-mono text-cyan-400 font-bold">Execution Telemetry & Artifacts:</span>
-      <p class="text-xs text-slate-300 font-mono">1. Code synthesized with zero TypeScript/CSS errors.</p>
-      <p class="text-xs text-slate-300 font-mono">2. Sandboxed in workspace: ${projectName}</p>
-      <p class="text-xs text-slate-300 font-mono">3. Output verified against acceptance rubric.</p>
-    </div>
-    <div class="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs font-mono">
-      ⚡ Master Sri: Deliverable completed. Payout of ₹${opp.payoutINR.toLocaleString('en-IN')} is ready for collection into your bank account.
-    </div>
-  </div>
-</body>
-</html>`;
-    }
+    // 1. Synthesize production-grade deliverable via AI UI Design Stack
+    let rawHtml = AIUIDesignSystem.synthesizeClientDeliverable({
+      title: opp.title,
+      category: opp.category,
+      features: opp.skillsRequired,
+    });
+
+    // 2. Audit and auto-repair through OpenQodex Review Gate
+    const reviewResult = OpenQodexReviewEngine.reviewAndSecure(rawHtml, 'html');
+    const htmlContent = reviewResult.repairedCode || rawHtml;
 
     WorkspaceManager.writeFile(projectName, 'index.html', htmlContent);
     WorkspaceManager.writeFile(projectName, 'README.md', `# ${opp.title}\nBuilt for ${opp.clientName} (${opp.platform}) by Master Sri Sovereign Swarm.\nPayout: ₹${opp.payoutINR} ($${opp.payoutUSD})`);

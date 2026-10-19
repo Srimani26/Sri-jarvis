@@ -10,6 +10,8 @@ import { GeminiAdapter } from '../providers/adapters/GeminiAdapter';
 import { GroqAdapter } from '../providers/adapters/GroqAdapter';
 import { LLMMessage, ModelMetadata } from '../providers/types';
 import { JobScoutTool, TaskTier } from '../tools/JobScoutTool';
+import { OpenQodexReviewEngine, OpenQodexReviewResult } from '../quality/OpenQodexReviewEngine';
+import { TensorFlowPricingEngine, PricingInference } from '../ml/TensorFlowPricingEngine';
 
 export interface RevenueTaskAnalysis {
   taskId: string;
@@ -18,14 +20,18 @@ export interface RevenueTaskAnalysis {
   codePatch: string;
   clientProposal: string;
   pricing: {
-    tier: TaskTier;
+    tier: TaskTier | PricingInference['tier'];
     payoutUSD: number;
     payoutINR: number;
+    winProbability?: number;
+    expectedValueINR?: number;
   };
   durationEstimate: string;
   modelUsed: string;
   generatedAt: string;
   url?: string;
+  qualityReview?: OpenQodexReviewResult;
+  pricingInference?: PricingInference;
 }
 
 export class FreelanceRevenueAgent {
@@ -108,21 +114,36 @@ Analyze this requirement and output the JSON solution now.`;
       parsed = { ...fallback, ...parsed };
     }
 
+    // 1. TensorFlow Pricing Inference
+    const tfFeatures = TensorFlowPricingEngine.extractFeatures(title, description, classification.payoutUSD);
+    const pricingInference = TensorFlowPricingEngine.predictOptimalPricing(tfFeatures);
+
+    // 2. OpenQodex Automated Review & Security Verification Gate
+    const codeLang = /\{\%|\{\{/i.test(parsed.codePatch) ? 'liquid' : /\{|\}/.test(parsed.codePatch) ? 'css' : 'typescript';
+    const qualityReview = OpenQodexReviewEngine.reviewAndSecure(parsed.codePatch, codeLang);
+
+    // Use auto-repaired secure code if findings were detected
+    const finalCodePatch = qualityReview.repairedCode || parsed.codePatch;
+
     return {
       taskId: `REV-${Date.now().toString().slice(-6)}`,
       title,
       rootCause: parsed.rootCause,
-      codePatch: parsed.codePatch,
+      codePatch: finalCodePatch,
       clientProposal: parsed.clientProposal,
       pricing: {
-        tier: classification.tier,
-        payoutUSD: classification.payoutUSD,
-        payoutINR: classification.payoutINR,
+        tier: pricingInference.tier,
+        payoutUSD: pricingInference.recommendedPriceUSD || classification.payoutUSD,
+        payoutINR: pricingInference.recommendedPriceINR || classification.payoutINR,
+        winProbability: pricingInference.winProbability,
+        expectedValueINR: pricingInference.expectedValueINR,
       },
-      durationEstimate: classification.tier === 'MICRO' ? '25 - 45 mins' : '1 - 3 hours',
+      durationEstimate: pricingInference.tier === 'MICRO' ? '25 - 45 mins' : '1 - 3 hours',
       modelUsed,
       generatedAt: new Date().toISOString(),
       url: params.url,
+      qualityReview,
+      pricingInference,
     };
   }
 

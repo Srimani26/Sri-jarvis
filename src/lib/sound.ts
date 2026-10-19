@@ -161,7 +161,7 @@ export function playNeuralSpeech(
 
 
   try {
-    const spokenSlice = clean.slice(0, 2500)
+    const spokenSlice = clean.slice(0, 20000)
 
     // For long spoken responses (> 300 chars) without pre-rendered audio, use POST
     if (!staticAudioPath && spokenSlice.length > 300) {
@@ -218,21 +218,6 @@ export function playNeuralSpeech(
     }
 
     audio.onerror = () => {
-      if (staticAudioPath && staticAudioPath.startsWith('/audio/')) {
-        const altPath = staticAudioPath.replace('/audio/', '/')
-        const altAudio = new Audio(altPath)
-        activeAudio = altAudio
-        altAudio.onplay = () => { if (sessionId === activeSpeechSessionId && onStart) onStart() }
-        altAudio.onended = () => { activeAudio = null; if (sessionId === activeSpeechSessionId && onEnd) onEnd() }
-        altAudio.onerror = () => {
-          activeAudio = null
-          if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
-        }
-        altAudio.play().catch(() => {
-          if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
-        })
-        return
-      }
       console.warn('Streaming neural audio failed, falling back to Web Speech')
       activeAudio = null
       if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)

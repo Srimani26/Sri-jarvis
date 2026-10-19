@@ -292,6 +292,34 @@ const AGENTS: Record<string, AgentBadge> = {
     lang: 'en-US',
     greeting: 'LangGraph stateful cyclical supervisor online, Master Sri. Cyclical agent graphs, state checkpoints, and workflow execution ready.',
     icon: Database
+  },
+  daedalus: {
+    id: 'daedalus',
+    name: 'Daedalus',
+    title: 'Master System Architect',
+    role: 'Distributed Systems, Schemas & UI Architecture',
+    gender: 'male',
+    voiceName: 'Callum (System Architect)',
+    color: 'text-indigo-300',
+    bg: 'bg-indigo-500/20',
+    border: 'border-indigo-400',
+    lang: 'en-GB',
+    greeting: 'Daedalus online, Master Sri. Scalable architectures, design token contracts, and system blueprints ready.',
+    icon: Layers
+  },
+  sentinel: {
+    id: 'sentinel',
+    name: 'Sentinel',
+    title: 'Quality Gate & Security Marshal',
+    role: 'OpenQodex AST Scanners & Verification Gate',
+    gender: 'female',
+    voiceName: 'Sarah (QA Marshal)',
+    color: 'text-emerald-300',
+    bg: 'bg-emerald-500/20',
+    border: 'border-emerald-400',
+    lang: 'en-US',
+    greeting: 'Sentinel reporting, Master Sri. Quality gates active, AST scanners armed, zero security flaws permitted.',
+    icon: Shield
   }
 }
 
@@ -554,8 +582,20 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
+  // Mobile Battery & Thermal Guard: Stop microphone and audio context immediately when screen locks or tab switches
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopListening()
+        stopNeuralSpeech()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
+
   // Real vocal speech player using backend Google Neural stream with hard microphone isolation
-  const speakVoice = (text: string, lang?: string, onDone?: () => void) => {
+  const speakVoice = (text: string, lang?: string, onDone?: () => void, customAgentId?: string) => {
     // Before TTS audio plays, immediately call mediaStream.getTracks().forEach(t => t.stop()) and reset audio recorder buffers
     if (mediaStreamRef.current) {
       try {
@@ -574,6 +614,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     stopNeuralSpeech()
 
     const chosenLang = lang || activeAgentRef.current.lang || 'en-GB'
+    const targetAgentId = customAgentId || activeAgentRef.current?.id || 'jarvis'
 
     setIsSpeaking(true)
     isSpeakingRef.current = true
@@ -610,7 +651,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           startListening()
         }
       },
-      activeAgentRef.current?.id || 'jarvis'
+      targetAgentId
     )
   }
 
@@ -2865,7 +2906,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           const spokenReply = data.spokenSummary || data.report || `${targetAgent.name} has completed your directive, Master Sri.`
           // Render full detailed technical report in UI, and vocalize the complete natural speech summary
           setJarvisResponse(data.report || spokenReply)
-          speakVoice(spokenReply, targetAgent.lang)
+          speakVoice(spokenReply, targetAgent.lang, undefined, targetAgent.id)
           setIsProcessing(false)
           return
         }
@@ -2894,8 +2935,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
           .trim()
         const spokenReply = cleanSpoken.length > 1800 ? cleanSpoken.slice(0, 1800) + '...' : cleanSpoken
+        const speakingAgentId = data.agentId || activeAgent?.id || 'jarvis'
+        if (AGENTS[speakingAgentId] && speakingAgentId !== activeAgent?.id) {
+          setActiveAgent(AGENTS[speakingAgentId])
+          activeAgentRef.current = AGENTS[speakingAgentId]
+        }
         setJarvisResponse(textContent)
-        speakVoice(spokenReply)
+        speakVoice(spokenReply, undefined, undefined, speakingAgentId)
       } else {
         const fallback = `Understood, Master Sri. I have registered your directive: "${cmd}". The swarm is aligning execution.`
         setJarvisResponse(fallback)
@@ -3008,17 +3054,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         setIsListening(false)
         isListeningRef.current = false
 
-        // Filter out empty clicks (< 400 bytes)
+        // Mobile Thermal & Battery Guard: Enter standby on silence without looping CPU audio DSP
         if (audioBlob.size < 400) {
           setIsProcessing(false)
           isProcessingRef.current = false
-          if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-            setTimeout(() => {
-              if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-                startListening()
-              }
-            }, 400)
-          }
+          setIsSleeping(true)
+          isSleepingRef.current = true
+          setTranscript('Standing by on low-power sentinel. Tap Arc Reactor to speak.')
           return
         }
 

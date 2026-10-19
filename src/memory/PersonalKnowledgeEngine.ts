@@ -4,6 +4,9 @@
  * project topologies, verified bug solutions, and hybrid keyword/semantic search.
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { resolve, join } from 'path';
+
 export interface KnowledgeEntry {
   id: string;
   category: 'USER_DIRECTIVE' | 'PROJECT_TOPOLOGY' | 'VERIFIED_FIX' | 'TECHNICAL_RULE';
@@ -22,19 +25,41 @@ export interface SearchResult {
 
 export class PersonalKnowledgeEngine {
   private static knowledgeBase: Map<string, KnowledgeEntry> = new Map();
+  private static dataDir = resolve(process.cwd(), 'data');
+  private static storageFile = join(PersonalKnowledgeEngine.dataDir, 'personal_knowledge.json');
 
   static {
     this.bootstrapMasterProfile();
   }
 
+  private static ensureStorage() {
+    if (!existsSync(this.dataDir)) {
+      mkdirSync(this.dataDir, { recursive: true });
+    }
+  }
+
   private static bootstrapMasterProfile() {
+    this.ensureStorage();
+    if (existsSync(this.storageFile)) {
+      try {
+        const raw = readFileSync(this.storageFile, 'utf-8');
+        const entries: KnowledgeEntry[] = JSON.parse(raw);
+        for (const e of entries) {
+          this.knowledgeBase.set(e.id, e);
+        }
+        return;
+      } catch (err) {
+        console.error('[PersonalKnowledgeEngine] Failed to load stored knowledge, rebuilding defaults:', err);
+      }
+    }
+
     const defaultEntries: KnowledgeEntry[] = [
       {
         id: 'pref_master_title',
         category: 'USER_DIRECTIVE',
-        topic: 'Operator Identity',
-        content: 'Operator is Master Sri. Address with tactical precision, absolute loyalty, and concise executive clarity.',
-        tags: ['master_sri', 'identity', 'protocol'],
+        topic: 'Operator Identity & Loyalty',
+        content: 'Operator is Master Sri. Address with tactical precision, absolute loyalty, warmth, and concise executive clarity. Act as an authentic personal AI assistant.',
+        tags: ['master_sri', 'identity', 'protocol', 'personal'],
         confidence: 1.0,
         updatedAt: new Date().toISOString(),
       },
@@ -56,10 +81,30 @@ export class PersonalKnowledgeEngine {
         confidence: 1.0,
         updatedAt: new Date().toISOString(),
       },
+      {
+        id: 'pref_high_ticket_focus',
+        category: 'USER_DIRECTIVE',
+        topic: 'High-Ticket Autonomous Revenue Directives',
+        content: 'Focus on high-leverage software execution: Shopify Plus themes, Liquid responsive engineering, enterprise multi-agent workflows, and automated client proposals.',
+        tags: ['revenue', 'high_ticket', 'shopify', 'liquid', 'freelance'],
+        confidence: 1.0,
+        updatedAt: new Date().toISOString(),
+      },
     ];
 
     for (const e of defaultEntries) {
       this.knowledgeBase.set(e.id, e);
+    }
+    this.persistToDisk();
+  }
+
+  private static persistToDisk() {
+    this.ensureStorage();
+    try {
+      const arr = Array.from(this.knowledgeBase.values());
+      writeFileSync(this.storageFile, JSON.stringify(arr, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('[PersonalKnowledgeEngine] Failed to save to disk:', err);
     }
   }
 
@@ -69,7 +114,13 @@ export class PersonalKnowledgeEngine {
       updatedAt: new Date().toISOString(),
     };
     this.knowledgeBase.set(full.id, full);
+    this.persistToDisk();
     return full;
+  }
+
+  public static getSummaryContext(): string {
+    const entries = Array.from(this.knowledgeBase.values()).slice(0, 5);
+    return entries.map(e => `- [${e.topic}]: ${e.content}`).join('\n');
   }
 
   public static search(query: string, limit: number = 5): SearchResult[] {

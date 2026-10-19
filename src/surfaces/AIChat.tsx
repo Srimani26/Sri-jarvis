@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
-import { playJarvisChime } from '@/lib/sound'
+import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
 import ArcReactorHUD from '@/components/ArcReactorHUD'
 
 interface FlightDeal {
@@ -189,45 +189,32 @@ export default function AIChat() {
     source: 'J.A.R.V.I.S. Mark-V Core',
   }
 
-  // Text-To-Speech (British J.A.R.V.I.S. Audio)
-  const speakJarvisResponse = useCallback((text: string) => {
-    if (isMuted || typeof window === 'undefined' || !window.speechSynthesis) return
+  // Bulletproof Continuous Text-To-Speech (Infinite speech, non-truncating sentence pipeline)
+  const speakJarvisResponse = useCallback((text: string, customAgentId?: string) => {
+    if (isMuted || typeof window === 'undefined') return
     try {
-      window.speechSynthesis.cancel()
-      const cleanText = text
-        .replace(/```[\s\S]*?```/g, 'Code block generated.')
-        .replace(/`([^`]+)`/g, '$1')
-        .replace(/\*\*([^*]+)\*\*/g, '$1')
-        .replace(/[#*_-]/g, '')
-        .slice(0, 380)
-        .trim()
-
-      if (!cleanText) return
-
-      const utterance = new SpeechSynthesisUtterance(cleanText)
-      const voices = window.speechSynthesis.getVoices()
-      const britishVoice = voices.find(
-        (v) => v.lang.includes('en-GB') || v.name.includes('British') || v.name.includes('Daniel') || v.name.includes('UK')
-      ) || voices.find((v) => v.lang.startsWith('en'))
-
-      if (britishVoice) utterance.voice = britishVoice
-      utterance.rate = 1.02
-      utterance.pitch = 0.95
-      utterance.onstart = () => setHudStatus('speaking')
-      utterance.onend = () => setHudStatus('online')
-      utterance.onerror = () => setHudStatus('online')
-      window.speechSynthesis.speak(utterance)
+      stopNeuralSpeech()
+      setHudStatus('speaking')
+      const targetAgent = customAgentId || (selectedAgent !== 'all' ? selectedAgent : 'jarvis')
+      playNeuralSpeech(
+        text,
+        'en-GB',
+        () => setHudStatus('speaking'),
+        () => setHudStatus('online'),
+        () => setHudStatus('online'),
+        targetAgent
+      )
     } catch {
       setHudStatus('online')
     }
-  }, [isMuted])
+  }, [isMuted, selectedAgent])
 
   const toggleMute = () => {
     setIsMuted((prev) => {
       const next = !prev
       try { localStorage.setItem('jarvis_muted', String(next)) } catch {}
-      if (next && typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel()
+      if (next) {
+        stopNeuralSpeech()
       }
       return next
     })
@@ -471,7 +458,7 @@ export default function AIChat() {
 
     const assistantId = generateId()
 
-    const updateAssistant = (content: string, source?: string) => {
+    const updateAssistant = (content: string, source?: string, spokenSummary?: string, respAgentId?: string) => {
       setMessages((prev) => {
         const updated = [...prev]
         const lastIdx = updated.findIndex((m) => m.id === assistantId)
@@ -482,7 +469,7 @@ export default function AIChat() {
         }
         return updated
       })
-      speakJarvisResponse(content)
+      speakJarvisResponse(spokenSummary || content, respAgentId)
       setHudStatus('online')
     }
 
@@ -529,7 +516,7 @@ export default function AIChat() {
       }
 
       if (data.content) {
-        updateAssistant(data.content, data.source)
+        updateAssistant(data.content, data.source, data.spokenSummary, data.agentId)
         fetchSessions()
         return
       }
@@ -555,7 +542,32 @@ export default function AIChat() {
     sendMessageRef.current = sendMessage
   }, [sendMessage])
 
-  // Continuous "Hey Jarvis" Speech Sentinel setup
+  // VoiceType Engine (Phonetic Dictionary + Accent Tolerance inspired by Reverse_Engineered_Voicetype)
+  const applyVoiceTypeDictionary = (raw: string): string => {
+    let t = raw
+    const replacements: [RegExp, string][] = [
+      [/\b(down\s*theme|dawn\s*teme|don\s*theme)\b/gi, 'Dawn theme'],
+      [/\b(shopify|shop\s*fi|shotify)\b/gi, 'Shopify'],
+      [/\b(liquid|liqud|likwid)\b/gi, 'Liquid'],
+      [/\b(c\s*s\s*s|see\s*ss)\b/gi, 'CSS'],
+      [/\b(z\s*index|zed\s*index)\b/gi, 'z-index'],
+      [/\b(u\s*p\s*i)\b/gi, 'UPI'],
+      [/\b(atonoumus|autonomus|atonumus)\b/gi, 'autonomous'],
+      [/\b(cart\s*drower|card\s*drawer)\b/gi, 'cart drawer'],
+      [/\b(scout\s*lid|scout\s*lead|scout\s*leads)\b/gi, 'scout leads'],
+      [/\b(e\s*o\s*d)\b/gi, 'EOD audit'],
+      [/\b(make\s*money|money\s*making)\b/gi, 'make money'],
+      [/\b(freelance|free\s*lancing)\b/gi, 'freelance'],
+      [/\b(standard\s*roofs|standard\s*roof)\b/gi, 'Standard Roofs'],
+      [/\b(task\s*tier|tasc\s*tier)\b/gi, 'task tier'],
+    ]
+    for (const [re, rep] of replacements) {
+      t = t.replace(re, rep)
+    }
+    return t
+  }
+
+  // Continuous "Hey Jarvis" Speech Sentinel setup with VoiceType Robust Recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
@@ -564,14 +576,24 @@ export default function AIChat() {
     const recognition = new SpeechRecognition()
     recognition.continuous = true
     recognition.interimResults = true
-    recognition.lang = 'en-US'
+    // Indian English with accent resilience
+    recognition.lang = 'en-IN'
 
     recognition.onresult = (event: any) => {
-      let transcript = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
+      let finalTranscript = ''
+      let interimTranscript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        const chunk = event.results[i][0].transcript
+        if (event.results[i].isFinal) {
+          finalTranscript += chunk + ' '
+        } else {
+          interimTranscript += chunk
+        }
       }
-      const lower = transcript.toLowerCase().trim()
+
+      const combined = (finalTranscript + interimTranscript).trim()
+      const normalized = applyVoiceTypeDictionary(combined)
+      const lower = normalized.toLowerCase()
 
       // Check for wake word in speech stream
       if (lower.includes('hey jarvis') || lower.includes('hello jarvis') || lower.includes('jarvis wake up')) {
@@ -579,13 +601,13 @@ export default function AIChat() {
         if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 60, 40])
       }
 
-      setInput(transcript)
+      setInput(normalized)
       if (event.results[event.results.length - 1].isFinal) {
         setIsListening(false)
-        if (!isSendingSpeechRef.current && transcript.trim()) {
+        if (!isSendingSpeechRef.current && normalized.trim()) {
           isSendingSpeechRef.current = true
           setTimeout(() => {
-            sendMessageRef.current(transcript)
+            sendMessageRef.current(normalized)
             setTimeout(() => {
               isSendingSpeechRef.current = false
             }, 1200)
@@ -596,7 +618,7 @@ export default function AIChat() {
 
     recognition.onerror = () => setIsListening(false)
     recognition.onend = () => {
-      if (sentinelActive) {
+      if (sentinelActive && typeof document !== 'undefined' && !document.hidden) {
         try { recognition.start() } catch {}
       } else {
         setIsListening(false)
@@ -604,7 +626,18 @@ export default function AIChat() {
     }
     recognitionRef.current = recognition
 
+    const handleVisibility = () => {
+      if (document.hidden) {
+        try { recognition.abort() } catch {}
+        stopNeuralSpeech()
+      } else if (sentinelActive) {
+        try { recognition.start() } catch {}
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
       try {
         recognition.abort()
       } catch {}
@@ -675,11 +708,14 @@ export default function AIChat() {
 
           {[
             { id: 'all', label: 'J.A.R.V.I.S. (Chief)', icon: Shield, color: 'text-cyan-400' },
-            { id: 'skynet', label: 'SkyNet (Flights)', icon: Plane, color: 'text-sky-400' },
-            { id: 'omnibuy', label: 'OmniBuy (Commerce)', icon: ShoppingCart, color: 'text-amber-400' },
-            { id: 'aegis', label: 'Aegis (Full-Stack)', icon: Code2, color: 'text-cyan-300' },
-            { id: 'vortex', label: 'Vortex (Auto)', icon: Workflow, color: 'text-amber-400' },
+            { id: 'friday', label: 'Friday (Code)', icon: Code2, color: 'text-purple-400' },
             { id: 'midas', label: 'Midas (Revenue)', icon: DollarSign, color: 'text-emerald-400' },
+            { id: 'aegis', label: 'Aegis (Cyber/Full-Stack)', icon: Shield, color: 'text-cyan-300' },
+            { id: 'daedalus', label: 'Daedalus (Architect)', icon: Layers, color: 'text-blue-400' },
+            { id: 'vortex', label: 'Vortex (Automation)', icon: Workflow, color: 'text-amber-400' },
+            { id: 'cerebro', label: 'Cerebro (Intel)', icon: Brain, color: 'text-rose-400' },
+            { id: 'skynet', label: 'SkyNet (Flights)', icon: Plane, color: 'text-sky-400' },
+            { id: 'omnibuy', label: 'OmniBuy (Commerce)', icon: ShoppingCart, color: 'text-amber-300' },
           ].map((item) => {
             const Icon = item.icon
             const isSelected = selectedAgent === item.id

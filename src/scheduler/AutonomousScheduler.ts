@@ -15,6 +15,7 @@ import { FreelanceRevenueAgent } from '../agents/FreelanceRevenueAgent';
 import { TelegramNotifier } from '../notifications/TelegramNotifier';
 import { LeadDeduplicationService } from '../services/LeadDeduplicationService';
 import { RealizedEarningsService } from '../services/RealizedEarningsService';
+import { RevenueHunterEngine } from '../agents/RevenueHunterEngine';
 import { prisma } from '../lib/db';
 
 export interface EODAuditData {
@@ -367,8 +368,8 @@ export class AutonomousScheduler {
         continue;
       }
 
-      // High-confidence tier filter ($5 to $50)
-      if (job.payoutUSD >= 5 && job.payoutUSD <= 50) {
+      // Expanded high-confidence enterprise revenue filter ($10 to $50,000)
+      if (job.payoutUSD >= 10 && job.payoutUSD <= 50000) {
         try {
           const analysis = await FreelanceRevenueAgent.analyzeAndSolve({
             title: job.title,
@@ -410,6 +411,26 @@ export class AutonomousScheduler {
             title: job.title,
             payoutUSD: analysis.pricing.payoutUSD,
             payoutINR: analysis.pricing.payoutINR,
+          });
+
+          // Sync into RevenueHunterEngine Opportunity Pipeline
+          RevenueHunterEngine.addOrUpdateOpportunity({
+            id: job.id,
+            title: job.title,
+            platform: 'Upwork',
+            category: 'Full-Stack Web',
+            payoutUSD: analysis.pricing.payoutUSD,
+            payoutINR: analysis.pricing.payoutINR,
+            clientName: 'Client via ' + (job.sourceUrl.includes('reddit') ? 'Reddit' : 'Freelance Feed'),
+            clientRating: 5.0,
+            clientCountry: 'Global',
+            deadlineDays: 2,
+            description: job.description,
+            skillsRequired: job.matchedKeywords || ['Shopify', 'Liquid', 'CSS'],
+            matchScore: Math.round((analysis.pricing.winProbability || 0.85) * 100),
+            status: 'PROPOSAL_GENERATED',
+            proposalText: analysis.clientProposal,
+            sourceUrl: job.sourceUrl,
           });
 
           newLeadsDispatched++;
