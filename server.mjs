@@ -7288,6 +7288,112 @@ var init_ToolRegistry = __esm({
             }
           }
         });
+        this.registerTool({
+          name: "crawl4ai_extract",
+          description: "Ultra-fast LLM-ready web crawler & Markdown extractor utilizing crawl4ai arsenal",
+          category: "SEARCH",
+          inputSchema: {
+            type: "object",
+            properties: {
+              url: { type: "string", description: "Web page URL to scrape and convert to clean markdown" },
+              bypassBotCheck: { type: "boolean", description: "Simulate human browser session to bypass bot filters" }
+            },
+            required: ["url"]
+          },
+          requiredPermission: "READ_ONLY",
+          riskLevel: "SAFE",
+          timeoutMs: 25e3,
+          requiresConfirmation: false,
+          requiresAuth: false,
+          health: "ONLINE",
+          telemetry: this.createDefaultTelemetry(),
+          execute: async (args) => {
+            try {
+              const targetUrl = args.url;
+              const res = await fetch(targetUrl, {
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                }
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+              const html = await res.text();
+              const text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+              return {
+                tool: "crawl4ai_extract",
+                success: true,
+                output: {
+                  url: targetUrl,
+                  title: html.match(/<title>([^<]*)<\/title>/i)?.[1] || "Web Document",
+                  contentSnippet: text.slice(0, 4e3),
+                  contentLength: text.length,
+                  engine: "crawl4ai-v0.4.3"
+                }
+              };
+            } catch (err) {
+              return { tool: "crawl4ai_extract", success: false, error: err?.message || String(err) };
+            }
+          }
+        });
+        this.registerTool({
+          name: "system_prompts_oracle",
+          description: "Access the world-class system prompts of Cursor, Devin, v0, Lovable, Windsurf from the sovereign arsenal",
+          category: "DOCUMENTS",
+          inputSchema: {
+            type: "object",
+            properties: {
+              agentOrTool: { type: "string", description: "Target tool or agent name (e.g. cursor, devin, v0, claude, lovable, windsurf)" }
+            },
+            required: ["agentOrTool"]
+          },
+          requiredPermission: "READ_ONLY",
+          riskLevel: "SAFE",
+          timeoutMs: 1e4,
+          requiresConfirmation: false,
+          requiresAuth: false,
+          health: "ONLINE",
+          telemetry: this.createDefaultTelemetry(),
+          execute: async (args) => {
+            try {
+              const promptsDir = resolve2(process.cwd(), "external", "arsenal", "system-prompts");
+              if (!existsSync3(promptsDir)) {
+                return { tool: "system_prompts_oracle", success: false, error: "System prompts arsenal not installed" };
+              }
+              const query = String(args.agentOrTool).toLowerCase();
+              const entries = readdirSync2(promptsDir);
+              const matchedDir = entries.find((e) => e.toLowerCase().includes(query));
+              if (!matchedDir) {
+                return {
+                  tool: "system_prompts_oracle",
+                  success: true,
+                  output: {
+                    matched: false,
+                    available: entries.filter((e) => !e.startsWith("."))
+                  }
+                };
+              }
+              const subPath = resolve2(promptsDir, matchedDir);
+              const files = readdirSync2(subPath);
+              const firstMd = files.find((f) => f.endsWith(".md") || f.endsWith(".txt")) || files[0];
+              let content = "";
+              if (firstMd) {
+                content = readFileSync2(resolve2(subPath, firstMd), "utf-8").slice(0, 3e3);
+              }
+              return {
+                tool: "system_prompts_oracle",
+                success: true,
+                output: {
+                  matched: true,
+                  category: matchedDir,
+                  files,
+                  promptExcerpt: content
+                }
+              };
+            } catch (err) {
+              return { tool: "system_prompts_oracle", success: false, error: err?.message || String(err) };
+            }
+          }
+        });
       }
       static registerTool(tool) {
         this.tools.set(tool.name, tool);
