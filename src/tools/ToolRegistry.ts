@@ -1200,6 +1200,47 @@ export class ToolRegistry {
         }
       },
     });
+
+    // 34. public_apis_search — Search across 2,182+ free public APIs from public-apis catalog
+    this.registerTool({
+      name: 'public_apis_search',
+      description: 'Search and discover free public APIs across 52 categories (finance, crypto, weather, geocoding, e-commerce, AI, jobs) from the public-apis repository',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'API topic, keyword, or service' },
+          category: { type: 'string', description: 'Optional category filter (e.g. Finance, Cryptocurrency, Weather, Geocoding)' },
+          limit: { type: 'number', description: 'Max APIs to return (default 8)' },
+        },
+        required: ['query'],
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 10_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const { PublicApisEngine } = await import('./PublicApisEngine');
+          const results = PublicApisEngine.searchApis(args.query, args.category, args.limit || 8);
+          return {
+            tool: 'public_apis_search',
+            success: true,
+            output: {
+              query: args.query,
+              category: args.category || 'All',
+              matchCount: results.length,
+              apis: results,
+            },
+          };
+        } catch (err: any) {
+          return { tool: 'public_apis_search', success: false, error: err?.message || String(err) };
+        }
+      },
+    });
   }
 
   public static registerTool(tool: ToolDefinition): void {

@@ -184,13 +184,33 @@ export default function AIChat() {
   const isSendingSpeechRef = useRef(false)
   const silenceDebounceTimerRef = useRef<any>(null)
 
-  const GREETING: Message = {
-    id: generateId(),
-    role: 'assistant',
-    content: "Greetings, Master Sri. I am **J.A.R.V.I.S. Mark-V** — your sovereign autonomous AI right-hand and multi-agent command center.\n\nThe **Liquid Arc Core** is running at full power, Deepgram Nova-2 and ElevenLabs voice transceivers are armed, and the 20-agent sovereign swarm understands your workflow, lifestyle, and business goals with deep precision.\n\nCommand me directly or tap the voice transceiver:\n- 🎧 *'Analyze Flipkart and Amazon for the best TWS earbuds under 2000'* \n- ✈️ *'Look for flights from Mumbai to Miami today'*\n- 📈 *'Run quantitative trading scan for NVDA and BTC'*\n- 🛡️ *'Aegis, scaffold a full-stack Next.js + FastAPI SaaS'*\n- ⚡ *'Vortex, generate an n8n quotation workflow JSON'*\n- 💰 *'Midas, make me money: create a ₹1,50,000 CRM client proposal'*\n\n**I am ready for your command, Master. How may I serve you today?**",
-    timestamp: new Date(),
-    source: 'J.A.R.V.I.S. Mark-V Core',
+  const getDynamicGreeting = (): Message => {
+    const hour = new Date().getHours()
+    const timeStr = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+    const agentName = selectedAgent !== 'all' ? selectedAgent.toUpperCase() : 'J.A.R.V.I.S. Mark-V'
+
+    return {
+      id: generateId(),
+      role: 'assistant',
+      content: `${timeStr}, Master Sri. I am **${agentName}** — your sovereign autonomous multi-agent operating system.
+
+The **Liquid Arc Core** is running at full power. All 20 specialist agents (Friday, Aegis, Midas, Vortex, Cerebro, Daedalus, Sentinel) are armed, with **2,182 Public APIs** and the **16-framework Universal Arsenal** fully loaded.
+
+Command me directly with voice or text:
+- 🌐 *'Search public APIs for free currency exchange and crypto rates'*
+- 🎧 *'Analyze Flipkart and Amazon for the best TWS earbuds under 2000'*
+- 🏗️ *'Swarm, build a full-stack SaaS project end-to-end'*
+- ⚡ *'Execute parallel multitasking: Daedalus design API schema, Friday implement auth routes'*
+- 🛡️ *'Sentinel, run security audit and AST scan on my codebase'*
+- 💰 *'Midas, make me money: scout high-paying freelance bounties on Telegram'*
+
+**I am ready for your command, Master Sri. How may I serve you today?**`,
+      timestamp: new Date(),
+      source: `${agentName} Core Matrix`,
+    }
   }
+
+  const GREETING: Message = getDynamicGreeting()
 
   // Bulletproof Continuous Text-To-Speech (Infinite speech, non-truncating sentence pipeline)
   const speakJarvisResponse = useCallback((text: string, customAgentId?: string) => {

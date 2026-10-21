@@ -1864,6 +1864,29 @@ Directly converse with Master Sri as a trusted, highly skilled human colleague. 
   }
 })
 
+// GET /api/tools/public-apis — Query 2,182+ free public APIs
+app.get('/tools/public-apis', requireAuth, async (c) => {
+  try {
+    const query = c.req.query('query') || '';
+    const category = c.req.query('category') || '';
+    const limit = parseInt(c.req.query('limit') || '15', 10);
+    const { PublicApisEngine } = await import('./src/tools/PublicApisEngine');
+    const apis = PublicApisEngine.searchApis(query, category, limit);
+    const summary = PublicApisEngine.getSummary();
+    return c.json({
+      success: true,
+      query,
+      category,
+      count: apis.length,
+      totalCatalog: summary.totalApis,
+      categories: summary.categories,
+      apis,
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message }, 500);
+  }
+});
+
 // GET /api/ai/sessions — List all saved chat sessions like ChatGPT / Claude
 app.get('/ai/sessions', requireAuth, async (c) => {
   try {

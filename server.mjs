@@ -6023,6 +6023,101 @@ All playbooks, prompts, skills, and tools from these 16 frameworks are loaded in
   }
 });
 
+// src/tools/PublicApisEngine.ts
+var PublicApisEngine_exports = {};
+__export(PublicApisEngine_exports, {
+  PublicApisEngine: () => PublicApisEngine
+});
+import fs3 from "node:fs";
+import path4 from "node:path";
+var PublicApisEngine;
+var init_PublicApisEngine = __esm({
+  "src/tools/PublicApisEngine.ts"() {
+    "use strict";
+    PublicApisEngine = class {
+      static cachedApis = null;
+      static readmePath = path4.resolve(process.cwd(), "external", "arsenal", "public-apis", "README.md");
+      static initialize() {
+        if (this.cachedApis) return this.cachedApis;
+        if (!fs3.existsSync(this.readmePath)) {
+          this.cachedApis = [];
+          return [];
+        }
+        try {
+          const content = fs3.readFileSync(this.readmePath, "utf-8");
+          const lines = content.split("\n");
+          const apis = [];
+          let currentCategory = "General";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("### ")) {
+              currentCategory = trimmed.replace("### ", "").trim();
+              continue;
+            }
+            if (trimmed.startsWith("| [") && trimmed.includes("|")) {
+              const parts = trimmed.split("|").map((p) => p.trim());
+              if (parts.length >= 6) {
+                const linkMatch = parts[1].match(/\[(.*?)\]\((.*?)\)/);
+                if (linkMatch) {
+                  const name = linkMatch[1];
+                  const url = linkMatch[2];
+                  const description = parts[2];
+                  const auth = parts[3] || "No";
+                  const https = (parts[4] || "").toLowerCase() === "yes";
+                  const cors = parts[5] || "Unknown";
+                  apis.push({
+                    name,
+                    url,
+                    description,
+                    auth,
+                    https,
+                    cors,
+                    category: currentCategory
+                  });
+                }
+              }
+            }
+          }
+          this.cachedApis = apis;
+          return apis;
+        } catch (err) {
+          console.error("[PublicApisEngine] Failed to parse public-apis README:", err?.message);
+          this.cachedApis = [];
+          return [];
+        }
+      }
+      static searchApis(query, category, limit = 10) {
+        const all = this.initialize();
+        const lowerQuery = (query || "").toLowerCase().trim();
+        const lowerCategory = (category || "").toLowerCase().trim();
+        return all.filter((api) => {
+          const matchCategory = !lowerCategory || api.category.toLowerCase().includes(lowerCategory);
+          if (!matchCategory) return false;
+          if (!lowerQuery) return true;
+          return api.name.toLowerCase().includes(lowerQuery) || api.description.toLowerCase().includes(lowerQuery) || api.category.toLowerCase().includes(lowerQuery);
+        }).slice(0, limit);
+      }
+      static getCategories() {
+        const all = this.initialize();
+        const cats = /* @__PURE__ */ new Set();
+        for (const a of all) {
+          cats.add(a.category);
+        }
+        return Array.from(cats).sort();
+      }
+      static getSummary() {
+        const all = this.initialize();
+        const categories = this.getCategories();
+        return {
+          totalApis: all.length,
+          categoriesCount: categories.length,
+          categories
+        };
+      }
+    };
+  }
+});
+
 // src/tools/ToolRegistry.ts
 import { existsSync as existsSync3, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync2, statSync as statSync2, mkdirSync as mkdirSync2 } from "node:fs";
 import { resolve as resolve2, dirname as dirname3 } from "node:path";
@@ -7151,6 +7246,45 @@ var init_ToolRegistry = __esm({
               };
             } catch (err) {
               return { tool: "rea_reverse_engineer", success: false, error: err?.message || String(err) };
+            }
+          }
+        });
+        this.registerTool({
+          name: "public_apis_search",
+          description: "Search and discover free public APIs across 52 categories (finance, crypto, weather, geocoding, e-commerce, AI, jobs) from the public-apis repository",
+          category: "SYSTEM",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "API topic, keyword, or service" },
+              category: { type: "string", description: "Optional category filter (e.g. Finance, Cryptocurrency, Weather, Geocoding)" },
+              limit: { type: "number", description: "Max APIs to return (default 8)" }
+            },
+            required: ["query"]
+          },
+          requiredPermission: "READ_ONLY",
+          riskLevel: "SAFE",
+          timeoutMs: 1e4,
+          requiresConfirmation: false,
+          requiresAuth: false,
+          health: "ONLINE",
+          telemetry: this.createDefaultTelemetry(),
+          execute: async (args) => {
+            try {
+              const { PublicApisEngine: PublicApisEngine2 } = await Promise.resolve().then(() => (init_PublicApisEngine(), PublicApisEngine_exports));
+              const results = PublicApisEngine2.searchApis(args.query, args.category, args.limit || 8);
+              return {
+                tool: "public_apis_search",
+                success: true,
+                output: {
+                  query: args.query,
+                  category: args.category || "All",
+                  matchCount: results.length,
+                  apis: results
+                }
+              };
+            } catch (err) {
+              return { tool: "public_apis_search", success: false, error: err?.message || String(err) };
             }
           }
         });
@@ -12404,12 +12538,12 @@ import { generateText } from "ai";
 
 // src/infrastructure/CloudInfrastructureManager.ts
 init_db();
-import * as fs3 from "fs";
-import * as path4 from "path";
+import * as fs4 from "fs";
+import * as path5 from "path";
 var CloudInfrastructureManager = class {
   static startTime = Date.now();
   static lastSnapshot = null;
-  static snapshotDir = path4.resolve(process.cwd(), "data", "backups");
+  static snapshotDir = path5.resolve(process.cwd(), "data", "backups");
   static async getInfrastructureStatus() {
     const connCheck = await validateDatabaseConnectivity();
     const isPostgres2 = connCheck.provider === "postgresql";
@@ -12438,12 +12572,12 @@ var CloudInfrastructureManager = class {
   }
   static async createStorageSnapshot() {
     try {
-      if (!fs3.existsSync(this.snapshotDir)) {
-        fs3.mkdirSync(this.snapshotDir, { recursive: true });
+      if (!fs4.existsSync(this.snapshotDir)) {
+        fs4.mkdirSync(this.snapshotDir, { recursive: true });
       }
       const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
       const filename = `snapshot-${timestamp}.json`;
-      const snapshotPath = path4.join(this.snapshotDir, filename);
+      const snapshotPath = path5.join(this.snapshotDir, filename);
       const dbStatus = await validateDatabaseConnectivity();
       const snapshotPayload = {
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -12453,7 +12587,7 @@ var CloudInfrastructureManager = class {
         environment: process.env.NODE_ENV || "production",
         snapshotId: `snap_${Date.now()}`
       };
-      fs3.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
+      fs4.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
       this.lastSnapshot = snapshotPayload.timestamp;
       return {
         success: true,
@@ -12845,13 +12979,13 @@ var AgentCouncil = class {
 };
 
 // src/browser/AdvancedComputerUse.ts
-import * as path5 from "path";
+import * as path6 from "path";
 var AdvancedComputerUse = class {
-  static workspaceRoot = path5.resolve(process.cwd());
+  static workspaceRoot = path6.resolve(process.cwd());
   static async executeAction(request) {
     const start = Date.now();
     if (request.targetPath) {
-      const resolved = path5.resolve(request.targetPath);
+      const resolved = path6.resolve(request.targetPath);
       if (!resolved.startsWith(this.workspaceRoot)) {
         return {
           success: false,
@@ -13219,13 +13353,13 @@ var LongRunningRuntime = class {
 };
 
 // src/infrastructure/DisasterRecoveryManager.ts
-import * as fs4 from "fs";
-import * as path6 from "path";
+import * as fs5 from "fs";
+import * as path7 from "path";
 var DisasterRecoveryManager = class {
-  static recoveryDir = path6.resolve(process.cwd(), "data", "recovery");
+  static recoveryDir = path7.resolve(process.cwd(), "data", "recovery");
   static async generateEmergencyRecoveryManifest(activeTasksCount = 0) {
-    if (!fs4.existsSync(this.recoveryDir)) {
-      fs4.mkdirSync(this.recoveryDir, { recursive: true });
+    if (!fs5.existsSync(this.recoveryDir)) {
+      fs5.mkdirSync(this.recoveryDir, { recursive: true });
     }
     const manifestId = `rec_${Date.now()}`;
     const manifest = {
@@ -13236,8 +13370,8 @@ var DisasterRecoveryManager = class {
       integrityHash: `sha256_${Date.now()}_clean`,
       recoveryStatus: "VERIFIED_RESTORABLE"
     };
-    const filePath = path6.join(this.recoveryDir, `${manifestId}.json`);
-    fs4.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
+    const filePath = path7.join(this.recoveryDir, `${manifestId}.json`);
+    fs5.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
     return manifest;
   }
   static async verifyRecoveryRestorability(manifest) {
@@ -15791,6 +15925,27 @@ Directly converse with Master Sri as a trusted, highly skilled human colleague. 
     });
   } catch (error) {
     return c.json({ error: error.message || "Chat error" }, 500);
+  }
+});
+app.get("/tools/public-apis", requireAuth, async (c) => {
+  try {
+    const query = c.req.query("query") || "";
+    const category = c.req.query("category") || "";
+    const limit = parseInt(c.req.query("limit") || "15", 10);
+    const { PublicApisEngine: PublicApisEngine2 } = await Promise.resolve().then(() => (init_PublicApisEngine(), PublicApisEngine_exports));
+    const apis = PublicApisEngine2.searchApis(query, category, limit);
+    const summary = PublicApisEngine2.getSummary();
+    return c.json({
+      success: true,
+      query,
+      category,
+      count: apis.length,
+      totalCatalog: summary.totalApis,
+      categories: summary.categories,
+      apis
+    });
+  } catch (err) {
+    return c.json({ success: false, error: err?.message }, 500);
   }
 });
 app.get("/ai/sessions", requireAuth, async (c) => {
