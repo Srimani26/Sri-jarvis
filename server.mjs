@@ -7473,81 +7473,81 @@ var init_ProviderRegistry = __esm({
       }
       static bootstrapModels() {
         const defaultModels = [
-          // 1. Local Ollama (Free, Zero Data Exfiltration)
+          // 1. Groq Cloud: LLaMA 3.3 70B Versatile (Ultra-Fast 70B Cloud Inference, ZERO local load)
           {
-            id: "ollama-llama3",
-            provider: "ollama",
-            name: "Llama 3 8B (Local Ollama)",
-            capabilities: ["fast", "tools"],
-            contextWindow: 8192,
-            costPer1kInputTokens: 0,
-            costPer1kOutputTokens: 0,
-            avgLatencyMs: 300,
-            healthy: true,
-            tier: "LOCAL"
-          },
-          // 2. Groq (Ultra-fast, Free/Low Cost)
-          {
-            id: "groq-llama3-70b",
+            id: "groq-llama-3.3-70b",
             provider: "groq",
-            name: "Llama 3 70B (Groq Fast Inference)",
-            capabilities: ["fast", "coding", "tools"],
-            contextWindow: 8192,
+            name: "LLaMA 3.3 70B Cloud (Groq Ultra-Fast)",
+            capabilities: ["fast", "coding", "tools", "reasoning"],
+            contextWindow: 128e3,
             costPer1kInputTokens: 5e-4,
             costPer1kOutputTokens: 8e-4,
-            avgLatencyMs: 250,
+            avgLatencyMs: 220,
             healthy: true,
             tier: "LOW_COST"
           },
-          // 3. Gemini 3.8 Flash (Fast, Latest Frontier Tier)
+          // 2. Together Cloud: DeepSeek R1 70B (High-Level Mathematical & Architectural Reasoning)
           {
-            id: "gemini-3.8-flash",
-            provider: "gemini",
-            name: "Google Gemini 3.8 Flash",
-            capabilities: ["fast", "vision", "tools", "coding", "reasoning"],
-            contextWindow: 1e6,
-            costPer1kInputTokens: 1e-4,
-            costPer1kOutputTokens: 4e-4,
-            avgLatencyMs: 350,
+            id: "together-deepseek-r1-70b",
+            provider: "together",
+            name: "DeepSeek-R1 70B Cloud (Architectural Logic)",
+            capabilities: ["reasoning", "coding", "tools"],
+            contextWindow: 64e3,
+            costPer1kInputTokens: 7e-4,
+            costPer1kOutputTokens: 25e-4,
+            avgLatencyMs: 1400,
             healthy: true,
-            tier: "FREE"
+            tier: "LOW_COST"
           },
-          // 4. Gemini 2.5 Pro (Deep Research & High-Context)
+          // 3. Google Gemini 2.5 Pro / Argon Tier (2 Million Token Infinite Memory & Multimodal Reasoning)
           {
             id: "gemini-2.5-pro",
             provider: "gemini",
-            name: "Google Gemini 2.5 Pro",
+            name: "Google Gemini 2.5 Pro (Argon Frontier)",
             capabilities: ["reasoning", "coding", "vision", "tools"],
             contextWindow: 2e6,
             costPer1kInputTokens: 125e-5,
             costPer1kOutputTokens: 5e-3,
-            avgLatencyMs: 1200,
+            avgLatencyMs: 950,
             healthy: true,
             tier: "LOW_COST"
           },
-          // 5. DeepSeek R1 (Deep Architectural Reasoning)
+          // 4. Google Gemini 2.5 Flash (Sub-Second Cloud Multimodal & Voice Transceiver)
           {
-            id: "deepseek-r1",
-            provider: "together",
-            name: "DeepSeek-R1 (Architectural Reasoning)",
-            capabilities: ["reasoning", "coding"],
-            contextWindow: 64e3,
-            costPer1kInputTokens: 55e-5,
-            costPer1kOutputTokens: 219e-5,
-            avgLatencyMs: 1800,
+            id: "gemini-2.5-flash",
+            provider: "gemini",
+            name: "Google Gemini 2.5 Flash (Ultra-Speed)",
+            capabilities: ["fast", "vision", "tools", "coding", "audio"],
+            contextWindow: 1e6,
+            costPer1kInputTokens: 1e-4,
+            costPer1kOutputTokens: 4e-4,
+            avgLatencyMs: 280,
             healthy: true,
-            tier: "LOW_COST"
+            tier: "FREE"
           },
-          // 6. Claude 3.7 Sonnet (Supreme Coding & Hybrid Reasoning)
+          // 5. Anthropic Claude 3.7 Sonnet / Opus Tier (Fable/Opus Superior Software Architecture)
           {
             id: "claude-3-7-sonnet",
             provider: "anthropic",
-            name: "Anthropic Claude 3.7 Sonnet",
+            name: "Claude 3.7 Sonnet / Opus (Supreme Agentic Coding)",
             capabilities: ["reasoning", "coding", "vision", "tools"],
             contextWindow: 2e5,
             costPer1kInputTokens: 3e-3,
             costPer1kOutputTokens: 0.015,
-            avgLatencyMs: 1500,
+            avgLatencyMs: 1300,
+            healthy: true,
+            tier: "PAID"
+          },
+          // 6. OpenAI GPT-4o (Frontier Multimodal Agent Core)
+          {
+            id: "gpt-4o",
+            provider: "openai",
+            name: "OpenAI GPT-4o Multi-Modal",
+            capabilities: ["reasoning", "coding", "vision", "tools", "fast"],
+            contextWindow: 128e3,
+            costPer1kInputTokens: 25e-4,
+            costPer1kOutputTokens: 0.01,
+            avgLatencyMs: 850,
             healthy: true,
             tier: "PAID"
           }
@@ -8058,10 +8058,10 @@ var init_ModelRouter = __esm({
     init_QuotaManager();
     init_ProviderLearner();
     TIER_PRIORITY = {
-      LOCAL: 1,
-      FREE: 2,
-      LOW_COST: 3,
-      PAID: 4
+      FREE: 1,
+      LOW_COST: 2,
+      PAID: 3,
+      LOCAL: 4
     };
     ModelRouter = class {
       /**
@@ -8071,6 +8071,10 @@ var init_ModelRouter = __esm({
         const allModels = ProviderRegistry.listModels();
         const healthyModels = allModels.filter((m) => {
           if (!m.healthy) return false;
+          const is70B = m.id.toLowerCase().includes("70b") || m.name.toLowerCase().includes("70b");
+          if (is70B && m.provider === "ollama") {
+            return false;
+          }
           return QuotaManager.isProviderAvailable(m.provider);
         });
         const candidates = healthyModels.filter((model) => {

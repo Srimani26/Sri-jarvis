@@ -15,11 +15,12 @@ import {
   ModelRouteRequest,
 } from './types';
 
+// Cloud-First Priority: FREE Cloud (Gemini) -> LOW_COST Cloud 70B (Groq/Together) -> PAID Frontier (Claude Opus/Sonnet/GPT-4o) -> LOCAL (Emergency only)
 const TIER_PRIORITY: Record<CostTier, number> = {
-  LOCAL: 1,
-  FREE: 2,
-  LOW_COST: 3,
-  PAID: 4,
+  FREE: 1,
+  LOW_COST: 2,
+  PAID: 3,
+  LOCAL: 4,
 };
 
 export class ModelRouter {
@@ -32,6 +33,13 @@ export class ModelRouter {
     // Filter healthy models that are not actively rate limited or circuit-broken
     const healthyModels = allModels.filter((m) => {
       if (!m.healthy) return false;
+      // SOVEREIGN CLOUD 70B ENFORCER:
+      // Master Sri's system capability rule: 70B+ models MUST NEVER run on local hardware.
+      // 70B models are strictly routed to cloud infrastructure (Groq, Together, DeepSeek, OpenRouter).
+      const is70B = m.id.toLowerCase().includes('70b') || m.name.toLowerCase().includes('70b');
+      if (is70B && m.provider === 'ollama') {
+        return false;
+      }
       return QuotaManager.isProviderAvailable(m.provider);
     });
 
