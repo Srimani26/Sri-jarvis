@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { playJarvisChime } from '@/lib/sound'
 import TaskProgressCard from '@/components/TaskProgressCard'
+import { MobileThermalShield } from '@/lib/thermal-shield'
 
 interface TaskEvent {
   id: string
@@ -108,14 +109,16 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
   const [now, setNow] = useState(Date.now())
   const [copiedLog, setCopiedLog] = useState(false)
 
-  // Live timer tick
+  // Live timer tick with thermal sleep detection
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
+    return MobileThermalShield.createSafeInterval(() => {
+      setNow(Date.now())
+    }, 1000, 1)
   }, [])
 
   // Fetch tasks and factual summary
   const loadTasks = async () => {
+    if (typeof document !== 'undefined' && document.hidden) return
     try {
       const res = await fetch('/api/tasks', { headers: authHeaders() })
       if (res.ok) {
@@ -135,12 +138,13 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
 
   useEffect(() => {
     loadTasks()
-    const poll = setInterval(loadTasks, 4000)
+    const cancelPoll = MobileThermalShield.createSafeInterval(loadTasks, 5000, 3)
 
     let eventSource: EventSource | null = null
     try {
       eventSource = new EventSource('/api/tasks/stream')
       eventSource.onmessage = (event) => {
+        if (typeof document !== 'undefined' && document.hidden) return
         try {
           const kernelEvent = JSON.parse(event.data)
           if (kernelEvent.id || kernelEvent.eventType) {
@@ -151,7 +155,7 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
     } catch {}
 
     return () => {
-      clearInterval(poll)
+      cancelPoll()
       if (eventSource) eventSource.close()
     }
   }, [])

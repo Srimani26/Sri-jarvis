@@ -8258,12 +8258,10 @@ var init_GeminiAdapter = __esm({
         if (!this.isConfigured()) {
           throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
         }
-        const rawModel = options?.model || "gemini-2.0-flash";
-        let model = rawModel;
-        if (rawModel.includes("pro")) {
-          model = "gemini-1.5-pro";
-        } else if (rawModel.includes("flash") || rawModel.includes("3.8") || rawModel.includes("2.5")) {
-          model = "gemini-2.0-flash";
+        const rawModel = options?.model || "gemini-3.8-flash";
+        let model = "gemini-3.8-flash";
+        if (rawModel && !rawModel.includes("pro") && !rawModel.includes("flash") && !rawModel.includes("2.5")) {
+          model = rawModel;
         }
         const contents = messages.map((m) => ({
           role: m.role === "assistant" ? "model" : "user",

@@ -32,6 +32,7 @@ import {
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } from '@/lib/api'
 import { playJarvisChime, playNeuralSpeech, primeAudioPlayback } from '@/lib/sound'
+import { MobileThermalShield, type ThermalState } from './lib/thermal-shield'
 
 const primaryNav = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4 text-cyan-400" />, label: 'HQ Core', mobileLabel: 'HQ' },
@@ -243,6 +244,12 @@ export default function App() {
     }
     window.addEventListener('open-jarvis-voice', handler)
     return () => window.removeEventListener('open-jarvis-voice', handler)
+  }, [])
+
+  // Mobile Thermal & Battery Shield state
+  const [thermalState, setThermalState] = useState<ThermalState>(() => MobileThermalShield.getState())
+  useEffect(() => {
+    return MobileThermalShield.subscribe(state => setThermalState(state))
   }, [])
 
   const [pwError, setPwError] = useState('')
@@ -475,6 +482,21 @@ export default function App() {
 
           {/* Right Action Deck */}
           <div className="flex items-center gap-2.5">
+            {/* Hardware Thermal & Battery Shield Indicator / Toggle */}
+            <button
+              onClick={() => MobileThermalShield.toggleLowPowerMode()}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-mono font-bold transition-all border",
+                thermalState.isLowPowerMode
+                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.25)]"
+                  : "bg-slate-900/80 text-cyan-400 border-cyan-500/30 hover:border-cyan-400"
+              )}
+              title={thermalState.isLowPowerMode ? "Thermal Eco Shield: ACTIVE (Zero heating, background sleep, pure OLED)" : "Thermal Eco Shield: TURBO HUD (Click to enable zero-heat mode)"}
+            >
+              <span className={cn("w-2 h-2 rounded-full", thermalState.isLowPowerMode ? "bg-emerald-400" : "bg-cyan-400 animate-pulse")} />
+              <span>{thermalState.isLowPowerMode ? "ECO COLD" : "TURBO HUD"}</span>
+            </button>
+
             {/* Direct Voice Comms Trigger */}
             <button
               onClick={() => handleOpenVoiceComms()}
@@ -540,6 +562,22 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Mobile Thermal Shield Eco Toggle */}
+            <button
+              onClick={() => MobileThermalShield.toggleLowPowerMode()}
+              className={cn(
+                "px-2 py-1 rounded-xl border text-[9px] font-mono font-bold flex items-center gap-1 active:scale-95 transition-all",
+                thermalState.isLowPowerMode
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                  : "bg-slate-900/80 text-cyan-400 border-slate-800"
+              )}
+              title={thermalState.isLowPowerMode ? "Thermal Shield Active: No heating" : "Click to enable Thermal Cold mode"}
+              aria-label="Toggle Thermal Shield"
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full", thermalState.isLowPowerMode ? "bg-emerald-400" : "bg-cyan-400 animate-pulse")} />
+              <span>{thermalState.isLowPowerMode ? "COLD" : "HUD"}</span>
+            </button>
+
             {/* Quick Voice Trigger on Mobile Header */}
             <button
               onClick={() => handleOpenVoiceComms()}

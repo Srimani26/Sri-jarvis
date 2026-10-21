@@ -315,3 +315,66 @@
   transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ============================================================================
+   MOBILE THERMAL SHIELD & GPU POWER OPTIMIZATION (PREVENTS PHONE HEATING)
+   ============================================================================ */
+
+/* 1. Instant Sleep Mode: Freezes all animations when screen locks or tab hides */
+.jarvis-thermal-sleep *,
+.jarvis-thermal-sleep *::before,
+.jarvis-thermal-sleep *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+
+/* 2. Low-Power / Eco Mode: Cuts GPU shader passes & turns on Pure OLED Black */
+.jarvis-eco-mode {
+  background-color: #000000 !important;
+  background-image: none !important;
+}
+
+.jarvis-eco-mode * {
+  text-shadow: none !important;
+}
+
+.jarvis-eco-mode .blur-3xl,
+.jarvis-eco-mode .blur-2xl,
+.jarvis-eco-mode .blur-\[120px\] {
+  display: none !important;
+}
+
+.jarvis-eco-mode [class*="animate-spin"],
+.jarvis-eco-mode [class*="animate-pulse"] {
+  animation: none !important;
+}
+
+.jarvis-eco-mode .backdrop-blur-2xl,
+.jarvis-eco-mode .backdrop-blur-3xl {
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+/* 3. Mobile Hardware Compositing: Keeps GPU cool by offloading to dedicated composite layers */
+@media screen and (max-width: 768px) {
+  /* Prevent heavy multi-pass blur on mobile GPUs */
+  .blur-3xl, .blur-\[120px\] {
+    filter: blur(24px) !important;
+    opacity: 0.25 !important;
+  }
+
+  .backdrop-blur-2xl,
+  .backdrop-blur-3xl {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+
+  /* Hardware acceleration hint */
+  .jarvis-card,
+  .mobile-safe-bottom,
+  .animate-spin,
+  .animate-pulse {
+    transform: translateZ(0);
+    will-change: transform, opacity;
+  }
+}
+

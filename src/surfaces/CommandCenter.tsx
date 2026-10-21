@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech } from '@/lib/sound'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import TaskProgressCard, { AgentTask } from '@/components/TaskProgressCard'
+import { MobileThermalShield } from '@/lib/thermal-shield'
 
 function getTimeGreeting() {
   const h = new Date().getHours()
@@ -103,12 +104,16 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
   const [osintResult, setOsintResult] = useState<any>(null)
   const [isOsintLoading, setIsOsintLoading] = useState(false)
 
+  // Eco & Thermal aware clock ticker
   useEffect(() => {
-    const timer = setInterval(() => setClock(formatClock()), 1000)
-    return () => clearInterval(timer)
+    return MobileThermalShield.createSafeInterval(() => {
+      setClock(formatClock())
+    }, 1000, 1)
   }, [])
 
   const fetchTasks = async () => {
+    // Zero background polling when screen is locked or hidden
+    if (typeof document !== 'undefined' && document.hidden) return
     try {
       const res = await fetch('/api/tasks', { headers: authHeaders() })
       if (res.ok) {
@@ -129,12 +134,13 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
 
   useEffect(() => {
     fetchTasks()
-    const interval = setInterval(fetchTasks, 5000)
+    const cancelInterval = MobileThermalShield.createSafeInterval(fetchTasks, 6000, 3)
 
     let eventSource: EventSource | null = null
     try {
       eventSource = new EventSource('/api/tasks/stream')
       eventSource.onmessage = (e) => {
+        if (typeof document !== 'undefined' && document.hidden) return
         try {
           const eventData = JSON.parse(e.data)
           if (eventData.id || eventData.eventType) {
@@ -145,7 +151,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
     } catch {}
 
     return () => {
-      clearInterval(interval)
+      cancelInterval()
       if (eventSource) eventSource.close()
     }
   }, [])

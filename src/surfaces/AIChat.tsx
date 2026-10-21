@@ -571,7 +571,23 @@ Command me directly with voice or text:
     }
     recognitionRef.current = recognition
 
+    // Hardware Thermal Protection: instantly kill microphone when mobile screen locks
+    const handleVisibility = () => {
+      if (document.hidden) {
+        try { recognition.abort() } catch {}
+        setIsListening(false)
+        stopNeuralSpeech()
+      } else if (sentinelActive) {
+        try {
+          recognition.start()
+          setIsListening(true)
+        } catch {}
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
       try { recognition.abort() } catch {}
     }
   }, [sentinelActive])
