@@ -900,6 +900,13 @@ async function fetchLiveContext(): Promise<string> {
     }
   } catch {}
   try {
+    const { ArsenalCatalog } = await import('./src/arsenal/ArsenalCatalog');
+    const arsenalSummary = ArsenalCatalog.getArsenalContextSummary();
+    if (arsenalSummary) {
+      ctx += '\n\n' + arsenalSummary;
+    }
+  } catch {}
+  try {
     const wRes = await fetch('https://wttr.in/Erode,Tamil+Nadu?format=j1', { signal: AbortSignal.timeout(3000) })
     const wData = await wRes.json() as any
     const w = wData?.current_condition?.[0]
@@ -1850,6 +1857,7 @@ Directly converse with Master Sri as a trusted, highly skilled human colleague. 
       agentId: effectiveAgentId,
       voiceId: AGENT_VOICE_MAP[effectiveAgentId]?.voiceId,
       sessionId: targetSessionId,
+      task: spawnedTask,
     })
   } catch (error: any) {
     return c.json({ error: error.message || 'Chat error' }, 500)

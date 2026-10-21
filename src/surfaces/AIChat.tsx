@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
 import ArcReactorHUD from '@/components/ArcReactorHUD'
+import TaskProgressCard, { AgentTask } from '@/components/TaskProgressCard'
 
 interface FlightDeal {
   airline: string
@@ -44,6 +45,7 @@ interface Message {
   setupHint?: string
   flightData?: FlightDeal[]
   productData?: ProductRec[]
+  taskData?: AgentTask
   actionTriggered?: {
     type: 'youtube' | 'food' | 'flight' | 'product' | 'shopify'
     label: string
@@ -180,6 +182,7 @@ export default function AIChat() {
   const recognitionRef = useRef<any>(null)
   const sendMessageRef = useRef<(text: string, opts?: any) => Promise<void>>(() => Promise.resolve())
   const isSendingSpeechRef = useRef(false)
+  const silenceDebounceTimerRef = useRef<any>(null)
 
   const GREETING: Message = {
     id: generateId(),
@@ -458,17 +461,18 @@ export default function AIChat() {
 
     const assistantId = generateId()
 
-    const updateAssistant = (content: string, source?: string, spokenSummary?: string, respAgentId?: string) => {
+    const updateAssistant = (content: string, source?: string, spokenSummary?: string, respAgentId?: string, taskData?: AgentTask) => {
       setMessages((prev) => {
         const updated = [...prev]
         const lastIdx = updated.findIndex((m) => m.id === assistantId)
         if (lastIdx >= 0) {
-          updated[lastIdx] = { ...updated[lastIdx], content, source, error: false, flightData, productData, actionTriggered }
+          updated[lastIdx] = { ...updated[lastIdx], content, source, error: false, flightData, productData, actionTriggered, taskData }
         } else {
-          updated.push({ id: assistantId, role: 'assistant', content, timestamp: new Date(), source, flightData, productData, actionTriggered })
+          updated.push({ id: assistantId, role: 'assistant', content, timestamp: new Date(), source, flightData, productData, actionTriggered, taskData })
         }
         return updated
       })
+      // Speak the full context so long replies are never cut off
       speakJarvisResponse(spokenSummary || content, respAgentId)
       setHudStatus('online')
     }
@@ -516,7 +520,7 @@ export default function AIChat() {
       }
 
       if (data.content) {
-        updateAssistant(data.content, data.source, data.spokenSummary, data.agentId)
+        updateAssistant(data.content, data.source, data.spokenSummary, data.agentId, data.task || data.activeTask)
         fetchSessions()
         return
       }
@@ -602,17 +606,25 @@ export default function AIChat() {
       }
 
       setInput(normalized)
-      if (event.results[event.results.length - 1].isFinal) {
-        setIsListening(false)
-        if (!isSendingSpeechRef.current && normalized.trim()) {
-          isSendingSpeechRef.current = true
-          setTimeout(() => {
+      setIsListening(true)
+
+      if (silenceDebounceTimerRef.current) {
+        clearTimeout(silenceDebounceTimerRef.current)
+        silenceDebounceTimerRef.current = null
+      }
+
+      // True 3.2-second conversational pause window: Allows Master Sri natural human pauses without cutting off
+      if (normalized.trim()) {
+        silenceDebounceTimerRef.current = setTimeout(() => {
+          if (!isSendingSpeechRef.current && normalized.trim()) {
+            isSendingSpeechRef.current = true
+            setIsListening(false)
             sendMessageRef.current(normalized)
             setTimeout(() => {
               isSendingSpeechRef.current = false
             }, 1200)
-          }, 350)
-        }
+          }
+        }, 3200)
       }
     }
 
@@ -1058,6 +1070,12 @@ export default function AIChat() {
                       />
                     </div>
                   )}
+                </div>
+              )}
+
+              {msg.taskData && (
+                <div className="mt-3">
+                  <TaskProgressCard task={msg.taskData} />
                 </div>
               )}
 

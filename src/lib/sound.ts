@@ -259,8 +259,27 @@ function fallbackWebSpeech(
       window.speechSynthesis.resume()
     }
 
-    // Break text into sentences to prevent Chromium/Safari 15s/30s audio truncation
-    const sentences = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+/g)?.map(s => s.trim()).filter(Boolean) || [cleanText]
+    // Break text into clean bite-sized sentences (< 160 chars) so Chromium/Safari never truncate
+    const rawChunks = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+/g)?.map(s => s.trim()).filter(Boolean) || [cleanText]
+    const sentences: string[] = []
+    for (const raw of rawChunks) {
+      if (raw.length <= 160) {
+        sentences.push(raw)
+      } else {
+        const words = raw.split(' ')
+        let current = ''
+        for (const w of words) {
+          if ((current + ' ' + w).trim().length <= 160) {
+            current = (current + ' ' + w).trim()
+          } else {
+            if (current) sentences.push(current)
+            current = w
+          }
+        }
+        if (current) sentences.push(current)
+      }
+    }
+
     if (sentences.length === 0) {
       if (onEnd) onEnd()
       return
@@ -274,29 +293,51 @@ function fallbackWebSpeech(
 
     let currentIndex = 0
     let hasStarted = false
+    let watchdogTimer: any = null
 
     // Chromium keep-alive heartbeat: periodically pause/resume to prevent garbage collection
     const keepAliveTimer = setInterval(() => {
-      if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
-        window.speechSynthesis.pause()
-        window.speechSynthesis.resume()
-      } else {
-        clearInterval(keepAliveTimer)
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause()
+          setTimeout(() => {
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
+              window.speechSynthesis.resume()
+            }
+          }, 30)
+        } else {
+          clearInterval(keepAliveTimer)
+        }
       }
-    }, 4000)
+    }, 6000)
 
     const speakNext = () => {
+      if (watchdogTimer) {
+        clearTimeout(watchdogTimer)
+        watchdogTimer = null
+      }
+
       if (currentIndex >= sentences.length) {
         clearInterval(keepAliveTimer)
         if (onEnd) onEnd()
         return
       }
 
-      const utterance = new SpeechSynthesisUtterance(sentences[currentIndex])
+      const textChunk = sentences[currentIndex]
+      const utterance = new SpeechSynthesisUtterance(textChunk)
       utterance.lang = lang || 'en-GB'
       if (voice) utterance.voice = voice
       utterance.rate = 1.05
       utterance.pitch = 0.98
+
+      // Watchdog: If browser onend fails to fire, advance automatically
+      const expectedDurationMs = Math.max(3500, (textChunk.length * 90) + 2000)
+      watchdogTimer = setTimeout(() => {
+        if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
+          currentIndex++
+          speakNext()
+        }
+      }, expectedDurationMs)
 
       utterance.onstart = () => {
         if (!hasStarted) {
@@ -306,19 +347,22 @@ function fallbackWebSpeech(
       }
 
       utterance.onend = () => {
+        if (watchdogTimer) {
+          clearTimeout(watchdogTimer)
+          watchdogTimer = null
+        }
         currentIndex++
         speakNext()
       }
 
       utterance.onerror = (e) => {
+        if (watchdogTimer) {
+          clearTimeout(watchdogTimer)
+          watchdogTimer = null
+        }
         console.warn('[WebSpeech] Utterance error:', e)
         currentIndex++
-        if (currentIndex < sentences.length) {
-          speakNext()
-        } else {
-          clearInterval(keepAliveTimer)
-          if (onEnd) onEnd()
-        }
+        speakNext()
       }
 
       window.speechSynthesis.speak(utterance)

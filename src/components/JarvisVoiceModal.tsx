@@ -3155,13 +3155,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             lastActiveRef.current = Date.now()
           }
 
-          // Responsive Debounce: 600ms on final utterance, 1100ms on interim
+          // Conversational Debounce: 3200ms on final utterance, 4000ms on interim (Prevents premature cutoff)
           const lastResult = event.results[event.results.length - 1]
           const isFinal = lastResult && lastResult.isFinal
 
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
           if (cleaned.length > 0) {
-            const timeoutDelay = isFinal ? 600 : 1100
+            const timeoutDelay = isFinal ? 3200 : 4000
             silenceTimerRef.current = setTimeout(() => {
               const captured = transcriptRef.current.trim()
               if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
