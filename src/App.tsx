@@ -34,12 +34,12 @@ import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } fr
 import { playJarvisChime, playNeuralSpeech, primeAudioPlayback } from '@/lib/sound'
 
 const primaryNav = [
-  { id: 'command', icon: <LayoutDashboard className="w-4 h-4" />, label: 'HQ Core', mobileLabel: 'HQ' },
+  { id: 'command', icon: <LayoutDashboard className="w-4 h-4 text-cyan-400" />, label: 'HQ Core', mobileLabel: 'HQ' },
+  { id: 'chat', icon: <MessageSquare className="w-4 h-4 text-cyan-300" />, label: 'AI Chat', mobileLabel: 'Chat' },
+  { id: 'tasks', icon: <Activity className="w-4 h-4 text-blue-400" />, label: 'Missions & Tasks', mobileLabel: 'Tasks' },
   { id: 'revenue', icon: <DollarSign className="w-4 h-4 text-emerald-400" />, label: 'Revenue ($)', mobileLabel: 'Revenue' },
-  { id: 'tasks', icon: <Activity className="w-4 h-4" />, label: 'Missions & Tasks', mobileLabel: 'Tasks' },
-  { id: 'chat', icon: <MessageSquare className="w-4 h-4" />, label: 'AI Chat', mobileLabel: 'Chat' },
-  { id: 'swarms', icon: <Bot className="w-4 h-4" />, label: 'Agent Swarm', mobileLabel: 'Swarm' },
-  { id: 'cyber', icon: <ShieldAlert className="w-4 h-4" />, label: 'Cyber Shield', mobileLabel: 'Defense' },
+  { id: 'swarms', icon: <Bot className="w-4 h-4 text-purple-400" />, label: 'Agent Fleet', mobileLabel: 'Fleet' },
+  { id: 'cyber', icon: <ShieldAlert className="w-4 h-4 text-rose-400" />, label: 'Cyber Defense', mobileLabel: 'Defense' },
 ]
 
 const arsenalNav = [
@@ -61,9 +61,9 @@ const navItems = [...primaryNav, ...arsenalNav]
 
 const bottomTabs = [
   { id: 'command', icon: <LayoutDashboard className="w-5 h-5" />, label: 'HQ' },
-  { id: 'tasks', icon: <Activity className="w-5 h-5" />, label: 'Tasks' },
-  { id: 'voice', icon: <Mic className="w-5 h-5" />, label: 'Voice' },
-  { id: 'chat', icon: <MessageSquare className="w-5 h-5" />, label: 'Chat' },
+  { id: 'chat', icon: <MessageSquare className="w-5 h-5 text-cyan-300" />, label: 'Chat' },
+  { id: 'voice', icon: <Mic className="w-5 h-5 text-cyan-400" />, label: 'Voice' },
+  { id: 'tasks', icon: <Activity className="w-5 h-5 text-blue-400" />, label: 'Tasks' },
   { id: 'more', icon: <Menu className="w-5 h-5" />, label: 'Arsenal' },
 ]
 
