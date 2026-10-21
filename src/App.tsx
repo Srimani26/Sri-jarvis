@@ -634,9 +634,9 @@ export default function App() {
         )}
       </div>
 
-      {/* Bottom Nav Dock — Mobile (Floating Ergonomic Glass Dock) */}
-      <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-[#030712]/90 backdrop-blur-2xl border border-cyan-500/25 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.7)] safe-area-bottom">
-        <div className="flex items-center justify-around py-2 px-1">
+      {/* Bottom Nav Dock — Mobile (Floating Ergonomic Glass Island Dock) */}
+      <div className="md:hidden fixed bottom-2 left-2 right-2 z-40 bg-[#030712]/92 backdrop-blur-3xl border border-cyan-500/30 rounded-3xl shadow-[0_12px_45px_rgba(0,0,0,0.85)] mobile-safe-bottom">
+        <div className="flex items-center justify-around py-1.5 px-2">
           {bottomTabs.map(tab => {
             const isVoice = tab.id === 'voice'
             const isActive = activeTab === tab.id
@@ -649,22 +649,34 @@ export default function App() {
                   else handleNavigate(tab.id)
                 }}
                 className={cn(
-                  "flex flex-col items-center justify-center transition-all touch-feedback",
+                  "relative flex flex-col items-center justify-center transition-all touch-feedback",
                   isVoice
-                    ? "-mt-5 w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-600 text-slate-950 font-black shadow-[0_0_25px_rgba(6,182,212,0.8)] border border-cyan-300/60"
-                    : "flex-1 py-1"
+                    ? "-mt-7 w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-400 via-blue-500 to-indigo-600 text-slate-950 font-black shadow-[0_0_30px_rgba(6,182,212,0.9)] border-2 border-cyan-200 animate-holographic-ripple"
+                    : "flex-1 py-1 px-1 rounded-2xl"
                 )}
               >
                 {isVoice ? (
-                  <Mic className="w-5 h-5 text-slate-950 animate-pulse" />
+                  <div className="relative flex items-center justify-center">
+                    <Mic className="w-6 h-6 text-slate-950 animate-pulse" />
+                    <span className="absolute -bottom-4 text-[7px] font-black font-mono text-cyan-300 tracking-wider">VOICE</span>
+                  </div>
                 ) : (
                   <>
-                    <div className={cn("transition-colors", isActive ? "text-cyan-400 scale-110" : "text-slate-500")}>
+                    <div className={cn(
+                      "p-1.5 rounded-xl transition-all duration-300",
+                      isActive ? "bg-cyan-500/20 text-cyan-300 scale-110 shadow-[0_0_15px_rgba(6,182,212,0.4)] animate-pill-pop" : "text-slate-400 hover:text-slate-200"
+                    )}>
                       {tab.icon}
                     </div>
-                    <span className={cn("text-[9px] font-mono mt-0.5", isActive ? "text-cyan-300 font-bold" : "text-slate-500")}>
+                    <span className={cn(
+                      "text-[9px] font-mono mt-0.5 tracking-tight transition-colors",
+                      isActive ? "text-cyan-300 font-bold" : "text-slate-400"
+                    )}>
                       {tab.label}
                     </span>
+                    {isActive && (
+                      <span className="w-1.5 h-0.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4] mt-0.5 animate-pulse" />
+                    )}
                   </>
                 )}
               </button>
