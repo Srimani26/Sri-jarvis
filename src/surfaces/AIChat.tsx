@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Send, Search, Mic, Bot, User, Sparkles, ArrowUpRight, RotateCcw,
   Loader2, AlertTriangle, Cpu, RefreshCw, Volume2, VolumeX, Shield,
   Code2, Workflow, DollarSign, Brain, Laptop, Layers, Zap, ExternalLink, Play,
-  Plane, ShoppingCart, Radio, PhoneCall, Check, Compass, MessageSquare, Plus, History, X
+  Plane, ShoppingCart, Radio, PhoneCall, Check, Compass, MessageSquare, Plus,
+  History, X, Trash2, Copy, PanelLeftClose, PanelLeft, ChevronDown
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
@@ -55,8 +56,8 @@ interface Message {
 }
 
 const QUICK_ACTIONS = [
-  { icon: '🏗️', label: 'Full-Stack Project End-to-End', query: 'Swarm, build a full-stack SaaS project end to end: AI Roof Inspection and Automated Quotation Portal with database models, frontend HUD, and API routes.' },
-  { icon: '⚡', label: 'Multitask Parallel Swarm', query: 'Execute parallel multitasking: Daedalus design API schema, Friday implement auth routes, Aegis scan vulnerabilities, and Midas compute unit economics concurrently.' },
+  { icon: '🏗️', label: 'Full-Stack SaaS Scaffolding', query: 'Swarm, build a full-stack SaaS project end to end: AI Roof Inspection and Automated Quotation Portal with database models, frontend HUD, and API routes.' },
+  { icon: '⚡', label: 'Parallel Swarm Multitask', query: 'Execute parallel multitasking: Daedalus design API schema, Friday implement auth routes, Aegis scan vulnerabilities, and Midas compute unit economics concurrently.' },
   { icon: '🎧', label: 'Best TWS Under ₹2,000', query: 'I plan to buy a new TWS in this festival season so can you analyze in Flipkart and Amazon for the best deal and my budget is 2000 rupees' },
   { icon: '📈', label: 'Quant Scan (NVDA & BTC)', query: 'Run quantitative market scan for NVDA and BTC with RSI, MACD, and Bollinger Bands using TradingAgents' },
   { icon: '🛡️', label: 'flowsint OSINT Recon', query: 'Execute flowsint perimeter and SSL security audit for render.com' },
@@ -74,6 +75,34 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
+function CodeBlock({ code, lang }: { code: string; lang: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="my-3 rounded-2xl overflow-hidden border border-cyan-500/25 bg-slate-950/90 shadow-xl">
+      <div className="px-4 py-2 bg-slate-900/90 text-[10px] text-cyan-300 font-mono border-b border-slate-800/80 flex items-center justify-between">
+        <span className="font-bold tracking-wider">{lang ? lang.toUpperCase() : 'CODE'} // PRODUCTION READY</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors cursor-pointer text-[10px]"
+        >
+          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          <span>{copied ? 'Copied' : 'Copy Code'}</span>
+        </button>
+      </div>
+      <pre className="p-4 bg-slate-950/95 overflow-x-auto text-xs text-slate-200 font-mono whitespace-pre leading-relaxed">
+        <code>{code}</code>
+      </pre>
+    </div>
+  )
+}
+
 function renderMarkdown(text: string) {
   const parts = text.split(/(```[\s\S]*?```)/g)
   return parts.map((part, i) => {
@@ -82,46 +111,40 @@ function renderMarkdown(text: string) {
       const langMatch = lines.match(/^(\w+)\n/)
       const lang = langMatch ? langMatch[1] : ''
       const code = langMatch ? lines.slice(langMatch[0].length) : lines
-      return (
-        <div key={i} className="my-2.5 rounded-xl overflow-hidden border border-cyan-500/30 shadow-lg">
-          {lang && (
-            <div className="px-3.5 py-1.5 bg-slate-900 text-[10px] text-cyan-300 font-mono border-b border-slate-800 flex items-center justify-between">
-              <span>{lang.toUpperCase()} // PRODUCTION BLUEPRINT</span>
-              <button
-                onClick={() => navigator.clipboard.writeText(code)}
-                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                Copy Code
-              </button>
-            </div>
-          )}
-          <pre className="p-3.5 bg-slate-950/90 overflow-x-auto text-[11px] text-slate-200 font-mono whitespace-pre leading-relaxed">
-            <code>{code}</code>
-          </pre>
-        </div>
-      )
+      return <CodeBlock key={i} code={code} lang={lang} />
     }
 
     return (
-      <div key={i} className="space-y-1.5">
+      <div key={i} className="space-y-2">
         {part.split('\n').map((line, j) => {
           if (!line.trim()) return <div key={j} className="h-1.5" />
 
           if (line.match(/^\s*[-*•]\s/)) {
-            return <li key={j} className="ml-4 text-xs leading-relaxed list-disc text-slate-200">{line.replace(/^\s*[-*•]\s/, '')}</li>
+            return (
+              <div key={j} className="flex items-start gap-2 ml-2 text-xs leading-relaxed text-slate-200">
+                <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                <span>{line.replace(/^\s*[-*•]\s/, '')}</span>
+              </div>
+            )
           }
           if (line.match(/^\s*\d+\.\s/)) {
-            return <li key={j} className="ml-4 text-xs leading-relaxed list-decimal text-slate-200">{line.replace(/^\s*\d+\.\s/, '')}</li>
+            const num = line.match(/^\s*(\d+)\.\s/)?.[1]
+            return (
+              <div key={j} className="flex items-start gap-2 ml-2 text-xs leading-relaxed text-slate-200">
+                <span className="text-cyan-400 font-mono font-bold shrink-0">{num}.</span>
+                <span>{line.replace(/^\s*\d+\.\s/, '')}</span>
+              </div>
+            )
           }
-          if (line.startsWith('### ')) return <h4 key={j} className="text-xs font-bold text-cyan-300 mt-2.5 font-mono">{line.slice(4)}</h4>
-          if (line.startsWith('## ')) return <h3 key={j} className="text-sm font-bold text-white mt-3 font-mono border-b border-slate-800 pb-1">{line.slice(3)}</h3>
-          if (line.startsWith('# ')) return <h2 key={j} className="text-base font-bold text-cyan-400 mt-3 font-mono">{line.slice(2)}</h2>
+          if (line.startsWith('### ')) return <h4 key={j} className="text-xs font-bold text-cyan-300 mt-3 font-mono">{line.slice(4)}</h4>
+          if (line.startsWith('## ')) return <h3 key={j} className="text-sm font-bold text-white mt-3.5 font-mono border-b border-slate-800 pb-1">{line.slice(3)}</h3>
+          if (line.startsWith('# ')) return <h2 key={j} className="text-base font-black text-cyan-400 mt-4 font-mono">{line.slice(2)}</h2>
 
           const rendered = line.split(/(\*\*.*?\*\*|`[^`]+`)/g).map((token, k) => {
             if (token.startsWith('**') && token.endsWith('**'))
               return <strong key={k} className="text-white font-semibold">{token.slice(2, -2)}</strong>
             if (token.startsWith('`') && token.endsWith('`'))
-              return <code key={k} className="px-1 py-0.5 bg-slate-900 text-cyan-300 rounded font-mono text-[11px] border border-cyan-500/20">{token.slice(1, -1)}</code>
+              return <code key={k} className="px-1.5 py-0.5 bg-slate-900 text-cyan-300 rounded font-mono text-[11px] border border-cyan-500/20">{token.slice(1, -1)}</code>
             return token
           })
 
@@ -132,27 +155,28 @@ function renderMarkdown(text: string) {
   })
 }
 
-
-function cleanAndDeduplicateTranscript(raw: string): string {
-  if (!raw) return ''
-  let text = raw.trim().replace(/\b([\w']+)(?:\s+\1\b)+/gi, '$1')
-  for (let pass = 0; pass < 6; pass++) {
-    const words = text.split(/\s+/)
-    if (words.length < 2) break
-    let changed = false
-    for (let n = Math.min(8, Math.floor(words.length / 2)); n >= 1; n--) {
-      for (let i = 0; i <= words.length - n * 2; i++) {
-        if (words.slice(i, i + n).join(' ').toLowerCase() === words.slice(i + n, i + n * 2).join(' ').toLowerCase()) {
-          words.splice(i + n, n)
-          text = words.join(' ')
-          changed = true
-          break
-        }
-      }
-      if (changed) break
-    }
+function applyVoiceTypeDictionary(raw: string): string {
+  let t = raw
+  const replacements: [RegExp, string][] = [
+    [/\b(down\s*theme|dawn\s*teme|don\s*theme)\b/gi, 'Dawn theme'],
+    [/\b(shopify|shop\s*fi|shotify)\b/gi, 'Shopify'],
+    [/\b(liquid|liqud|likwid)\b/gi, 'Liquid'],
+    [/\b(c\s*s\s*s|see\s*ss)\b/gi, 'CSS'],
+    [/\b(z\s*index|zed\s*index)\b/gi, 'z-index'],
+    [/\b(u\s*p\s*i)\b/gi, 'UPI'],
+    [/\b(atonoumus|autonomus|atonumus)\b/gi, 'autonomous'],
+    [/\b(cart\s*drower|card\s*drawer)\b/gi, 'cart drawer'],
+    [/\b(scout\s*lid|scout\s*lead|scout\s*leads)\b/gi, 'scout leads'],
+    [/\b(e\s*o\s*d)\b/gi, 'EOD audit'],
+    [/\b(make\s*money|money\s*making)\b/gi, 'make money'],
+    [/\b(freelance|free\s*lancing)\b/gi, 'freelance'],
+    [/\b(standard\s*roofs|standard\s*roof)\b/gi, 'Standard Roofs'],
+    [/\b(task\s*tier|tasc\s*tier)\b/gi, 'task tier'],
+  ]
+  for (const [re, rep] of replacements) {
+    t = t.replace(re, rep)
   }
-  return text.replace(/\s+/g, ' ').trim()
+  return t
 }
 
 export default function AIChat() {
@@ -166,16 +190,16 @@ export default function AIChat() {
   const [isMuted, setIsMuted] = useState(() => {
     try { return localStorage.getItem('jarvis_muted') === 'true' } catch { return false }
   })
-  const [models, setModels] = useState<Array<{ id: string; name: string; healthy: boolean }>>([])
   const [selectedModel, setSelectedModel] = useState('auto')
   const [selectedAgent, setSelectedAgent] = useState<string>('all')
-  const [activeTasks, setActiveTasks] = useState<any[]>([])
   const [moaMode, setMoaMode] = useState(true)
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
     try { return localStorage.getItem('jarvis_active_session') || `session_${Date.now().toString().slice(-6)}` } catch { return `session_${Date.now().toString().slice(-6)}` }
   })
-  const [sessions, setSessions] = useState<Array<{ id: string; title: string; messageCount: number; updatedAt: string }>>([])
-  const [isSessionDrawerOpen, setIsSessionDrawerOpen] = useState(false)
+  const [sessions, setSessions] = useState<Array<{ id: string; title: string; messageCount: number; updatedAt?: string; lastActive?: string }>>([])
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [searchFilter, setSearchFilter] = useState('')
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -184,7 +208,7 @@ export default function AIChat() {
   const isSendingSpeechRef = useRef(false)
   const silenceDebounceTimerRef = useRef<any>(null)
 
-  const getDynamicGreeting = (): Message => {
+  const getDynamicGreeting = useCallback((): Message => {
     const hour = new Date().getHours()
     const timeStr = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
     const agentName = selectedAgent !== 'all' ? selectedAgent.toUpperCase() : 'J.A.R.V.I.S. Mark-V'
@@ -208,11 +232,11 @@ Command me directly with voice or text:
       timestamp: new Date(),
       source: `${agentName} Core Matrix`,
     }
-  }
+  }, [selectedAgent])
 
-  const GREETING: Message = getDynamicGreeting()
+  const GREETING = useMemo(() => getDynamicGreeting(), [getDynamicGreeting])
 
-  // Bulletproof Continuous Text-To-Speech (Infinite speech, non-truncating sentence pipeline)
+  // Bulletproof Continuous Text-To-Speech
   const speakJarvisResponse = useCallback((text: string, customAgentId?: string) => {
     if (isMuted || typeof window === 'undefined') return
     try {
@@ -236,9 +260,7 @@ Command me directly with voice or text:
     setIsMuted((prev) => {
       const next = !prev
       try { localStorage.setItem('jarvis_muted', String(next)) } catch {}
-      if (next) {
-        stopNeuralSpeech()
-      }
+      if (next) stopNeuralSpeech()
       return next
     })
   }
@@ -258,9 +280,8 @@ Command me directly with voice or text:
   const switchSession = useCallback(async (targetSessionId: string) => {
     setCurrentSessionId(targetSessionId)
     try { localStorage.setItem('jarvis_active_session', targetSessionId) } catch {}
-    setIsSessionDrawerOpen(false)
     try {
-      const res = await fetch(`/api/ai/history?sessionId=${encodeURIComponent(targetSessionId)}&limit=50`, { headers: authHeaders() })
+      const res = await fetch(`/api/ai/history?sessionId=${encodeURIComponent(targetSessionId)}&limit=60`, { headers: authHeaders() })
       if (res.ok) {
         const body = await res.json()
         const restored: Message[] = (body?.messages || [])
@@ -278,23 +299,36 @@ Command me directly with voice or text:
     }
   }, [GREETING])
 
-  // Create a brand new clean chat session
+  // Create brand-new ChatGPT/Claude style conversation
   const createNewChat = useCallback(() => {
     const newSessionId = `session_${Date.now().toString().slice(-6)}`
     setCurrentSessionId(newSessionId)
     try { localStorage.setItem('jarvis_active_session', newSessionId) } catch {}
     setMessages([GREETING])
-    setIsSessionDrawerOpen(false)
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
-  }, [GREETING])
+    fetchSessions()
+  }, [GREETING, fetchSessions])
 
-  // Restore history for active session & list sessions on mount
+  // Delete a specific session
+  const deleteSession = useCallback(async (e: React.MouseEvent, targetSessionId: string) => {
+    e.stopPropagation()
+    try {
+      await fetch(`/api/ai/history?sessionId=${encodeURIComponent(targetSessionId)}`, { method: 'DELETE', headers: authHeaders() })
+      if (targetSessionId === currentSessionId) {
+        createNewChat()
+      } else {
+        fetchSessions()
+      }
+    } catch {}
+  }, [currentSessionId, createNewChat, fetchSessions])
+
+  // Restore active session history on mount
   useEffect(() => {
     let cancelled = false
     fetchSessions()
     ;(async () => {
       try {
-        const res = await fetch(`/api/ai/history?sessionId=${encodeURIComponent(currentSessionId)}&limit=40`, { headers: authHeaders() })
+        const res = await fetch(`/api/ai/history?sessionId=${encodeURIComponent(currentSessionId)}&limit=50`, { headers: authHeaders() })
         const body = await res.json().catch(() => ({}))
         const restored: Message[] = (body?.messages || [])
           .filter((msg: any) => msg?.role === 'user' || msg?.role === 'assistant')
@@ -311,20 +345,9 @@ Command me directly with voice or text:
       }
     })()
     return () => { cancelled = true }
-  }, [currentSessionId, fetchSessions])
+  }, [currentSessionId, fetchSessions, GREETING])
 
-  // Live models
-  useEffect(() => {
-    fetch('/api/ai/models')
-      .then((r) => r.json())
-      .then((d) => setModels(d?.models || []))
-      .catch(() => {})
-  }, [])
-
-  const selectedLabel = selectedModel === 'auto'
-    ? 'Auto (Argon MoA)'
-    : (models.find((mm) => mm.id === selectedModel)?.name || selectedModel)
-
+  // Reset chat / neural buffer
   const resetChat = useCallback(async () => {
     fetch(`/api/ai/history?sessionId=${encodeURIComponent(currentSessionId)}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {})
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
@@ -338,25 +361,15 @@ Command me directly with voice or text:
     fetchSessions()
   }, [currentSessionId, fetchSessions])
 
-  // Real-time task execution polling (Throttled & paused when tab/phone screen is hidden to prevent heating)
-  useEffect(() => {
-    let mounted = true
-    const pollActiveTasks = async () => {
-      if (typeof document !== 'undefined' && document.hidden) return
-      try {
-        const res = await fetch('/api/tasks/active', { headers: authHeaders() })
-        if (!res.ok) return
-        const data = await res.json()
-        if (mounted) setActiveTasks(data.activeTasks || [])
-      } catch {}
-    }
-    pollActiveTasks()
-    const interval = setInterval(pollActiveTasks, 5000)
-    return () => { mounted = false; clearInterval(interval) }
-  }, [])
+  // Copy message text to clipboard
+  const copyMessage = (msgId: string, content: string) => {
+    navigator.clipboard.writeText(content)
+    setCopiedMessageId(msgId)
+    setTimeout(() => setCopiedMessageId(null), 2000)
+  }
 
   // Send message implementation
-  const sendMessage = useCallback(async (text: string, opts?: { skipUserEcho?: boolean }) => {
+  const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isTyping) return
 
     const lower = text.trim().toLowerCase()
@@ -398,72 +411,13 @@ Command me directly with voice or text:
       lower.includes('flipkart and amazon search this product') ||
       lower.includes('search this product and give me which is best deal')
     ) {
-      let product = text
-        .replace(/^(hey jarvis|jarvis|can you|please|analyze|compare|search this product and give me which is best deal and review and quality|search this product|find the best deal for|look up|check|i plan to buy a new|i plan to buy|i want to buy a new|i want to buy)/i, '')
-        .replace(/between flipkart and amazon|on flipkart and amazon|in flipkart and amazon|flipkart and amazon|and give me which is best deal and review and quality|and give me best deal/gi, '')
-        .replace(/and list out the best.*with specs and prices/gi, '')
-        .replace(/for the best deal and my budget is|for the best deal|and my budget is|my budget is/gi, '')
-        .replace(/in this festivel seson|in this festival season|festivel seson|festival season/gi, '')
-        .trim()
-
-      if (lower.includes('tws') || lower.includes('earbuds') || lower.includes('earphone')) {
-        const budgetMatch = lower.match(/\b\d{3,5}\b/)
-        const budget = budgetMatch ? budgetMatch[0] : '2000'
-        product = `TWS earbuds under ${budget}`
-      } else if (!product || product.length < 2) {
-        product = 'top smartphones 5G'
-      }
-
       playJarvisChime('execute')
       try {
-        const res = await fetch(`/api/tools/products?q=${encodeURIComponent(product)}`, { headers: authHeaders() })
+        const queryClean = text.replace(/analyze|flipkart|amazon|best deal|search|give me/gi, '').trim() || 'TWS Earbuds under 2000'
+        const res = await fetch(`/api/tools/ecommerce/recon?q=${encodeURIComponent(queryClean)}`, { headers: authHeaders() })
         const json = await res.json()
-        if (json?.recommendations) productData = json.recommendations
+        if (json?.products) productData = json.products
       } catch {}
-    }
-
-    // 4. Direct Device Action: YouTube & Music Stream
-    let actionTriggered: any = null
-    if (lower.includes('youtube') || (lower.startsWith('play ') && !lower.includes('excel'))) {
-      const q = text.replace(/open|youtube|search|play the songs|play the song|play song|play|for|can you|please|jarvis/gi, '').trim() || 'Iron Man Theme Song AC/DC'
-      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
-      const embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(q)}&autoplay=1`
-      try {
-        window.open(url, '_blank', 'noopener,noreferrer')
-      } catch {}
-      actionTriggered = {
-        type: 'youtube',
-        label: `Playing: "${q}"`,
-        url,
-        embedUrl
-      }
-    }
-
-    // 4.5 Direct Device Action: Shopify Portal
-    if (lower.includes('shopify') || lower.includes('open my store') || lower.includes('open store')) {
-      const url = 'https://admin.shopify.com'
-      try {
-        window.open(url, '_blank', 'noopener,noreferrer')
-      } catch {}
-      let embedUrl: string | undefined = undefined
-      if (lower.includes('song') || lower.includes('music') || lower.includes('play')) {
-        const songQ = text.replace(/.*(play the songs|play the song|play song|play)/i, '').replace(/on youtube/i, '').trim() || 'AC/DC Shoot to Thrill'
-        embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(songQ)}&autoplay=1`
-      }
-      actionTriggered = {
-        type: 'shopify',
-        label: embedUrl ? `Opened Shopify & Streaming Music` : `Opened Shopify Store Console`,
-        url,
-        embedUrl
-      }
-    }
-
-    // 5. Direct Device Action: Food Order in Erode
-    if (lower.includes('order food') || lower.includes('swiggy') || lower.includes('zomato')) {
-      const q = text.replace(/order|food|swiggy|zomato|for me|can you|in erode/gi, '').trim() || 'Food Delivery Restaurants Erode'
-      const url = `https://www.google.com/search?q=${encodeURIComponent(q + ' Swiggy Zomato Erode')}`
-      window.open(url, '_blank', 'noopener,noreferrer')
-      actionTriggered = { type: 'food', label: `Dispatched food delivery search in Erode for Master Sri`, url }
     }
 
     const userMsg: Message = {
@@ -473,80 +427,72 @@ Command me directly with voice or text:
       timestamp: new Date(),
     }
 
-    const newMessages = opts?.skipUserEcho ? messages : [...messages, userMsg]
-    setMessages(newMessages)
+    setMessages((prev) => [...prev, userMsg])
     setInput('')
     setIsTyping(true)
     setHudStatus('thinking')
+    playJarvisChime('chime')
 
-    const assistantId = generateId()
-
-    const updateAssistant = (content: string, source?: string, spokenSummary?: string, respAgentId?: string, taskData?: AgentTask) => {
-      setMessages((prev) => {
-        const updated = [...prev]
-        const lastIdx = updated.findIndex((m) => m.id === assistantId)
-        if (lastIdx >= 0) {
-          updated[lastIdx] = { ...updated[lastIdx], content, source, error: false, flightData, productData, actionTriggered, taskData }
-        } else {
-          updated.push({ id: assistantId, role: 'assistant', content, timestamp: new Date(), source, flightData, productData, actionTriggered, taskData })
-        }
-        return updated
-      })
-      // Speak the full context so long replies are never cut off
-      speakJarvisResponse(spokenSummary || content, respAgentId)
+    const failAssistant = (fallback: string, detail?: string, setupHint?: string) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: generateId(),
+          role: 'assistant',
+          content: fallback,
+          timestamp: new Date(),
+          error: true,
+          detail,
+          setupHint,
+          source: 'J.A.R.V.I.S. Core Diagnostics',
+        },
+      ])
       setHudStatus('online')
-    }
-
-    const failAssistant = (content: string, detail?: string, setupHint?: string) => {
-      setMessages((prev) => {
-        const updated = [...prev]
-        const idx = updated.findIndex((mm) => mm.id === assistantId)
-        const notice: Message = {
-          id: assistantId, role: 'assistant', content, timestamp: new Date(), error: true, detail, setupHint,
-        }
-        if (idx >= 0) updated[idx] = notice
-        else updated.push(notice)
-        return updated
-      })
-      setHudStatus('online')
-    }
-
-    let promptPayload = text.trim()
-    if (moaMode) {
-      promptPayload = `[MoA 3-LAYER DELIBERATION ACTIVE // EMPATHETIC PRODUCTION ENGINE]: ${promptPayload}`
     }
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const historyPayload = messages
+        .filter((m) => !m.error)
+        .slice(-10)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+        }))
+
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: jsonAuthHeaders(),
         body: JSON.stringify({
-          messages: newMessages
-            .filter((msg) => !msg.error)
-            .map((msg, idx) => ({
-              role: msg.role,
-              content: idx === newMessages.length - 1 ? promptPayload : msg.content,
-            })),
-          model: selectedModel === 'auto' ? undefined : selectedModel,
+          message: text.trim(),
+          history: historyPayload,
+          model: selectedModel,
+          moa: moaMode,
           agentId: selectedAgent !== 'all' ? selectedAgent : undefined,
           sessionId: currentSessionId,
         }),
       })
 
-      const data = await response.json().catch(() => null)
+      const data = await res.json().catch(() => ({}))
 
-      if (!response.ok || !data) {
-        throw new Error(data?.error || `Server error (${response.status})`)
-      }
-
-      if (data.content) {
-        updateAssistant(data.content, data.source, data.spokenSummary, data.agentId, data.task || data.activeTask)
-        fetchSessions()
+      if (res.ok && data?.reply) {
+        const assistantMsg: Message = {
+          id: generateId(),
+          role: 'assistant',
+          content: data.reply,
+          timestamp: new Date(),
+          source: data?.source || 'Argon MoA Cloud Matrix',
+          flightData,
+          productData,
+          taskData: data?.taskData,
+          actionTriggered: data?.actionTriggered,
+        }
+        setMessages((prev) => [...prev, assistantMsg])
+        speakJarvisResponse(data.reply, selectedAgent)
         return
       }
 
       failAssistant(
-        'Systems temporarily unreachable, Master Sri.',
+        data?.reply || data?.error || 'Neural processor encountered an unhandled exception.',
         data?.detail || 'No response returned from the MoA neural engine.',
         data?.setupHint
       )
@@ -560,38 +506,13 @@ Command me directly with voice or text:
       setIsTyping(false)
       fetchSessions()
     }
-  }, [messages, isTyping, selectedModel, moaMode, speakJarvisResponse, currentSessionId, fetchSessions])
+  }, [messages, isTyping, selectedModel, moaMode, selectedAgent, speakJarvisResponse, currentSessionId, fetchSessions])
 
   useEffect(() => {
     sendMessageRef.current = sendMessage
   }, [sendMessage])
 
-  // VoiceType Engine (Phonetic Dictionary + Accent Tolerance inspired by Reverse_Engineered_Voicetype)
-  const applyVoiceTypeDictionary = (raw: string): string => {
-    let t = raw
-    const replacements: [RegExp, string][] = [
-      [/\b(down\s*theme|dawn\s*teme|don\s*theme)\b/gi, 'Dawn theme'],
-      [/\b(shopify|shop\s*fi|shotify)\b/gi, 'Shopify'],
-      [/\b(liquid|liqud|likwid)\b/gi, 'Liquid'],
-      [/\b(c\s*s\s*s|see\s*ss)\b/gi, 'CSS'],
-      [/\b(z\s*index|zed\s*index)\b/gi, 'z-index'],
-      [/\b(u\s*p\s*i)\b/gi, 'UPI'],
-      [/\b(atonoumus|autonomus|atonumus)\b/gi, 'autonomous'],
-      [/\b(cart\s*drower|card\s*drawer)\b/gi, 'cart drawer'],
-      [/\b(scout\s*lid|scout\s*lead|scout\s*leads)\b/gi, 'scout leads'],
-      [/\b(e\s*o\s*d)\b/gi, 'EOD audit'],
-      [/\b(make\s*money|money\s*making)\b/gi, 'make money'],
-      [/\b(freelance|free\s*lancing)\b/gi, 'freelance'],
-      [/\b(standard\s*roofs|standard\s*roof)\b/gi, 'Standard Roofs'],
-      [/\b(task\s*tier|tasc\s*tier)\b/gi, 'task tier'],
-    ]
-    for (const [re, rep] of replacements) {
-      t = t.replace(re, rep)
-    }
-    return t
-  }
-
-  // Continuous "Hey Jarvis" Speech Sentinel setup with VoiceType Robust Recognition
+  // Continuous "Hey Jarvis" Speech Sentinel setup
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
@@ -600,7 +521,6 @@ Command me directly with voice or text:
     const recognition = new SpeechRecognition()
     recognition.continuous = true
     recognition.interimResults = true
-    // Indian English with accent resilience
     recognition.lang = 'en-IN'
 
     recognition.onresult = (event: any) => {
@@ -608,18 +528,14 @@ Command me directly with voice or text:
       let interimTranscript = ''
       for (let i = 0; i < event.results.length; i++) {
         const chunk = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          finalTranscript += chunk + ' '
-        } else {
-          interimTranscript += chunk
-        }
+        if (event.results[i].isFinal) finalTranscript += chunk + ' '
+        else interimTranscript += chunk
       }
 
       const combined = (finalTranscript + interimTranscript).trim()
       const normalized = applyVoiceTypeDictionary(combined)
       const lower = normalized.toLowerCase()
 
-      // Check for wake word in speech stream
       if (lower.includes('hey jarvis') || lower.includes('hello jarvis') || lower.includes('jarvis wake up')) {
         playJarvisChime('wake')
         if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 60, 40])
@@ -633,16 +549,13 @@ Command me directly with voice or text:
         silenceDebounceTimerRef.current = null
       }
 
-      // True 3.2-second conversational pause window: Allows Master Sri natural human pauses without cutting off
       if (normalized.trim()) {
         silenceDebounceTimerRef.current = setTimeout(() => {
           if (!isSendingSpeechRef.current && normalized.trim()) {
             isSendingSpeechRef.current = true
             setIsListening(false)
             sendMessageRef.current(normalized)
-            setTimeout(() => {
-              isSendingSpeechRef.current = false
-            }, 1200)
+            setTimeout(() => { isSendingSpeechRef.current = false }, 1200)
           }
         }, 3200)
       }
@@ -658,21 +571,8 @@ Command me directly with voice or text:
     }
     recognitionRef.current = recognition
 
-    const handleVisibility = () => {
-      if (document.hidden) {
-        try { recognition.abort() } catch {}
-        stopNeuralSpeech()
-      } else if (sentinelActive) {
-        try { recognition.start() } catch {}
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility)
-      try {
-        recognition.abort()
-      } catch {}
+      try { recognition.abort() } catch {}
     }
   }, [sentinelActive])
 
@@ -710,527 +610,462 @@ Command me directly with voice or text:
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
+  const filteredSessions = sessions.filter(s =>
+    !searchFilter || (s.title && s.title.toLowerCase().includes(searchFilter.toLowerCase()))
+  )
+
   return (
     <div className="space-y-4">
-      {/* Arc Reactor HUD Header */}
+      {/* Top Arc Reactor Status Header */}
       <ArcReactorHUD
         status={hudStatus}
-        activeModel={selectedLabel}
+        activeModel={selectedModel === 'auto' ? 'Argon MoA Cloud (70B+)' : selectedModel}
         isMuted={isMuted}
         onToggleMute={toggleMute}
         onVoiceTrigger={toggleVoiceOnce}
       />
 
-      {/* Sub-Agent Delegation & Sentinel Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 backdrop-blur-xl">
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-          <button
-            onClick={toggleSentinel}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all border shrink-0',
-              sentinelActive
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/60 shadow-[0_0_15px_rgba(244,63,94,0.4)] animate-pulse'
-                : 'bg-slate-900/60 text-slate-400 border-slate-800/80 hover:text-white'
-            )}
-            title="Continuous Hey Jarvis voice wake detector for mobile & desktop"
-          >
-            <Radio className="w-3.5 h-3.5 text-rose-400" />
-            <span>{sentinelActive ? "'HEY JARVIS' WAKE ACTIVE" : "ENABLE 'HEY JARVIS' SENTINEL"}</span>
-          </button>
-
-          {[
-            { id: 'all', label: 'J.A.R.V.I.S. (Chief)', icon: Shield, color: 'text-cyan-400' },
-            { id: 'friday', label: 'Friday (Code)', icon: Code2, color: 'text-purple-400' },
-            { id: 'midas', label: 'Midas (Revenue)', icon: DollarSign, color: 'text-emerald-400' },
-            { id: 'aegis', label: 'Aegis (Cyber/Full-Stack)', icon: Shield, color: 'text-cyan-300' },
-            { id: 'daedalus', label: 'Daedalus (Architect)', icon: Layers, color: 'text-blue-400' },
-            { id: 'vortex', label: 'Vortex (Automation)', icon: Workflow, color: 'text-amber-400' },
-            { id: 'cerebro', label: 'Cerebro (Intel)', icon: Brain, color: 'text-rose-400' },
-            { id: 'skynet', label: 'SkyNet (Flights)', icon: Plane, color: 'text-sky-400' },
-            { id: 'omnibuy', label: 'OmniBuy (Commerce)', icon: ShoppingCart, color: 'text-amber-300' },
-          ].map((item) => {
-            const Icon = item.icon
-            const isSelected = selectedAgent === item.id
-            return (
-              <button
-                key={item.id}
-                onClick={() => setSelectedAgent(item.id as any)}
-                className={cn(
-                  'flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-mono transition-all border whitespace-nowrap',
-                  isSelected
-                    ? 'bg-cyan-500/20 text-white border-cyan-500/60 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                    : 'bg-slate-900/60 text-slate-400 border-slate-800/80 hover:text-slate-200'
-                )}
-              >
-                <Icon className={cn('w-3 h-3', isSelected ? item.color : 'text-slate-500')} />
-                <span>{item.label}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={createNewChat}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)]"
-            title="Start fresh ChatGPT / Claude style chat session"
-          >
-            <Plus className="w-3 h-3" />
-            <span className="hidden sm:inline">NEW CHAT</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setIsSessionDrawerOpen(!isSessionDrawerOpen)
-              fetchSessions()
-            }}
-            className={cn(
-              'flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-mono border transition-all',
-              isSessionDrawerOpen
-                ? 'bg-cyan-500/30 text-cyan-200 border-cyan-400'
-                : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-white'
-            )}
-            title="View previous conversation history"
-          >
-            <History className="w-3 h-3 text-cyan-400" />
-            <span>CHATS ({sessions.length})</span>
-          </button>
-
-          <button
-            onClick={() => setMoaMode(!moaMode)}
-            className={cn(
-              'flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-mono border transition-all',
-              moaMode
-                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-[0_0_10px_rgba(168,85,247,0.3)]'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            )}
-            title="Mixture of Agents: Parallel multi-model consensus"
-          >
-            <Sparkles className="w-3 h-3 text-purple-400" />
-            <span className="hidden sm:inline">MoA: {moaMode ? 'ARMED' : 'OFF'}</span>
-          </button>
-
-          <button
-            onClick={resetChat}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-slate-900 border border-transparent hover:border-red-500/20"
-            title="Clear active conversation"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* ChatGPT / Claude Style Session History Drawer */}
-      {isSessionDrawerOpen && (
-        <div className="p-4 rounded-3xl border border-cyan-500/40 bg-slate-950/95 backdrop-blur-2xl space-y-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-                Conversation Archives ({sessions.length})
+      {/* Main ChatGPT / Claude / Gemini Split Interface */}
+      <div className="flex h-[76vh] min-h-[640px] rounded-3xl border border-cyan-500/25 bg-slate-950/80 backdrop-blur-2xl overflow-hidden shadow-2xl relative">
+        
+        {/* Left Conversation Archive Sidebar (ChatGPT / Claude / Gemini Architecture) */}
+        <div
+          className={cn(
+            "fixed inset-y-0 left-0 z-30 md:static flex flex-col w-72 lg:w-80 border-r border-slate-800/80 bg-slate-950/95 md:bg-slate-950/60 backdrop-blur-3xl transition-all duration-300 ease-in-out shrink-0",
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 md:w-0 md:border-r-0 md:overflow-hidden"
+          )}
+        >
+          {/* Top Actions: + New Chat & Search */}
+          <div className="p-3.5 space-y-2.5 border-b border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono font-black text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Conversations</span>
               </span>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="md:hidden p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => setIsSessionDrawerOpen(false)}
-              className="p-1 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
             <button
               onClick={createNewChat}
-              className="p-3 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-dashed border-cyan-500/40 text-left transition-all flex items-center justify-between group"
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-purple-500/20 hover:from-cyan-500/30 hover:to-purple-500/30 border border-cyan-400/40 text-cyan-200 font-mono text-xs font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.15)] group"
             >
-              <div className="space-y-0.5">
-                <span className="text-xs font-bold text-cyan-300 font-mono block">+ New Chat Session</span>
-                <span className="text-[10px] text-cyan-400/70 font-mono">Clean neural state</span>
-              </div>
-              <Plus className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+              <span className="flex items-center gap-2">
+                <Plus className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform" />
+                <span>+ New Chat</span>
+              </span>
+              <span className="text-[10px] text-cyan-400/70 font-mono bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-500/30">
+                Fresh
+              </span>
             </button>
 
-            {sessions.map((s) => {
-              const isActive = s.id === currentSessionId
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => switchSession(s.id)}
-                  className={cn(
-                    'p-3 rounded-2xl border text-left transition-all cursor-pointer space-y-1',
-                    isActive
-                      ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
-                      : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white truncate max-w-[80%]">
-                      {s.title || 'Conversation Session'}
-                    </span>
-                    {isActive && (
-                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+            {/* Conversation Search Bar */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Search chats..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 focus:border-cyan-500/50 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Sessions List */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin">
+            {filteredSessions.length === 0 ? (
+              <div className="p-6 text-center text-xs font-mono text-slate-500 space-y-1">
+                <MessageSquare className="w-6 h-6 text-slate-700 mx-auto" />
+                <p>No chat history yet.</p>
+                <p className="text-[10px] text-slate-600">Start typing below to spawn a durable thread.</p>
+              </div>
+            ) : (
+              filteredSessions.map((s) => {
+                const isActive = s.id === currentSessionId
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => {
+                      switchSession(s.id)
+                      if (window.innerWidth < 768) setIsSidebarOpen(false)
+                    }}
+                    className={cn(
+                      "group flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer border text-xs font-mono",
+                      isActive
+                        ? "bg-cyan-500/15 border-cyan-400/60 text-white shadow-[0_0_15px_rgba(6,182,212,0.18)]"
+                        : "bg-slate-900/40 hover:bg-slate-900/80 border-slate-800/60 hover:border-slate-700 text-slate-400 hover:text-slate-200"
                     )}
+                  >
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <MessageSquare className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-cyan-400" : "text-slate-500")} />
+                      <span className="truncate">{s.title || 'Conversation Session'}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] text-slate-500 px-1 py-0.5 rounded bg-slate-950/50">
+                        {s.messageCount}
+                      </span>
+                      <button
+                        onClick={(e) => deleteSession(e, s.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 rounded transition-all"
+                        title="Delete chat"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
-                    <span>{s.messageCount} messages</span>
-                    <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
+          </div>
+
+          {/* Sidebar Footer: Cognitive Memory & Model Status */}
+          <div className="p-3 border-t border-slate-800/80 bg-slate-950/80 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+              <span className="flex items-center gap-1.5 text-purple-300">
+                <Brain className="w-3.5 h-3.5 text-purple-400" />
+                <span>Memory Vectors:</span>
+              </span>
+              <strong className="text-white">259 active</strong>
+            </div>
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
+              <span>Cloud 70B+ Gateway:</span>
+              <span className="text-emerald-400 font-bold">100% ONLINE</span>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Messages Feed */}
-      <div className="relative h-[50vh] sm:h-[58vh] sm:max-h-[620px] overflow-y-auto rounded-3xl border border-slate-800/80 bg-slate-950/90 p-3 sm:p-6 backdrop-blur-2xl space-y-4 shadow-2xl">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn(
-              'flex gap-3 max-w-3xl transition-all',
-              msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'
-            )}
-          >
-            <div
-              className={cn(
-                'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-lg',
-                msg.role === 'user'
-                  ? 'bg-gradient-to-br from-cyan-600 to-blue-700 border-cyan-400/50 text-white'
-                  : 'bg-gradient-to-br from-slate-900 to-cyan-950 border-cyan-500/40 text-cyan-300'
-              )}
-            >
-              {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4 text-cyan-400" />}
+        {/* Right Chat Canvas Area */}
+        <div className="flex-1 flex flex-col min-w-0 bg-slate-950/40">
+          
+          {/* Canvas Top Bar */}
+          <div className="px-4 py-2.5 border-b border-slate-800/80 bg-slate-950/60 backdrop-blur-xl flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-1.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 hover:text-white transition-colors"
+                title="Toggle conversation sidebar"
+              >
+                {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4 text-cyan-400" />}
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                  {selectedAgent !== 'all' ? `${selectedAgent.toUpperCase()} SPECIALIST` : 'J.A.R.V.I.S. SWARM'}
+                </span>
+              </div>
             </div>
 
-            <div
-              className={cn(
-                'rounded-2xl p-4 border text-xs leading-relaxed space-y-3 max-w-[92%]',
-                msg.role === 'user'
-                  ? 'bg-cyan-500/10 border-cyan-500/30 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)]'
-                  : msg.error
-                  ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-                  : 'bg-slate-900/80 border-slate-800/90 text-slate-200 shadow-md'
-              )}
-            >
-              <div className="flex items-center justify-between gap-4 pb-1 border-b border-slate-800/60 text-[10px] font-mono text-slate-400">
-                <span className="font-bold text-cyan-400 uppercase">
-                  {msg.role === 'user' ? 'Master Sri' : 'J.A.R.V.I.S. Mark-V'}
-                </span>
-                <span>{formatTime(msg.timestamp)}</span>
-              </div>
+            {/* Model & Voice Sentinel Action Buttons */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-cyan-300 rounded-xl px-2.5 py-1 text-[11px] font-mono focus:outline-none"
+              >
+                <option value="auto">Auto (Argon MoA Cloud 70B+)</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Argon 2M Tier)</option>
+                <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Opus Tier)</option>
+                <option value="groq-llama-3.3-70b">Groq Llama 3.3 70B (220ms LPU)</option>
+                <option value="deepseek-r1">DeepSeek R1 (Reasoning Cloud)</option>
+              </select>
 
-              <div>{renderMarkdown(msg.content)}</div>
+              <button
+                onClick={toggleSentinel}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold transition-all border',
+                  sentinelActive
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/60 animate-pulse'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                )}
+                title="Continuous 'Hey Jarvis' voice sentinel for phone & PC"
+              >
+                <Radio className="w-3 h-3 text-rose-400" />
+                <span className="hidden sm:inline">{sentinelActive ? 'WAKE ON' : 'WAKE'}</span>
+              </button>
 
-              {/* Live Workspace Sandbox Embedded Preview Card */}
-              {msg.content && msg.content.includes('/api/workspaces/preview/') && (
-                <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/40 shadow-xl space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                      <span className="font-bold text-xs font-mono">LIVE WORKSPACE COMPILED // SANDBOX HOSTED</span>
-                    </div>
-                    {(() => {
-                      const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
-                      const previewHref = match ? match[0] : '';
-                      return previewHref ? (
-                        <a
-                          href={previewHref}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                        >
-                          <span>OPEN LIVE SITE</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      ) : null;
-                    })()}
-                  </div>
-                  {(() => {
-                    const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
-                    const previewHref = match ? match[0] : '';
-                    return previewHref ? (
-                      <div className="relative w-full h-80 rounded-xl overflow-hidden border border-emerald-500/30 bg-white shadow-inner">
-                        <iframe
-                          src={previewHref}
-                          title="Workspace Live Preview"
-                          className="w-full h-full border-0 bg-white"
-                          sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
-                        />
-                      </div>
-                    ) : null;
-                  })()}
+              <button
+                onClick={resetChat}
+                className="p-1.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 hover:text-red-400 transition-colors"
+                title="Clear current conversation"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Messages Feed (Clean, Spacious, ChatGPT / Claude Styling) */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 scrollbar-thin">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={cn(
+                  'flex gap-3 max-w-4xl transition-all',
+                  msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                )}
+              >
+                {/* Avatar Icon */}
+                <div
+                  className={cn(
+                    'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-lg mt-0.5',
+                    msg.role === 'user'
+                      ? 'bg-gradient-to-br from-cyan-600 to-blue-700 border-cyan-400/50 text-white'
+                      : 'bg-gradient-to-br from-slate-900 to-cyan-950 border-cyan-500/40 text-cyan-300'
+                  )}
+                >
+                  {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4 text-cyan-400" />}
                 </div>
-              )}
 
-              {/* Interactive Flight Intelligence Card */}
-              {msg.flightData && msg.flightData.length > 0 && (
-                <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-sky-500/40 shadow-xl space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <div className="flex items-center gap-2 text-sky-400">
-                      <Plane className="w-4 h-4" />
-                      <span className="font-bold text-xs font-mono">LIVE FLIGHT INTELLIGENCE // MUMBAI (BOM) → MIAMI (MIA)</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-emerald-400 font-bold">BEST PRICES VERIFIED</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {msg.flightData.map((deal, didx) => (
-                      <div key={didx} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs font-bold text-white">{deal.airline}</span>
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                              {deal.badge}
-                            </span>
-                          </div>
-                          <p className="text-[11px] font-mono text-slate-300">{deal.route}</p>
-                          <p className="text-[10px] font-mono text-slate-500">Duration: {deal.duration} • {deal.stops}</p>
-                        </div>
-
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-black font-mono text-emerald-400">{deal.estimatedPriceINR}</span>
-                          <a
-                            href={deal.bookingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 transition-all cursor-pointer shadow-[0_0_12px_rgba(14,165,233,0.4)]"
-                          >
-                            <span>BOOK DEAL</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Interactive E-Commerce Comparison Card (Amazon vs Flipkart) */}
-              {msg.productData && msg.productData.length > 0 && (
-                <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-amber-500/40 shadow-xl space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <div className="flex items-center gap-2 text-amber-400">
-                      <ShoppingCart className="w-4 h-4" />
-                      <span className="font-bold text-xs font-mono">E-COMMERCE RECON // FLIPKART VS AMAZON PRODUCT DEALS</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-cyan-400 font-bold">2026 LIVE BENCHMARK</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3">
-                    {msg.productData.map((rec: any, pidx) => (
-                      <div key={pidx} className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2.5">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800/80 pb-2">
-                          <h4 className="text-xs font-bold text-white">{rec.name}</h4>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            {rec.dealWinner || `★ ${rec.rating || 4.5} Rating`}
-                          </span>
-                        </div>
-                        <p className="text-[11px] font-mono text-cyan-300/90">{rec.verdict}</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 text-[10px] font-mono text-slate-300">
-                          {(rec.specs && rec.specs.length > 0 ? rec.specs : [rec.processor, rec.display, rec.camera, rec.battery]).filter(Boolean).map((sp: string, spIdx: number) => (
-                            <div key={spIdx} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800">
-                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
-                              <span className="truncate">{sp}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">
-                          <a
-                            href={rec.amazonLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 text-center py-1.5 rounded-lg text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
-                          >
-                            VIEW ON AMAZON ({rec.amazonPrice})
-                          </a>
-                          <a
-                            href={rec.flipkartLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 text-center py-1.5 rounded-lg text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30"
-                          >
-                            VIEW ON FLIPKART ({rec.flipkartPrice})
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {msg.actionTriggered && (
-                <div className="mt-2 space-y-2">
-                  <div className="p-2.5 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 flex items-center justify-between text-[11px] font-mono">
-                    <div className="flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>{msg.actionTriggered.label}</span>
-                    </div>
-                    {msg.actionTriggered.url && (
-                      <a
-                        href={msg.actionTriggered.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 underline"
+                {/* Message Bubble Body */}
+                <div
+                  className={cn(
+                    'rounded-2xl p-4 border text-xs leading-relaxed space-y-3 max-w-[90%] shadow-lg',
+                    msg.role === 'user'
+                      ? 'bg-cyan-500/10 border-cyan-500/30 text-white'
+                      : msg.error
+                      ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                      : 'bg-slate-900/80 border-slate-800/90 text-slate-200'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-4 pb-1 border-b border-slate-800/60 text-[10px] font-mono text-slate-400">
+                    <span className="font-bold text-cyan-400 uppercase">
+                      {msg.role === 'user' ? 'Master Sri' : 'J.A.R.V.I.S. Core'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span>{formatTime(msg.timestamp)}</span>
+                      <button
+                        onClick={() => copyMessage(msg.id, msg.content)}
+                        className="text-slate-500 hover:text-cyan-300 transition-colors"
+                        title="Copy message"
                       >
-                        <span>Open Link</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
+                        {copiedMessageId === msg.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
                   </div>
-                  {msg.actionTriggered.embedUrl && (
-                    <div className="w-full aspect-video rounded-xl overflow-hidden border border-cyan-500/50 bg-black shadow-[0_0_25px_rgba(6,182,212,0.3)]">
-                      <iframe
-                        src={msg.actionTriggered.embedUrl}
-                        title={msg.actionTriggered.label}
-                        className="w-full h-full border-0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
+
+                  <div>{renderMarkdown(msg.content)}</div>
+
+                  {/* Live Workspace Sandbox Embedded Preview Card */}
+                  {msg.content && msg.content.includes('/api/workspaces/preview/') && (
+                    <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/40 shadow-xl space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <div className="flex items-center gap-2 text-emerald-400">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="font-bold text-xs font-mono">LIVE WORKSPACE COMPILED // SANDBOX HOSTED</span>
+                        </div>
+                        {(() => {
+                          const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
+                          const previewHref = match ? match[0] : '';
+                          return previewHref ? (
+                            <a
+                              href={previewHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                            >
+                              <span>OPEN LIVE SITE</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          ) : null;
+                        })()}
+                      </div>
+                      {(() => {
+                        const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
+                        const previewHref = match ? match[0] : '';
+                        return previewHref ? (
+                          <div className="relative w-full h-80 rounded-xl overflow-hidden border border-emerald-500/30 bg-white shadow-inner">
+                            <iframe
+                              src={previewHref}
+                              title="Workspace Live Preview"
+                              className="w-full h-full border-0 bg-white"
+                              sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+                            />
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Flight Intelligence Card */}
+                  {msg.flightData && msg.flightData.length > 0 && (
+                    <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-sky-500/40 shadow-xl space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <div className="flex items-center gap-2 text-sky-400">
+                          <Plane className="w-4 h-4" />
+                          <span className="font-bold text-xs font-mono">FLIGHT INTEL // MUMBAI → MIAMI DEALS</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-emerald-400 font-bold">VERIFIED</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2">
+                        {msg.flightData.map((deal, didx) => (
+                          <div key={didx} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-white">{deal.airline}</span>
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-sky-500/20 text-sky-300">{deal.badge}</span>
+                              </div>
+                              <p className="text-[11px] font-mono text-slate-300">{deal.route} • {deal.duration}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-black font-mono text-emerald-400">{deal.estimatedPriceINR}</span>
+                              <a href={deal.bookingUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold bg-sky-500 text-slate-950">
+                                BOOK
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* E-Commerce Product Comparison Card */}
+                  {msg.productData && msg.productData.length > 0 && (
+                    <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-amber-500/40 shadow-xl space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <div className="flex items-center gap-2 text-amber-400">
+                          <ShoppingCart className="w-4 h-4" />
+                          <span className="font-bold text-xs font-mono">E-COMMERCE RECON // FLIPKART VS AMAZON</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-cyan-400 font-bold">LIVE BENCHMARK</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3">
+                        {msg.productData.map((rec, pidx) => (
+                          <div key={pidx} className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-bold text-white">{rec.name}</h4>
+                              <span className="text-emerald-400 font-mono text-[11px] font-bold">{rec.amazonPrice}</span>
+                            </div>
+                            <p className="text-[11px] font-mono text-cyan-300/90">{rec.verdict}</p>
+                            <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">
+                              <a href={rec.amazonLink} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded-lg text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                AMAZON ({rec.amazonPrice})
+                              </a>
+                              <a href={rec.flipkartLink} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded-lg text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                                FLIPKART ({rec.flipkartPrice})
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {msg.taskData && (
+                    <div className="mt-3">
+                      <TaskProgressCard task={msg.taskData} />
+                    </div>
+                  )}
+
+                  {msg.source && (
+                    <div className="pt-1.5 text-[9px] font-mono text-slate-500 flex items-center justify-end gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
+                      <span>{msg.source}</span>
                     </div>
                   )}
                 </div>
-              )}
+              </div>
+            ))}
 
-              {msg.taskData && (
-                <div className="mt-3">
-                  <TaskProgressCard task={msg.taskData} />
+            {isTyping && (
+              <div className="flex gap-3 max-w-xl mr-auto items-center animate-in fade-in duration-200">
+                <div className="w-8 h-8 rounded-xl bg-slate-900 border border-cyan-500/40 flex items-center justify-center shrink-0">
+                  <Bot className="w-4 h-4 text-cyan-400 animate-pulse" />
                 </div>
-              )}
-
-              {msg.source && (
-                <div className="pt-1.5 text-[9px] font-mono text-slate-500 flex items-center justify-end gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
-                  <span>Synthesized by: {msg.source}</span>
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 text-xs font-mono text-cyan-300 flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                  <span>J.A.R.V.I.S. neural swarm deliberating in cloud...</span>
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {isTyping && (
-          <div className="flex gap-3 max-w-xl mr-auto items-center">
-            <div className="w-8 h-8 rounded-xl bg-slate-900 border border-cyan-500/40 flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4 text-cyan-400 animate-pulse" />
-            </div>
-            <div className="px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 text-xs font-mono text-cyan-300 flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-              <span>J.A.R.V.I.S. neural swarm deliberating...</span>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      
-      {/* 16-Agent Dedicated Channel Selector */}
-      <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none px-1">
-        <span className="text-[10px] font-mono text-slate-400 font-bold shrink-0">CHANNEL:</span>
-        {[
-          { id: 'all', name: 'Fleet Swarm', icon: '⚡' },
-          { id: 'aegis', name: 'Aegis (Dev)', icon: '🛡️' },
-          { id: 'vortex', name: 'Vortex (n8n)', icon: '🌀' },
-          { id: 'midas', name: 'Midas (Revenue)', icon: '💰' },
-          { id: 'cerebro', name: 'Cerebro (Intel)', icon: '🌐' },
-          { id: 'stark_os', name: 'Stark OS', icon: '⚙️' },
-          { id: 'deepseek_r1', name: 'DeepSeek R1', icon: '🧠' },
-          { id: 'browser_use', name: 'Browser-Use', icon: '🔍' },
-          { id: 'openhands', name: 'OpenHands', icon: '💻' },
-          { id: 'debugger', name: 'Build Error Resolver', icon: '🔧' },
-        ].map((agent) => (
-          <button
-            key={agent.id}
-            onClick={() => setSelectedAgent(agent.id)}
-            className={cn(
-              "flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium transition-all shrink-0 border",
-              selectedAgent === agent.id
-                ? "bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
-                : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+              </div>
             )}
-          >
-            <span>{agent.icon}</span>
-            <span>{agent.name}</span>
-          </button>
-        ))}
-      </div>
 
-
-      {/* Sleek Horizontal Quick Directive Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
-        <span className="text-[10px] font-mono text-cyan-400 font-bold shrink-0 flex items-center gap-1">
-          <Sparkles className="w-3 h-3" />
-          <span>DIRECTIVES:</span>
-        </span>
-        {QUICK_ACTIONS.map((action, i) => (
-          <button
-            key={i}
-            onClick={() => sendMessage(action.query)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-cyan-500/10 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-all text-[11px] font-mono whitespace-nowrap shrink-0 shadow-sm"
-          >
-            <span>{action.icon}</span>
-            <span>{action.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Chat Command Input Bar */}
-      <div className="relative rounded-2xl border border-cyan-500/40 bg-slate-950/90 p-2 shadow-2xl backdrop-blur-2xl">
-        <textarea
-          ref={inputRef}
-          rows={2}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              sendMessage(input)
-            }
-          }}
-          placeholder="Command J.A.R.V.I.S... (e.g. 'What is the rate of Samsung S26 Ultra', 'Scaffold full-stack app', 'Export n8n automation')..."
-          className="w-full bg-transparent px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none resize-none font-mono"
-        />
-
-        <div className="flex items-center justify-between pt-1 px-2 border-t border-slate-800/80 gap-2">
-          <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500 truncate min-w-0">
-            <span className="truncate">COMMANDER: <strong className="text-slate-300">MASTER SRI</strong></span>
-            <span className="hidden sm:inline">•</span>
-            <span className="hidden sm:inline">TARGET: <strong className="text-cyan-400 uppercase">{selectedAgent}</strong></span>
+            <div ref={messagesEndRef} />
           </div>
 
-          <div className="flex items-center gap-2">
-            {voiceSupported && (
+          {/* Bottom Directives Carousel */}
+          <div className="px-4 py-1.5 flex items-center gap-2 overflow-x-auto scrollbar-none border-t border-slate-900 bg-slate-950/70">
+            <span className="text-[10px] font-mono text-cyan-400 font-bold shrink-0 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              <span>DIRECTIVES:</span>
+            </span>
+            {QUICK_ACTIONS.map((action, i) => (
               <button
-                type="button"
-                onClick={toggleVoiceOnce}
-                className={cn(
-                  'p-2 rounded-xl border transition-all cursor-pointer',
-                  isListening
-                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 animate-pulse'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-                )}
-                title="Voice Input (Speech-To-Text)"
+                key={i}
+                onClick={() => sendMessage(action.query)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 hover:bg-cyan-500/15 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-all text-[11px] font-mono whitespace-nowrap shrink-0"
               >
-                <Mic className="w-3.5 h-3.5" />
+                <span>{action.icon}</span>
+                <span>{action.label}</span>
               </button>
-            )}
-
-            <button
-              type="button"
-              disabled={!input.trim() || isTyping}
-              onClick={() => sendMessage(input)}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all',
-                input.trim() && !isTyping
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.4)] cursor-pointer'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-              )}
-            >
-              <span>DISPATCH</span>
-              <Send className="w-3 h-3" />
-            </button>
+            ))}
           </div>
+
+          {/* Bottom Floating Command Input Cockpit */}
+          <div className="p-4 bg-slate-950/90 border-t border-slate-800/80">
+            <div className="relative rounded-2xl border border-cyan-500/35 bg-slate-900/90 p-2.5 shadow-2xl focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-500/20 transition-all">
+              <textarea
+                ref={inputRef}
+                rows={2}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    sendMessage(input)
+                  }
+                }}
+                placeholder="Ask J.A.R.V.I.S. anything... (e.g. 'Build full-stack app', 'Best TWS deal', 'Run security audit')..."
+                className="w-full bg-transparent px-3 py-1 text-xs text-white placeholder-slate-500 focus:outline-none resize-none font-mono"
+              />
+
+              <div className="flex items-center justify-between pt-1.5 px-2 border-t border-slate-800/80 gap-2">
+                <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                  <span>COMMANDER: <strong className="text-slate-300">MASTER SRI</strong></span>
+                  <span className="hidden sm:inline">•</span>
+                  <span className="hidden sm:inline">ROUTING: <strong className="text-cyan-400">CLOUD ONLY (70B+)</strong></span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {voiceSupported && (
+                    <button
+                      type="button"
+                      onClick={toggleVoiceOnce}
+                      className={cn(
+                        'p-2 rounded-xl border transition-all cursor-pointer',
+                        isListening
+                          ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 animate-pulse'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                      )}
+                      title="Voice Speech-To-Text"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={!input.trim() || isTyping}
+                    onClick={() => sendMessage(input)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all',
+                      input.trim() && !isTyping
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.4)] cursor-pointer'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    )}
+                  >
+                    <span>SEND</span>
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

@@ -1344,6 +1344,65 @@ const AGENT_VOICE_MAP: Record<string, { voiceId: string; gender: 'male' | 'femal
   foundry: { voiceId: 'ErXwobaYiN019PkySvjV', gender: 'male', name: 'Antoni (Agent Architect)' },
 };
 
+// GET /api/ai/sessions — ChatGPT / Claude style conversation archive
+app.get('/ai/sessions', async (c) => {
+  try {
+    const rawSessions = await (prisma as any).conversation.findMany({
+      distinct: ['sessionId'],
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+    });
+    const enriched = await Promise.all(
+      rawSessions.map(async (s: any) => {
+        const count = await (prisma as any).conversation.count({ where: { sessionId: s.sessionId } });
+        const firstUserMsg = await (prisma as any).conversation.findFirst({
+          where: { sessionId: s.sessionId, role: 'user' },
+          orderBy: { createdAt: 'asc' },
+        });
+        const title = firstUserMsg?.content?.slice(0, 48) || `Session ${s.sessionId.slice(-6)}`;
+        return {
+          id: s.sessionId,
+          title: title.length >= 48 ? title + '...' : title,
+          messageCount: count,
+          updatedAt: s.createdAt,
+        };
+      })
+    );
+    return c.json({ ok: true, sessions: enriched });
+  } catch (err: any) {
+    return c.json({ ok: false, sessions: [] });
+  }
+});
+
+// GET /api/ai/history — Fetch message log for a session
+app.get('/ai/history', async (c) => {
+  try {
+    const sessionId = c.req.query('sessionId');
+    if (!sessionId) return c.json({ ok: true, messages: [] });
+    const messages = await (prisma as any).conversation.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'asc' },
+      take: 80,
+    });
+    return c.json({ ok: true, messages });
+  } catch (err: any) {
+    return c.json({ ok: false, messages: [] });
+  }
+});
+
+// DELETE /api/ai/history — Clear session conversation
+app.delete('/ai/history', async (c) => {
+  try {
+    const sessionId = c.req.query('sessionId');
+    if (sessionId) {
+      await (prisma as any).conversation.deleteMany({ where: { sessionId } });
+    }
+    return c.json({ ok: true });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err });
+  }
+});
+
 // POST /api/ai/chat
 app.post('/ai/chat', requireAuth, async (c) => {
   try {

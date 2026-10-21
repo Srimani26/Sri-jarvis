@@ -8258,7 +8258,13 @@ var init_GeminiAdapter = __esm({
         if (!this.isConfigured()) {
           throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
         }
-        const model = options?.model || "gemini-3.8-flash";
+        const rawModel = options?.model || "gemini-2.0-flash";
+        let model = rawModel;
+        if (rawModel.includes("pro")) {
+          model = "gemini-1.5-pro";
+        } else if (rawModel.includes("flash") || rawModel.includes("3.8") || rawModel.includes("2.5")) {
+          model = "gemini-2.0-flash";
+        }
         const contents = messages.map((m) => ({
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: m.content }]
@@ -15624,6 +15630,59 @@ var AGENT_VOICE_MAP = {
   langgraph: { voiceId: "EXAVITQu4vr4xnSDxMaL", gender: "female", name: "Sarah (Graph Supervisor)" },
   foundry: { voiceId: "ErXwobaYiN019PkySvjV", gender: "male", name: "Antoni (Agent Architect)" }
 };
+app.get("/ai/sessions", async (c) => {
+  try {
+    const rawSessions = await prisma.conversation.findMany({
+      distinct: ["sessionId"],
+      orderBy: { createdAt: "desc" },
+      take: 40
+    });
+    const enriched = await Promise.all(
+      rawSessions.map(async (s) => {
+        const count = await prisma.conversation.count({ where: { sessionId: s.sessionId } });
+        const firstUserMsg = await prisma.conversation.findFirst({
+          where: { sessionId: s.sessionId, role: "user" },
+          orderBy: { createdAt: "asc" }
+        });
+        const title = firstUserMsg?.content?.slice(0, 48) || `Session ${s.sessionId.slice(-6)}`;
+        return {
+          id: s.sessionId,
+          title: title.length >= 48 ? title + "..." : title,
+          messageCount: count,
+          updatedAt: s.createdAt
+        };
+      })
+    );
+    return c.json({ ok: true, sessions: enriched });
+  } catch (err) {
+    return c.json({ ok: false, sessions: [] });
+  }
+});
+app.get("/ai/history", async (c) => {
+  try {
+    const sessionId = c.req.query("sessionId");
+    if (!sessionId) return c.json({ ok: true, messages: [] });
+    const messages = await prisma.conversation.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: "asc" },
+      take: 80
+    });
+    return c.json({ ok: true, messages });
+  } catch (err) {
+    return c.json({ ok: false, messages: [] });
+  }
+});
+app.delete("/ai/history", async (c) => {
+  try {
+    const sessionId = c.req.query("sessionId");
+    if (sessionId) {
+      await prisma.conversation.deleteMany({ where: { sessionId } });
+    }
+    return c.json({ ok: true });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err });
+  }
+});
 app.post("/ai/chat", requireAuth, async (c) => {
   try {
     const body = await c.req.json();
