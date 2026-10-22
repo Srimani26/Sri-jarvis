@@ -27,3 +27,5 @@ workers/**/dist/
 .tmp_*
 /data/
 !src/data/
+artifacts/
+

@@ -1996,6 +1996,102 @@ app.delete('/ai/history', requireAuth, async (c) => {
   return c.json({ ok: true, deleted: res.count })
 })
 
+// ═══════════════════════════════════════════════════════════════════
+// STORAGE SPACE & DELIVERABLES VAULT ROUTES
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/storage/reports — List all stored reports in the vault
+app.get('/storage/reports', async (c) => {
+  try {
+    const { StorageVaultEngine } = await import('./src/lib/storage-vault');
+    const reports = StorageVaultEngine.getAllReports();
+    return c.json({ ok: true, count: reports.length, reports });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/storage/download/:taskNumber/:format — Direct download of report
+app.get('/storage/download/:taskNumber/:format', async (c) => {
+  try {
+    const taskNumber = c.req.param('taskNumber');
+    const format = c.req.param('format').toLowerCase() as 'pdf' | 'doc' | 'md';
+    const { StorageVaultEngine } = await import('./src/lib/storage-vault');
+    const filePath = StorageVaultEngine.getReportFilePath(taskNumber, format);
+
+    if (!filePath) {
+      return c.text('Report not found in storage vault', 404);
+    }
+
+    const { readFileSync } = await import('node:fs');
+    const fileBytes = readFileSync(filePath);
+    const contentType = format === 'pdf' ? 'application/pdf' : format === 'doc' ? 'application/msword' : 'text/markdown';
+
+    return new Response(fileBytes, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${taskNumber}_report.${format}"`,
+      },
+    });
+  } catch (err: any) {
+    return c.text(`Download failed: ${err.message}`, 500);
+  }
+});
+
+// POST /api/storage/generate — Generate on-demand custom document (PDF, DOC, MD)
+app.post('/storage/generate', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { title, content, format } = body;
+    if (!title || !content || !format) {
+      return c.json({ ok: false, error: 'title, content, and format (pdf|doc|md|json) are required' }, 400);
+    }
+
+    const { StorageVaultEngine } = await import('./src/lib/storage-vault');
+    const doc = await StorageVaultEngine.generateCustomDocument({
+      title,
+      content,
+      format,
+    });
+
+    return c.json({
+      ok: true,
+      filename: doc.filename,
+      bytes: doc.bytes,
+      downloadUrl: `/api/storage/download-custom/${encodeURIComponent(doc.filename)}`,
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/storage/download-custom/:filename — Download custom generated document
+app.get('/storage/download-custom/:filename', async (c) => {
+  try {
+    const filename = c.req.param('filename');
+    const { resolve } = await import('node:path');
+    const { existsSync, readFileSync } = await import('node:fs');
+    const filePath = resolve(process.cwd(), 'artifacts', 'storage', filename);
+
+    if (!existsSync(filePath)) {
+      return c.text('Custom document not found', 404);
+    }
+
+    const fileBytes = readFileSync(filePath);
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const contentType = ext === 'pdf' ? 'application/pdf' : ext === 'doc' ? 'application/msword' : 'text/plain';
+
+    return new Response(fileBytes, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (err: any) {
+    return c.text(`Download failed: ${err.message}`, 500);
+  }
+});
+
 // GET /api/ai/models
 app.get('/ai/models', (c) => {
   return c.json({ models: MODEL_CHAIN.map(m => ({

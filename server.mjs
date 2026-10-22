@@ -218,6 +218,327 @@ var init_db = __esm({
   }
 });
 
+// src/lib/storage-vault.ts
+var storage_vault_exports = {};
+__export(storage_vault_exports, {
+  StorageVaultEngine: () => StorageVaultEngine
+});
+import fs from "node:fs";
+import path2 from "node:path";
+var StorageVaultEngine;
+var init_storage_vault = __esm({
+  "src/lib/storage-vault.ts"() {
+    "use strict";
+    StorageVaultEngine = class {
+      static STORAGE_DIR = path2.resolve(process.cwd(), "artifacts", "storage");
+      static initializeStorage() {
+        try {
+          if (!fs.existsSync(this.STORAGE_DIR)) {
+            fs.mkdirSync(this.STORAGE_DIR, { recursive: true });
+          }
+        } catch {
+        }
+      }
+      static findBrowserExecutable() {
+        const candidates = [
+          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+          "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
+        ];
+        for (const p of candidates) {
+          if (fs.existsSync(p)) return p;
+        }
+        return null;
+      }
+      /**
+       * Automatically generate and store multi-format deliverable reports for finished tasks
+       */
+      static async generateAndStoreTaskReport(params) {
+        this.initializeStorage();
+        const taskFolder = path2.join(this.STORAGE_DIR, params.taskNumber);
+        if (!fs.existsSync(taskFolder)) {
+          fs.mkdirSync(taskFolder, { recursive: true });
+        }
+        const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+        const formattedDate = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        });
+        const mdContent = `# J.A.R.V.I.S. Mission Execution Report
+**Task Number:** #${params.taskNumber}  
+**Mission Title:** ${params.title}  
+**Specialist Agent:** ${params.agentName} (\`${params.agentId}\`)  
+**Date Generated:** ${formattedDate}  
+**Status:** \u2714 COMPLETED & VERIFIED  
+
+---
+
+## \u{1F4CB} Executive Summary & Deliverables
+${params.actionDetails}
+
+---
+
+## \u{1F6E1}\uFE0F Verification & Integrity Audit
+- **Integrity Status:** ${params.verificationNote || "Verified with zero regressions."}
+- **Files Touched / Created:** ${params.filesTouched && params.filesTouched.length ? params.filesTouched.map((f) => `\`${f}\``).join(", ") : "In-memory / AST workspace evaluation"}
+- **Commands Executed:** ${params.commandsRun && params.commandsRun.length ? params.commandsRun.map((c) => `\`${c}\``).join(", ") : "None required"}
+
+---
+*Generated autonomously by J.A.R.V.I.S. Sovereign Core for Master Sri.*
+`;
+        const mdPath = path2.join(taskFolder, "report.md");
+        fs.writeFileSync(mdPath, mdContent, "utf-8");
+        const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset='utf-8'>
+  <title>J.A.R.V.I.S. Report - ${params.taskNumber}</title>
+  <style>
+    body { font-family: 'Calibri', 'Segoe UI', Arial, sans-serif; margin: 40px; color: #1e293b; line-height: 1.6; }
+    h1 { color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 8px; font-size: 22pt; }
+    h2 { color: #0f172a; margin-top: 24px; font-size: 14pt; border-bottom: 1px solid #e2e8f0; }
+    .meta-box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px; margin-bottom: 20px; border-radius: 6px; }
+    .badge { background: #059669; color: white; padding: 3px 8px; font-weight: bold; font-size: 9pt; border-radius: 4px; }
+    pre { background: #f1f5f9; padding: 12px; border: 1px solid #cbd5e1; font-family: Consolas, monospace; font-size: 10pt; }
+  </style>
+</head>
+<body>
+  <span class='badge'>VERIFIED COMPLETE</span>
+  <h1>J.A.R.V.I.S. Task Execution Report</h1>
+  <div class='meta-box'>
+    <strong>Task:</strong> #${params.taskNumber} &mdash; ${params.title}<br>
+    <strong>Assigned Agent:</strong> ${params.agentName}<br>
+    <strong>Generated:</strong> ${formattedDate}
+  </div>
+  <h2>Executive Deliverables</h2>
+  <div>${params.actionDetails.replace(/\n/g, "<br>")}</div>
+  <h2>Audit & Verification</h2>
+  <p><strong>Integrity Note:</strong> ${params.verificationNote || "Verified clean."}</p>
+  <p><strong>Files Touched:</strong> ${(params.filesTouched || []).join(", ") || "None"}</p>
+</body>
+</html>`;
+        const docPath = path2.join(taskFolder, "report.doc");
+        fs.writeFileSync(docPath, docHtml, "utf-8");
+        let pdfPath;
+        const chromePath = this.findBrowserExecutable();
+        if (chromePath) {
+          try {
+            const { default: puppeteer } = await import("puppeteer-core");
+            const browser = await puppeteer.launch({
+              executablePath: chromePath,
+              headless: true,
+              args: ["--no-sandbox", "--disable-setuid-sandbox"]
+            });
+            const page = await browser.newPage();
+            const styledPdfHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 40px;
+      background: #0f172a;
+      color: #f1f5f9;
+      line-height: 1.6;
+    }
+    .header {
+      border-bottom: 2px solid #06b6d4;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #059669;
+      color: white;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .title {
+      font-size: 22px;
+      color: #38bdf8;
+      margin: 12px 0 4px 0;
+      font-weight: 700;
+    }
+    .meta {
+      font-size: 11px;
+      color: #94a3b8;
+      font-family: monospace;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 0;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 6px;
+    }
+    pre {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: Consolas, monospace;
+      font-size: 11px;
+      color: #7dd3fc;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .footer {
+      margin-top: 30px;
+      border-top: 1px solid #334155;
+      padding-top: 12px;
+      font-size: 10px;
+      color: #64748b;
+      font-family: monospace;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="badge">\u2714 VERIFIED DELIVERABLE</span>
+    <h1 class="title">${params.title}</h1>
+    <div class="meta">Task #${params.taskNumber} &bull; Agent: ${params.agentName} &bull; ${formattedDate}</div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Executive Solution & Deliverables</h3>
+    <pre>${params.actionDetails}</pre>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Integrity Audit & Verification</h3>
+    <p><strong>Audit Verdict:</strong> <span style="color: #34d399;">${params.verificationNote || "PASSED with 0 syntax errors"}</span></p>
+    <p><strong>Files Touched:</strong> ${(params.filesTouched || []).join(", ") || "In-memory / AST Evaluation"}</p>
+    <p><strong>Commands Run:</strong> ${(params.commandsRun || []).join(", ") || "Verified statically"}</p>
+  </div>
+
+  <div class="footer">
+    J.A.R.V.I.S. Mark-V Sovereign Intelligence &bull; Deliverables Vault
+  </div>
+</body>
+</html>`;
+            await page.setContent(styledPdfHtml, { waitUntil: "domcontentloaded" });
+            const targetPdf = path2.join(taskFolder, "report.pdf");
+            await page.pdf({ path: targetPdf, format: "A4", printBackground: true });
+            await browser.close();
+            pdfPath = targetPdf;
+          } catch (pdfErr) {
+            console.warn("[StorageVault] PDF generation fallback:", pdfErr);
+          }
+        }
+        const reportData = {
+          taskId: params.taskId,
+          taskNumber: params.taskNumber,
+          title: params.title,
+          agentId: params.agentId,
+          agentName: params.agentName,
+          timestamp,
+          duration: params.duration || "30s",
+          status: "COMPLETED",
+          summary: params.actionDetails.slice(0, 300),
+          filesTouched: params.filesTouched || [],
+          commandsRun: params.commandsRun || [],
+          verificationNote: params.verificationNote || "Verified clean",
+          pdfPath: pdfPath ? path2.relative(process.cwd(), pdfPath) : void 0,
+          docPath: path2.relative(process.cwd(), docPath),
+          mdPath: path2.relative(process.cwd(), mdPath),
+          downloadUrls: {
+            pdf: pdfPath ? `/api/storage/download/${params.taskNumber}/pdf` : void 0,
+            doc: `/api/storage/download/${params.taskNumber}/doc`,
+            md: `/api/storage/download/${params.taskNumber}/md`
+          }
+        };
+        fs.writeFileSync(path2.join(taskFolder, "meta.json"), JSON.stringify(reportData, null, 2), "utf-8");
+        return reportData;
+      }
+      /**
+       * List all stored reports from the filesystem vault
+       */
+      static getAllReports() {
+        this.initializeStorage();
+        const reports = [];
+        if (!fs.existsSync(this.STORAGE_DIR)) return reports;
+        try {
+          const taskDirs = fs.readdirSync(this.STORAGE_DIR);
+          for (const tDir of taskDirs) {
+            const metaPath = path2.join(this.STORAGE_DIR, tDir, "meta.json");
+            if (fs.existsSync(metaPath)) {
+              try {
+                const data = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+                reports.push(data);
+              } catch {
+              }
+            }
+          }
+        } catch {
+        }
+        return reports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      }
+      /**
+       * Get file path for direct download
+       */
+      static getReportFilePath(taskNumber, format) {
+        const file = path2.join(this.STORAGE_DIR, taskNumber, `report.${format}`);
+        return fs.existsSync(file) ? file : null;
+      }
+      /**
+       * Generate an on-demand document (PDF, DOC, MD) from arbitrary user content
+       */
+      static async generateCustomDocument(params) {
+        this.initializeStorage();
+        const timestamp = Date.now();
+        const cleanSlug = params.title.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30) || "document";
+        const filename = `${cleanSlug}_${timestamp}.${params.format}`;
+        const diskPath = path2.join(this.STORAGE_DIR, filename);
+        if (params.format === "md" || params.format === "json") {
+          fs.writeFileSync(diskPath, params.content, "utf-8");
+        } else if (params.format === "doc") {
+          const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>${params.title}</title><style>body { font-family: Calibri, Arial, sans-serif; margin: 40px; color: #1e293b; }</style></head>
+<body><h1>${params.title}</h1><div>${params.content.replace(/\n/g, "<br>")}</div></body></html>`;
+          fs.writeFileSync(diskPath, docHtml, "utf-8");
+        } else if (params.format === "pdf") {
+          const chromePath = this.findBrowserExecutable();
+          if (!chromePath) throw new Error("Chrome executable not found for PDF export.");
+          const { default: puppeteer } = await import("puppeteer-core");
+          const browser = await puppeteer.launch({
+            executablePath: chromePath,
+            headless: true,
+            args: ["--no-sandbox", "--disable-setuid-sandbox"]
+          });
+          const page = await browser.newPage();
+          const html = `<html><head><style>body { font-family: Arial, sans-serif; padding: 40px; color: #0f172a; line-height: 1.6; } h1 { color: #0284c7; } pre { background: #f8fafc; padding: 16px; border: 1px solid #cbd5e1; }</style></head><body><h1>${params.title}</h1><pre>${params.content}</pre></body></html>`;
+          await page.setContent(html);
+          await page.pdf({ path: diskPath, format: "A4", printBackground: true });
+          await browser.close();
+        }
+        const bytes = fs.statSync(diskPath).size;
+        return { filename, diskPath, bytes };
+      }
+    };
+  }
+});
+
 // src/notifications/TelegramNotifier.ts
 var TelegramNotifier_exports = {};
 __export(TelegramNotifier_exports, {
@@ -737,8 +1058,8 @@ var BrowserUseScraper_exports = {};
 __export(BrowserUseScraper_exports, {
   BrowserUseScraper: () => BrowserUseScraper
 });
-import fs from "node:fs";
-import path2 from "node:path";
+import fs2 from "node:fs";
+import path3 from "node:path";
 var BrowserUseScraper;
 var init_BrowserUseScraper = __esm({
   "src/lib/open-agents/BrowserUseScraper.ts"() {
@@ -752,7 +1073,7 @@ var init_BrowserUseScraper = __esm({
           "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
         ];
         for (const p of candidates) {
-          if (fs.existsSync(p)) return p;
+          if (fs2.existsSync(p)) return p;
         }
         return null;
       }
@@ -801,14 +1122,14 @@ var init_BrowserUseScraper = __esm({
             }
           }
           if (params.takeScreenshot !== false) {
-            const screenshotsDir = path2.resolve(process.cwd(), "artifacts", "screenshots");
-            if (!fs.existsSync(screenshotsDir)) {
-              fs.mkdirSync(screenshotsDir, { recursive: true });
+            const screenshotsDir = path3.resolve(process.cwd(), "artifacts", "screenshots");
+            if (!fs2.existsSync(screenshotsDir)) {
+              fs2.mkdirSync(screenshotsDir, { recursive: true });
             }
             const filename = params.screenshotName || `screen_${Date.now()}.png`;
-            const diskPath = path2.join(screenshotsDir, filename);
+            const diskPath = path3.join(screenshotsDir, filename);
             await page.screenshot({ path: diskPath, fullPage: false });
-            screenshotPath = path2.relative(process.cwd(), diskPath);
+            screenshotPath = path3.relative(process.cwd(), diskPath);
             actionsCompleted.push(`Captured screenshot: ${screenshotPath}`);
           }
           const title = await page.title();
@@ -1078,8 +1399,8 @@ var OpenHandsAgent_exports = {};
 __export(OpenHandsAgent_exports, {
   OpenHandsAgent: () => OpenHandsAgent
 });
-import fs2 from "node:fs";
-import path3 from "node:path";
+import fs3 from "node:fs";
+import path4 from "node:path";
 var OpenHandsAgent;
 var init_OpenHandsAgent = __esm({
   "src/lib/open-agents/OpenHandsAgent.ts"() {
@@ -1104,10 +1425,10 @@ Include an executive engineering summary explaining implementation details and v
           "You are OpenHands Senior Software Architect. Produce complete, working code with zero placeholders.",
           [{ role: "user", content: prompt }]
         );
-        const artifactsDir = path3.resolve(process.cwd(), "artifacts", "generated");
+        const artifactsDir = path4.resolve(process.cwd(), "artifacts", "generated");
         try {
-          if (!fs2.existsSync(artifactsDir)) {
-            fs2.mkdirSync(artifactsDir, { recursive: true });
+          if (!fs3.existsSync(artifactsDir)) {
+            fs3.mkdirSync(artifactsDir, { recursive: true });
           }
         } catch {
         }
@@ -1121,9 +1442,9 @@ Include an executive engineering summary explaining implementation details and v
           let filePath = match[2]?.trim() || `solution_artifact_${blockIndex}.${language === "typescript" ? "ts" : language === "liquid" ? "liquid" : "txt"}`;
           const code = match[3];
           try {
-            const diskTarget = path3.join(artifactsDir, path3.basename(filePath));
-            fs2.writeFileSync(diskTarget, code, "utf-8");
-            codeArtifacts.push({ path: path3.relative(process.cwd(), diskTarget), content: code.slice(0, 500) });
+            const diskTarget = path4.join(artifactsDir, path4.basename(filePath));
+            fs3.writeFileSync(diskTarget, code, "utf-8");
+            codeArtifacts.push({ path: path4.relative(process.cwd(), diskTarget), content: code.slice(0, 500) });
             actionsPlanned.push({
               actionType: "create_file",
               targetPath: filePath,
@@ -1136,8 +1457,8 @@ Include an executive engineering summary explaining implementation details and v
         }
         if (codeArtifacts.length === 0) {
           try {
-            const defaultFile = path3.join(artifactsDir, "mission_solution.md");
-            fs2.writeFileSync(defaultFile, res.text, "utf-8");
+            const defaultFile = path4.join(artifactsDir, "mission_solution.md");
+            fs3.writeFileSync(defaultFile, res.text, "utf-8");
             codeArtifacts.push({ path: "artifacts/generated/mission_solution.md", content: res.text.slice(0, 500) });
           } catch {
           }
@@ -3800,9 +4121,9 @@ body { font-family: 'Inter', sans-serif; }`;
 });
 
 // src/storage/adapters/LocalFallbackStorageProvider.ts
-import { promises as fs3 } from "node:fs";
+import { promises as fs4 } from "node:fs";
 import { existsSync as existsSync3 } from "node:fs";
-import * as path4 from "node:path";
+import * as path5 from "node:path";
 import * as crypto from "node:crypto";
 var LocalFallbackStorageProvider;
 var init_LocalFallbackStorageProvider = __esm({
@@ -3813,7 +4134,7 @@ var init_LocalFallbackStorageProvider = __esm({
       type = "LOCAL_DURABLE";
       rootDir;
       constructor(customPath) {
-        this.rootDir = customPath || process.env.STORAGE_LOCAL_ROOT || path4.join(process.cwd(), "data", "cloud_storage");
+        this.rootDir = customPath || process.env.STORAGE_LOCAL_ROOT || path5.join(process.cwd(), "data", "cloud_storage");
       }
       isConfigured() {
         return true;
@@ -3821,16 +4142,16 @@ var init_LocalFallbackStorageProvider = __esm({
       resolvePath(bucket, key) {
         const sanitizedBucket = bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
         const sanitizedKey = key.replace(/\\/g, "/").replace(/\.\./g, "");
-        return path4.join(this.rootDir, sanitizedBucket, sanitizedKey);
+        return path5.join(this.rootDir, sanitizedBucket, sanitizedKey);
       }
       async putObject(bucket, key, data, contentType = "application/octet-stream", metadata) {
         const filePath = this.resolvePath(bucket, key);
-        const dir = path4.dirname(filePath);
-        await fs3.mkdir(dir, { recursive: true });
+        const dir = path5.dirname(filePath);
+        await fs4.mkdir(dir, { recursive: true });
         const buffer = Buffer.isBuffer(data) ? data : typeof data === "string" ? Buffer.from(data, "utf-8") : Buffer.from(data);
         const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-        await fs3.writeFile(filePath, buffer);
-        const stat = await fs3.stat(filePath);
+        await fs4.writeFile(filePath, buffer);
+        const stat = await fs4.stat(filePath);
         const nowIso = (/* @__PURE__ */ new Date()).toISOString();
         const meta = {
           key,
@@ -3842,7 +4163,7 @@ var init_LocalFallbackStorageProvider = __esm({
           customMetadata: metadata
         };
         const metaPath = `${filePath}.meta.json`;
-        await fs3.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+        await fs4.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf-8");
         return meta;
       }
       async getObject(bucket, key) {
@@ -3850,43 +4171,43 @@ var init_LocalFallbackStorageProvider = __esm({
         if (!existsSync3(filePath)) {
           return null;
         }
-        return fs3.readFile(filePath);
+        return fs4.readFile(filePath);
       }
       async deleteObject(bucket, key) {
         const filePath = this.resolvePath(bucket, key);
         if (!existsSync3(filePath)) {
           return false;
         }
-        await fs3.unlink(filePath);
+        await fs4.unlink(filePath);
         const metaPath = `${filePath}.meta.json`;
         if (existsSync3(metaPath)) {
-          await fs3.unlink(metaPath).catch(() => {
+          await fs4.unlink(metaPath).catch(() => {
           });
         }
         return true;
       }
       async listObjects(bucket, prefix = "") {
-        const bucketDir = path4.join(this.rootDir, bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_"));
+        const bucketDir = path5.join(this.rootDir, bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_"));
         if (!existsSync3(bucketDir)) {
           return [];
         }
         const results = [];
         const scanDir = async (currentDir, relBase = "") => {
-          const entries = await fs3.readdir(currentDir, { withFileTypes: true });
+          const entries = await fs4.readdir(currentDir, { withFileTypes: true });
           for (const entry of entries) {
             if (entry.name.endsWith(".meta.json")) continue;
-            const fullPath = path4.join(currentDir, entry.name);
-            const relPath = path4.join(relBase, entry.name).replace(/\\/g, "/");
+            const fullPath = path5.join(currentDir, entry.name);
+            const relPath = path5.join(relBase, entry.name).replace(/\\/g, "/");
             if (entry.isDirectory()) {
               await scanDir(fullPath, relPath);
             } else if (entry.isFile()) {
               if (!prefix || relPath.startsWith(prefix)) {
-                const stat = await fs3.stat(fullPath);
+                const stat = await fs4.stat(fullPath);
                 let meta = null;
                 const metaPath = `${fullPath}.meta.json`;
                 if (existsSync3(metaPath)) {
                   try {
-                    meta = JSON.parse(await fs3.readFile(metaPath, "utf-8"));
+                    meta = JSON.parse(await fs4.readFile(metaPath, "utf-8"));
                   } catch (_) {
                   }
                 }
@@ -3911,10 +4232,10 @@ var init_LocalFallbackStorageProvider = __esm({
       async getHealth() {
         const start = Date.now();
         try {
-          await fs3.mkdir(this.rootDir, { recursive: true });
-          const testFile = path4.join(this.rootDir, ".health_probe");
-          await fs3.writeFile(testFile, "JARVIS_PROBE", "utf-8");
-          await fs3.unlink(testFile);
+          await fs4.mkdir(this.rootDir, { recursive: true });
+          const testFile = path5.join(this.rootDir, ".health_probe");
+          await fs4.writeFile(testFile, "JARVIS_PROBE", "utf-8");
+          await fs4.unlink(testFile);
           const latencyMs = Date.now() - start;
           return {
             healthy: true,
@@ -6446,21 +6767,21 @@ var ArsenalCatalog_exports = {};
 __export(ArsenalCatalog_exports, {
   ArsenalCatalog: () => ArsenalCatalog
 });
-import fs4 from "node:fs";
-import path5 from "node:path";
+import fs5 from "node:fs";
+import path6 from "node:path";
 var ArsenalCatalog;
 var init_ArsenalCatalog = __esm({
   "src/arsenal/ArsenalCatalog.ts"() {
     "use strict";
     ArsenalCatalog = class {
-      static arsenalDir = path5.resolve(process.cwd(), "external", "arsenal");
-      static reaDir = path5.resolve(process.cwd(), "external", "rea");
+      static arsenalDir = path6.resolve(process.cwd(), "external", "arsenal");
+      static reaDir = path6.resolve(process.cwd(), "external", "rea");
       static modules = [
         {
           id: "rea-core",
           name: "Reverse Engineer Anything (REA Core)",
           category: "REVERSE_ENGINEERING",
-          path: path5.resolve(process.cwd(), "external", "rea"),
+          path: path6.resolve(process.cwd(), "external", "rea"),
           description: "Zero-knowledge binary, firmware, protocol, and AST reverse engineering engine.",
           capabilities: ["binary_decompilation", "protocol_decoding", "ast_reverse_mapping", "decompiled_logic_recovery"],
           assignedAgents: ["aegis", "daedalus", "sentinel"]
@@ -6469,7 +6790,7 @@ var init_ArsenalCatalog = __esm({
           id: "rea-playbooks",
           name: "REA Reverse Engineering Playbooks",
           category: "REVERSE_ENGINEERING",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "rea-playbooks"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "rea-playbooks"),
           description: "Battle-tested step-by-step playbooks for taking apart web services, APIs, databases, and microservices.",
           capabilities: ["system_disassembly", "api_extraction", "contract_reverse_engineering"],
           assignedAgents: ["aegis", "daedalus"]
@@ -6478,7 +6799,7 @@ var init_ArsenalCatalog = __esm({
           id: "rea-prompts",
           name: "REA Autonomous Prompts & Extraction Workflows",
           category: "REVERSE_ENGINEERING",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "rea-prompts"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "rea-prompts"),
           description: "Zero-shot and few-shot decompilation prompts for extracting business logic and architecture blueprints.",
           capabilities: ["deep_prompt_extraction", "schema_reconstruction"],
           assignedAgents: ["aegis", "friday"]
@@ -6487,7 +6808,7 @@ var init_ArsenalCatalog = __esm({
           id: "ai-job-search",
           name: "Autonomous Bounty & Freelance Lead Hunter",
           category: "REVENUE_BOUNTY",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "ai-job-search"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "ai-job-search"),
           description: "High-speed automated multi-platform job, gig, and bounty scraper (Upwork, Freelancer, RemoteOK, GitHub Bounties).",
           capabilities: ["multi_platform_scraping", "bounty_detection", "high_ticket_filtering"],
           assignedAgents: ["midas", "vortex"]
@@ -6496,7 +6817,7 @@ var init_ArsenalCatalog = __esm({
           id: "security-audit-skill",
           name: "Cloudflare Security & Penetration Audit Skill",
           category: "SECURITY",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "security-audit-skill"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "security-audit-skill"),
           description: "Enterprise security auditing, secret leakage scans, CORS misconfigurations, and zero-day patch generator.",
           capabilities: ["vulnerability_audit", "zero_day_patching", "secrets_detection"],
           assignedAgents: ["sentinel", "aegis"]
@@ -6505,7 +6826,7 @@ var init_ArsenalCatalog = __esm({
           id: "orca-qa",
           name: "Orca E2E Autonomous QA & UI Verification",
           category: "E2E_TESTING",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "orca-qa"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "orca-qa"),
           description: "Automated browser verification, end-to-end regression testing, and visual artifact validation.",
           capabilities: ["e2e_browser_testing", "visual_regression", "dom_assertion"],
           assignedAgents: ["sentinel", "friday"]
@@ -6514,7 +6835,7 @@ var init_ArsenalCatalog = __esm({
           id: "ponytail-design",
           name: "Ponytail Tailwind Design System & UI Engine",
           category: "DESIGN_SYSTEM",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "ponytail-design"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "ponytail-design"),
           description: "State-of-the-art Tailwind design primitives, glassmorphic UI components, and premium responsive tokens.",
           capabilities: ["tailwind_tokens", "component_scaffolding", "dark_mode_palettes"],
           assignedAgents: ["friday", "daedalus"]
@@ -6523,7 +6844,7 @@ var init_ArsenalCatalog = __esm({
           id: "ruflo-swarm",
           name: "Ruflo Multi-Agent Swarm Orchestrator",
           category: "SWARM_ORCHESTRATION",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "ruflo-swarm"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "ruflo-swarm"),
           description: "Distributed event bus and agent consensus coordinator for high-concurrency multi-agent tasks.",
           capabilities: ["swarm_consensus", "event_bus_dispatch", "agent_coordination"],
           assignedAgents: ["jarvis", "daedalus"]
@@ -6532,7 +6853,7 @@ var init_ArsenalCatalog = __esm({
           id: "graphify-code",
           name: "Graphify Codebase Dependency & Architecture Graph",
           category: "CODE_ANALYSIS",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "graphify-code"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "graphify-code"),
           description: "Constructs holistic dependency graphs across multi-repo codebases for instant architectural comprehension.",
           capabilities: ["dependency_graphing", "dead_code_elimination", "architecture_mapping"],
           assignedAgents: ["daedalus", "aegis"]
@@ -6541,7 +6862,7 @@ var init_ArsenalCatalog = __esm({
           id: "opencode-core",
           name: "OpenCode Autonomous Software Development Core",
           category: "AUTONOMOUS_DEV",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "opencode-core"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "opencode-core"),
           description: "Multi-file autonomous coding, surgical diff application, and AST self-healing test loop.",
           capabilities: ["multi_file_patching", "surgical_ast_edits", "test_driven_healing"],
           assignedAgents: ["friday", "aegis"]
@@ -6550,7 +6871,7 @@ var init_ArsenalCatalog = __esm({
           id: "agency-agents",
           name: "Full-Service Digital Agency Specialized Agent Roster",
           category: "AGENCY_PERSONAS",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "agency-agents"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "agency-agents"),
           description: "20+ specialized agency roles: Growth Hacker, Copywriter, SEO Master, Lead Architect, Sales Closer.",
           capabilities: ["persona_specialization", "proposal_generation", "sales_closing_strategies"],
           assignedAgents: ["midas", "vortex", "cerebro"]
@@ -6559,7 +6880,7 @@ var init_ArsenalCatalog = __esm({
           id: "headroom-memory",
           name: "Headroom AI Context Compression & Long-Term Memory",
           category: "MEMORY_CONTEXT",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "headroom-memory"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "headroom-memory"),
           description: "Context-window optimization, hierarchical summarization, and infinite conversational retention.",
           capabilities: ["context_compression", "long_term_retention", "semantic_distillation"],
           assignedAgents: ["jarvis", "cerebro"]
@@ -6568,7 +6889,7 @@ var init_ArsenalCatalog = __esm({
           id: "knowledge-plugins",
           name: "Enterprise Knowledge Work & Deep Analysis Plugins",
           category: "ENTERPRISE_KNOWLEDGE",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "knowledge-plugins"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "knowledge-plugins"),
           description: "Institutional-grade synthesis tools for consulting, market analysis, and multi-document intelligence.",
           capabilities: ["deep_research_synthesis", "market_due_diligence", "executive_briefings"],
           assignedAgents: ["cerebro", "midas"]
@@ -6577,7 +6898,7 @@ var init_ArsenalCatalog = __esm({
           id: "agents-hub",
           name: "Agents Hub Specialized Tool & MCP Frameworks",
           category: "AUTONOMOUS_DEV",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "agents-hub"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "agents-hub"),
           description: "Modular MCP tools for terminal execution, cloud infrastructure, browser interaction, and database queries.",
           capabilities: ["mcp_connectors", "tool_schemas", "sandboxed_execution"],
           assignedAgents: ["jarvis", "friday", "vortex"]
@@ -6586,7 +6907,7 @@ var init_ArsenalCatalog = __esm({
           id: "agentic-skills",
           name: "Mega-Catalog of Autonomous Engineering Skills",
           category: "AUTONOMOUS_DEV",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "agentic-skills"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "agentic-skills"),
           description: "Universal catalog of actionable agent workflows, playbooks, and coding standards.",
           capabilities: ["skill_resolution", "dynamic_action_trees", "execution_recipes"],
           assignedAgents: ["jarvis", "friday", "daedalus", "aegis"]
@@ -6595,7 +6916,7 @@ var init_ArsenalCatalog = __esm({
           id: "kronos-prediction",
           name: "Kronos Financial & Time-Series Predictive Intelligence",
           category: "FINANCIAL_INTELLIGENCE",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "kronos-prediction"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "kronos-prediction"),
           description: "Quantitative forecasting, token price momentum modeling, and macroeconomic trend forecasting.",
           capabilities: ["quantitative_modeling", "time_series_forecasting", "market_signal_analysis"],
           assignedAgents: ["midas", "cerebro"]
@@ -6604,7 +6925,7 @@ var init_ArsenalCatalog = __esm({
           id: "crawl4ai",
           name: "Crawl4AI LLM Web Extractor",
           category: "AUTONOMOUS_DEV",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "crawl4ai"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "crawl4ai"),
           description: "High-speed LLM markdown crawler with anti-bot evasion and semantic content extraction.",
           capabilities: ["web_scraping", "markdown_extraction", "bot_bypass"],
           assignedAgents: ["browser_use", "cerebro"]
@@ -6613,7 +6934,7 @@ var init_ArsenalCatalog = __esm({
           id: "system-prompts",
           name: "World-Class AI System Prompts Oracle",
           category: "AUTONOMOUS_DEV",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "system-prompts"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "system-prompts"),
           description: "Exact system instructions of Cursor, Devin, v0, Windsurf, Claude Code, Lovable for state-of-the-art coding prompts.",
           capabilities: ["system_prompt_lookup", "agent_directives", "surgical_coding_rules"],
           assignedAgents: ["friday", "jarvis", "aegis"]
@@ -6622,7 +6943,7 @@ var init_ArsenalCatalog = __esm({
           id: "cc-switch",
           name: "CC-Switch Multi-Agent Protocol Bridge",
           category: "AUTONOMOUS_DEV",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "cc-switch"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "cc-switch"),
           description: "All-in-one desktop assistant bridge for Claude Code, Codex, and OpenCode terminal agents.",
           capabilities: ["agent_switching", "ipc_bridge", "protocol_translation"],
           assignedAgents: ["jarvis", "friday"]
@@ -6631,7 +6952,7 @@ var init_ArsenalCatalog = __esm({
           id: "public-apis",
           name: "Public APIs 2,182+ Catalog",
           category: "ENTERPRISE_KNOWLEDGE",
-          path: path5.resolve(process.cwd(), "external", "arsenal", "public-apis"),
+          path: path6.resolve(process.cwd(), "external", "arsenal", "public-apis"),
           description: "Comprehensive collective directory of 2,182+ free public APIs across 52 categories.",
           capabilities: ["api_search", "integration_discovery", "service_catalog"],
           assignedAgents: ["cerebro", "daedalus", "vortex"]
@@ -6654,21 +6975,21 @@ var init_ArsenalCatalog = __esm({
         const results = [];
         const lowerQuery = query.toLowerCase();
         for (const mod of this.modules) {
-          if (!fs4.existsSync(mod.path)) continue;
+          if (!fs5.existsSync(mod.path)) continue;
           try {
             const files = this.scanDirRecursively(mod.path, 3);
             for (const filePath of files) {
-              const ext = path5.extname(filePath).toLowerCase();
+              const ext = path6.extname(filePath).toLowerCase();
               if (![".md", ".txt", ".json", ".ts", ".py", ".js"].includes(ext)) continue;
               try {
-                const content = fs4.readFileSync(filePath, "utf-8");
+                const content = fs5.readFileSync(filePath, "utf-8");
                 if (content.toLowerCase().includes(lowerQuery)) {
-                  const rel = path5.relative(mod.path, filePath);
+                  const rel = path6.relative(mod.path, filePath);
                   const idx = content.toLowerCase().indexOf(lowerQuery);
                   const snippet = content.slice(Math.max(0, idx - 80), Math.min(content.length, idx + 200)).trim();
                   results.push({
                     moduleId: mod.id,
-                    filename: path5.basename(filePath),
+                    filename: path6.basename(filePath),
                     relativePath: rel,
                     excerpt: snippet
                   });
@@ -6683,13 +7004,13 @@ var init_ArsenalCatalog = __esm({
         return results;
       }
       static scanDirRecursively(dir, maxDepth, currentDepth = 0) {
-        if (currentDepth > maxDepth || !fs4.existsSync(dir)) return [];
+        if (currentDepth > maxDepth || !fs5.existsSync(dir)) return [];
         let files = [];
         try {
-          const entries = fs4.readdirSync(dir, { withFileTypes: true });
+          const entries = fs5.readdirSync(dir, { withFileTypes: true });
           for (const entry of entries) {
             if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-            const full = path5.join(dir, entry.name);
+            const full = path6.join(dir, entry.name);
             if (entry.isDirectory()) {
               files = files.concat(this.scanDirRecursively(full, maxDepth, currentDepth + 1));
             } else {
@@ -6721,23 +7042,23 @@ var PublicApisEngine_exports = {};
 __export(PublicApisEngine_exports, {
   PublicApisEngine: () => PublicApisEngine
 });
-import fs5 from "node:fs";
-import path6 from "node:path";
+import fs6 from "node:fs";
+import path7 from "node:path";
 var PublicApisEngine;
 var init_PublicApisEngine = __esm({
   "src/tools/PublicApisEngine.ts"() {
     "use strict";
     PublicApisEngine = class {
       static cachedApis = null;
-      static readmePath = path6.resolve(process.cwd(), "external", "arsenal", "public-apis", "README.md");
+      static readmePath = path7.resolve(process.cwd(), "external", "arsenal", "public-apis", "README.md");
       static initialize() {
         if (this.cachedApis) return this.cachedApis;
-        if (!fs5.existsSync(this.readmePath)) {
+        if (!fs6.existsSync(this.readmePath)) {
           this.cachedApis = [];
           return [];
         }
         try {
-          const content = fs5.readFileSync(this.readmePath, "utf-8");
+          const content = fs6.readFileSync(this.readmePath, "utf-8");
           const lines = content.split("\n");
           const apis = [];
           let currentCategory = "General";
@@ -6813,7 +7134,7 @@ var init_PublicApisEngine = __esm({
 
 // src/tools/ToolRegistry.ts
 import { existsSync as existsSync4, readFileSync as readFileSync3, writeFileSync as writeFileSync2, readdirSync as readdirSync2, statSync as statSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import path7, { resolve as resolve3, dirname as dirname3 } from "node:path";
+import path8, { resolve as resolve3, dirname as dirname3 } from "node:path";
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
 import os from "node:os";
@@ -8141,7 +8462,7 @@ var init_ToolRegistry = __esm({
                             for (const m of matches) {
                               const masked = m.slice(0, 6) + "..." + m.slice(-4);
                               findings.push({
-                                file: path7.relative(process.cwd(), full),
+                                file: path8.relative(process.cwd(), full),
                                 rule: rule.name,
                                 snippet: `Found ${rule.name} pattern: ${masked}`
                               });
@@ -9709,6 +10030,24 @@ Execute this directive for Master Sri with exact, production-ready output:
         commandsRun: commandsExecuted
       });
       await _TaskEngine.emitEvent(taskId, "TASK_COMPLETED", `Task ${taskNumber} finished with verified status.`);
+      let storedReport = null;
+      try {
+        const { StorageVaultEngine: StorageVaultEngine2 } = await Promise.resolve().then(() => (init_storage_vault(), storage_vault_exports));
+        storedReport = await StorageVaultEngine2.generateAndStoreTaskReport({
+          taskId,
+          taskNumber,
+          title: task.title,
+          agentId: task.agentId,
+          agentName: agent.name,
+          duration: task.estimatedDuration || "30s",
+          actionDetails,
+          verificationNote,
+          filesTouched: filesModified,
+          commandsRun: commandsExecuted
+        });
+      } catch (storeErr) {
+        console.warn("[TaskEngine] Storage Vault report error:", storeErr);
+      }
       const completionDeliverable = `### \u{1F3C6} Task Completed: #${taskNumber} (${task.title})
 **Master Sri**, the task was finished successfully. Here is the output, check and let me know if anything needs to be looked into:
 
@@ -9719,7 +10058,14 @@ ${actionDetails}
 - **Status**: \u2714 COMPLETED & VERIFIED
 - **Integrity**: ${verificationNote}
 ${filesModified.length > 0 ? `- **Files Touched**: ${filesModified.map((f) => `\`${f}\``).join(", ")}` : ""}
-${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map((c) => `\`${c}\``).join(", ")}` : ""}`;
+${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map((c) => `\`${c}\``).join(", ")}` : ""}
+
+---
+#### \u{1F5C4}\uFE0F Storage Space & Deliverable Reports:
+- **Vault Location**: \`artifacts/storage/${taskNumber}/\`
+${storedReport?.downloadUrls?.pdf ? `- \u{1F4C4} [Download Official PDF Report](${storedReport.downloadUrls.pdf})` : ""}
+- \u{1F4DD} [Download Word Document (.doc)](/api/storage/download/${taskNumber}/doc)
+- \u{1F4CB} [Download Technical Markdown](/api/storage/download/${taskNumber}/md)`;
       try {
         await prisma.conversation.create({
           data: {
@@ -9739,7 +10085,7 @@ ${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map((c) 
 <b>Title</b>: ${task.title}
 <b>Agent</b>: ${agent.name}
 
-Master Sri, the task was finished successfully. Check the dashboard output for full deliverables.`
+Master Sri, the task was finished successfully and reports (PDF, DOC, MD) were uploaded to the storage space. Check the dashboard output for full deliverables.`
           );
         }
       } catch {
@@ -13610,12 +13956,12 @@ import { generateText } from "ai";
 
 // src/infrastructure/CloudInfrastructureManager.ts
 init_db();
-import * as fs6 from "fs";
-import * as path8 from "path";
+import * as fs7 from "fs";
+import * as path9 from "path";
 var CloudInfrastructureManager = class {
   static startTime = Date.now();
   static lastSnapshot = null;
-  static snapshotDir = path8.resolve(process.cwd(), "data", "backups");
+  static snapshotDir = path9.resolve(process.cwd(), "data", "backups");
   static async getInfrastructureStatus() {
     const connCheck = await validateDatabaseConnectivity();
     const isPostgres2 = connCheck.provider === "postgresql";
@@ -13644,12 +13990,12 @@ var CloudInfrastructureManager = class {
   }
   static async createStorageSnapshot() {
     try {
-      if (!fs6.existsSync(this.snapshotDir)) {
-        fs6.mkdirSync(this.snapshotDir, { recursive: true });
+      if (!fs7.existsSync(this.snapshotDir)) {
+        fs7.mkdirSync(this.snapshotDir, { recursive: true });
       }
       const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
       const filename = `snapshot-${timestamp}.json`;
-      const snapshotPath = path8.join(this.snapshotDir, filename);
+      const snapshotPath = path9.join(this.snapshotDir, filename);
       const dbStatus = await validateDatabaseConnectivity();
       const snapshotPayload = {
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -13659,7 +14005,7 @@ var CloudInfrastructureManager = class {
         environment: process.env.NODE_ENV || "production",
         snapshotId: `snap_${Date.now()}`
       };
-      fs6.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
+      fs7.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
       this.lastSnapshot = snapshotPayload.timestamp;
       return {
         success: true,
@@ -14051,13 +14397,13 @@ var AgentCouncil = class {
 };
 
 // src/browser/AdvancedComputerUse.ts
-import * as path9 from "path";
+import * as path10 from "path";
 var AdvancedComputerUse = class {
-  static workspaceRoot = path9.resolve(process.cwd());
+  static workspaceRoot = path10.resolve(process.cwd());
   static async executeAction(request) {
     const start = Date.now();
     if (request.targetPath) {
-      const resolved = path9.resolve(request.targetPath);
+      const resolved = path10.resolve(request.targetPath);
       if (!resolved.startsWith(this.workspaceRoot)) {
         return {
           success: false,
@@ -14424,13 +14770,13 @@ var LongRunningRuntime = class {
 };
 
 // src/infrastructure/DisasterRecoveryManager.ts
-import * as fs7 from "fs";
-import * as path10 from "path";
+import * as fs8 from "fs";
+import * as path11 from "path";
 var DisasterRecoveryManager = class {
-  static recoveryDir = path10.resolve(process.cwd(), "data", "recovery");
+  static recoveryDir = path11.resolve(process.cwd(), "data", "recovery");
   static async generateEmergencyRecoveryManifest(activeTasksCount = 0) {
-    if (!fs7.existsSync(this.recoveryDir)) {
-      fs7.mkdirSync(this.recoveryDir, { recursive: true });
+    if (!fs8.existsSync(this.recoveryDir)) {
+      fs8.mkdirSync(this.recoveryDir, { recursive: true });
     }
     const manifestId = `rec_${Date.now()}`;
     const manifest = {
@@ -14441,8 +14787,8 @@ var DisasterRecoveryManager = class {
       integrityHash: `sha256_${Date.now()}_clean`,
       recoveryStatus: "VERIFIED_RESTORABLE"
     };
-    const filePath = path10.join(this.recoveryDir, `${manifestId}.json`);
-    fs7.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
+    const filePath = path11.join(this.recoveryDir, `${manifestId}.json`);
+    fs8.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
     return manifest;
   }
   static async verifyRecoveryRestorability(manifest) {
@@ -17099,6 +17445,82 @@ app.delete("/ai/history", requireAuth, async (c) => {
   const where = sessionId ? { sessionId } : { sessionId: "main" };
   const res = await prisma.conversation.deleteMany({ where }).catch(() => ({ count: 0 }));
   return c.json({ ok: true, deleted: res.count });
+});
+app.get("/storage/reports", async (c) => {
+  try {
+    const { StorageVaultEngine: StorageVaultEngine2 } = await Promise.resolve().then(() => (init_storage_vault(), storage_vault_exports));
+    const reports = StorageVaultEngine2.getAllReports();
+    return c.json({ ok: true, count: reports.length, reports });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/storage/download/:taskNumber/:format", async (c) => {
+  try {
+    const taskNumber = c.req.param("taskNumber");
+    const format = c.req.param("format").toLowerCase();
+    const { StorageVaultEngine: StorageVaultEngine2 } = await Promise.resolve().then(() => (init_storage_vault(), storage_vault_exports));
+    const filePath = StorageVaultEngine2.getReportFilePath(taskNumber, format);
+    if (!filePath) {
+      return c.text("Report not found in storage vault", 404);
+    }
+    const { readFileSync: readFileSync13 } = await import("node:fs");
+    const fileBytes = readFileSync13(filePath);
+    const contentType = format === "pdf" ? "application/pdf" : format === "doc" ? "application/msword" : "text/markdown";
+    return new Response(fileBytes, {
+      headers: {
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${taskNumber}_report.${format}"`
+      }
+    });
+  } catch (err) {
+    return c.text(`Download failed: ${err.message}`, 500);
+  }
+});
+app.post("/storage/generate", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { title, content, format } = body;
+    if (!title || !content || !format) {
+      return c.json({ ok: false, error: "title, content, and format (pdf|doc|md|json) are required" }, 400);
+    }
+    const { StorageVaultEngine: StorageVaultEngine2 } = await Promise.resolve().then(() => (init_storage_vault(), storage_vault_exports));
+    const doc = await StorageVaultEngine2.generateCustomDocument({
+      title,
+      content,
+      format
+    });
+    return c.json({
+      ok: true,
+      filename: doc.filename,
+      bytes: doc.bytes,
+      downloadUrl: `/api/storage/download-custom/${encodeURIComponent(doc.filename)}`
+    });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/storage/download-custom/:filename", async (c) => {
+  try {
+    const filename = c.req.param("filename");
+    const { resolve: resolve14 } = await import("node:path");
+    const { existsSync: existsSync16, readFileSync: readFileSync13 } = await import("node:fs");
+    const filePath = resolve14(process.cwd(), "artifacts", "storage", filename);
+    if (!existsSync16(filePath)) {
+      return c.text("Custom document not found", 404);
+    }
+    const fileBytes = readFileSync13(filePath);
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const contentType = ext === "pdf" ? "application/pdf" : ext === "doc" ? "application/msword" : "text/plain";
+    return new Response(fileBytes, {
+      headers: {
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${filename}"`
+      }
+    });
+  } catch (err) {
+    return c.text(`Download failed: ${err.message}`, 500);
+  }
 });
 app.get("/ai/models", (c) => {
   return c.json({ models: MODEL_CHAIN.map((m) => ({

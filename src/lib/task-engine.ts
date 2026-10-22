@@ -527,6 +527,26 @@ export class TaskEngine {
       });
       await TaskEngine.emitEvent(taskId, 'TASK_COMPLETED', `Task ${taskNumber} finished with verified status.`);
 
+      // Generate multi-format report (PDF, DOC, MD) and store in Storage Space
+      let storedReport: any = null;
+      try {
+        const { StorageVaultEngine } = await import('./storage-vault');
+        storedReport = await StorageVaultEngine.generateAndStoreTaskReport({
+          taskId,
+          taskNumber,
+          title: task.title,
+          agentId: task.agentId,
+          agentName: agent.name,
+          duration: task.estimatedDuration || '30s',
+          actionDetails,
+          verificationNote,
+          filesTouched: filesModified,
+          commandsRun: commandsExecuted,
+        });
+      } catch (storeErr) {
+        console.warn('[TaskEngine] Storage Vault report error:', storeErr);
+      }
+
       // Persist completion deliverable to conversation
       const completionDeliverable = `### 🏆 Task Completed: #${taskNumber} (${task.title})
 **Master Sri**, the task was finished successfully. Here is the output, check and let me know if anything needs to be looked into:
@@ -538,7 +558,14 @@ ${actionDetails}
 - **Status**: ✔ COMPLETED & VERIFIED
 - **Integrity**: ${verificationNote}
 ${filesModified.length > 0 ? `- **Files Touched**: ${filesModified.map(f => `\`${f}\``).join(', ')}` : ''}
-${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map(c => `\`${c}\``).join(', ')}` : ''}`;
+${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map(c => `\`${c}\``).join(', ')}` : ''}
+
+---
+#### 🗄️ Storage Space & Deliverable Reports:
+- **Vault Location**: \`artifacts/storage/${taskNumber}/\`
+${storedReport?.downloadUrls?.pdf ? `- 📄 [Download Official PDF Report](${storedReport.downloadUrls.pdf})` : ''}
+- 📝 [Download Word Document (.doc)](/api/storage/download/${taskNumber}/doc)
+- 📋 [Download Technical Markdown](/api/storage/download/${taskNumber}/md)`;
 
       try {
         await (prisma as any).conversation.create({
@@ -555,7 +582,7 @@ ${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map(c =>
         const { TelegramNotifier } = await import('../notifications/TelegramNotifier');
         if (TelegramNotifier.isConfigured()) {
           await TelegramNotifier.sendMessage(
-            `🚀 <b>J.A.R.V.I.S. Task Completed</b>: <code>${taskNumber}</code>\n\n<b>Title</b>: ${task.title}\n<b>Agent</b>: ${agent.name}\n\nMaster Sri, the task was finished successfully. Check the dashboard output for full deliverables.`
+            `🚀 <b>J.A.R.V.I.S. Task Completed</b>: <code>${taskNumber}</code>\n\n<b>Title</b>: ${task.title}\n<b>Agent</b>: ${agent.name}\n\nMaster Sri, the task was finished successfully and reports (PDF, DOC, MD) were uploaded to the storage space. Check the dashboard output for full deliverables.`
           );
         }
       } catch {}

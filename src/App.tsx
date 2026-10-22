@@ -21,11 +21,12 @@ import Inbox from './surfaces/Inbox'
 import CyberThreatDefense from './surfaces/CyberThreatDefense'
 import OmniApiArsenal from './surfaces/OmniApiArsenal'
 import { RevenueHunter } from './surfaces/RevenueHunter'
+import StorageVault from './surfaces/StorageVault'
 import JarvisVoiceModal from './components/JarvisVoiceModal'
 import ActiveTaskExecutionPanel from './components/ActiveTaskExecutionPanel'
 import {
   LayoutDashboard, MessageSquare, Layers, Code2, Workflow,
-  CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe,
+  CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe, HardDrive,
   Menu, X, Settings, Lock, Shield, ShieldAlert, LogOut, Eye, EyeOff, AlertTriangle,
   ChevronRight, ChevronDown, MemoryStick, Link2, Fingerprint, UserRound, Bot, Mic, Sparkles, Activity, DollarSign
 } from 'lucide-react'
@@ -38,6 +39,7 @@ const primaryNav = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4 text-cyan-400" />, label: 'HQ Core', mobileLabel: 'HQ' },
   { id: 'chat', icon: <MessageSquare className="w-4 h-4 text-cyan-300" />, label: 'AI Chat', mobileLabel: 'Chat' },
   { id: 'tasks', icon: <Activity className="w-4 h-4 text-blue-400" />, label: 'Missions & Tasks', mobileLabel: 'Tasks' },
+  { id: 'storage', icon: <HardDrive className="w-4 h-4 text-emerald-400" />, label: 'Storage Vault', mobileLabel: 'Vault' },
   { id: 'revenue', icon: <DollarSign className="w-4 h-4 text-emerald-400" />, label: 'Revenue ($)', mobileLabel: 'Revenue' },
   { id: 'swarms', icon: <Bot className="w-4 h-4 text-purple-400" />, label: 'Agent Fleet', mobileLabel: 'Fleet' },
   { id: 'cyber', icon: <ShieldAlert className="w-4 h-4 text-rose-400" />, label: 'Cyber Defense', mobileLabel: 'Defense' },
@@ -638,6 +640,7 @@ export default function App() {
         {activeTab === 'command' && <CommandCenter onNavigate={handleNavigate} onVoiceTrigger={() => handleOpenVoiceComms()} />}
         {activeTab === 'revenue' && <RevenueHunter />}
         {activeTab === 'tasks' && <ActiveTaskExecutionPanel onTriggerTask={(t) => console.log('task triggered', t)} />}
+        {activeTab === 'storage' && <StorageVault />}
         {activeTab === 'chat' && <AIChat />}
         {activeTab === 'swarms' && (
           <AgentEcosystem

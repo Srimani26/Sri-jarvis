@@ -333,19 +333,20 @@ Command me directly with voice or text:
             content: String(msg.content || ''),
             timestamp: new Date(msg.createdAt || Date.now()),
           }))
-        setMessages(restored.length ? restored : [GREETING])
+        setMessages(restored)
       }
     } catch {
-      setMessages([GREETING])
+      setMessages([])
     }
-  }, [GREETING])
+  }, [])
 
   // Create brand-new ChatGPT/Claude style conversation
   const createNewChat = useCallback(() => {
     const newSessionId = `session_${Date.now().toString().slice(-6)}`
     setCurrentSessionId(newSessionId)
     try { localStorage.setItem('jarvis_active_session', newSessionId) } catch {}
-    setMessages([GREETING])
+    setMessages([])
+    setInput('')
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
     setSessions((prev) => [
       { id: newSessionId, title: 'New Conversation', messageCount: 0, updatedAt: new Date().toISOString() },
@@ -355,7 +356,7 @@ Command me directly with voice or text:
     setTimeout(() => {
       if (inputRef.current) inputRef.current.focus()
     }, 50)
-  }, [GREETING])
+  }, [])
 
   // Delete a specific session
   const deleteSession = useCallback(async (e: React.MouseEvent, targetSessionId: string) => {
@@ -387,13 +388,13 @@ Command me directly with voice or text:
             timestamp: new Date(msg.createdAt || Date.now()),
           }))
         if (cancelled) return
-        setMessages(restored.length ? restored : [GREETING])
+        setMessages(restored)
       } catch {
-        if (!cancelled) setMessages([GREETING])
+        if (!cancelled) setMessages([])
       }
     })()
     return () => { cancelled = true }
-  }, [currentSessionId, fetchSessions, GREETING])
+  }, [currentSessionId, fetchSessions])
 
   // Reset chat / neural buffer
   const resetChat = useCallback(async () => {
@@ -828,10 +829,19 @@ Command me directly with voice or text:
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-1.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 title="Toggle conversation sidebar"
               >
                 {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4 text-cyan-400" />}
+              </button>
+
+              <button
+                onClick={createNewChat}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-cyan-500/25 via-blue-500/20 to-purple-500/25 hover:from-cyan-500/35 hover:to-purple-500/35 border border-cyan-400/50 text-cyan-200 font-mono text-xs font-bold transition-all shadow-[0_0_15px_rgba(6,182,212,0.25)] active:scale-95 cursor-pointer"
+                title="Start a fresh conversation (ChatGPT / Claude style)"
+              >
+                <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">New Chat</span>
               </button>
 
               <div className="flex items-center gap-1.5">
@@ -902,14 +912,80 @@ Command me directly with voice or text:
 
           {/* Messages Feed (Clean, Spacious, ChatGPT / Claude Styling) */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 scrollbar-thin">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  'flex gap-3 max-w-4xl transition-all',
-                  msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'
-                )}
-              >
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center py-10 px-4 max-w-2xl mx-auto text-center space-y-6 animate-in fade-in duration-300">
+                <div className="relative inline-block">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-cyan-500/20 via-blue-500/20 to-purple-500/20 border border-cyan-400/40 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(6,182,212,0.3)]">
+                    <Sparkles className="w-8 h-8 text-cyan-300 animate-pulse" />
+                  </div>
+                  <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-slate-950 flex items-center justify-center text-[8px] font-bold text-slate-950">
+                    ✓
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h2 className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
+                    How may I assist you today, Master Sri?
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono">
+                    MoA Sovereign Swarm • 20 Specialist Agents • Storage Vault Reports • Web Recon
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left w-full pt-2">
+                  {[
+                    {
+                      icon: '📄',
+                      title: 'Assign Mission & Compile Report',
+                      desc: 'Runs full pipeline and uploads executive PDF & Word deliverables to Storage Vault',
+                      prompt: 'Swarm, inspect Shopify theme invi-theme section-main-product.css, verify all selectors, and compile a verified executive PDF and Word report to the Storage Vault.'
+                    },
+                    {
+                      icon: '🛡️',
+                      title: 'Run Gitleaks & Security Audit',
+                      desc: 'Performs token entropy scan and validates Shopify theme integrity',
+                      prompt: 'Sentinel, run gitleaks_audit and full security scan across the repository to verify zero secret leaks.'
+                    },
+                    {
+                      icon: '🏗️',
+                      title: 'Full-Stack SaaS Scaffolding',
+                      desc: 'Architects automated quotation portal with models, API routes, and HUD',
+                      prompt: 'Swarm, build a full-stack SaaS project end to end: Automated Quotation Portal with database models, frontend HUD, and API routes.'
+                    },
+                    {
+                      icon: '🌐',
+                      title: 'Live 2026 Deep Market Recon',
+                      desc: 'Scrapes live Amazon & Flipkart prices with unbiased product comparisons',
+                      prompt: 'Analyze Flipkart and Amazon for the best deals on Samsung Galaxy S26 Ultra and iPhone 16 Pro with true market pricing.'
+                    }
+                  ].map((card, i) => (
+                    <button
+                      key={i}
+                      onClick={() => sendMessage(card.prompt)}
+                      className="p-3.5 rounded-2xl bg-slate-900/60 hover:bg-slate-900/90 border border-slate-800 hover:border-cyan-500/50 transition-all text-left group hover:shadow-[0_0_15px_rgba(6,182,212,0.15)] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-base">{card.icon}</span>
+                        <h4 className="text-xs font-bold font-mono text-slate-200 group-hover:text-cyan-300 transition-colors">
+                          {card.title}
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed font-sans line-clamp-2">
+                        {card.desc}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    'flex gap-3 max-w-4xl transition-all',
+                    msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                  )}
+                >
                 {/* Avatar Icon */}
                 <div
                   className={cn(
@@ -1070,7 +1146,7 @@ Command me directly with voice or text:
                   )}
                 </div>
               </div>
-            ))}
+            )))}
 
             {isTyping && (
               <div className="flex gap-3 max-w-xl mr-auto items-center animate-in fade-in duration-200">

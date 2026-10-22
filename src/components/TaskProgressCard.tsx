@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Activity, CheckCircle2, Clock, AlertCircle, Terminal,
   Code2, Workflow, DollarSign, Brain, Laptop, Bot,
-  Check, FileCode, ArrowRight, ShieldCheck, RefreshCw, ChevronDown, ChevronUp, Sparkles
+  Check, FileCode, ArrowRight, ShieldCheck, RefreshCw, ChevronDown, ChevronUp, Sparkles,
+  Download, HardDrive, FileText
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime } from '@/lib/sound'
@@ -174,7 +175,7 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
       setElapsedSec(Math.max(0, Math.floor((now - startMs) / 1000)))
     }
     update()
-    if (liveTask.status === 'RUNNING' || liveTask.status === 'QUEUED' || liveTask.status === 'PLANNING') {
+    if (liveTask.status === 'RUNNING' || liveTask.status === 'QUEUED' || (liveTask.status as string) === 'PLANNING') {
       const interval = setInterval(update, 1000)
       return () => clearInterval(interval)
     }
@@ -424,6 +425,49 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
               </div>
             </div>
           )}
+
+          {/* Executive Deliverables & Storage Space Vault Links */}
+          <div className="pt-2.5 border-t border-emerald-900/40 space-y-2">
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className="text-emerald-400 font-bold flex items-center gap-1">
+                <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                <span>STORAGE VAULT DELIVERABLES:</span>
+              </span>
+              <span className="text-slate-400 font-mono">artifacts/storage/{liveTask.taskNumber}/</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <a
+                href={`/api/storage/download/${liveTask.taskNumber}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-mono text-[11px] font-bold transition-all text-center"
+                title="Download Executive PDF Report"
+              >
+                <Download className="w-3.5 h-3.5 text-rose-400" />
+                <span>PDF Report</span>
+              </a>
+              <a
+                href={`/api/storage/download/${liveTask.taskNumber}/doc`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 font-mono text-[11px] font-bold transition-all text-center"
+                title="Download Word Document Report"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-400" />
+                <span>Word .DOC</span>
+              </a>
+              <a
+                href={`/api/storage/download/${liveTask.taskNumber}/md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-mono text-[11px] font-bold transition-all text-center"
+                title="View Markdown Source"
+              >
+                <Download className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Markdown</span>
+              </a>
+            </div>
+          </div>
         </div>
       )}
 
