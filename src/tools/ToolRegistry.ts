@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import path, { resolve, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import os from 'node:os';
@@ -1363,6 +1363,165 @@ export class ToolRegistry {
           };
         } catch (err: any) {
           return { tool: 'system_prompts_oracle', success: false, output: null, error: err?.message || String(err) };
+        }
+      },
+    });
+
+    // 23. gitleaks_audit — Real Secrets & Credential Detection
+    this.registerTool({
+      name: 'gitleaks_audit',
+      description: 'Audit workspace files and directories for leaked API keys, tokens, and private credentials inspired by Gitleaks',
+      category: 'SYSTEM',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          targetDir: { type: 'string', description: 'Directory to scan (default current workspace)' },
+        },
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const scanDir = resolve(args.targetDir || process.cwd());
+          const findings: Array<{ file: string; rule: string; snippet: string }> = [];
+          const secretRules = [
+            { name: 'Google API Key', regex: /AIzaSy[A-Za-z0-9_-]{33}/g },
+            { name: 'Telegram Bot Token', regex: /[0-9]{9,10}:[a-zA-Z0-9_-]{35}/g },
+            { name: 'GitHub Personal Token', regex: /gh[pousr]_[A-Za-z0-9_]{36,255}/g },
+            { name: 'Private Key Block', regex: /-----BEGIN [A-Z]+ PRIVATE KEY-----/g },
+            { name: 'Stripe Secret Key', regex: /sk_live_[A-Za-z0-9]{24,}/g },
+          ];
+
+          const scanFilesRecursively = (dir: string, depth: number = 0) => {
+            if (depth > 2 || !existsSync(dir)) return;
+            try {
+              const entries = readdirSync(dir, { withFileTypes: true });
+              for (const e of entries) {
+                if (e.name === 'node_modules' || e.name === '.git' || e.name === 'dist' || e.name === '.gemini') continue;
+                const full = resolve(dir, e.name);
+                if (e.isDirectory()) {
+                  scanFilesRecursively(full, depth + 1);
+                } else if (/\.(env|ts|js|json|liquid|py|yml|yaml|md)$/i.test(e.name)) {
+                  try {
+                    const text = readFileSync(full, 'utf-8');
+                    for (const rule of secretRules) {
+                      const matches = text.match(rule.regex);
+                      if (matches) {
+                        for (const m of matches) {
+                          const masked = m.slice(0, 6) + '...' + m.slice(-4);
+                          findings.push({
+                            file: path.relative(process.cwd(), full),
+                            rule: rule.name,
+                            snippet: `Found ${rule.name} pattern: ${masked}`,
+                          });
+                        }
+                      }
+                    }
+                  } catch {}
+                }
+              }
+            } catch {}
+          };
+
+          scanFilesRecursively(scanDir);
+
+          return {
+            tool: 'gitleaks_audit',
+            success: true,
+            output: {
+              scanDirectory: scanDir,
+              totalFindings: findings.length,
+              findings: findings.slice(0, 10),
+              status: findings.length === 0 ? 'CLEAN_ZERO_LEAKS' : 'SECRETS_DETECTED',
+            },
+          };
+        } catch (err: any) {
+          return { tool: 'gitleaks_audit', success: false, output: null, error: err?.message || String(err) };
+        }
+      },
+    });
+
+    // 24. shopify_theme_audit — Real CSS Pro-Tips and Liquid Theme Inspector
+    this.registerTool({
+      name: 'shopify_theme_audit',
+      description: 'Audit Shopify Dawn theme assets in invi-theme for z-index stacking conflicts, CSS bugs, and layout shifts',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          themePath: { type: 'string', description: 'Path to Shopify theme root (default c:/Users/hp/invi-theme)' },
+        },
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const themeRoot = resolve(args.themePath || 'c:/Users/hp/invi-theme');
+          if (!existsSync(themeRoot)) {
+            return { tool: 'shopify_theme_audit', success: false, output: null, error: `Theme directory not found: ${themeRoot}` };
+          }
+
+          const auditResults: Array<{ asset: string; issueType: string; recommendation: string }> = [];
+
+          // 1. Check section-main-product.css
+          const mainProductCss = resolve(themeRoot, 'assets', 'section-main-product.css');
+          if (existsSync(mainProductCss)) {
+            const cssContent = readFileSync(mainProductCss, 'utf-8');
+            if (!cssContent.includes('isolation: isolate')) {
+              auditResults.push({
+                asset: 'assets/section-main-product.css',
+                issueType: 'STACKING_CONTEXT_LEAK',
+                recommendation: 'Add `isolation: isolate` to product-info and media gallery containers to prevent header/drawer overlap (CSS Pro-Tip Rule #4).',
+              });
+            }
+            if (cssContent.includes('!important')) {
+              const count = (cssContent.match(/!important/g) || []).length;
+              auditResults.push({
+                asset: 'assets/section-main-product.css',
+                issueType: 'HIGH_SPECIFICITY_WARNING',
+                recommendation: `Found ${count} occurrences of !important. Consider refactoring with CSS custom properties.`,
+              });
+            }
+          }
+
+          // 2. Check header.liquid
+          const headerLiquid = resolve(themeRoot, 'sections', 'header.liquid');
+          if (existsSync(headerLiquid)) {
+            const liquidContent = readFileSync(headerLiquid, 'utf-8');
+            if (liquidContent.includes('header-wrapper') && !liquidContent.includes('z-index')) {
+              auditResults.push({
+                asset: 'sections/header.liquid',
+                issueType: 'STICKY_HEADER_ZINDEX',
+                recommendation: 'Ensure sticky header container has explicit z-index: 100 with backdrop-filter support for iOS WebKit.',
+              });
+            }
+          }
+
+          return {
+            tool: 'shopify_theme_audit',
+            success: true,
+            output: {
+              themePath: themeRoot,
+              assetsAudited: ['assets/section-main-product.css', 'sections/header.liquid'],
+              totalRecommendations: auditResults.length,
+              findings: auditResults,
+              summary: auditResults.length === 0
+                ? 'Shopify theme verified compliant with modern CSS pro-tips.'
+                : `Identified ${auditResults.length} optimization opportunities for invi-theme.`,
+            },
+          };
+        } catch (err: any) {
+          return { tool: 'shopify_theme_audit', success: false, output: null, error: err?.message || String(err) };
         }
       },
     });
