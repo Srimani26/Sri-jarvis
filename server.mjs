@@ -737,12 +737,128 @@ var BrowserUseScraper_exports = {};
 __export(BrowserUseScraper_exports, {
   BrowserUseScraper: () => BrowserUseScraper
 });
+import fs from "node:fs";
+import path2 from "node:path";
 var BrowserUseScraper;
 var init_BrowserUseScraper = __esm({
   "src/lib/open-agents/BrowserUseScraper.ts"() {
     "use strict";
     BrowserUseScraper = class {
+      static findBrowserExecutable() {
+        const candidates = [
+          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+          "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
+        ];
+        for (const p of candidates) {
+          if (fs.existsSync(p)) return p;
+        }
+        return null;
+      }
+      /**
+       * Real Headless Chrome Visual Automation:
+       * Launches actual Chrome, renders dynamic JavaScript/SPAs, executes clicks/inputs, and captures screenshots
+       */
+      static async executeVisualAutomation(params) {
+        const chromePath = this.findBrowserExecutable();
+        if (!chromePath) {
+          throw new Error("No local Chrome/Edge executable found on system.");
+        }
+        const { default: puppeteer } = await import("puppeteer-core");
+        const browser = await puppeteer.launch({
+          executablePath: chromePath,
+          headless: true,
+          args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--window-size=1280,800"]
+        });
+        const actionsCompleted = [];
+        let screenshotPath;
+        try {
+          const page = await browser.newPage();
+          await page.setViewport({ width: 1280, height: 800 });
+          await page.goto(params.url, { waitUntil: "domcontentloaded", timeout: 2e4 });
+          actionsCompleted.push(`Navigated to ${params.url}`);
+          if (params.actions && params.actions.length > 0) {
+            for (const act of params.actions) {
+              if (act.type === "click" && act.selector) {
+                await page.waitForSelector(act.selector, { timeout: 5e3 });
+                await page.click(act.selector);
+                actionsCompleted.push(`Clicked element: ${act.selector}`);
+              } else if (act.type === "type" && act.selector && act.text) {
+                await page.waitForSelector(act.selector, { timeout: 5e3 });
+                await page.type(act.selector, act.text);
+                actionsCompleted.push(`Typed text into: ${act.selector}`);
+              } else if (act.type === "wait_for_selector" && act.selector) {
+                await page.waitForSelector(act.selector, { timeout: 1e4 });
+                actionsCompleted.push(`Waited for selector: ${act.selector}`);
+              } else if (act.type === "scroll") {
+                await page.evaluate(() => window.scrollBy(0, 500));
+                actionsCompleted.push(`Scrolled viewport down 500px`);
+              }
+              if (act.delayMs) {
+                await new Promise((r) => setTimeout(r, act.delayMs));
+              }
+            }
+          }
+          if (params.takeScreenshot !== false) {
+            const screenshotsDir = path2.resolve(process.cwd(), "artifacts", "screenshots");
+            if (!fs.existsSync(screenshotsDir)) {
+              fs.mkdirSync(screenshotsDir, { recursive: true });
+            }
+            const filename = params.screenshotName || `screen_${Date.now()}.png`;
+            const diskPath = path2.join(screenshotsDir, filename);
+            await page.screenshot({ path: diskPath, fullPage: false });
+            screenshotPath = path2.relative(process.cwd(), diskPath);
+            actionsCompleted.push(`Captured screenshot: ${screenshotPath}`);
+          }
+          const title = await page.title();
+          const renderedText = await page.evaluate(() => document.body?.innerText?.slice(0, 5e3) || "");
+          return {
+            url: params.url,
+            title,
+            renderedText,
+            screenshotPath,
+            actionsCompleted
+          };
+        } finally {
+          await browser.close();
+        }
+      }
       static async scrapeUrl(targetUrl, aiSummarizer) {
+        const chromePath = this.findBrowserExecutable();
+        if (chromePath) {
+          try {
+            const visual = await this.executeVisualAutomation({
+              url: targetUrl,
+              takeScreenshot: true,
+              screenshotName: `scrape_${Date.now()}.png`
+            });
+            const rawContent2 = `Title: ${visual.title}
+Rendered Text:
+${visual.renderedText.slice(0, 3e3)}`;
+            let summary2 = rawContent2.slice(0, 500);
+            if (aiSummarizer) {
+              try {
+                summary2 = await aiSummarizer(rawContent2);
+              } catch {
+              }
+            }
+            return {
+              url: targetUrl,
+              title: visual.title,
+              headings: [],
+              keyParagraphs: visual.renderedText.split("\n").filter((l) => l.trim().length > 30).slice(0, 10),
+              links: [],
+              tables: [],
+              screenshotPath: visual.screenshotPath,
+              renderedHtmlSnippet: visual.renderedText.slice(0, 1e3),
+              executiveSummary: summary2,
+              timestamp: (/* @__PURE__ */ new Date()).toISOString()
+            };
+          } catch (chromeErr) {
+            console.warn("[BrowserUse] Real Chrome headless execution fallback:", chromeErr);
+          }
+        }
         const res = await fetch(targetUrl, {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -962,8 +1078,8 @@ var OpenHandsAgent_exports = {};
 __export(OpenHandsAgent_exports, {
   OpenHandsAgent: () => OpenHandsAgent
 });
-import fs from "node:fs";
-import path2 from "node:path";
+import fs2 from "node:fs";
+import path3 from "node:path";
 var OpenHandsAgent;
 var init_OpenHandsAgent = __esm({
   "src/lib/open-agents/OpenHandsAgent.ts"() {
@@ -988,10 +1104,10 @@ Include an executive engineering summary explaining implementation details and v
           "You are OpenHands Senior Software Architect. Produce complete, working code with zero placeholders.",
           [{ role: "user", content: prompt }]
         );
-        const artifactsDir = path2.resolve(process.cwd(), "artifacts", "generated");
+        const artifactsDir = path3.resolve(process.cwd(), "artifacts", "generated");
         try {
-          if (!fs.existsSync(artifactsDir)) {
-            fs.mkdirSync(artifactsDir, { recursive: true });
+          if (!fs2.existsSync(artifactsDir)) {
+            fs2.mkdirSync(artifactsDir, { recursive: true });
           }
         } catch {
         }
@@ -1005,9 +1121,9 @@ Include an executive engineering summary explaining implementation details and v
           let filePath = match[2]?.trim() || `solution_artifact_${blockIndex}.${language === "typescript" ? "ts" : language === "liquid" ? "liquid" : "txt"}`;
           const code = match[3];
           try {
-            const diskTarget = path2.join(artifactsDir, path2.basename(filePath));
-            fs.writeFileSync(diskTarget, code, "utf-8");
-            codeArtifacts.push({ path: path2.relative(process.cwd(), diskTarget), content: code.slice(0, 500) });
+            const diskTarget = path3.join(artifactsDir, path3.basename(filePath));
+            fs2.writeFileSync(diskTarget, code, "utf-8");
+            codeArtifacts.push({ path: path3.relative(process.cwd(), diskTarget), content: code.slice(0, 500) });
             actionsPlanned.push({
               actionType: "create_file",
               targetPath: filePath,
@@ -1020,8 +1136,8 @@ Include an executive engineering summary explaining implementation details and v
         }
         if (codeArtifacts.length === 0) {
           try {
-            const defaultFile = path2.join(artifactsDir, "mission_solution.md");
-            fs.writeFileSync(defaultFile, res.text, "utf-8");
+            const defaultFile = path3.join(artifactsDir, "mission_solution.md");
+            fs2.writeFileSync(defaultFile, res.text, "utf-8");
             codeArtifacts.push({ path: "artifacts/generated/mission_solution.md", content: res.text.slice(0, 500) });
           } catch {
           }
@@ -3684,9 +3800,9 @@ body { font-family: 'Inter', sans-serif; }`;
 });
 
 // src/storage/adapters/LocalFallbackStorageProvider.ts
-import { promises as fs2 } from "node:fs";
+import { promises as fs3 } from "node:fs";
 import { existsSync as existsSync3 } from "node:fs";
-import * as path3 from "node:path";
+import * as path4 from "node:path";
 import * as crypto from "node:crypto";
 var LocalFallbackStorageProvider;
 var init_LocalFallbackStorageProvider = __esm({
@@ -3697,7 +3813,7 @@ var init_LocalFallbackStorageProvider = __esm({
       type = "LOCAL_DURABLE";
       rootDir;
       constructor(customPath) {
-        this.rootDir = customPath || process.env.STORAGE_LOCAL_ROOT || path3.join(process.cwd(), "data", "cloud_storage");
+        this.rootDir = customPath || process.env.STORAGE_LOCAL_ROOT || path4.join(process.cwd(), "data", "cloud_storage");
       }
       isConfigured() {
         return true;
@@ -3705,16 +3821,16 @@ var init_LocalFallbackStorageProvider = __esm({
       resolvePath(bucket, key) {
         const sanitizedBucket = bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
         const sanitizedKey = key.replace(/\\/g, "/").replace(/\.\./g, "");
-        return path3.join(this.rootDir, sanitizedBucket, sanitizedKey);
+        return path4.join(this.rootDir, sanitizedBucket, sanitizedKey);
       }
       async putObject(bucket, key, data, contentType = "application/octet-stream", metadata) {
         const filePath = this.resolvePath(bucket, key);
-        const dir = path3.dirname(filePath);
-        await fs2.mkdir(dir, { recursive: true });
+        const dir = path4.dirname(filePath);
+        await fs3.mkdir(dir, { recursive: true });
         const buffer = Buffer.isBuffer(data) ? data : typeof data === "string" ? Buffer.from(data, "utf-8") : Buffer.from(data);
         const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-        await fs2.writeFile(filePath, buffer);
-        const stat = await fs2.stat(filePath);
+        await fs3.writeFile(filePath, buffer);
+        const stat = await fs3.stat(filePath);
         const nowIso = (/* @__PURE__ */ new Date()).toISOString();
         const meta = {
           key,
@@ -3726,7 +3842,7 @@ var init_LocalFallbackStorageProvider = __esm({
           customMetadata: metadata
         };
         const metaPath = `${filePath}.meta.json`;
-        await fs2.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+        await fs3.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf-8");
         return meta;
       }
       async getObject(bucket, key) {
@@ -3734,43 +3850,43 @@ var init_LocalFallbackStorageProvider = __esm({
         if (!existsSync3(filePath)) {
           return null;
         }
-        return fs2.readFile(filePath);
+        return fs3.readFile(filePath);
       }
       async deleteObject(bucket, key) {
         const filePath = this.resolvePath(bucket, key);
         if (!existsSync3(filePath)) {
           return false;
         }
-        await fs2.unlink(filePath);
+        await fs3.unlink(filePath);
         const metaPath = `${filePath}.meta.json`;
         if (existsSync3(metaPath)) {
-          await fs2.unlink(metaPath).catch(() => {
+          await fs3.unlink(metaPath).catch(() => {
           });
         }
         return true;
       }
       async listObjects(bucket, prefix = "") {
-        const bucketDir = path3.join(this.rootDir, bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_"));
+        const bucketDir = path4.join(this.rootDir, bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_"));
         if (!existsSync3(bucketDir)) {
           return [];
         }
         const results = [];
         const scanDir = async (currentDir, relBase = "") => {
-          const entries = await fs2.readdir(currentDir, { withFileTypes: true });
+          const entries = await fs3.readdir(currentDir, { withFileTypes: true });
           for (const entry of entries) {
             if (entry.name.endsWith(".meta.json")) continue;
-            const fullPath = path3.join(currentDir, entry.name);
-            const relPath = path3.join(relBase, entry.name).replace(/\\/g, "/");
+            const fullPath = path4.join(currentDir, entry.name);
+            const relPath = path4.join(relBase, entry.name).replace(/\\/g, "/");
             if (entry.isDirectory()) {
               await scanDir(fullPath, relPath);
             } else if (entry.isFile()) {
               if (!prefix || relPath.startsWith(prefix)) {
-                const stat = await fs2.stat(fullPath);
+                const stat = await fs3.stat(fullPath);
                 let meta = null;
                 const metaPath = `${fullPath}.meta.json`;
                 if (existsSync3(metaPath)) {
                   try {
-                    meta = JSON.parse(await fs2.readFile(metaPath, "utf-8"));
+                    meta = JSON.parse(await fs3.readFile(metaPath, "utf-8"));
                   } catch (_) {
                   }
                 }
@@ -3795,10 +3911,10 @@ var init_LocalFallbackStorageProvider = __esm({
       async getHealth() {
         const start = Date.now();
         try {
-          await fs2.mkdir(this.rootDir, { recursive: true });
-          const testFile = path3.join(this.rootDir, ".health_probe");
-          await fs2.writeFile(testFile, "JARVIS_PROBE", "utf-8");
-          await fs2.unlink(testFile);
+          await fs3.mkdir(this.rootDir, { recursive: true });
+          const testFile = path4.join(this.rootDir, ".health_probe");
+          await fs3.writeFile(testFile, "JARVIS_PROBE", "utf-8");
+          await fs3.unlink(testFile);
           const latencyMs = Date.now() - start;
           return {
             healthy: true,
@@ -6059,21 +6175,21 @@ var ArsenalCatalog_exports = {};
 __export(ArsenalCatalog_exports, {
   ArsenalCatalog: () => ArsenalCatalog
 });
-import fs3 from "node:fs";
-import path4 from "node:path";
+import fs4 from "node:fs";
+import path5 from "node:path";
 var ArsenalCatalog;
 var init_ArsenalCatalog = __esm({
   "src/arsenal/ArsenalCatalog.ts"() {
     "use strict";
     ArsenalCatalog = class {
-      static arsenalDir = path4.resolve(process.cwd(), "external", "arsenal");
-      static reaDir = path4.resolve(process.cwd(), "external", "rea");
+      static arsenalDir = path5.resolve(process.cwd(), "external", "arsenal");
+      static reaDir = path5.resolve(process.cwd(), "external", "rea");
       static modules = [
         {
           id: "rea-core",
           name: "Reverse Engineer Anything (REA Core)",
           category: "REVERSE_ENGINEERING",
-          path: path4.resolve(process.cwd(), "external", "rea"),
+          path: path5.resolve(process.cwd(), "external", "rea"),
           description: "Zero-knowledge binary, firmware, protocol, and AST reverse engineering engine.",
           capabilities: ["binary_decompilation", "protocol_decoding", "ast_reverse_mapping", "decompiled_logic_recovery"],
           assignedAgents: ["aegis", "daedalus", "sentinel"]
@@ -6082,7 +6198,7 @@ var init_ArsenalCatalog = __esm({
           id: "rea-playbooks",
           name: "REA Reverse Engineering Playbooks",
           category: "REVERSE_ENGINEERING",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "rea-playbooks"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "rea-playbooks"),
           description: "Battle-tested step-by-step playbooks for taking apart web services, APIs, databases, and microservices.",
           capabilities: ["system_disassembly", "api_extraction", "contract_reverse_engineering"],
           assignedAgents: ["aegis", "daedalus"]
@@ -6091,7 +6207,7 @@ var init_ArsenalCatalog = __esm({
           id: "rea-prompts",
           name: "REA Autonomous Prompts & Extraction Workflows",
           category: "REVERSE_ENGINEERING",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "rea-prompts"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "rea-prompts"),
           description: "Zero-shot and few-shot decompilation prompts for extracting business logic and architecture blueprints.",
           capabilities: ["deep_prompt_extraction", "schema_reconstruction"],
           assignedAgents: ["aegis", "friday"]
@@ -6100,7 +6216,7 @@ var init_ArsenalCatalog = __esm({
           id: "ai-job-search",
           name: "Autonomous Bounty & Freelance Lead Hunter",
           category: "REVENUE_BOUNTY",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "ai-job-search"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "ai-job-search"),
           description: "High-speed automated multi-platform job, gig, and bounty scraper (Upwork, Freelancer, RemoteOK, GitHub Bounties).",
           capabilities: ["multi_platform_scraping", "bounty_detection", "high_ticket_filtering"],
           assignedAgents: ["midas", "vortex"]
@@ -6109,7 +6225,7 @@ var init_ArsenalCatalog = __esm({
           id: "security-audit-skill",
           name: "Cloudflare Security & Penetration Audit Skill",
           category: "SECURITY",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "security-audit-skill"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "security-audit-skill"),
           description: "Enterprise security auditing, secret leakage scans, CORS misconfigurations, and zero-day patch generator.",
           capabilities: ["vulnerability_audit", "zero_day_patching", "secrets_detection"],
           assignedAgents: ["sentinel", "aegis"]
@@ -6118,7 +6234,7 @@ var init_ArsenalCatalog = __esm({
           id: "orca-qa",
           name: "Orca E2E Autonomous QA & UI Verification",
           category: "E2E_TESTING",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "orca-qa"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "orca-qa"),
           description: "Automated browser verification, end-to-end regression testing, and visual artifact validation.",
           capabilities: ["e2e_browser_testing", "visual_regression", "dom_assertion"],
           assignedAgents: ["sentinel", "friday"]
@@ -6127,7 +6243,7 @@ var init_ArsenalCatalog = __esm({
           id: "ponytail-design",
           name: "Ponytail Tailwind Design System & UI Engine",
           category: "DESIGN_SYSTEM",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "ponytail-design"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "ponytail-design"),
           description: "State-of-the-art Tailwind design primitives, glassmorphic UI components, and premium responsive tokens.",
           capabilities: ["tailwind_tokens", "component_scaffolding", "dark_mode_palettes"],
           assignedAgents: ["friday", "daedalus"]
@@ -6136,7 +6252,7 @@ var init_ArsenalCatalog = __esm({
           id: "ruflo-swarm",
           name: "Ruflo Multi-Agent Swarm Orchestrator",
           category: "SWARM_ORCHESTRATION",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "ruflo-swarm"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "ruflo-swarm"),
           description: "Distributed event bus and agent consensus coordinator for high-concurrency multi-agent tasks.",
           capabilities: ["swarm_consensus", "event_bus_dispatch", "agent_coordination"],
           assignedAgents: ["jarvis", "daedalus"]
@@ -6145,7 +6261,7 @@ var init_ArsenalCatalog = __esm({
           id: "graphify-code",
           name: "Graphify Codebase Dependency & Architecture Graph",
           category: "CODE_ANALYSIS",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "graphify-code"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "graphify-code"),
           description: "Constructs holistic dependency graphs across multi-repo codebases for instant architectural comprehension.",
           capabilities: ["dependency_graphing", "dead_code_elimination", "architecture_mapping"],
           assignedAgents: ["daedalus", "aegis"]
@@ -6154,7 +6270,7 @@ var init_ArsenalCatalog = __esm({
           id: "opencode-core",
           name: "OpenCode Autonomous Software Development Core",
           category: "AUTONOMOUS_DEV",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "opencode-core"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "opencode-core"),
           description: "Multi-file autonomous coding, surgical diff application, and AST self-healing test loop.",
           capabilities: ["multi_file_patching", "surgical_ast_edits", "test_driven_healing"],
           assignedAgents: ["friday", "aegis"]
@@ -6163,7 +6279,7 @@ var init_ArsenalCatalog = __esm({
           id: "agency-agents",
           name: "Full-Service Digital Agency Specialized Agent Roster",
           category: "AGENCY_PERSONAS",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "agency-agents"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "agency-agents"),
           description: "20+ specialized agency roles: Growth Hacker, Copywriter, SEO Master, Lead Architect, Sales Closer.",
           capabilities: ["persona_specialization", "proposal_generation", "sales_closing_strategies"],
           assignedAgents: ["midas", "vortex", "cerebro"]
@@ -6172,7 +6288,7 @@ var init_ArsenalCatalog = __esm({
           id: "headroom-memory",
           name: "Headroom AI Context Compression & Long-Term Memory",
           category: "MEMORY_CONTEXT",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "headroom-memory"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "headroom-memory"),
           description: "Context-window optimization, hierarchical summarization, and infinite conversational retention.",
           capabilities: ["context_compression", "long_term_retention", "semantic_distillation"],
           assignedAgents: ["jarvis", "cerebro"]
@@ -6181,7 +6297,7 @@ var init_ArsenalCatalog = __esm({
           id: "knowledge-plugins",
           name: "Enterprise Knowledge Work & Deep Analysis Plugins",
           category: "ENTERPRISE_KNOWLEDGE",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "knowledge-plugins"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "knowledge-plugins"),
           description: "Institutional-grade synthesis tools for consulting, market analysis, and multi-document intelligence.",
           capabilities: ["deep_research_synthesis", "market_due_diligence", "executive_briefings"],
           assignedAgents: ["cerebro", "midas"]
@@ -6190,7 +6306,7 @@ var init_ArsenalCatalog = __esm({
           id: "agents-hub",
           name: "Agents Hub Specialized Tool & MCP Frameworks",
           category: "AUTONOMOUS_DEV",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "agents-hub"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "agents-hub"),
           description: "Modular MCP tools for terminal execution, cloud infrastructure, browser interaction, and database queries.",
           capabilities: ["mcp_connectors", "tool_schemas", "sandboxed_execution"],
           assignedAgents: ["jarvis", "friday", "vortex"]
@@ -6199,7 +6315,7 @@ var init_ArsenalCatalog = __esm({
           id: "agentic-skills",
           name: "Mega-Catalog of Autonomous Engineering Skills",
           category: "AUTONOMOUS_DEV",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "agentic-skills"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "agentic-skills"),
           description: "Universal catalog of actionable agent workflows, playbooks, and coding standards.",
           capabilities: ["skill_resolution", "dynamic_action_trees", "execution_recipes"],
           assignedAgents: ["jarvis", "friday", "daedalus", "aegis"]
@@ -6208,7 +6324,7 @@ var init_ArsenalCatalog = __esm({
           id: "kronos-prediction",
           name: "Kronos Financial & Time-Series Predictive Intelligence",
           category: "FINANCIAL_INTELLIGENCE",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "kronos-prediction"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "kronos-prediction"),
           description: "Quantitative forecasting, token price momentum modeling, and macroeconomic trend forecasting.",
           capabilities: ["quantitative_modeling", "time_series_forecasting", "market_signal_analysis"],
           assignedAgents: ["midas", "cerebro"]
@@ -6217,7 +6333,7 @@ var init_ArsenalCatalog = __esm({
           id: "crawl4ai",
           name: "Crawl4AI LLM Web Extractor",
           category: "AUTONOMOUS_DEV",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "crawl4ai"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "crawl4ai"),
           description: "High-speed LLM markdown crawler with anti-bot evasion and semantic content extraction.",
           capabilities: ["web_scraping", "markdown_extraction", "bot_bypass"],
           assignedAgents: ["browser_use", "cerebro"]
@@ -6226,7 +6342,7 @@ var init_ArsenalCatalog = __esm({
           id: "system-prompts",
           name: "World-Class AI System Prompts Oracle",
           category: "AUTONOMOUS_DEV",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "system-prompts"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "system-prompts"),
           description: "Exact system instructions of Cursor, Devin, v0, Windsurf, Claude Code, Lovable for state-of-the-art coding prompts.",
           capabilities: ["system_prompt_lookup", "agent_directives", "surgical_coding_rules"],
           assignedAgents: ["friday", "jarvis", "aegis"]
@@ -6235,7 +6351,7 @@ var init_ArsenalCatalog = __esm({
           id: "cc-switch",
           name: "CC-Switch Multi-Agent Protocol Bridge",
           category: "AUTONOMOUS_DEV",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "cc-switch"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "cc-switch"),
           description: "All-in-one desktop assistant bridge for Claude Code, Codex, and OpenCode terminal agents.",
           capabilities: ["agent_switching", "ipc_bridge", "protocol_translation"],
           assignedAgents: ["jarvis", "friday"]
@@ -6244,7 +6360,7 @@ var init_ArsenalCatalog = __esm({
           id: "public-apis",
           name: "Public APIs 2,182+ Catalog",
           category: "ENTERPRISE_KNOWLEDGE",
-          path: path4.resolve(process.cwd(), "external", "arsenal", "public-apis"),
+          path: path5.resolve(process.cwd(), "external", "arsenal", "public-apis"),
           description: "Comprehensive collective directory of 2,182+ free public APIs across 52 categories.",
           capabilities: ["api_search", "integration_discovery", "service_catalog"],
           assignedAgents: ["cerebro", "daedalus", "vortex"]
@@ -6267,21 +6383,21 @@ var init_ArsenalCatalog = __esm({
         const results = [];
         const lowerQuery = query.toLowerCase();
         for (const mod of this.modules) {
-          if (!fs3.existsSync(mod.path)) continue;
+          if (!fs4.existsSync(mod.path)) continue;
           try {
             const files = this.scanDirRecursively(mod.path, 3);
             for (const filePath of files) {
-              const ext = path4.extname(filePath).toLowerCase();
+              const ext = path5.extname(filePath).toLowerCase();
               if (![".md", ".txt", ".json", ".ts", ".py", ".js"].includes(ext)) continue;
               try {
-                const content = fs3.readFileSync(filePath, "utf-8");
+                const content = fs4.readFileSync(filePath, "utf-8");
                 if (content.toLowerCase().includes(lowerQuery)) {
-                  const rel = path4.relative(mod.path, filePath);
+                  const rel = path5.relative(mod.path, filePath);
                   const idx = content.toLowerCase().indexOf(lowerQuery);
                   const snippet = content.slice(Math.max(0, idx - 80), Math.min(content.length, idx + 200)).trim();
                   results.push({
                     moduleId: mod.id,
-                    filename: path4.basename(filePath),
+                    filename: path5.basename(filePath),
                     relativePath: rel,
                     excerpt: snippet
                   });
@@ -6296,13 +6412,13 @@ var init_ArsenalCatalog = __esm({
         return results;
       }
       static scanDirRecursively(dir, maxDepth, currentDepth = 0) {
-        if (currentDepth > maxDepth || !fs3.existsSync(dir)) return [];
+        if (currentDepth > maxDepth || !fs4.existsSync(dir)) return [];
         let files = [];
         try {
-          const entries = fs3.readdirSync(dir, { withFileTypes: true });
+          const entries = fs4.readdirSync(dir, { withFileTypes: true });
           for (const entry of entries) {
             if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-            const full = path4.join(dir, entry.name);
+            const full = path5.join(dir, entry.name);
             if (entry.isDirectory()) {
               files = files.concat(this.scanDirRecursively(full, maxDepth, currentDepth + 1));
             } else {
@@ -6334,23 +6450,23 @@ var PublicApisEngine_exports = {};
 __export(PublicApisEngine_exports, {
   PublicApisEngine: () => PublicApisEngine
 });
-import fs4 from "node:fs";
-import path5 from "node:path";
+import fs5 from "node:fs";
+import path6 from "node:path";
 var PublicApisEngine;
 var init_PublicApisEngine = __esm({
   "src/tools/PublicApisEngine.ts"() {
     "use strict";
     PublicApisEngine = class {
       static cachedApis = null;
-      static readmePath = path5.resolve(process.cwd(), "external", "arsenal", "public-apis", "README.md");
+      static readmePath = path6.resolve(process.cwd(), "external", "arsenal", "public-apis", "README.md");
       static initialize() {
         if (this.cachedApis) return this.cachedApis;
-        if (!fs4.existsSync(this.readmePath)) {
+        if (!fs5.existsSync(this.readmePath)) {
           this.cachedApis = [];
           return [];
         }
         try {
-          const content = fs4.readFileSync(this.readmePath, "utf-8");
+          const content = fs5.readFileSync(this.readmePath, "utf-8");
           const lines = content.split("\n");
           const apis = [];
           let currentCategory = "General";
@@ -6452,13 +6568,23 @@ var init_ToolRegistry = __esm({
           avgLatencyMs: 0
         };
       }
+      static isPathAuthorized(targetPath) {
+        const normalized = resolve3(targetPath).toLowerCase();
+        const authorizedRoots = [
+          resolve3(process.cwd()).toLowerCase(),
+          "c:\\users\\hp\\invi-theme",
+          "c:/users/hp/invi-theme",
+          "e:\\standardroofs-jarvis"
+        ];
+        return authorizedRoots.some((root) => normalized.startsWith(root));
+      }
       /**
        * Register core production tools
        */
       static registerCoreTools() {
         this.registerTool({
           name: "filesystem_read",
-          description: "Read the text content of a file within the project directory",
+          description: "Read the text content of a file within authorized workspace directories",
           category: "FILES",
           inputSchema: {
             type: "object",
@@ -6473,10 +6599,9 @@ var init_ToolRegistry = __esm({
           health: "ONLINE",
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
-            const cwd = resolve3(process.cwd());
-            const filePath = resolve3(cwd, args.path);
-            if (!filePath.startsWith(cwd)) {
-              return { tool: "filesystem_read", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
+            const filePath = resolve3(args.path);
+            if (!this.isPathAuthorized(filePath)) {
+              return { tool: "filesystem_read", success: false, output: null, error: `Path authorization violation: Access outside authorized project roots is prohibited (${args.path})` };
             }
             if (!existsSync4(filePath)) {
               return { tool: "filesystem_read", success: false, output: null, error: `File not found: ${args.path}` };
@@ -6492,7 +6617,7 @@ var init_ToolRegistry = __esm({
         });
         this.registerTool({
           name: "filesystem_write",
-          description: "Write or update a file within the project workspace",
+          description: "Write or update a file within authorized project workspaces",
           category: "FILES",
           inputSchema: {
             type: "object",
@@ -6507,10 +6632,9 @@ var init_ToolRegistry = __esm({
           health: "ONLINE",
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
-            const cwd = resolve3(process.cwd());
-            const filePath = resolve3(cwd, args.path);
-            if (!filePath.startsWith(cwd)) {
-              return { tool: "filesystem_write", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
+            const filePath = resolve3(args.path);
+            if (!this.isPathAuthorized(filePath)) {
+              return { tool: "filesystem_write", success: false, output: null, error: `Path authorization violation: Access outside authorized project roots is prohibited (${args.path})` };
             }
             const parent = dirname3(filePath);
             if (!existsSync4(parent)) {
@@ -6541,10 +6665,9 @@ var init_ToolRegistry = __esm({
           health: "ONLINE",
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
-            const cwd = resolve3(process.cwd());
-            const dirPath = resolve3(cwd, args.path || ".");
-            if (!dirPath.startsWith(cwd)) {
-              return { tool: "filesystem_list", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
+            const dirPath = resolve3(args.path || ".");
+            if (!this.isPathAuthorized(dirPath)) {
+              return { tool: "filesystem_list", success: false, output: null, error: `Path authorization violation: Access outside authorized project roots is prohibited (${args.path})` };
             }
             if (!existsSync4(dirPath)) {
               return { tool: "filesystem_list", success: false, output: null, error: `Directory not found: ${args.path}` };
@@ -7432,6 +7555,10 @@ var init_ToolRegistry = __esm({
               }
               if (agentType === "browser-use" || agentType === "browser_use") {
                 const { BrowserUseScraper: BrowserUseScraper2 } = await Promise.resolve().then(() => (init_BrowserUseScraper(), BrowserUseScraper_exports));
+                if (mission.startsWith("http://") || mission.startsWith("https://")) {
+                  const res2 = await BrowserUseScraper2.executeVisualAutomation({ url: mission, takeScreenshot: true });
+                  return { tool: "execute_open_source_agent", success: true, output: res2 };
+                }
                 const res = await BrowserUseScraper2.searchWeb(mission);
                 return { tool: "execute_open_source_agent", success: true, output: res };
               }
@@ -13066,12 +13193,12 @@ import { generateText } from "ai";
 
 // src/infrastructure/CloudInfrastructureManager.ts
 init_db();
-import * as fs5 from "fs";
-import * as path6 from "path";
+import * as fs6 from "fs";
+import * as path7 from "path";
 var CloudInfrastructureManager = class {
   static startTime = Date.now();
   static lastSnapshot = null;
-  static snapshotDir = path6.resolve(process.cwd(), "data", "backups");
+  static snapshotDir = path7.resolve(process.cwd(), "data", "backups");
   static async getInfrastructureStatus() {
     const connCheck = await validateDatabaseConnectivity();
     const isPostgres2 = connCheck.provider === "postgresql";
@@ -13100,12 +13227,12 @@ var CloudInfrastructureManager = class {
   }
   static async createStorageSnapshot() {
     try {
-      if (!fs5.existsSync(this.snapshotDir)) {
-        fs5.mkdirSync(this.snapshotDir, { recursive: true });
+      if (!fs6.existsSync(this.snapshotDir)) {
+        fs6.mkdirSync(this.snapshotDir, { recursive: true });
       }
       const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
       const filename = `snapshot-${timestamp}.json`;
-      const snapshotPath = path6.join(this.snapshotDir, filename);
+      const snapshotPath = path7.join(this.snapshotDir, filename);
       const dbStatus = await validateDatabaseConnectivity();
       const snapshotPayload = {
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -13115,7 +13242,7 @@ var CloudInfrastructureManager = class {
         environment: process.env.NODE_ENV || "production",
         snapshotId: `snap_${Date.now()}`
       };
-      fs5.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
+      fs6.writeFileSync(snapshotPath, JSON.stringify(snapshotPayload, null, 2), "utf-8");
       this.lastSnapshot = snapshotPayload.timestamp;
       return {
         success: true,
@@ -13507,13 +13634,13 @@ var AgentCouncil = class {
 };
 
 // src/browser/AdvancedComputerUse.ts
-import * as path7 from "path";
+import * as path8 from "path";
 var AdvancedComputerUse = class {
-  static workspaceRoot = path7.resolve(process.cwd());
+  static workspaceRoot = path8.resolve(process.cwd());
   static async executeAction(request) {
     const start = Date.now();
     if (request.targetPath) {
-      const resolved = path7.resolve(request.targetPath);
+      const resolved = path8.resolve(request.targetPath);
       if (!resolved.startsWith(this.workspaceRoot)) {
         return {
           success: false,
@@ -13880,13 +14007,13 @@ var LongRunningRuntime = class {
 };
 
 // src/infrastructure/DisasterRecoveryManager.ts
-import * as fs6 from "fs";
-import * as path8 from "path";
+import * as fs7 from "fs";
+import * as path9 from "path";
 var DisasterRecoveryManager = class {
-  static recoveryDir = path8.resolve(process.cwd(), "data", "recovery");
+  static recoveryDir = path9.resolve(process.cwd(), "data", "recovery");
   static async generateEmergencyRecoveryManifest(activeTasksCount = 0) {
-    if (!fs6.existsSync(this.recoveryDir)) {
-      fs6.mkdirSync(this.recoveryDir, { recursive: true });
+    if (!fs7.existsSync(this.recoveryDir)) {
+      fs7.mkdirSync(this.recoveryDir, { recursive: true });
     }
     const manifestId = `rec_${Date.now()}`;
     const manifest = {
@@ -13897,8 +14024,8 @@ var DisasterRecoveryManager = class {
       integrityHash: `sha256_${Date.now()}_clean`,
       recoveryStatus: "VERIFIED_RESTORABLE"
     };
-    const filePath = path8.join(this.recoveryDir, `${manifestId}.json`);
-    fs6.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
+    const filePath = path9.join(this.recoveryDir, `${manifestId}.json`);
+    fs7.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf-8");
     return manifest;
   }
   static async verifyRecoveryRestorability(manifest) {

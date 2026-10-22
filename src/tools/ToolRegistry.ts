@@ -34,6 +34,17 @@ export class ToolRegistry {
     };
   }
 
+  private static isPathAuthorized(targetPath: string): boolean {
+    const normalized = resolve(targetPath).toLowerCase();
+    const authorizedRoots = [
+      resolve(process.cwd()).toLowerCase(),
+      'c:\\users\\hp\\invi-theme',
+      'c:/users/hp/invi-theme',
+      'e:\\standardroofs-jarvis',
+    ];
+    return authorizedRoots.some(root => normalized.startsWith(root));
+  }
+
   /**
    * Register core production tools
    */
@@ -41,7 +52,7 @@ export class ToolRegistry {
     // 1. filesystem_read
     this.registerTool({
       name: 'filesystem_read',
-      description: 'Read the text content of a file within the project directory',
+      description: 'Read the text content of a file within authorized workspace directories',
       category: 'FILES',
       inputSchema: {
         type: 'object',
@@ -56,10 +67,9 @@ export class ToolRegistry {
       health: 'ONLINE',
       telemetry: this.createDefaultTelemetry(),
       execute: async (args) => {
-        const cwd = resolve(process.cwd());
-        const filePath = resolve(cwd, args.path);
-        if (!filePath.startsWith(cwd)) {
-          return { tool: 'filesystem_read', success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
+        const filePath = resolve(args.path);
+        if (!this.isPathAuthorized(filePath)) {
+          return { tool: 'filesystem_read', success: false, output: null, error: `Path authorization violation: Access outside authorized project roots is prohibited (${args.path})` };
         }
         if (!existsSync(filePath)) {
           return { tool: 'filesystem_read', success: false, output: null, error: `File not found: ${args.path}` };
@@ -77,7 +87,7 @@ export class ToolRegistry {
     // 2. filesystem_write
     this.registerTool({
       name: 'filesystem_write',
-      description: 'Write or update a file within the project workspace',
+      description: 'Write or update a file within authorized project workspaces',
       category: 'FILES',
       inputSchema: {
         type: 'object',
@@ -92,10 +102,9 @@ export class ToolRegistry {
       health: 'ONLINE',
       telemetry: this.createDefaultTelemetry(),
       execute: async (args) => {
-        const cwd = resolve(process.cwd());
-        const filePath = resolve(cwd, args.path);
-        if (!filePath.startsWith(cwd)) {
-          return { tool: 'filesystem_write', success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
+        const filePath = resolve(args.path);
+        if (!this.isPathAuthorized(filePath)) {
+          return { tool: 'filesystem_write', success: false, output: null, error: `Path authorization violation: Access outside authorized project roots is prohibited (${args.path})` };
         }
         const parent = dirname(filePath);
         if (!existsSync(parent)) {
@@ -128,10 +137,9 @@ export class ToolRegistry {
       health: 'ONLINE',
       telemetry: this.createDefaultTelemetry(),
       execute: async (args) => {
-        const cwd = resolve(process.cwd());
-        const dirPath = resolve(cwd, args.path || '.');
-        if (!dirPath.startsWith(cwd)) {
-          return { tool: 'filesystem_list', success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
+        const dirPath = resolve(args.path || '.');
+        if (!this.isPathAuthorized(dirPath)) {
+          return { tool: 'filesystem_list', success: false, output: null, error: `Path authorization violation: Access outside authorized project roots is prohibited (${args.path})` };
         }
         if (!existsSync(dirPath)) {
           return { tool: 'filesystem_list', success: false, output: null, error: `Directory not found: ${args.path}` };
@@ -1073,6 +1081,10 @@ export class ToolRegistry {
           }
           if (agentType === 'browser-use' || agentType === 'browser_use') {
             const { BrowserUseScraper } = await import('../lib/open-agents/BrowserUseScraper');
+            if (mission.startsWith('http://') || mission.startsWith('https://')) {
+              const res = await BrowserUseScraper.executeVisualAutomation({ url: mission, takeScreenshot: true });
+              return { tool: 'execute_open_source_agent', success: true, output: res };
+            }
             const res = await BrowserUseScraper.searchWeb(mission);
             return { tool: 'execute_open_source_agent', success: true, output: res };
           }
