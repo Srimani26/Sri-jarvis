@@ -166,6 +166,42 @@ export class ArsenalCatalog {
       capabilities: ['quantitative_modeling', 'time_series_forecasting', 'market_signal_analysis'],
       assignedAgents: ['midas', 'cerebro'],
     },
+    {
+      id: 'crawl4ai',
+      name: 'Crawl4AI LLM Web Extractor',
+      category: 'AUTONOMOUS_DEV',
+      path: path.resolve(process.cwd(), 'external', 'arsenal', 'crawl4ai'),
+      description: 'High-speed LLM markdown crawler with anti-bot evasion and semantic content extraction.',
+      capabilities: ['web_scraping', 'markdown_extraction', 'bot_bypass'],
+      assignedAgents: ['browser_use', 'cerebro'],
+    },
+    {
+      id: 'system-prompts',
+      name: 'World-Class AI System Prompts Oracle',
+      category: 'AUTONOMOUS_DEV',
+      path: path.resolve(process.cwd(), 'external', 'arsenal', 'system-prompts'),
+      description: 'Exact system instructions of Cursor, Devin, v0, Windsurf, Claude Code, Lovable for state-of-the-art coding prompts.',
+      capabilities: ['system_prompt_lookup', 'agent_directives', 'surgical_coding_rules'],
+      assignedAgents: ['friday', 'jarvis', 'aegis'],
+    },
+    {
+      id: 'cc-switch',
+      name: 'CC-Switch Multi-Agent Protocol Bridge',
+      category: 'AUTONOMOUS_DEV',
+      path: path.resolve(process.cwd(), 'external', 'arsenal', 'cc-switch'),
+      description: 'All-in-one desktop assistant bridge for Claude Code, Codex, and OpenCode terminal agents.',
+      capabilities: ['agent_switching', 'ipc_bridge', 'protocol_translation'],
+      assignedAgents: ['jarvis', 'friday'],
+    },
+    {
+      id: 'public-apis',
+      name: 'Public APIs 2,182+ Catalog',
+      category: 'ENTERPRISE_KNOWLEDGE',
+      path: path.resolve(process.cwd(), 'external', 'arsenal', 'public-apis'),
+      description: 'Comprehensive collective directory of 2,182+ free public APIs across 52 categories.',
+      capabilities: ['api_search', 'integration_discovery', 'service_catalog'],
+      assignedAgents: ['cerebro', 'daedalus', 'vortex'],
+    },
   ];
 
   public static getModules(): ArsenalModule[] {
@@ -248,6 +284,6 @@ export class ArsenalCatalog {
 
     return `\n### 🛡️ INTEGRATED SOVEREIGN ARSENAL (${relevant.length} FRAMEWORKS ACTIVE):
 ${relevant.map(m => `- [${m.name}] (${m.category}): ${m.description} | Capabilities: ${m.capabilities.join(', ')}`).join('\n')}
-All playbooks, prompts, skills, and tools from these 16 frameworks are loaded in local memory and ready for immediate autonomous execution.\n`;
+All playbooks, prompts, skills, and tools from these ${relevant.length} frameworks are loaded in local memory and ready for immediate autonomous execution.\n`;
   }
 }

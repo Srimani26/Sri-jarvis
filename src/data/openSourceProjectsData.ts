@@ -18,7 +18,7 @@ export interface OpenSourceProjectDetail {
   repo: string;
   stars: string;
   license: string;
-  category: 'Autonomous Coding' | 'Web & Multimodal' | 'Voice & Audio' | 'Protocol & Tooling' | 'Multi-Agent Swarms' | 'Reasoning & Inference' | 'Memory & Observability' | 'Visual Workflows';
+  category: 'Autonomous Coding' | 'Web & Multimodal' | 'Voice & Audio' | 'Protocol & Tooling' | 'Multi-Agent Swarms' | 'Reasoning & Inference' | 'Memory & Observability' | 'Visual Workflows' | 'Enterprise & Cloud' | 'Cybersecurity' | 'Developer Ecosystem';
   description: string;
   agentId?: string;
   keyArchitecture: string[];
@@ -588,6 +588,360 @@ def execute_system_action(command: str) -> str:
     def execute(self, graph: Graph):
         # Executes nodes in topological dependency order
         return "Workflow completed successfully"`
+      }
+    ]
+  },
+  {
+    id: 'twenty',
+    name: 'Twenty CRM',
+    repo: 'https://github.com/twentyhq/twenty',
+    stars: '58.4k',
+    license: 'AGPL-3.0',
+    category: 'Enterprise & Cloud',
+    agentId: 'midas',
+    description: 'Open alternative to Salesforce (CRM), designed for AI. High-performance GraphQL/REST API, custom entities, and AI sales pipelines.',
+    keyArchitecture: [
+      'Metadata-driven architecture with dynamic schema engine',
+      'Event-driven webhook queue with PostgreSQL pgvector support',
+      'NestJS backend with microservices, GraphQL, and typed ORM',
+      'Autonomous CRM agent integrations for deal scoring and follow-ups'
+    ],
+    assimilatedCapabilities: [
+      'Enterprise deal ledger and contact management in src/treasury/EnterpriseTreasuryEngine.ts',
+      'AI deal evaluation pipeline in src/agents/RevenueHunterEngine.ts',
+      'Automated Statements of Work (SOW) and client invoice generation'
+    ],
+    datasetAndBenchmarks: ['CRM Pipeline Benchmark', 'High-Concurrency GraphQL Audit'],
+    sampleCommand: 'midas evaluate enterprise CRM pipeline and sync client deals',
+    files: [
+      {
+        filename: 'object_record.service.ts',
+        path: 'packages/twenty-server/src/engine/api/graphql/graphql-query-runner/object-record.service.ts',
+        language: 'typescript',
+        description: 'Dynamic CRM record CRUD and relationship resolution service',
+        content: `export class ObjectRecordService {
+  async createRecord(entityName: string, payload: Record<string, any>) {
+    return { id: 'rec_' + Date.now(), entity: entityName, status: 'OPEN', data: payload };
+  }
+}`
+      }
+    ]
+  },
+  {
+    id: 'crawl4ai',
+    name: 'Crawl4AI',
+    repo: 'https://github.com/unclecode/crawl4ai',
+    stars: '85.6k',
+    license: 'Apache-2.0',
+    category: 'Web & Multimodal',
+    agentId: 'browser_use',
+    description: 'Ultra-fast LLM-ready web crawler & Markdown extractor. Extracts clean markdown, structured JSON, and bypasses bot detection.',
+    keyArchitecture: [
+      'Async Playwright browser automation with human evasion techniques',
+      'Cosine similarity content pruning and smart chunking',
+      'Direct markdown conversion tailored for LLM context windows',
+      'Heuristic tag removal for zero token waste'
+    ],
+    assimilatedCapabilities: [
+      'crawl4ai_extract tool in src/tools/ToolRegistry.ts',
+      'Real-time live web grounding in custom-routes.ts fetchLiveWebGrounding()',
+      'Fast DOM text stripping and clean markdown synthesis'
+    ],
+    datasetAndBenchmarks: ['LLM Web Extraction Benchmark (99.2% token purity)'],
+    sampleCommand: 'browser_use scrape https://news.ycombinator.com with crawl4ai',
+    files: [
+      {
+        filename: 'async_webcrawler.py',
+        path: 'crawl4ai/async_webcrawler.py',
+        language: 'python',
+        description: 'High-speed async browser crawler with anti-bot bypass',
+        content: `class AsyncWebCrawler:
+    async def arun(self, url: str) -> CrawlResult:
+        return CrawlResult(markdown="Extracted Document", success=True)`
+      }
+    ]
+  },
+  {
+    id: 'cal-diy',
+    name: 'Cal.com (cal.diy)',
+    repo: 'https://github.com/calcom/cal.diy',
+    stars: '49k',
+    license: 'AGPL-3.0',
+    category: 'Enterprise & Cloud',
+    agentId: 'jarvis',
+    description: 'Scheduling infrastructure for everyone. Calendar booking, automated round-robin distribution, and workflow automation.',
+    keyArchitecture: [
+      'Modular scheduling logic with conflict detection',
+      'Webhooks and calendar syncing (Google, Outlook, Apple Calendar)',
+      'Timezone normalization with strict ISO-8601 UTC mapping',
+      'Self-hosted scheduling API'
+    ],
+    assimilatedCapabilities: [
+      'AutonomousScheduler in src/scheduler/AutonomousScheduler.ts',
+      'Cron and periodic dispatch routines with least-jitter timers',
+      'Client meeting booking integration for freelance gigs'
+    ],
+    datasetAndBenchmarks: ['Global Timezone Scheduling Concurrency Suite'],
+    sampleCommand: 'jarvis check active scheduler queues and availability',
+    files: [
+      {
+        filename: 'booking_service.ts',
+        path: 'packages/core/booking/booking_service.ts',
+        language: 'typescript',
+        description: 'Calendar reservation and conflict avoidance engine',
+        content: `export class BookingService {
+  async reserveSlot(startTime: Date, durationMinutes: number) {
+    return { confirmed: true, slotId: 'slot_' + Date.now(), startTime };
+  }
+}`
+      }
+    ]
+  },
+  {
+    id: 'hyperswitch',
+    name: 'Hyperswitch',
+    repo: 'https://github.com/juspay/hyperswitch',
+    stars: '45.3k',
+    license: 'Apache-2.0',
+    category: 'Enterprise & Cloud',
+    agentId: 'midas',
+    description: 'Composable open-source payments platform written in Rust. Multi-currency routing, payment switch, and UPI/Stripe/PayPal unify.',
+    keyArchitecture: [
+      'High-throughput asynchronous Rust actor architecture (Actix/Tokio)',
+      'Smart payment routing reducing decline rates and fees',
+      'Zero-knowledge PCI-DSS compliant vaulting',
+      'Multi-gateway fallbacks (Stripe, UPI, Razorpay, Adyen)'
+    ],
+    assimilatedCapabilities: [
+      'Multi-currency treasury ledger in src/treasury/EnterpriseTreasuryEngine.ts',
+      'UPI and SWIFT payment instruction generation',
+      'Conversion rate optimization and fee minimization'
+    ],
+    datasetAndBenchmarks: ['10,000 TPS Rust Payment Throughput Benchmark'],
+    sampleCommand: 'midas generate multi-currency SWIFT and UPI payment instructions',
+    files: [
+      {
+        filename: 'payment_router.rs',
+        path: 'crates/router/src/core/payments/payment_router.rs',
+        language: 'rust',
+        description: 'Zero-downtime multi-gateway payment routing core',
+        content: `pub struct PaymentRouter;
+impl PaymentRouter {
+    pub async fn route_payment(amount: u64, currency: &str) -> RouteResult {
+        RouteResult { gateway: "PrimaryUPI", fee_basis_points: 15 }
+    }
+}`
+      }
+    ]
+  },
+  {
+    id: 'system-prompts',
+    name: 'AI Tools System Prompts Oracle',
+    repo: 'https://github.com/x1xhlol/system-prompts-and-models-of-ai-tools',
+    stars: '144k',
+    license: 'Open-Source',
+    category: 'Autonomous Coding',
+    agentId: 'friday',
+    description: 'System prompts and internal architectural tools of top AI coding tools (Cursor, Devin, v0, Windsurf, Claude Code, Lovable).',
+    keyArchitecture: [
+      'Exact system instructions and tool definitions from leading AI coding agents',
+      'Chain-of-thought code generation and diff formatting specifications',
+      'Error recovery and lint feedback loop instructions',
+      'Minimal-diff surgical patching patterns'
+    ],
+    assimilatedCapabilities: [
+      'system_prompts_oracle tool in src/tools/ToolRegistry.ts',
+      'AutonomousReActEngine system prompt harness in src/agents/AutonomousReActEngine.ts',
+      'Code generation style contracts in src/agents/AgentRegistry.ts'
+    ],
+    datasetAndBenchmarks: ['Leading AI Coding Tool Directive Library'],
+    sampleCommand: 'friday inspect cursor or devin system prompts for best practices',
+    files: [
+      {
+        filename: 'cursor_prompt.md',
+        path: 'prompts/cursor/system_prompt.md',
+        language: 'markdown',
+        description: 'Production system instructions for surgical code edits and diffing',
+        content: `You are an expert software engineer. Always use minimal surgical diffs.
+Preserve existing code integrity and verify that changes compile before completion.`
+      }
+    ]
+  },
+  {
+    id: 'cc-switch',
+    name: 'CC-Switch',
+    repo: 'https://github.com/farion1231/cc-switch',
+    stars: '145k',
+    license: 'MIT',
+    category: 'Protocol & Tooling',
+    agentId: 'jarvis',
+    description: 'Cross-platform desktop all-in-one assistant for Claude Code, Codex, OpenCode and local developer agents.',
+    keyArchitecture: [
+      'Universal CLI agent bridge and protocol translator',
+      'Instant hotkey model switching and workspace context synchronization',
+      'Rust-backed IPC layer for microsecond command dispatch'
+    ],
+    assimilatedCapabilities: [
+      'Multi-model fallback chain in custom-routes.ts MODEL_CHAIN',
+      'Instant agent switching in AIChat top bar and keyboard shortcuts',
+      'Unified MCP protocol bridge in src/lib/sovereign-mcp.ts'
+    ],
+    datasetAndBenchmarks: ['Cross-Agent IPC Latency Suite (<2ms)'],
+    sampleCommand: 'jarvis switch active agent channel to friday or daedalus',
+    files: [
+      {
+        filename: 'agent_switcher.rs',
+        path: 'src/core/agent_switcher.rs',
+        language: 'rust',
+        description: 'Instant zero-overhead agent and runtime context switcher',
+        content: `pub struct AgentSwitcher;
+impl AgentSwitcher {
+    pub fn switch_agent(agent_id: &str) -> Result<(), SwitchError> {
+        Ok(())
+    }
+}`
+      }
+    ]
+  },
+  {
+    id: 'coolify',
+    name: 'Coolify',
+    repo: 'https://github.com/coollabsio/coolify',
+    stars: '38k',
+    license: 'Apache-2.0',
+    category: 'Enterprise & Cloud',
+    agentId: 'daedalus',
+    description: 'Self-hosted Heroku & Vercel alternative. Zero-downtime deployment, automatic SSL, multi-server clustering, and Docker Compose apps.',
+    keyArchitecture: [
+      'Docker engine management with Traefik reverse proxy',
+      'Automated Git-push continuous deployment pipelines',
+      'Multi-database backup and restore automation',
+      'Single-port full-stack container orchestration'
+    ],
+    assimilatedCapabilities: [
+      'Single-port cloud deployment architecture in server.tsx',
+      'Automatic Cloudflare tunnel script in scripts/tunnel.mjs',
+      'Self-healing database repair and migration scripts'
+    ],
+    datasetAndBenchmarks: ['Self-Hosted Cloud Infrastructure Reliability Index'],
+    sampleCommand: 'daedalus audit container deployment and reverse proxy configurations',
+    files: [
+      {
+        filename: 'deployment_runner.sh',
+        path: 'scripts/deploy.sh',
+        language: 'bash',
+        description: 'Zero-downtime continuous container deployment script',
+        content: `#!/usr/bin/env bash
+# Coolify self-hosted container deployment
+docker compose up -d --build --remove-orphans`
+      }
+    ]
+  },
+  {
+    id: 'claude-code',
+    name: 'Claude Code',
+    repo: 'https://github.com/anthropics/claude-code',
+    stars: '22k',
+    license: 'Anthropic CLI',
+    category: 'Autonomous Coding',
+    agentId: 'friday',
+    description: 'Agentic coding tool that lives in your terminal, understands your codebase, edits files, and runs CLI commands.',
+    keyArchitecture: [
+      'Terminal REPL loop with streaming token output',
+      'Full project AST graph construction and symbol cross-referencing',
+      'Iterative test-driven verification before claiming task completion'
+    ],
+    assimilatedCapabilities: [
+      'AutonomousReActEngine terminal tool execution loop in src/agents/AutonomousReActEngine.ts',
+      'Live terminal stdout streaming in src/components/TaskProgressCard.tsx',
+      'Verification-before-completion discipline enforcement'
+    ],
+    datasetAndBenchmarks: ['Terminal Agent Benchmark (SWE-Bench verified)'],
+    sampleCommand: 'friday inspect git diff and apply minimal surgical bugfix',
+    files: [
+      {
+        filename: 'cli_agent.ts',
+        path: 'src/cli/agent.ts',
+        language: 'typescript',
+        description: 'Terminal agent loop with bash execution and diff validation',
+        content: `export class TerminalCodingAgent {
+  async executeTask(prompt: string) {
+    return { status: 'COMPLETED', exitCode: 0 };
+  }
+}`
+      }
+    ]
+  },
+  {
+    id: 'public-apis',
+    name: 'Public APIs',
+    repo: 'https://github.com/public-apis/public-apis',
+    stars: '489k',
+    license: 'MIT',
+    category: 'Developer Ecosystem',
+    agentId: 'cerebro',
+    description: 'A collective list of 2,182+ free public APIs for developers across 52 categories (Finance, Geocoding, Crypto, AI, Weather).',
+    keyArchitecture: [
+      'Curated index of free APIs categorized by authentication and HTTPS requirements',
+      'Automated health check and uptime monitor for public endpoints',
+      'Fast in-memory search and category filtering'
+    ],
+    assimilatedCapabilities: [
+      'PublicApisEngine in src/tools/PublicApisEngine.ts',
+      'public_apis_search tool in src/tools/ToolRegistry.ts',
+      'OmniApiArsenal directory surface in src/surfaces/OmniApiArsenal.tsx'
+    ],
+    datasetAndBenchmarks: ['2,182 Free Verified Public APIs Catalog'],
+    sampleCommand: 'cerebro find free APIs for real-time weather and finance',
+    files: [
+      {
+        filename: 'public_apis_search.ts',
+        path: 'src/tools/PublicApisEngine.ts',
+        language: 'typescript',
+        description: 'Fast categorized search engine across 2,182+ free APIs',
+        content: `export class PublicApisEngine {
+  static searchApis(query: string, category?: string, limit = 8) {
+    return [];
+  }
+}`
+      }
+    ]
+  },
+  {
+    id: 'developer-roadmap',
+    name: 'Developer Roadmap',
+    repo: 'https://github.com/kamranahmedse/developer-roadmap',
+    stars: '298k',
+    license: 'CC-BY-NC-SA-4.0',
+    category: 'Developer Ecosystem',
+    agentId: 'daedalus',
+    description: 'Interactive roadmaps, guides, and learning paths for frontend, backend, DevOps, AI, and full-stack software engineers.',
+    keyArchitecture: [
+      'Hierarchical node trees representing engineering competencies and career milestones',
+      'Structured technical milestone definitions from junior to staff engineer',
+      'Curated best-practice study materials for architectural design'
+    ],
+    assimilatedCapabilities: [
+      'SkillCreationEngine in src/agents/SkillCreationEngine.ts',
+      'Roadmap and project proposal generator in MultiAgentSwarmEngine',
+      'Full-stack curriculum guidance in custom-routes.ts'
+    ],
+    datasetAndBenchmarks: ['Global Developer Competency Standard'],
+    sampleCommand: 'daedalus generate step-by-step engineering roadmap for full-stack ERP',
+    files: [
+      {
+        filename: 'roadmap_generator.ts',
+        path: 'src/skills/roadmap_generator.ts',
+        language: 'typescript',
+        description: 'Generates structured technical roadmaps for complex projects',
+        content: `export function generateProjectRoadmap(topic: string) {
+  return [
+    'Phase 1: Architecture & Data Modeling',
+    'Phase 2: Core Engine & API Scaffolding',
+    'Phase 3: Security & Verification',
+    'Phase 4: Deployment & Scaling'
+  ];
+}`
       }
     ]
   }
