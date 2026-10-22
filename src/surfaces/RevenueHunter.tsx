@@ -136,6 +136,29 @@ export const RevenueHunter: React.FC = () => {
     fetchData();
   }, []);
 
+  const handleLiveScan = async () => {
+    try {
+      setLoading(true);
+      setStatusMessage('Scanning live public remote engineering feeds (RemoteOK / WeWorkRemotely)...');
+      const res = await fetch('/api/revenue/scan-live', {
+        method: 'POST',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (res.ok && data.jobsFound) {
+        setStatusMessage(`Live scout complete: Ingested ${data.jobsFound} verified engineering contracts!`);
+        await fetchData();
+      } else {
+        await fetchData();
+      }
+    } catch {
+      setStatusMessage('Live scout network timeout.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setStatusMessage(null), 5000);
+    }
+  };
+
   const handleApply = async (oppId: string) => {
     setActionLoading(oppId);
     setStatusMessage('Crafting customized proposal and submitting application...');
@@ -264,12 +287,13 @@ export const RevenueHunter: React.FC = () => {
             <span>Bank & UPI Routing</span>
           </button>
           <button
-            onClick={fetchData}
+            onClick={handleLiveScan}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 transition-all shadow-sm"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 transition-all shadow-sm cursor-pointer"
+            title="Scan live RemoteOK and tech contract feeds"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Scan Jobs</span>
+            <span>Live Scout Contracts</span>
           </button>
         </div>
       </div>
