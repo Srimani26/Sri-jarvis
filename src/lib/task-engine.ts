@@ -527,6 +527,39 @@ export class TaskEngine {
       });
       await TaskEngine.emitEvent(taskId, 'TASK_COMPLETED', `Task ${taskNumber} finished with verified status.`);
 
+      // Persist completion deliverable to conversation
+      const completionDeliverable = `### 🏆 Task Completed: #${taskNumber} (${task.title})
+**Master Sri**, the task was finished successfully. Here is the output, check and let me know if anything needs to be looked into:
+
+${actionDetails}
+
+---
+#### 🛡️ Verification & Deliverables:
+- **Status**: ✔ COMPLETED & VERIFIED
+- **Integrity**: ${verificationNote}
+${filesModified.length > 0 ? `- **Files Touched**: ${filesModified.map(f => `\`${f}\``).join(', ')}` : ''}
+${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map(c => `\`${c}\``).join(', ')}` : ''}`;
+
+      try {
+        await (prisma as any).conversation.create({
+          data: {
+            role: 'assistant',
+            content: completionDeliverable,
+            sessionId: 'main',
+          }
+        });
+      } catch {}
+
+      // Dispatch Telegram notification to Master Sri if configured
+      try {
+        const { TelegramNotifier } = await import('../notifications/TelegramNotifier');
+        if (TelegramNotifier.isConfigured()) {
+          await TelegramNotifier.sendMessage(
+            `🚀 <b>J.A.R.V.I.S. Task Completed</b>: <code>${taskNumber}</code>\n\n<b>Title</b>: ${task.title}\n<b>Agent</b>: ${agent.name}\n\nMaster Sri, the task was finished successfully. Check the dashboard output for full deliverables.`
+          );
+        }
+      } catch {}
+
     } catch (err: any) {
       await TaskEngine.updateProgress(taskId, {
         status: 'FAILED',

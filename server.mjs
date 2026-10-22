@@ -218,9 +218,215 @@ var init_db = __esm({
   }
 });
 
+// src/notifications/TelegramNotifier.ts
+var TelegramNotifier_exports = {};
+__export(TelegramNotifier_exports, {
+  TelegramNotifier: () => TelegramNotifier
+});
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+var TelegramNotifier;
+var init_TelegramNotifier = __esm({
+  "src/notifications/TelegramNotifier.ts"() {
+    "use strict";
+    TelegramNotifier = class {
+      static loadEnvFile() {
+        const envPath = resolve(process.cwd(), ".env");
+        if (existsSync(envPath)) {
+          try {
+            const content = readFileSync(envPath, "utf-8");
+            for (const line of content.split(/\r?\n/)) {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith("#")) continue;
+              const idx = trimmed.indexOf("=");
+              if (idx !== -1) {
+                const key = trimmed.slice(0, idx).trim();
+                let val = trimmed.slice(idx + 1).trim();
+                if (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'")) {
+                  val = val.slice(1, -1);
+                }
+                if (!process.env[key]) {
+                  process.env[key] = val;
+                }
+              }
+            }
+          } catch {
+          }
+        }
+      }
+      static getCredentials() {
+        this.loadEnvFile();
+        let botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+        let chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
+        botToken = botToken.replace(/^[<"']+|[>"']+$/g, "");
+        chatId = chatId.replace(/^[<"']+|[>"']+$/g, "");
+        return { botToken, chatId };
+      }
+      static isConfigured() {
+        const { botToken, chatId } = this.getCredentials();
+        return Boolean(botToken && chatId);
+      }
+      /**
+       * Send arbitrary message (HTML or plain text) to configured or targeted chat
+       */
+      static async sendMessage(textOrHtml, options) {
+        const { botToken, chatId: defaultChatId } = this.getCredentials();
+        const chatId = options?.targetChatId || defaultChatId;
+        if (!botToken || !chatId) {
+          return {
+            success: false,
+            error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
+          };
+        }
+        const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
+        const parseMode = options?.parseMode !== void 0 ? options.parseMode : "HTML";
+        const bodyPayload = {
+          chat_id: chatId,
+          text: textOrHtml,
+          disable_web_page_preview: true
+        };
+        if (parseMode) {
+          bodyPayload.parse_mode = parseMode;
+        }
+        if (options?.replyMarkup) {
+          bodyPayload.reply_markup = options.replyMarkup;
+        }
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(bodyPayload),
+            signal: AbortSignal.timeout(1e4)
+          });
+          const data = await res.json();
+          if (res.ok && data.ok) {
+            return {
+              success: true,
+              messageId: data.result?.message_id,
+              chatId
+            };
+          }
+          if (parseMode === "HTML") {
+            const plainText = textOrHtml.replace(/<[^>]+>/g, "");
+            const retryPayload = {
+              chat_id: chatId,
+              text: plainText
+            };
+            if (options?.replyMarkup) retryPayload.reply_markup = options.replyMarkup;
+            const retryRes = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(retryPayload),
+              signal: AbortSignal.timeout(1e4)
+            });
+            const retryData = await retryRes.json();
+            return {
+              success: retryRes.ok && retryData.ok,
+              messageId: retryData.result?.message_id,
+              chatId,
+              error: retryData.ok ? void 0 : retryData.description
+            };
+          }
+          return {
+            success: false,
+            chatId,
+            error: data.description || "Telegram API returned error"
+          };
+        } catch (err) {
+          return {
+            success: false,
+            chatId,
+            error: `Telegram network error: ${err.message}`
+          };
+        }
+      }
+      /**
+       * Answer a Telegram callback query
+       */
+      static async answerCallbackQuery(callbackQueryId, text, showAlert = false) {
+        const { botToken } = this.getCredentials();
+        if (!botToken || !callbackQueryId) return false;
+        const endpoint = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              callback_query_id: callbackQueryId,
+              text: text || "Action acknowledged",
+              show_alert: showAlert
+            }),
+            signal: AbortSignal.timeout(6e3)
+          });
+          const data = await res.json();
+          return Boolean(res.ok && data.ok);
+        } catch {
+          return false;
+        }
+      }
+      /**
+       * Send raw HTML alert directly to Master Sri
+       */
+      static async sendRawAlert(html, targetChatId) {
+        return this.sendMessage(html, { parseMode: "HTML", targetChatId });
+      }
+      /**
+       * Send formatted EOD Financial Report card
+       */
+      static async sendEODReport(cardHtml, targetChatId) {
+        return this.sendMessage(cardHtml, { parseMode: "HTML", targetChatId });
+      }
+      /**
+       * Send a rich, formatted lead alert to Master Sri on Telegram
+       */
+      static async sendLeadAlert(task) {
+        const { botToken, chatId } = this.getCredentials();
+        if (!botToken || !chatId) {
+          return {
+            success: false,
+            error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
+          };
+        }
+        const escapeHtml2 = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const tierEmoji = task.pricing.tier === "MICRO" ? "\u26A1 [MICRO-TASK]" : "\u{1F680} [STANDARD TASK]";
+        const formattedHtml = `<b>${tierEmoji} J.A.R.V.I.S. REVENUE LEAD ALERT</b>
+
+\u{1F4BC} <b>Objective:</b> ${escapeHtml2(task.title)}
+\u{1F4B0} <b>Value:</b> <code>$${task.pricing.payoutUSD} USD</code> (<b>\u20B9${task.pricing.payoutINR.toLocaleString("en-IN")} INR</b>)
+\u23F1\uFE0F <b>Turnaround:</b> ${escapeHtml2(task.durationEstimate)}
+\u{1F9E0} <b>Root Cause Diagnosis:</b>
+<i>${escapeHtml2(task.rootCause)}</i>
+
+\u{1F4DD} <b>Ready-to-Send Client Proposal:</b>
+<code>${escapeHtml2(task.clientProposal)}</code>
+
+\u{1F6E0}\uFE0F <b>Production Surgical Code Patch:</b>
+<pre><code class="language-css">${escapeHtml2(task.codePatch)}</code></pre>
+
+\u{1F916} <i>Model: ${escapeHtml2(task.modelUsed)} \u2022 Dispatched by J.A.R.V.I.S. Money Engine</i>`;
+        const jobUrl = task.url && (task.url.startsWith("http://") || task.url.startsWith("https://")) ? task.url : "https://reddit.com/r/shopify";
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              { text: "\u{1F680} Open Job Post", url: jobUrl },
+              { text: "\u2705 Won ($)", callback_data: `won:${task.taskId}:${task.pricing.payoutINR}` },
+              { text: "\u274C Dismiss", callback_data: `dismiss:${task.taskId}` }
+            ]
+          ]
+        };
+        return this.sendMessage(formattedHtml, {
+          parseMode: "HTML",
+          targetChatId: chatId,
+          replyMarkup: inlineKeyboard
+        });
+      }
+    };
+  }
+});
+
 // src/workspace/WorkspaceManager.ts
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
-import { resolve, join as join2, relative } from "node:path";
+import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
+import { resolve as resolve2, join as join2, relative } from "node:path";
 import { exec as exec2, spawn } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
 var execAsync2, WorkspaceManager;
@@ -229,9 +435,9 @@ var init_WorkspaceManager = __esm({
     "use strict";
     execAsync2 = promisify2(exec2);
     WorkspaceManager = class {
-      static baseDir = resolve(process.cwd(), "workspaces");
+      static baseDir = resolve2(process.cwd(), "workspaces");
       static {
-        if (!existsSync(this.baseDir)) {
+        if (!existsSync2(this.baseDir)) {
           mkdirSync(this.baseDir, { recursive: true });
         }
       }
@@ -240,7 +446,7 @@ var init_WorkspaceManager = __esm({
        */
       static getProjectPath(projectName) {
         const sanitized = projectName.replace(/[^a-zA-Z0-9_\-\.]/g, "_").toLowerCase();
-        const target = resolve(this.baseDir, sanitized);
+        const target = resolve2(this.baseDir, sanitized);
         if (!target.startsWith(this.baseDir)) {
           throw new Error(`Security violation: Workspace path traversal blocked for '${projectName}'`);
         }
@@ -251,7 +457,7 @@ var init_WorkspaceManager = __esm({
        */
       static initProject(projectName) {
         const projectPath = this.getProjectPath(projectName);
-        const isNew = !existsSync(projectPath);
+        const isNew = !existsSync2(projectPath);
         if (isNew) {
           mkdirSync(projectPath, { recursive: true });
         }
@@ -262,15 +468,15 @@ var init_WorkspaceManager = __esm({
        */
       static writeFile(projectName, relativePath, content) {
         const projectPath = this.getProjectPath(projectName);
-        if (!existsSync(projectPath)) {
+        if (!existsSync2(projectPath)) {
           mkdirSync(projectPath, { recursive: true });
         }
-        const fullFilePath = resolve(projectPath, relativePath);
+        const fullFilePath = resolve2(projectPath, relativePath);
         if (!fullFilePath.startsWith(projectPath)) {
           throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
         }
-        const parentDir = resolve(fullFilePath, "..");
-        if (!existsSync(parentDir)) {
+        const parentDir = resolve2(fullFilePath, "..");
+        if (!existsSync2(parentDir)) {
           mkdirSync(parentDir, { recursive: true });
         }
         writeFileSync(fullFilePath, content, "utf-8");
@@ -282,14 +488,14 @@ var init_WorkspaceManager = __esm({
        */
       static readFile(projectName, relativePath) {
         const projectPath = this.getProjectPath(projectName);
-        const fullFilePath = resolve(projectPath, relativePath);
+        const fullFilePath = resolve2(projectPath, relativePath);
         if (!fullFilePath.startsWith(projectPath)) {
           throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
         }
-        if (!existsSync(fullFilePath)) {
+        if (!existsSync2(fullFilePath)) {
           throw new Error(`File not found: '${relativePath}' in project '${projectName}'`);
         }
-        const content = readFileSync(fullFilePath, "utf-8");
+        const content = readFileSync2(fullFilePath, "utf-8");
         return { success: true, content, bytes: Buffer.byteLength(content, "utf-8"), filePath: relative(projectPath, fullFilePath).replace(/\\/g, "/") };
       }
       /**
@@ -297,8 +503,8 @@ var init_WorkspaceManager = __esm({
        */
       static listFiles(projectName, subDir = "", recursive = true) {
         const projectPath = this.getProjectPath(projectName);
-        const targetDir = resolve(projectPath, subDir);
-        if (!targetDir.startsWith(projectPath) || !existsSync(targetDir)) {
+        const targetDir = resolve2(projectPath, subDir);
+        if (!targetDir.startsWith(projectPath) || !existsSync2(targetDir)) {
           return [];
         }
         const results = [];
@@ -330,7 +536,7 @@ var init_WorkspaceManager = __esm({
        */
       static async runCommand(projectName, command, timeoutMs = 6e4, onOutputChunk) {
         const projectPath = this.getProjectPath(projectName);
-        if (!existsSync(projectPath)) {
+        if (!existsSync2(projectPath)) {
           mkdirSync(projectPath, { recursive: true });
         }
         const blockedPatterns = [/rm\s+-rf\s+[\/\\]/i, /format\s+[a-z]:/i, /shutdown/i, /drop\s+database/i];
@@ -407,7 +613,7 @@ ${err.message}`.trim(),
        */
       static deleteProject(projectName) {
         const projectPath = this.getProjectPath(projectName);
-        if (existsSync(projectPath)) {
+        if (existsSync2(projectPath)) {
           rmSync(projectPath, { recursive: true, force: true });
           return true;
         }
@@ -428,7 +634,7 @@ ${err.message}`.trim(),
        */
       static async startDaemon(projectName, command, options) {
         const projectPath = this.getProjectPath(projectName);
-        if (!existsSync(projectPath)) {
+        if (!existsSync2(projectPath)) {
           mkdirSync(projectPath, { recursive: true });
         }
         const id = `daemon_${projectName}_${Date.now()}`;
@@ -3408,7 +3614,7 @@ body { font-family: 'Inter', sans-serif; }`;
 
 // src/storage/adapters/LocalFallbackStorageProvider.ts
 import { promises as fs } from "node:fs";
-import { existsSync as existsSync2 } from "node:fs";
+import { existsSync as existsSync3 } from "node:fs";
 import * as path2 from "node:path";
 import * as crypto from "node:crypto";
 var LocalFallbackStorageProvider;
@@ -3454,19 +3660,19 @@ var init_LocalFallbackStorageProvider = __esm({
       }
       async getObject(bucket, key) {
         const filePath = this.resolvePath(bucket, key);
-        if (!existsSync2(filePath)) {
+        if (!existsSync3(filePath)) {
           return null;
         }
         return fs.readFile(filePath);
       }
       async deleteObject(bucket, key) {
         const filePath = this.resolvePath(bucket, key);
-        if (!existsSync2(filePath)) {
+        if (!existsSync3(filePath)) {
           return false;
         }
         await fs.unlink(filePath);
         const metaPath = `${filePath}.meta.json`;
-        if (existsSync2(metaPath)) {
+        if (existsSync3(metaPath)) {
           await fs.unlink(metaPath).catch(() => {
           });
         }
@@ -3474,7 +3680,7 @@ var init_LocalFallbackStorageProvider = __esm({
       }
       async listObjects(bucket, prefix = "") {
         const bucketDir = path2.join(this.rootDir, bucket.replace(/[^a-zA-Z0-9_\-\.]/g, "_"));
-        if (!existsSync2(bucketDir)) {
+        if (!existsSync3(bucketDir)) {
           return [];
         }
         const results = [];
@@ -3491,7 +3697,7 @@ var init_LocalFallbackStorageProvider = __esm({
                 const stat = await fs.stat(fullPath);
                 let meta = null;
                 const metaPath = `${fullPath}.meta.json`;
-                if (existsSync2(metaPath)) {
+                if (existsSync3(metaPath)) {
                   try {
                     meta = JSON.parse(await fs.readFile(metaPath, "utf-8"));
                   } catch (_) {
@@ -5758,8 +5964,8 @@ var init_PublicApisEngine = __esm({
 });
 
 // src/tools/ToolRegistry.ts
-import { existsSync as existsSync3, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync2, statSync as statSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import { resolve as resolve2, dirname as dirname3 } from "node:path";
+import { existsSync as existsSync4, readFileSync as readFileSync3, writeFileSync as writeFileSync2, readdirSync as readdirSync2, statSync as statSync2, mkdirSync as mkdirSync2 } from "node:fs";
+import { resolve as resolve3, dirname as dirname3 } from "node:path";
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
 import os from "node:os";
@@ -5806,15 +6012,15 @@ var init_ToolRegistry = __esm({
           health: "ONLINE",
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
-            const cwd = resolve2(process.cwd());
-            const filePath = resolve2(cwd, args.path);
+            const cwd = resolve3(process.cwd());
+            const filePath = resolve3(cwd, args.path);
             if (!filePath.startsWith(cwd)) {
               return { tool: "filesystem_read", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
             }
-            if (!existsSync3(filePath)) {
+            if (!existsSync4(filePath)) {
               return { tool: "filesystem_read", success: false, output: null, error: `File not found: ${args.path}` };
             }
-            const content = readFileSync2(filePath, "utf-8");
+            const content = readFileSync3(filePath, "utf-8");
             return {
               tool: "filesystem_read",
               success: true,
@@ -5840,13 +6046,13 @@ var init_ToolRegistry = __esm({
           health: "ONLINE",
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
-            const cwd = resolve2(process.cwd());
-            const filePath = resolve2(cwd, args.path);
+            const cwd = resolve3(process.cwd());
+            const filePath = resolve3(cwd, args.path);
             if (!filePath.startsWith(cwd)) {
               return { tool: "filesystem_write", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
             }
             const parent = dirname3(filePath);
-            if (!existsSync3(parent)) {
+            if (!existsSync4(parent)) {
               mkdirSync2(parent, { recursive: true });
             }
             writeFileSync2(filePath, args.content, "utf-8");
@@ -5874,16 +6080,16 @@ var init_ToolRegistry = __esm({
           health: "ONLINE",
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
-            const cwd = resolve2(process.cwd());
-            const dirPath = resolve2(cwd, args.path || ".");
+            const cwd = resolve3(process.cwd());
+            const dirPath = resolve3(cwd, args.path || ".");
             if (!dirPath.startsWith(cwd)) {
               return { tool: "filesystem_list", success: false, output: null, error: `Path traversal violation: Access outside workspace root is strictly prohibited (${args.path})` };
             }
-            if (!existsSync3(dirPath)) {
+            if (!existsSync4(dirPath)) {
               return { tool: "filesystem_list", success: false, output: null, error: `Directory not found: ${args.path}` };
             }
             const entries = readdirSync2(dirPath).map((entry) => {
-              const fullPath = resolve2(dirPath, entry);
+              const fullPath = resolve3(dirPath, entry);
               const isDir = statSync2(fullPath).isDirectory();
               return { name: entry, isDirectory: isDir };
             });
@@ -5993,15 +6199,15 @@ var init_ToolRegistry = __esm({
           health: "ONLINE",
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
-            const cwd = resolve2(process.cwd());
-            const filePath = resolve2(cwd, args.path);
+            const cwd = resolve3(process.cwd());
+            const filePath = resolve3(cwd, args.path);
             if (!filePath.startsWith(cwd)) {
               return { tool: "code_diff_apply", success: false, output: null, error: `Path traversal blocked: ${args.path}` };
             }
-            if (!existsSync3(filePath)) {
+            if (!existsSync4(filePath)) {
               return { tool: "code_diff_apply", success: false, output: null, error: `File not found: ${args.path}` };
             }
-            const original = readFileSync2(filePath, "utf-8");
+            const original = readFileSync3(filePath, "utf-8");
             const patchRes = DiffPatcher.applyPatch(original, args.patch);
             if (!patchRes.success) {
               return { tool: "code_diff_apply", success: false, output: null, error: patchRes.error || "Patch failed" };
@@ -6991,8 +7197,8 @@ var init_ToolRegistry = __esm({
           telemetry: this.createDefaultTelemetry(),
           execute: async (args) => {
             try {
-              const promptsDir = resolve2(process.cwd(), "external", "arsenal", "system-prompts");
-              if (!existsSync3(promptsDir)) {
+              const promptsDir = resolve3(process.cwd(), "external", "arsenal", "system-prompts");
+              if (!existsSync4(promptsDir)) {
                 return { tool: "system_prompts_oracle", success: false, output: null, error: "System prompts arsenal not installed" };
               }
               const query = String(args.agentOrTool).toLowerCase();
@@ -7008,12 +7214,12 @@ var init_ToolRegistry = __esm({
                   }
                 };
               }
-              const subPath = resolve2(promptsDir, matchedDir);
+              const subPath = resolve3(promptsDir, matchedDir);
               const files = readdirSync2(subPath);
               const firstMd = files.find((f) => f.endsWith(".md") || f.endsWith(".txt")) || files[0];
               let content = "";
               if (firstMd) {
-                content = readFileSync2(resolve2(subPath, firstMd), "utf-8").slice(0, 3e3);
+                content = readFileSync3(resolve3(subPath, firstMd), "utf-8").slice(0, 3e3);
               }
               return {
                 tool: "system_prompts_oracle",
@@ -8498,6 +8704,41 @@ Execute this directive for Master Sri with exact, production-ready output:
         commandsRun: commandsExecuted
       });
       await _TaskEngine.emitEvent(taskId, "TASK_COMPLETED", `Task ${taskNumber} finished with verified status.`);
+      const completionDeliverable = `### \u{1F3C6} Task Completed: #${taskNumber} (${task.title})
+**Master Sri**, the task was finished successfully. Here is the output, check and let me know if anything needs to be looked into:
+
+${actionDetails}
+
+---
+#### \u{1F6E1}\uFE0F Verification & Deliverables:
+- **Status**: \u2714 COMPLETED & VERIFIED
+- **Integrity**: ${verificationNote}
+${filesModified.length > 0 ? `- **Files Touched**: ${filesModified.map((f) => `\`${f}\``).join(", ")}` : ""}
+${commandsExecuted.length > 0 ? `- **Commands Run**: ${commandsExecuted.map((c) => `\`${c}\``).join(", ")}` : ""}`;
+      try {
+        await prisma.conversation.create({
+          data: {
+            role: "assistant",
+            content: completionDeliverable,
+            sessionId: "main"
+          }
+        });
+      } catch {
+      }
+      try {
+        const { TelegramNotifier: TelegramNotifier2 } = await Promise.resolve().then(() => (init_TelegramNotifier(), TelegramNotifier_exports));
+        if (TelegramNotifier2.isConfigured()) {
+          await TelegramNotifier2.sendMessage(
+            `\u{1F680} <b>J.A.R.V.I.S. Task Completed</b>: <code>${taskNumber}</code>
+
+<b>Title</b>: ${task.title}
+<b>Agent</b>: ${agent.name}
+
+Master Sri, the task was finished successfully. Check the dashboard output for full deliverables.`
+          );
+        }
+      } catch {
+      }
     } catch (err) {
       await _TaskEngine.updateProgress(taskId, {
         status: "FAILED",
@@ -10926,201 +11167,8 @@ Analyze this requirement and output the JSON solution now.`;
   }
 };
 
-// src/notifications/TelegramNotifier.ts
-import { existsSync as existsSync4, readFileSync as readFileSync3 } from "node:fs";
-import { resolve as resolve3 } from "node:path";
-var TelegramNotifier = class {
-  static loadEnvFile() {
-    const envPath = resolve3(process.cwd(), ".env");
-    if (existsSync4(envPath)) {
-      try {
-        const content = readFileSync3(envPath, "utf-8");
-        for (const line of content.split(/\r?\n/)) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith("#")) continue;
-          const idx = trimmed.indexOf("=");
-          if (idx !== -1) {
-            const key = trimmed.slice(0, idx).trim();
-            let val = trimmed.slice(idx + 1).trim();
-            if (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'")) {
-              val = val.slice(1, -1);
-            }
-            if (!process.env[key]) {
-              process.env[key] = val;
-            }
-          }
-        }
-      } catch {
-      }
-    }
-  }
-  static getCredentials() {
-    this.loadEnvFile();
-    let botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
-    let chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
-    botToken = botToken.replace(/^[<"']+|[>"']+$/g, "");
-    chatId = chatId.replace(/^[<"']+|[>"']+$/g, "");
-    return { botToken, chatId };
-  }
-  static isConfigured() {
-    const { botToken, chatId } = this.getCredentials();
-    return Boolean(botToken && chatId);
-  }
-  /**
-   * Send arbitrary message (HTML or plain text) to configured or targeted chat
-   */
-  static async sendMessage(textOrHtml, options) {
-    const { botToken, chatId: defaultChatId } = this.getCredentials();
-    const chatId = options?.targetChatId || defaultChatId;
-    if (!botToken || !chatId) {
-      return {
-        success: false,
-        error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
-      };
-    }
-    const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    const parseMode = options?.parseMode !== void 0 ? options.parseMode : "HTML";
-    const bodyPayload = {
-      chat_id: chatId,
-      text: textOrHtml,
-      disable_web_page_preview: true
-    };
-    if (parseMode) {
-      bodyPayload.parse_mode = parseMode;
-    }
-    if (options?.replyMarkup) {
-      bodyPayload.reply_markup = options.replyMarkup;
-    }
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyPayload),
-        signal: AbortSignal.timeout(1e4)
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        return {
-          success: true,
-          messageId: data.result?.message_id,
-          chatId
-        };
-      }
-      if (parseMode === "HTML") {
-        const plainText = textOrHtml.replace(/<[^>]+>/g, "");
-        const retryPayload = {
-          chat_id: chatId,
-          text: plainText
-        };
-        if (options?.replyMarkup) retryPayload.reply_markup = options.replyMarkup;
-        const retryRes = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(retryPayload),
-          signal: AbortSignal.timeout(1e4)
-        });
-        const retryData = await retryRes.json();
-        return {
-          success: retryRes.ok && retryData.ok,
-          messageId: retryData.result?.message_id,
-          chatId,
-          error: retryData.ok ? void 0 : retryData.description
-        };
-      }
-      return {
-        success: false,
-        chatId,
-        error: data.description || "Telegram API returned error"
-      };
-    } catch (err) {
-      return {
-        success: false,
-        chatId,
-        error: `Telegram network error: ${err.message}`
-      };
-    }
-  }
-  /**
-   * Answer a Telegram callback query
-   */
-  static async answerCallbackQuery(callbackQueryId, text, showAlert = false) {
-    const { botToken } = this.getCredentials();
-    if (!botToken || !callbackQueryId) return false;
-    const endpoint = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          callback_query_id: callbackQueryId,
-          text: text || "Action acknowledged",
-          show_alert: showAlert
-        }),
-        signal: AbortSignal.timeout(6e3)
-      });
-      const data = await res.json();
-      return Boolean(res.ok && data.ok);
-    } catch {
-      return false;
-    }
-  }
-  /**
-   * Send raw HTML alert directly to Master Sri
-   */
-  static async sendRawAlert(html, targetChatId) {
-    return this.sendMessage(html, { parseMode: "HTML", targetChatId });
-  }
-  /**
-   * Send formatted EOD Financial Report card
-   */
-  static async sendEODReport(cardHtml, targetChatId) {
-    return this.sendMessage(cardHtml, { parseMode: "HTML", targetChatId });
-  }
-  /**
-   * Send a rich, formatted lead alert to Master Sri on Telegram
-   */
-  static async sendLeadAlert(task) {
-    const { botToken, chatId } = this.getCredentials();
-    if (!botToken || !chatId) {
-      return {
-        success: false,
-        error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
-      };
-    }
-    const escapeHtml2 = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const tierEmoji = task.pricing.tier === "MICRO" ? "\u26A1 [MICRO-TASK]" : "\u{1F680} [STANDARD TASK]";
-    const formattedHtml = `<b>${tierEmoji} J.A.R.V.I.S. REVENUE LEAD ALERT</b>
-
-\u{1F4BC} <b>Objective:</b> ${escapeHtml2(task.title)}
-\u{1F4B0} <b>Value:</b> <code>$${task.pricing.payoutUSD} USD</code> (<b>\u20B9${task.pricing.payoutINR.toLocaleString("en-IN")} INR</b>)
-\u23F1\uFE0F <b>Turnaround:</b> ${escapeHtml2(task.durationEstimate)}
-\u{1F9E0} <b>Root Cause Diagnosis:</b>
-<i>${escapeHtml2(task.rootCause)}</i>
-
-\u{1F4DD} <b>Ready-to-Send Client Proposal:</b>
-<code>${escapeHtml2(task.clientProposal)}</code>
-
-\u{1F6E0}\uFE0F <b>Production Surgical Code Patch:</b>
-<pre><code class="language-css">${escapeHtml2(task.codePatch)}</code></pre>
-
-\u{1F916} <i>Model: ${escapeHtml2(task.modelUsed)} \u2022 Dispatched by J.A.R.V.I.S. Money Engine</i>`;
-    const jobUrl = task.url && (task.url.startsWith("http://") || task.url.startsWith("https://")) ? task.url : "https://reddit.com/r/shopify";
-    const inlineKeyboard = {
-      inline_keyboard: [
-        [
-          { text: "\u{1F680} Open Job Post", url: jobUrl },
-          { text: "\u2705 Won ($)", callback_data: `won:${task.taskId}:${task.pricing.payoutINR}` },
-          { text: "\u274C Dismiss", callback_data: `dismiss:${task.taskId}` }
-        ]
-      ]
-    };
-    return this.sendMessage(formattedHtml, {
-      parseMode: "HTML",
-      targetChatId: chatId,
-      replyMarkup: inlineKeyboard
-    });
-  }
-};
+// src/scheduler/AutonomousScheduler.ts
+init_TelegramNotifier();
 
 // src/services/LeadDeduplicationService.ts
 init_db();
@@ -15839,14 +15887,18 @@ ${typeof r.result === "string" ? r.result.slice(0, 400) : JSON.stringify(r.resul
         console.error("[ParallelMultitaskError in /ai/chat]:", parErr);
       }
     }
-    const isExecutionDirective = lowerUserMsg.startsWith("build ") || lowerUserMsg.startsWith("create ") || lowerUserMsg.startsWith("code ") || lowerUserMsg.startsWith("inspect ") || lowerUserMsg.startsWith("audit ") || lowerUserMsg.startsWith("deploy ") || lowerUserMsg.startsWith("fix ") || lowerUserMsg.startsWith("research ") || lowerUserMsg.startsWith("automate ");
+    const isExecutionDirective = lowerUserMsg.includes("faced this") || lowerUserMsg.includes("issue") || lowerUserMsg.includes("fix ") || lowerUserMsg.includes("fix that") || lowerUserMsg.includes("fix it") || lowerUserMsg.includes("resolve") || lowerUserMsg.includes("debug") || lowerUserMsg.includes("repair") || lowerUserMsg.includes("error") || lowerUserMsg.includes("bug") || lowerUserMsg.includes("broken") || lowerUserMsg.includes("problem") || lowerUserMsg.startsWith("build ") || lowerUserMsg.startsWith("create ") || lowerUserMsg.startsWith("code ") || lowerUserMsg.startsWith("inspect ") || lowerUserMsg.startsWith("audit ") || lowerUserMsg.startsWith("deploy ") || lowerUserMsg.startsWith("research ") || lowerUserMsg.startsWith("automate ") || lowerUserMsg.includes("create a task") || lowerUserMsg.includes("run task") || lowerUserMsg.includes("set a pipeline") || lowerUserMsg.includes("work on it") || lowerUserMsg.includes("report me") || lowerUserMsg.includes("report back");
     let spawnedTask = null;
-    if (isExecutionDirective && lastUserMsg.length > 8) {
-      let targetAgent = "jarvis";
-      if (lowerUserMsg.includes("code") || lowerUserMsg.includes("build") || lowerUserMsg.includes("frontend") || lowerUserMsg.includes("backend") || lowerUserMsg.includes("app")) {
-        targetAgent = "aegis";
-      } else if (lowerUserMsg.includes("automate") || lowerUserMsg.includes("workflow") || lowerUserMsg.includes("n8n")) {
+    if (isExecutionDirective && lastUserMsg.length > 5) {
+      let targetAgent = effectiveAgentId && AGENT_REGISTRY[effectiveAgentId] ? effectiveAgentId : "jarvis";
+      if (lowerUserMsg.includes("code") || lowerUserMsg.includes("build") || lowerUserMsg.includes("frontend") || lowerUserMsg.includes("backend") || lowerUserMsg.includes("app") || lowerUserMsg.includes("fix") || lowerUserMsg.includes("bug") || lowerUserMsg.includes("error") || lowerUserMsg.includes("issue")) {
+        targetAgent = "friday";
+      } else if (lowerUserMsg.includes("automate") || lowerUserMsg.includes("workflow") || lowerUserMsg.includes("n8n") || lowerUserMsg.includes("zapier") || lowerUserMsg.includes("make")) {
         targetAgent = "vortex";
+      } else if (lowerUserMsg.includes("security") || lowerUserMsg.includes("audit") || lowerUserMsg.includes("vulnerability")) {
+        targetAgent = "sentinel";
+      } else if (lowerUserMsg.includes("architecture") || lowerUserMsg.includes("system design") || lowerUserMsg.includes("database")) {
+        targetAgent = "daedalus";
       } else if (lowerUserMsg.includes("money") || lowerUserMsg.includes("revenue") || lowerUserMsg.includes("pricing") || lowerUserMsg.includes("pitch")) {
         targetAgent = "midas";
       } else if (lowerUserMsg.includes("research") || lowerUserMsg.includes("news") || lowerUserMsg.includes("telemetry")) {
@@ -15855,11 +15907,11 @@ ${typeof r.result === "string" ? r.result.slice(0, 400) : JSON.stringify(r.resul
         targetAgent = "browser_use";
       }
       spawnedTask = await TaskEngine.createTask({
-        title: lastUserMsg.slice(0, 80),
+        title: lastUserMsg.slice(0, 85),
         description: lastUserMsg,
         agentId: targetAgent,
         totalSteps: 4,
-        estimatedDuration: "45s"
+        estimatedDuration: "30s"
       });
       setTimeout(() => {
         TaskEngine.dispatchMission(spawnedTask, {
@@ -15922,7 +15974,8 @@ Directly converse with Master Sri as a trusted, highly skilled human colleague. 
       agentId: effectiveAgentId,
       voiceId: AGENT_VOICE_MAP[effectiveAgentId]?.voiceId,
       sessionId: targetSessionId,
-      task: spawnedTask
+      task: spawnedTask,
+      taskData: spawnedTask
     });
   } catch (error) {
     return c.json({ error: error.message || "Chat error" }, 500);
@@ -19516,6 +19569,7 @@ init_db();
 import { createToolsHandlers } from "@shogo-ai/sdk/tools/server";
 
 // src/notifications/TelegramBotListener.ts
+init_TelegramNotifier();
 init_TaskStore();
 init_db();
 var TelegramBotListener = class {

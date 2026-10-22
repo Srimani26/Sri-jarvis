@@ -116,41 +116,80 @@ function safeArray(val: unknown): string[] {
 }
 
 export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProgressCardProps) {
+  const [liveTask, setLiveTask] = useState<AgentTask>(task)
   const [elapsedSec, setElapsedSec] = useState(0)
   const [showLogs, setShowLogs] = useState(true)
-  const prevStatusRef = useRef(task.status)
+  const prevStatusRef = useRef(liveTask.status)
   const audioPlayedRef = useRef(false)
 
-  const filesChanged = safeArray(task.filesChanged)
-  const commandsRun = safeArray(task.commandsRun)
-  const terminalLogs = Array.isArray(task.terminalLogs) ? task.terminalLogs : safeArray(task.terminalLogs)
-  const events = Array.isArray(task.events) ? task.events : []
-  const stepActions = Array.isArray(task.stepActions) ? task.stepActions : []
+  useEffect(() => {
+    setLiveTask(task)
+  }, [task])
+
+  // Real-time live polling while task is active
+  useEffect(() => {
+    if (!liveTask?.id) return
+    const isOngoing = ['QUEUED', 'PLANNING', 'RUNNING', 'WAITING', 'RETRYING', 'VERIFYING'].includes(liveTask.status)
+    if (!isOngoing) return
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/tasks/${liveTask.id}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.task) {
+            setLiveTask(data.task)
+            if (data.task.status === 'COMPLETED' && !audioPlayedRef.current) {
+              audioPlayedRef.current = true
+              playJarvisChime('execute')
+              try {
+                if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                  const utterance = new SpeechSynthesisUtterance(
+                    `Master Sri, the task was finished successfully. Here is the output, check and let me know if anything needs to be looked into.`
+                  )
+                  utterance.rate = 1.05
+                  window.speechSynthesis.speak(utterance)
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+    }, 1500)
+
+    return () => clearInterval(interval)
+  }, [liveTask?.id, liveTask?.status])
+
+  const filesChanged = safeArray(liveTask.filesChanged)
+  const commandsRun = safeArray(liveTask.commandsRun)
+  const terminalLogs = Array.isArray(liveTask.terminalLogs) ? liveTask.terminalLogs : safeArray(liveTask.terminalLogs)
+  const events = Array.isArray(liveTask.events) ? liveTask.events : []
+  const stepActions = Array.isArray(liveTask.stepActions) ? liveTask.stepActions : []
 
   // Live stopwatch ticker
   useEffect(() => {
-    const startMs = new Date(task.startedAt || Date.now()).getTime()
+    const startMs = new Date(liveTask.startedAt || Date.now()).getTime()
     const update = () => {
-      const now = task.completedAt ? new Date(task.completedAt).getTime() : Date.now()
+      const now = liveTask.completedAt ? new Date(liveTask.completedAt).getTime() : Date.now()
       setElapsedSec(Math.max(0, Math.floor((now - startMs) / 1000)))
     }
     update()
-    if (task.status === 'RUNNING' || task.status === 'QUEUED') {
+    if (liveTask.status === 'RUNNING' || liveTask.status === 'QUEUED' || liveTask.status === 'PLANNING') {
       const interval = setInterval(update, 1000)
       return () => clearInterval(interval)
     }
-  }, [task.startedAt, task.completedAt, task.status])
+  }, [liveTask.startedAt, liveTask.completedAt, liveTask.status])
 
-  // Completion audio alert
+  // Completion audio alert fallback
   useEffect(() => {
-    if (prevStatusRef.current !== 'COMPLETED' && task.status === 'COMPLETED' && !audioPlayedRef.current) {
+    if (prevStatusRef.current !== 'COMPLETED' && liveTask.status === 'COMPLETED' && !audioPlayedRef.current) {
       audioPlayedRef.current = true
       playJarvisChime('execute')
     }
-    prevStatusRef.current = task.status
-  }, [task.status])
+    prevStatusRef.current = liveTask.status
+  }, [liveTask.status])
 
-  const agentConfig = AGENT_CONFIGS[task.agentId.toLowerCase()] || AGENT_CONFIGS.jarvis
+  const agentConfig = AGENT_CONFIGS[liveTask.agentId.toLowerCase()] || AGENT_CONFIGS.jarvis
   const AgentIcon = agentConfig.icon
 
   const formatTimer = (sec: number) => {
@@ -159,19 +198,19 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
     return `${String(mins).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
-  const estimateText = task.estimatedDuration || '~00:20'
+  const estimateText = liveTask.estimatedDuration || '~00:30'
 
   return (
     <div
       onClick={onSelect}
       className={cn(
         "relative rounded-2xl border bg-slate-950/80 backdrop-blur-xl p-5 shadow-2xl transition-all duration-300 overflow-hidden",
-        task.status === 'RUNNING' ? "border-cyan-500/60 shadow-[0_0_35px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/30" : "border-slate-800",
-        task.status === 'COMPLETED' && "border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]"
+        liveTask.status === 'RUNNING' ? "border-cyan-500/60 shadow-[0_0_35px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/30" : "border-slate-800",
+        liveTask.status === 'COMPLETED' && "border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]"
       )}
     >
       {/* Subtle pulsing background glow while executing */}
-      {task.status === 'RUNNING' && (
+      {liveTask.status === 'RUNNING' && (
         <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none animate-pulse" />
       )}
 
@@ -186,16 +225,16 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
               <span className={cn("px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase border", agentConfig.badge)}>
                 {agentConfig.label}
               </span>
-              <span className="text-[10px] font-mono text-slate-500">#{task.taskNumber}</span>
+              <span className="text-[10px] font-mono text-slate-500">#{liveTask.taskNumber}</span>
             </div>
-            <h4 className="text-sm font-bold text-white mt-0.5 line-clamp-1">{task.title}</h4>
+            <h4 className="text-sm font-bold text-white mt-0.5 line-clamp-1">{liveTask.title}</h4>
           </div>
         </div>
 
         {/* Stopwatch & Live Estimate */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-slate-300">
-            <Clock className={cn("w-3.5 h-3.5", task.status === 'RUNNING' ? "text-cyan-400 animate-spin" : "text-slate-400")} />
+            <Clock className={cn("w-3.5 h-3.5", liveTask.status === 'RUNNING' ? "text-cyan-400 animate-spin" : "text-slate-400")} />
             <span className="font-bold text-white">{formatTimer(elapsedSec)}</span>
             <span className="text-slate-500">/</span>
             <span className="text-slate-400">{estimateText}</span>
@@ -204,13 +243,13 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
           <span
             className={cn(
               "px-2.5 py-1 rounded-lg text-[10px] font-mono font-black uppercase tracking-wider border",
-              task.status === 'RUNNING' && "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 animate-pulse",
-              task.status === 'COMPLETED' && "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
-              task.status === 'FAILED' && "bg-rose-500/20 text-rose-300 border-rose-500/50",
-              task.status === 'QUEUED' && "bg-slate-800 text-slate-300 border-slate-700"
+              liveTask.status === 'RUNNING' && "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 animate-pulse",
+              liveTask.status === 'COMPLETED' && "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
+              liveTask.status === 'FAILED' && "bg-rose-500/20 text-rose-300 border-rose-500/50",
+              liveTask.status === 'QUEUED' && "bg-slate-800 text-slate-300 border-slate-700"
             )}
           >
-            {task.status}
+            {liveTask.status}
           </span>
         </div>
       </div>
@@ -222,30 +261,30 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
           <span className="text-slate-600 font-bold">→</span>
           <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">2. ASSIGN ({agentConfig.label.split(' ')[0]})</span>
           <span className="text-slate-600 font-bold">→</span>
-          <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">3. ID (#{task.taskNumber})</span>
+          <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">3. ID (#{liveTask.taskNumber})</span>
           <span className="text-slate-600 font-bold">→</span>
           <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">4. PATH</span>
           <span className="text-slate-600 font-bold">→</span>
           <span className={cn(
             "px-1.5 py-0.5 rounded font-bold border transition-all",
-            task.status === 'RUNNING' ? "bg-cyan-500/30 text-cyan-200 border-cyan-400 animate-pulse" :
-            task.status === 'COMPLETED' ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" :
+            liveTask.status === 'RUNNING' ? "bg-cyan-500/30 text-cyan-200 border-cyan-400 animate-pulse" :
+            liveTask.status === 'COMPLETED' ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" :
             "bg-slate-800 text-slate-400 border-slate-700"
           )}>
-            5. EXECUTE {task.status === 'RUNNING' ? '🔄' : task.status === 'COMPLETED' ? '✅' : ''}
+            5. EXECUTE {liveTask.status === 'RUNNING' ? '🔄' : liveTask.status === 'COMPLETED' ? '✅' : ''}
           </span>
           <span className="text-slate-600 font-bold">→</span>
           <span className={cn(
             "px-1.5 py-0.5 rounded font-bold border",
-            task.status === 'COMPLETED' ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/50" : "bg-slate-800 text-slate-500 border-slate-700"
+            liveTask.status === 'COMPLETED' ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/50" : "bg-slate-800 text-slate-500 border-slate-700"
           )}>
-            6. VERIFY {task.status === 'COMPLETED' ? '100%' : 'PENDING'}
+            6. VERIFY {liveTask.status === 'COMPLETED' ? '100%' : 'PENDING'}
           </span>
         </div>
-        {task.workspacePath && (
+        {liveTask.workspacePath && (
           <div className="flex items-center gap-1 text-[9px] text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/40 shrink-0">
             <span>📁</span>
-            <span className="font-semibold">{task.workspacePath}</span>
+            <span className="font-semibold">{liveTask.workspacePath}</span>
           </div>
         )}
       </div>
@@ -256,13 +295,13 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
           <div className="flex items-center gap-2 text-cyan-300">
             <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
             <span className="font-bold">
-              Step {task.completedSteps}/{task.totalSteps || 4}:
+              Step {liveTask.completedSteps}/{liveTask.totalSteps || 4}:
             </span>
             <span className="text-slate-300 font-sans text-xs">
-              {task.currentOperation || (task.status === 'COMPLETED' ? 'Directive fully executed and verified' : 'Executing subroutines...')}
+              {liveTask.currentOperation || (liveTask.status === 'COMPLETED' ? 'Directive fully executed and verified' : 'Executing subroutines...')}
             </span>
           </div>
-          <span className="text-cyan-400 font-bold">{Math.round(task.progress)}%</span>
+          <span className="text-cyan-400 font-bold">{Math.round(liveTask.progress)}%</span>
         </div>
 
         {/* Animated Progress Bar */}
@@ -270,11 +309,11 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
           <div
             className={cn(
               "h-full rounded-full transition-all duration-500 ease-out",
-              task.status === 'COMPLETED'
+              liveTask.status === 'COMPLETED'
                 ? "bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_12px_rgba(16,185,129,0.8)]"
                 : "bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.8)]"
             )}
-            style={{ width: `${Math.max(5, Math.min(100, task.progress))}%` }}
+            style={{ width: `${Math.max(5, Math.min(100, liveTask.progress))}%` }}
           />
         </div>
         {/* Step-by-Step Execution Verification Checklist */}
@@ -354,7 +393,7 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
       </div>
 
       {/* Audio & Visual Evidence Summary Card on Completion */}
-      {task.status === 'COMPLETED' && (
+      {liveTask.status === 'COMPLETED' && (
         <div className="mt-4 p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/40 space-y-2.5 relative z-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-bold">
@@ -367,7 +406,7 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
           </div>
 
           <div className="text-xs text-slate-300 font-sans leading-relaxed">
-            {task.verificationResult || task.executionResult || "All subtasks verified with zero regressions. System integrity confirmed."}
+            {liveTask.verificationResult || liveTask.executionResult || "All subtasks verified with zero regressions. System integrity confirmed."}
           </div>
 
           {filesChanged.length > 0 && (
@@ -389,14 +428,14 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
       )}
 
       {/* Error Report if Failed */}
-      {task.status === 'FAILED' && (
+      {liveTask.status === 'FAILED' && (
         <div className="mt-4 p-4 rounded-xl bg-rose-950/20 border border-rose-500/40 space-y-2 relative z-10">
           <div className="flex items-center gap-2 text-rose-400 text-xs font-mono font-bold">
             <AlertCircle className="w-4 h-4 text-rose-400" />
             <span>EXECUTION HALTED // VERIFICATION DEFECT</span>
           </div>
           <div className="text-xs text-rose-200 font-sans">
-            {task.errorDetails || "Task encountered an unrecoverable policy or runtime error."}
+            {liveTask.errorDetails || "Task encountered an unrecoverable policy or runtime error."}
           </div>
         </div>
       )}

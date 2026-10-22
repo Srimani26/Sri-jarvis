@@ -1770,27 +1770,48 @@ ${typeof r.result === 'string' ? r.result.slice(0, 400) : JSON.stringify(r.resul
       }
     }
 
-    // Direct Work Command Dispatcher
+    // Autonomous Multi-Stage Pipeline & Work Command Dispatcher
     const isExecutionDirective = (
+      lowerUserMsg.includes('faced this') ||
+      lowerUserMsg.includes('issue') ||
+      lowerUserMsg.includes('fix ') ||
+      lowerUserMsg.includes('fix that') ||
+      lowerUserMsg.includes('fix it') ||
+      lowerUserMsg.includes('resolve') ||
+      lowerUserMsg.includes('debug') ||
+      lowerUserMsg.includes('repair') ||
+      lowerUserMsg.includes('error') ||
+      lowerUserMsg.includes('bug') ||
+      lowerUserMsg.includes('broken') ||
+      lowerUserMsg.includes('problem') ||
       lowerUserMsg.startsWith('build ') ||
       lowerUserMsg.startsWith('create ') ||
       lowerUserMsg.startsWith('code ') ||
       lowerUserMsg.startsWith('inspect ') ||
       lowerUserMsg.startsWith('audit ') ||
       lowerUserMsg.startsWith('deploy ') ||
-      lowerUserMsg.startsWith('fix ') ||
       lowerUserMsg.startsWith('research ') ||
-      lowerUserMsg.startsWith('automate ')
+      lowerUserMsg.startsWith('automate ') ||
+      lowerUserMsg.includes('create a task') ||
+      lowerUserMsg.includes('run task') ||
+      lowerUserMsg.includes('set a pipeline') ||
+      lowerUserMsg.includes('work on it') ||
+      lowerUserMsg.includes('report me') ||
+      lowerUserMsg.includes('report back')
     );
 
     let spawnedTask: any = null;
-    if (isExecutionDirective && lastUserMsg.length > 8) {
+    if (isExecutionDirective && lastUserMsg.length > 5) {
       // Pick matching agent
-      let targetAgent = 'jarvis';
-      if (lowerUserMsg.includes('code') || lowerUserMsg.includes('build') || lowerUserMsg.includes('frontend') || lowerUserMsg.includes('backend') || lowerUserMsg.includes('app')) {
-        targetAgent = 'aegis';
-      } else if (lowerUserMsg.includes('automate') || lowerUserMsg.includes('workflow') || lowerUserMsg.includes('n8n')) {
+      let targetAgent = effectiveAgentId && AGENT_REGISTRY[effectiveAgentId] ? effectiveAgentId : 'jarvis';
+      if (lowerUserMsg.includes('code') || lowerUserMsg.includes('build') || lowerUserMsg.includes('frontend') || lowerUserMsg.includes('backend') || lowerUserMsg.includes('app') || lowerUserMsg.includes('fix') || lowerUserMsg.includes('bug') || lowerUserMsg.includes('error') || lowerUserMsg.includes('issue')) {
+        targetAgent = 'friday'; // Lead Software & Systems Engineer
+      } else if (lowerUserMsg.includes('automate') || lowerUserMsg.includes('workflow') || lowerUserMsg.includes('n8n') || lowerUserMsg.includes('zapier') || lowerUserMsg.includes('make')) {
         targetAgent = 'vortex';
+      } else if (lowerUserMsg.includes('security') || lowerUserMsg.includes('audit') || lowerUserMsg.includes('vulnerability')) {
+        targetAgent = 'sentinel';
+      } else if (lowerUserMsg.includes('architecture') || lowerUserMsg.includes('system design') || lowerUserMsg.includes('database')) {
+        targetAgent = 'daedalus';
       } else if (lowerUserMsg.includes('money') || lowerUserMsg.includes('revenue') || lowerUserMsg.includes('pricing') || lowerUserMsg.includes('pitch')) {
         targetAgent = 'midas';
       } else if (lowerUserMsg.includes('research') || lowerUserMsg.includes('news') || lowerUserMsg.includes('telemetry')) {
@@ -1800,14 +1821,14 @@ ${typeof r.result === 'string' ? r.result.slice(0, 400) : JSON.stringify(r.resul
       }
 
       spawnedTask = await TaskEngine.createTask({
-        title: lastUserMsg.slice(0, 80),
+        title: lastUserMsg.slice(0, 85),
         description: lastUserMsg,
         agentId: targetAgent,
         totalSteps: 4,
-        estimatedDuration: '45s',
+        estimatedDuration: '30s',
       });
 
-      // Dispatch mission asynchronously
+      // Dispatch mission asynchronously with real AI & tool execution
       setTimeout(() => {
         TaskEngine.dispatchMission(spawnedTask, {
           onAiCall: async (sys, msgs) => callAI(sys, msgs),
@@ -1873,6 +1894,7 @@ Directly converse with Master Sri as a trusted, highly skilled human colleague. 
       voiceId: AGENT_VOICE_MAP[effectiveAgentId]?.voiceId,
       sessionId: targetSessionId,
       task: spawnedTask,
+      taskData: spawnedTask,
     })
   } catch (error: any) {
     return c.json({ error: error.message || 'Chat error' }, 500)
