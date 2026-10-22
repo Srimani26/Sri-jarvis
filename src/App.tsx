@@ -777,12 +777,14 @@ export default function App() {
         <span className="text-xs font-mono hidden sm:inline font-black tracking-wider">TALK TO J.A.R.V.I.S.</span>
       </button>
 
-      {/* Sovereign J.A.R.V.I.S. Neural Voice Transceiver Modal */}
-      <JarvisVoiceModal
-        isOpen={voiceModalOpen}
-        onClose={() => setVoiceModalOpen(false)}
-        onNavigate={handleNavigate}
-      />
+      {/* Sovereign J.A.R.V.I.S. Neural Voice Transceiver Modal — Unmounted when closed to eliminate background audio/DSP CPU load */}
+      {voiceModalOpen && (
+        <JarvisVoiceModal
+          isOpen={voiceModalOpen}
+          onClose={() => setVoiceModalOpen(false)}
+          onNavigate={handleNavigate}
+        />
+      )}
 
       {/* Settings Dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

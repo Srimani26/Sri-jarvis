@@ -354,27 +354,35 @@
   -webkit-backdrop-filter: blur(4px) !important;
 }
 
-/* 3. Mobile Hardware Compositing: Keeps GPU cool by offloading to dedicated composite layers */
+/* 3. Mobile Thermal Optimization: Keeps mobile GPU/CPU cool and saves battery */
 @media screen and (max-width: 768px) {
-  /* Prevent heavy multi-pass blur on mobile GPUs */
-  .blur-3xl, .blur-\[120px\] {
-    filter: blur(24px) !important;
-    opacity: 0.25 !important;
+  /* Disable heavy GPU blur shaders entirely on mobile screens */
+  .blur-3xl, .blur-2xl, .blur-\[120px\] {
+    display: none !important;
   }
 
+  .backdrop-blur-xl,
   .backdrop-blur-2xl,
   .backdrop-blur-3xl {
-    backdrop-filter: blur(8px) !important;
-    -webkit-backdrop-filter: blur(8px) !important;
+    backdrop-filter: blur(2px) !important;
+    -webkit-backdrop-filter: blur(2px) !important;
+    background-color: rgba(6, 11, 25, 0.94) !important;
   }
 
-  /* Hardware acceleration hint */
-  .jarvis-card,
-  .mobile-safe-bottom,
-  .animate-spin,
-  .animate-pulse {
-    transform: translateZ(0);
-    will-change: transform, opacity;
+  /* Slow down infinite animations on mobile to reduce GPU clock cycles */
+  .animate-spin {
+    animation-duration: 16s !important;
+  }
+
+  .animate-ping {
+    animation: none !important;
+    display: none !important;
+  }
+
+  /* Prevent GPU texture memory thrashing */
+  * {
+    will-change: auto !important;
   }
 }
+
 

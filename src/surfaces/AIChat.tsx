@@ -214,6 +214,20 @@ function applyVoiceTypeDictionary(raw: string): string {
   return t
 }
 
+function HeaderClock() {
+  const [time, setTime] = useState(() => new Date())
+  useEffect(() => {
+    // Ticks gently every 30 seconds to conserve battery and CPU
+    const timer = setInterval(() => setTime(new Date()), 30000)
+    return () => clearInterval(timer)
+  }, [])
+  return (
+    <span>
+      {time.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })} • {time.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} IST
+    </span>
+  )
+}
+
 export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -235,12 +249,6 @@ export default function AIChat() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [searchFilter, setSearchFilter] = useState('')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
-  const [currentClock, setCurrentClock] = useState(() => new Date())
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentClock(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -869,7 +877,7 @@ Command me directly with voice or text:
               {/* Live Temporal Clock (Zero Cutoff Verification) */}
               <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/90 border border-slate-800 text-[10px] font-mono text-cyan-300">
                 <Clock className="w-3 h-3 text-cyan-400 shrink-0" />
-                <span>{currentClock.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })} • {currentClock.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })} IST</span>
+                <HeaderClock />
               </div>
 
               {/* Audio Mute / Unmute Toggle */}
