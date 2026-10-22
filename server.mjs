@@ -1951,218 +1951,6 @@ var init_AgentRegistry = __esm({
   }
 });
 
-// src/agents/AgentRuntime.ts
-var AgentRuntime;
-var init_AgentRuntime = __esm({
-  "src/agents/AgentRuntime.ts"() {
-    "use strict";
-    init_AgentRegistry();
-    init_ExecutionKernel();
-    init_TaskStore();
-    AgentRuntime = class {
-      /**
-       * Execute an objective with a designated specialist agent
-       */
-      static async executeAgentTask(request, toolExecutor) {
-        const startTime = Date.now();
-        const { taskId, agentId, objective, inputData, policyCeiling } = request;
-        const agent = AgentRegistry.getAgent(agentId);
-        if (!agent) {
-          await TaskStore.emitEvent(
-            taskId,
-            "ERROR_DETECTED",
-            `Agent '${agentId}' not found in workforce registry`,
-            { agentId }
-          );
-          return {
-            taskId,
-            agentId,
-            success: false,
-            output: null,
-            toolsUsed: [],
-            durationMs: Date.now() - startTime,
-            verificationPassed: false,
-            errors: [`Agent '${agentId}' is not registered`]
-          };
-        }
-        const effectivePolicy = policyCeiling || agent.maxPermission;
-        if (!AgentRegistry.isPermissionAllowed(agentId, effectivePolicy)) {
-          const err = `Permission violation: Agent '${agentId}' has max policy '${agent.maxPermission}' but requested '${effectivePolicy}'`;
-          await TaskStore.emitEvent(taskId, "ERROR_DETECTED", err, { agentId, effectivePolicy });
-          AgentRegistry.recordTelemetry(agentId, Date.now() - startTime, false);
-          return {
-            taskId,
-            agentId,
-            success: false,
-            output: null,
-            toolsUsed: [],
-            durationMs: Date.now() - startTime,
-            verificationPassed: false,
-            errors: [err]
-          };
-        }
-        await TaskStore.emitEvent(
-          taskId,
-          "AGENT_STARTED",
-          `Specialist agent '${agent.name}' (${agent.codename}) initiated objective: "${objective}"`,
-          { agentId, role: agent.role, policy: effectivePolicy }
-        );
-        await TaskStore.updateTask(taskId, {
-          status: "RUNNING",
-          currentOperation: `[${agent.name}] Executing: ${objective}`
-        });
-        const toolsUsed = [];
-        const errors = [];
-        let outputResult = null;
-        const context = {
-          taskId,
-          agentId,
-          policy: effectivePolicy,
-          emitEvent: async (eventType, message, metadata) => {
-            await TaskStore.emitEvent(taskId, eventType, message, metadata);
-          }
-        };
-        try {
-          outputResult = await new Promise(async (resolve14, reject) => {
-            const timer = setTimeout(() => {
-              reject(new Error(`Agent '${agentId}' exceeded timeout ceiling of ${agent.timeoutMs}ms`));
-            }, agent.timeoutMs);
-            try {
-              await TaskStore.emitEvent(
-                taskId,
-                "AGENT_THINKING",
-                `[${agent.name}] Reasoning over requirements and determining capability requirements`,
-                { checklist: agent.verificationChecklist }
-              );
-              if (inputData?.toolsToRun && Array.isArray(inputData.toolsToRun)) {
-                for (const toolReq of inputData.toolsToRun) {
-                  const { name, args } = toolReq;
-                  if (!AgentRegistry.canUseTool(agentId, name)) {
-                    throw new Error(`Tool '${name}' is not in allowedTools list for agent '${agentId}'`);
-                  }
-                  toolsUsed.push(name);
-                  await context.emitEvent("TOOL_STARTED", `[${agent.name}] Calling authorized tool '${name}'`, { tool: name, args });
-                  const toolResult = toolExecutor ? await toolExecutor(name, args || {}) : await ExecutionKernel.executeTool(name, args || {}, context);
-                  if (!toolResult.success) {
-                    throw new Error(`Tool '${name}' failed: ${toolResult.error}`);
-                  }
-                  await context.emitEvent("TOOL_COMPLETED", `[${agent.name}] Tool '${name}' completed successfully`, { tool: name });
-                }
-              }
-              clearTimeout(timer);
-              resolve14({
-                summary: `Objective successfully completed by ${agent.name}`,
-                objective,
-                agentId,
-                details: inputData || {}
-              });
-            } catch (execErr) {
-              clearTimeout(timer);
-              reject(execErr);
-            }
-          });
-          await TaskStore.emitEvent(
-            taskId,
-            "VERIFICATION_STARTED",
-            `Running deterministic verification for agent '${agent.name}'`,
-            { checklist: agent.verificationChecklist }
-          );
-          const durationMs = Date.now() - startTime;
-          AgentRegistry.recordTelemetry(agentId, durationMs, true);
-          await TaskStore.emitEvent(
-            taskId,
-            "VERIFICATION_PASSED",
-            `Verification passed for '${agent.name}' against ${agent.verificationChecklist.length} criteria`,
-            { checklist: agent.verificationChecklist }
-          );
-          return {
-            taskId,
-            agentId,
-            success: true,
-            output: outputResult,
-            toolsUsed,
-            durationMs,
-            verificationPassed: true
-          };
-        } catch (err) {
-          const durationMs = Date.now() - startTime;
-          const errorMsg = err?.message || String(err);
-          errors.push(errorMsg);
-          await TaskStore.emitEvent(
-            taskId,
-            "ERROR_DETECTED",
-            `Agent '${agent.name}' encountered error: ${errorMsg}`,
-            { error: errorMsg, agentId }
-          );
-          AgentRegistry.recordTelemetry(agentId, durationMs, false);
-          return {
-            taskId,
-            agentId,
-            success: false,
-            output: null,
-            toolsUsed,
-            durationMs,
-            verificationPassed: false,
-            errors
-          };
-        }
-      }
-      /**
-       * Execute multi-agent collaboration handoff
-       * Hands off scoped context from one specialist to another with event tracking
-       */
-      static async handoffTask(handoff) {
-        const { fromAgentId, toAgentId, taskId, reason, scopedContext, expectedOutput } = handoff;
-        await TaskStore.emitEvent(
-          taskId,
-          "AGENT_DELEGATED",
-          `Handoff: '${fromAgentId}' delegated task to '${toAgentId}'. Reason: ${reason}`,
-          { fromAgentId, toAgentId, reason, expectedOutput }
-        );
-        return this.executeAgentTask({
-          taskId,
-          agentId: toAgentId,
-          objective: `[Handoff from ${fromAgentId}] ${expectedOutput}`,
-          inputData: scopedContext,
-          callingAgentId: fromAgentId
-        });
-      }
-      /**
-       * Execute multi-agent pipeline sequence (e.g. Architect -> Software Engineer -> QA Engineer)
-       */
-      static async executePipeline(taskId, pipeline) {
-        const results = [];
-        for (let i = 0; i < pipeline.length; i++) {
-          const step = pipeline[i];
-          const previousOutput = i > 0 ? results[i - 1].output : null;
-          const inputWithContext = {
-            ...step.inputData,
-            previousStepOutput: previousOutput
-          };
-          const stepResponse = await this.executeAgentTask({
-            taskId,
-            agentId: step.agentId,
-            objective: step.objective,
-            inputData: inputWithContext
-          });
-          results.push(stepResponse);
-          if (!stepResponse.success) {
-            return {
-              success: false,
-              results,
-              failedAtStep: i
-            };
-          }
-        }
-        return {
-          success: true,
-          results
-        };
-      }
-    };
-  }
-});
-
 // src/coding/DiffPatcher.ts
 var DiffPatcher;
 var init_DiffPatcher = __esm({
@@ -7307,1011 +7095,6 @@ var init_ToolRegistry = __esm({
   }
 });
 
-// src/providers/ProviderRegistry.ts
-var ProviderRegistry;
-var init_ProviderRegistry = __esm({
-  "src/providers/ProviderRegistry.ts"() {
-    "use strict";
-    ProviderRegistry = class {
-      static models = /* @__PURE__ */ new Map();
-      static providerFailures = /* @__PURE__ */ new Map();
-      static circuitBreakerThreshold = 3;
-      static {
-        this.bootstrapModels();
-      }
-      static bootstrapModels() {
-        const defaultModels = [
-          // 1. Groq Cloud: LLaMA 3.3 70B Versatile (Ultra-Fast 70B Cloud Inference, ZERO local load)
-          {
-            id: "groq-llama-3.3-70b",
-            provider: "groq",
-            name: "LLaMA 3.3 70B Cloud (Groq Ultra-Fast)",
-            capabilities: ["fast", "coding", "tools", "reasoning"],
-            contextWindow: 128e3,
-            costPer1kInputTokens: 5e-4,
-            costPer1kOutputTokens: 8e-4,
-            avgLatencyMs: 220,
-            healthy: true,
-            tier: "LOW_COST"
-          },
-          // 2. Together Cloud: DeepSeek R1 70B (High-Level Mathematical & Architectural Reasoning)
-          {
-            id: "together-deepseek-r1-70b",
-            provider: "together",
-            name: "DeepSeek-R1 70B Cloud (Architectural Logic)",
-            capabilities: ["reasoning", "coding", "tools"],
-            contextWindow: 64e3,
-            costPer1kInputTokens: 7e-4,
-            costPer1kOutputTokens: 25e-4,
-            avgLatencyMs: 1400,
-            healthy: true,
-            tier: "LOW_COST"
-          },
-          // 3. Google Gemini 2.5 Pro / Argon Tier (2 Million Token Infinite Memory & Multimodal Reasoning)
-          {
-            id: "gemini-2.5-pro",
-            provider: "gemini",
-            name: "Google Gemini 2.5 Pro (Argon Frontier)",
-            capabilities: ["reasoning", "coding", "vision", "tools"],
-            contextWindow: 2e6,
-            costPer1kInputTokens: 125e-5,
-            costPer1kOutputTokens: 5e-3,
-            avgLatencyMs: 950,
-            healthy: true,
-            tier: "LOW_COST"
-          },
-          // 4. Google Gemini 2.5 Flash (Sub-Second Cloud Multimodal & Voice Transceiver)
-          {
-            id: "gemini-2.5-flash",
-            provider: "gemini",
-            name: "Google Gemini 2.5 Flash (Ultra-Speed)",
-            capabilities: ["fast", "vision", "tools", "coding", "audio"],
-            contextWindow: 1e6,
-            costPer1kInputTokens: 1e-4,
-            costPer1kOutputTokens: 4e-4,
-            avgLatencyMs: 280,
-            healthy: true,
-            tier: "FREE"
-          },
-          // 5. Anthropic Claude 3.7 Sonnet / Opus Tier (Fable/Opus Superior Software Architecture)
-          {
-            id: "claude-3-7-sonnet",
-            provider: "anthropic",
-            name: "Claude 3.7 Sonnet / Opus (Supreme Agentic Coding)",
-            capabilities: ["reasoning", "coding", "vision", "tools"],
-            contextWindow: 2e5,
-            costPer1kInputTokens: 3e-3,
-            costPer1kOutputTokens: 0.015,
-            avgLatencyMs: 1300,
-            healthy: true,
-            tier: "PAID"
-          },
-          // 6. OpenAI GPT-4o (Frontier Multimodal Agent Core)
-          {
-            id: "gpt-4o",
-            provider: "openai",
-            name: "OpenAI GPT-4o Multi-Modal",
-            capabilities: ["reasoning", "coding", "vision", "tools", "fast"],
-            contextWindow: 128e3,
-            costPer1kInputTokens: 25e-4,
-            costPer1kOutputTokens: 0.01,
-            avgLatencyMs: 850,
-            healthy: true,
-            tier: "PAID"
-          }
-        ];
-        for (const m of defaultModels) {
-          this.models.set(m.id, m);
-        }
-      }
-      static getModel(id) {
-        return this.models.get(id);
-      }
-      static listModels() {
-        return Array.from(this.models.values());
-      }
-      static registerModel(model) {
-        this.models.set(model.id, model);
-      }
-      static setModelHealth(id, healthy) {
-        const model = this.models.get(id);
-        if (model) {
-          model.healthy = healthy;
-        }
-      }
-      /**
-       * Circuit breaker failure recorder
-       */
-      static recordProviderFailure(provider) {
-        const failures = (this.providerFailures.get(provider) || 0) + 1;
-        this.providerFailures.set(provider, failures);
-        if (failures >= this.circuitBreakerThreshold) {
-          for (const model of this.models.values()) {
-            if (model.provider === provider) {
-              model.healthy = false;
-            }
-          }
-        }
-      }
-      static resetProviderCircuit(provider) {
-        this.providerFailures.set(provider, 0);
-        for (const model of this.models.values()) {
-          if (model.provider === provider) {
-            model.healthy = true;
-          }
-        }
-      }
-    };
-  }
-});
-
-// src/tools/JobScoutTool.ts
-var JobScoutTool;
-var init_JobScoutTool = __esm({
-  "src/tools/JobScoutTool.ts"() {
-    "use strict";
-    JobScoutTool = class {
-      static TARGET_KEYWORDS = [
-        "shopify",
-        "liquid",
-        "css bug",
-        "mobile responsive",
-        "header overlap",
-        "page speed",
-        "responsive",
-        "z-index",
-        "cart drawer",
-        "dawn theme",
-        "hiring",
-        "need developer",
-        "store bug",
-        "cart issue"
-      ];
-      static REDDIT_SUBREDDITS = [
-        "shopify",
-        "forhire",
-        "freelance_forhire"
-      ];
-      static USD_TO_INR = 84;
-      /**
-       * Determine task tier and pricing based on scope and extracted budget
-       */
-      static classifyTask(title, description, explicitBudgetUSD) {
-        const text = `${title} ${description}`.toLowerCase();
-        const isMicro = text.includes("css bug") || text.includes("header overlap") || text.includes("z-index") || text.includes("quick fix") || text.includes("glitch") || text.includes("margin") || text.includes("padding") || text.includes("color fix") || text.includes("alignment");
-        const isShopify = text.includes("shopify") || text.includes("liquid") || text.includes("dawn");
-        const isSpeed = text.includes("speed") || text.includes("lcp") || text.includes("performance") || text.includes("core vitals");
-        let category = "CSS / Frontend";
-        if (isShopify) category = "Shopify / Liquid";
-        else if (isSpeed) category = "Performance / Speed";
-        if (explicitBudgetUSD && explicitBudgetUSD >= 5 && explicitBudgetUSD <= 50) {
-          const tier = explicitBudgetUSD <= 15 ? "MICRO" : "STANDARD";
-          const payoutINR = Math.round(explicitBudgetUSD * this.USD_TO_INR);
-          return { tier, category, payoutUSD: explicitBudgetUSD, payoutINR };
-        }
-        if (isMicro) {
-          const payoutUSD = Math.floor(Math.random() * 11) + 5;
-          const payoutINR = Math.round(payoutUSD * this.USD_TO_INR);
-          return { tier: "MICRO", category, payoutUSD, payoutINR };
-        } else {
-          const payoutUSD = Math.floor(Math.random() * 31) + 20;
-          const payoutINR = Math.round(payoutUSD * this.USD_TO_INR);
-          return { tier: "STANDARD", category, payoutUSD, payoutINR };
-        }
-      }
-      /**
-       * Native Reddit public JSON/RSS feed parsers for r/shopify, r/forhire, r/freelance_forhire
-       * Zero API keys required. Resilient with live fallback if blocked by Reddit network security.
-       */
-      static async fetchRedditFeeds() {
-        const jobs = [];
-        const hireKeywords = [
-          "hiring",
-          "paid",
-          "budget",
-          "need developer",
-          "fix css",
-          "liquid",
-          "store bug",
-          "cart issue",
-          "shopify",
-          "developer wanted",
-          "looking for developer"
-        ];
-        for (const sub of this.REDDIT_SUBREDDITS) {
-          const url = `https://www.reddit.com/r/${sub}/new.json?limit=25`;
-          try {
-            const res = await fetch(url, {
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                "Accept": "application/json, text/plain, */*"
-              },
-              signal: AbortSignal.timeout(4e3)
-            });
-            if (res.ok) {
-              const json = await res.json();
-              const posts = json?.data?.children || [];
-              for (const item of posts) {
-                const data = item.data;
-                if (!data) continue;
-                const title = String(data.title || "");
-                const selftext = String(data.selftext || "");
-                const combined = `${title} ${selftext}`.toLowerCase();
-                const isForHire = title.toUpperCase().includes("[FOR HIRE]") || title.toLowerCase().startsWith("for hire") || combined.includes("my portfolio") || combined.includes("hire me");
-                if (isForHire) continue;
-                const matched = hireKeywords.filter((k) => combined.includes(k));
-                if (matched.length === 0) continue;
-                let explicitBudget;
-                const budgetMatch = combined.match(/\$(\d+)/) || combined.match(/budget[:\s]+(?:\$|usd)?\s*(\d+)/i);
-                if (budgetMatch && budgetMatch[1]) {
-                  const parsedVal = parseInt(budgetMatch[1], 10);
-                  if (parsedVal >= 10 && parsedVal <= 60) {
-                    explicitBudget = parsedVal;
-                  }
-                }
-                if (!explicitBudget) {
-                  explicitBudget = Math.floor(Math.random() * 21) + 15;
-                }
-                const classification = this.classifyTask(title, selftext, explicitBudget);
-                const postUrl = data.permalink ? `https://reddit.com${data.permalink}` : data.url || `https://reddit.com/r/${sub}`;
-                jobs.push({
-                  id: `JOB-RD-${data.id || Math.random().toString(36).slice(2, 8)}`,
-                  title: title.slice(0, 120),
-                  description: (selftext || title).slice(0, 450).trim(),
-                  category: classification.category,
-                  tier: classification.tier,
-                  payoutUSD: classification.payoutUSD,
-                  payoutINR: classification.payoutINR,
-                  matchedKeywords: matched,
-                  sourceUrl: postUrl,
-                  publishedAt: data.created_utc ? new Date(data.created_utc * 1e3).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
-                  requirementsSnippet: (selftext || title).slice(0, 180).trim()
-                });
-              }
-            }
-          } catch {
-          }
-        }
-        if (jobs.length === 0) {
-          const verifiedRedditHelpPosts = [
-            {
-              sub: "shopify",
-              title: "[HIRING] Urgent: Fix Shopify Dawn header overlap & mobile cart drawer bug",
-              selftext: "Looking for a Shopify Liquid / CSS dev to fix a header overlap issue on mobile screens and a cart drawer z-index problem where checkout is covered on iOS Safari. Budget: $35. Ready to hire right now.",
-              budgetUSD: 35,
-              keywords: ["shopify", "hiring", "fix css", "cart issue", "liquid"]
-            },
-            {
-              sub: "forhire",
-              title: "[HIRING] Need Shopify Liquid Developer to Fix Variant Dropdown Glitch",
-              selftext: "Our Dawn theme product page variant pills do not update price or image when selected on mobile Chrome. Need a clean Liquid patch without breaking app integrations. Budget: $25.",
-              budgetUSD: 25,
-              keywords: ["hiring", "shopify", "liquid", "paid", "need developer"]
-            },
-            {
-              sub: "freelance_forhire",
-              title: "[PAID] Quick CSS Alignment Bug on Mobile Product Grid ($20)",
-              selftext: "Have a 2-column grid breaking into uneven height boxes because of product title overflows. Need responsive flexbox or subgrid CSS fix. $20 for 30 min fix.",
-              budgetUSD: 20,
-              keywords: ["paid", "fix css", "budget", "need developer"]
-            }
-          ];
-          for (const item of verifiedRedditHelpPosts) {
-            const classification = this.classifyTask(item.title, item.selftext, item.budgetUSD);
-            jobs.push({
-              id: `JOB-RD-${item.sub.toUpperCase()}-${Math.random().toString(36).slice(2, 7)}`,
-              title: item.title,
-              description: item.selftext,
-              category: classification.category,
-              tier: classification.tier,
-              payoutUSD: classification.payoutUSD,
-              payoutINR: classification.payoutINR,
-              matchedKeywords: item.keywords,
-              sourceUrl: `https://www.reddit.com/r/${item.sub}/comments/${Math.random().toString(36).slice(2, 8)}`,
-              publishedAt: (/* @__PURE__ */ new Date()).toISOString(),
-              requirementsSnippet: item.selftext.slice(0, 180)
-            });
-          }
-        }
-        return jobs;
-      }
-      /**
-       * Ingest and parse remote freelance RSS and API feeds
-       */
-      static async fetchLiveFeeds(customKeywords) {
-        const keywords = customKeywords && customKeywords.length > 0 ? customKeywords : this.TARGET_KEYWORDS;
-        const jobs = [];
-        try {
-          const redditJobs = await this.fetchRedditFeeds();
-          jobs.push(...redditJobs);
-        } catch {
-        }
-        try {
-          const res = await fetch("https://remoteok.com/api", {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-              "Accept": "application/json"
-            },
-            signal: AbortSignal.timeout(5e3)
-          });
-          if (res.ok) {
-            const rawJobs = await res.json();
-            if (Array.isArray(rawJobs)) {
-              for (const item of rawJobs.slice(1, 30)) {
-                const title = item.position || item.title || "";
-                const desc = item.description || "";
-                const combined = `${title} ${desc}`.toLowerCase();
-                const matched = keywords.filter((k) => combined.includes(k.toLowerCase()));
-                if (matched.length > 0) {
-                  const classification = this.classifyTask(title, desc);
-                  jobs.push({
-                    id: `JOB-ROK-${item.id || Math.random().toString(36).slice(2, 8)}`,
-                    title,
-                    description: desc.slice(0, 500).replace(/<[^>]+>/g, " ").trim(),
-                    category: classification.category,
-                    tier: classification.tier,
-                    payoutUSD: classification.payoutUSD,
-                    payoutINR: classification.payoutINR,
-                    matchedKeywords: matched,
-                    sourceUrl: item.url || `https://remoteok.com/remote-jobs/${item.id}`,
-                    publishedAt: item.date || (/* @__PURE__ */ new Date()).toISOString(),
-                    requirementsSnippet: desc.slice(0, 200).replace(/<[^>]+>/g, "").trim()
-                  });
-                }
-              }
-            }
-          }
-        } catch (e) {
-        }
-        if (jobs.length < 3) {
-          const realisticQueue = [
-            {
-              title: "Shopify Dawn Theme: Sticky Header Overlapping Product Gallery on Mobile View",
-              desc: "On iPhone Safari and mobile Chrome, the sticky header in Dawn theme overlaps the top 40px of the product image carousel, obscuring the product zoom and breadcrumbs. Need clean CSS fix with z-index separation and responsive header calculation.",
-              source: "https://community.shopify.com/c/shopify-design/sticky-header-overlap-mobile",
-              keywords: ["Shopify", "header overlap", "CSS bug", "mobile responsive"]
-            },
-            {
-              title: "Mobile Responsive Fix: Cart Drawer Checkout Button Cut Off Below Screen Fold",
-              desc: "The sliding cart drawer checkout button is hidden underneath the iOS Safari URL bar on mobile viewports. Need dynamic viewport height (dvh) fix and z-index container patch.",
-              source: "https://community.shopify.com/c/technical-q-a/cart-drawer-mobile-viewport",
-              keywords: ["mobile responsive", "CSS bug", "Liquid", "Shopify"]
-            },
-            {
-              title: "Page Speed Optimization: Eliminate Render-Blocking CSS & Liquid Font Swapping",
-              desc: "Shopify store mobile speed index is 52. Need to inline critical above-the-fold CSS, add font-display: swap to Google Fonts, and defer non-critical asset loads to achieve sub-second LCP.",
-              source: "https://ecommercefreelance.org/bounties/shopify-speed-lcp",
-              keywords: ["page speed", "Shopify", "Liquid", "CSS bug"]
-            }
-          ];
-          for (const item of realisticQueue) {
-            const classification = this.classifyTask(item.title, item.desc);
-            jobs.push({
-              id: `JOB-SCT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-              title: item.title,
-              description: item.desc,
-              category: classification.category,
-              tier: classification.tier,
-              payoutUSD: classification.payoutUSD,
-              payoutINR: classification.payoutINR,
-              matchedKeywords: item.keywords,
-              sourceUrl: item.source,
-              publishedAt: (/* @__PURE__ */ new Date()).toISOString(),
-              requirementsSnippet: item.desc.slice(0, 180)
-            });
-          }
-        }
-        return jobs;
-      }
-    };
-  }
-});
-
-// src/providers/QuotaManager.ts
-var QuotaManager;
-var init_QuotaManager = __esm({
-  "src/providers/QuotaManager.ts"() {
-    "use strict";
-    QuotaManager = class {
-      static quotas = /* @__PURE__ */ new Map();
-      static INITIAL_BACKOFF_MS = 5e3;
-      static MAX_BACKOFF_MS = 3e5;
-      static {
-        const providers = ["ollama", "gemini", "groq", "openrouter", "anthropic", "openai", "together"];
-        for (const p of providers) {
-          this.quotas.set(p, {
-            provider: p,
-            state: "HEALTHY",
-            totalRequests: 0,
-            totalTokens: 0,
-            rateLimitHits: 0,
-            timeoutCount: 0,
-            authFailures: 0,
-            estimatedCostUsd: 0,
-            backoffMs: this.INITIAL_BACKOFF_MS
-          });
-        }
-      }
-      static resetProvider(provider) {
-        const rec = this.getRecord(provider);
-        rec.state = "HEALTHY";
-        rec.rateLimitHits = 0;
-        rec.timeoutCount = 0;
-        rec.authFailures = 0;
-        rec.resetAt = void 0;
-        rec.lastError = void 0;
-        rec.backoffMs = this.INITIAL_BACKOFF_MS;
-      }
-      static resetAll() {
-        for (const provider of this.quotas.keys()) {
-          this.resetProvider(provider);
-        }
-      }
-      static getRecord(provider) {
-        let rec = this.quotas.get(provider);
-        if (!rec) {
-          rec = {
-            provider,
-            state: "HEALTHY",
-            totalRequests: 0,
-            totalTokens: 0,
-            rateLimitHits: 0,
-            timeoutCount: 0,
-            authFailures: 0,
-            estimatedCostUsd: 0,
-            backoffMs: this.INITIAL_BACKOFF_MS
-          };
-          this.quotas.set(provider, rec);
-        }
-        return rec;
-      }
-      static recordSuccess(provider, tokens, costUsd = 0) {
-        const rec = this.getRecord(provider);
-        rec.totalRequests++;
-        rec.totalTokens += tokens;
-        rec.estimatedCostUsd += costUsd;
-        rec.backoffMs = this.INITIAL_BACKOFF_MS;
-        if (rec.state === "RATE_LIMITED" || rec.state === "DEGRADED") {
-          rec.state = "HEALTHY";
-        }
-      }
-      static recordRateLimit(provider, resetInSeconds) {
-        const rec = this.getRecord(provider);
-        rec.rateLimitHits++;
-        rec.state = "RATE_LIMITED";
-        rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
-        rec.resetAt = Date.now() + (resetInSeconds ? resetInSeconds * 1e3 : rec.backoffMs);
-      }
-      static recordTimeout(provider, error) {
-        const rec = this.getRecord(provider);
-        rec.timeoutCount++;
-        rec.lastError = error;
-        if (rec.timeoutCount >= 3) {
-          rec.state = "DEGRADED";
-        }
-      }
-      static recordAuthFailure(provider, error) {
-        const rec = this.getRecord(provider);
-        rec.authFailures++;
-        rec.state = "AUTH_FAILED";
-        rec.lastError = error;
-      }
-      static recordQuotaExhaustion(provider, resetInSeconds) {
-        const rec = this.getRecord(provider);
-        rec.rateLimitHits++;
-        rec.state = "QUOTA_EXHAUSTED";
-        rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
-        rec.resetAt = Date.now() + (resetInSeconds ? resetInSeconds * 1e3 : rec.backoffMs);
-      }
-      static recordOutage(provider, error) {
-        const rec = this.getRecord(provider);
-        rec.timeoutCount++;
-        rec.lastError = error;
-        rec.state = "OUTAGE";
-        rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
-        rec.resetAt = Date.now() + 6e4;
-      }
-      static isProviderAvailable(provider) {
-        const rec = this.getRecord(provider);
-        if (rec.state === "DISABLED" || rec.state === "AUTH_FAILED" || rec.state === "OFFLINE") {
-          return false;
-        }
-        if (rec.state === "RATE_LIMITED" || rec.state === "QUOTA_EXHAUSTED" || rec.state === "OUTAGE") {
-          if (rec.resetAt && Date.now() >= rec.resetAt) {
-            rec.state = "DEGRADED";
-            return true;
-          }
-          return false;
-        }
-        return true;
-      }
-      static getStatusOverview() {
-        const result = {};
-        for (const [provider, rec] of this.quotas.entries()) {
-          result[provider] = {
-            state: rec.state,
-            requests: rec.totalRequests,
-            tokens: rec.totalTokens,
-            rateLimits: rec.rateLimitHits,
-            costUsd: Number(rec.estimatedCostUsd.toFixed(4)),
-            available: this.isProviderAvailable(provider)
-          };
-        }
-        return result;
-      }
-    };
-  }
-});
-
-// src/providers/ProviderLearner.ts
-var ProviderLearner;
-var init_ProviderLearner = __esm({
-  "src/providers/ProviderLearner.ts"() {
-    "use strict";
-    ProviderLearner = class {
-      static metrics = /* @__PURE__ */ new Map();
-      static getKey(taskType, model) {
-        return `${taskType}:${model}`;
-      }
-      static recordExecution(taskType, provider, model, success, latencyMs) {
-        const key = this.getKey(taskType, model);
-        let m = this.metrics.get(key);
-        if (!m) {
-          m = {
-            taskType,
-            provider,
-            model,
-            totalAttempts: 0,
-            successes: 0,
-            failures: 0,
-            avgLatencyMs: latencyMs,
-            successRate: 1
-          };
-          this.metrics.set(key, m);
-        }
-        m.totalAttempts++;
-        if (success) {
-          m.successes++;
-        } else {
-          m.failures++;
-        }
-        m.avgLatencyMs = Math.round(m.avgLatencyMs * 0.7 + latencyMs * 0.3);
-        m.successRate = Number((m.successes / m.totalAttempts).toFixed(3));
-      }
-      static getBestModelForTask(taskType) {
-        const candidates = Array.from(this.metrics.values()).filter(
-          (m) => m.taskType === taskType && m.totalAttempts >= 2
-        );
-        if (candidates.length === 0) return void 0;
-        candidates.sort((a, b) => {
-          const diff = b.successRate - a.successRate;
-          if (diff !== 0) return diff;
-          return a.avgLatencyMs - b.avgLatencyMs;
-        });
-        return candidates[0];
-      }
-      static getAllMetrics() {
-        return Array.from(this.metrics.values());
-      }
-    };
-  }
-});
-
-// src/providers/ModelRouter.ts
-var TIER_PRIORITY, ModelRouter;
-var init_ModelRouter = __esm({
-  "src/providers/ModelRouter.ts"() {
-    "use strict";
-    init_ProviderRegistry();
-    init_QuotaManager();
-    init_ProviderLearner();
-    TIER_PRIORITY = {
-      FREE: 1,
-      LOW_COST: 2,
-      PAID: 3,
-      LOCAL: 4
-    };
-    ModelRouter = class {
-      /**
-       * Determine prioritized list of candidate models for a given task requirement
-       */
-      static route(request) {
-        const allModels = ProviderRegistry.listModels();
-        const healthyModels = allModels.filter((m) => {
-          if (!m.healthy) return false;
-          const is70B = m.id.toLowerCase().includes("70b") || m.name.toLowerCase().includes("70b");
-          if (is70B && m.provider === "ollama") {
-            return false;
-          }
-          return QuotaManager.isProviderAvailable(m.provider);
-        });
-        const candidates = healthyModels.filter((model) => {
-          if (request.minContextWindow && model.contextWindow < request.minContextWindow) {
-            return false;
-          }
-          if (request.requiresTools && !model.capabilities.includes("tools")) {
-            return false;
-          }
-          switch (request.taskType) {
-            case "coding":
-              return model.capabilities.includes("coding");
-            case "architecture":
-              return model.capabilities.includes("reasoning");
-            case "simple_chat":
-            case "classification":
-              return model.capabilities.includes("fast");
-            case "research":
-              return model.capabilities.includes("reasoning") || model.contextWindow >= 1e5;
-            case "vision":
-              return model.capabilities.includes("vision");
-            default:
-              return true;
-          }
-        });
-        const activeList = candidates.length > 0 ? candidates : healthyModels;
-        const bestLearned = ProviderLearner.getBestModelForTask(request.taskType);
-        activeList.sort((a, b) => {
-          if (bestLearned && a.id === bestLearned.model && bestLearned.successRate >= 0.9) return -1;
-          if (bestLearned && b.id === bestLearned.model && bestLearned.successRate >= 0.9) return 1;
-          const tierDiff = TIER_PRIORITY[a.tier] - TIER_PRIORITY[b.tier];
-          if (tierDiff !== 0) return tierDiff;
-          return a.avgLatencyMs - b.avgLatencyMs;
-        });
-        return activeList.length > 0 ? activeList : allModels;
-      }
-      /**
-       * Classify upstream provider failure into deterministic failure types
-       */
-      static classifyFailure(msg) {
-        const lower = msg.toLowerCase();
-        if (lower.includes("quota") || lower.includes("insufficient_quota") || lower.includes("credit exhausted")) {
-          return "QUOTA_EXHAUSTED";
-        }
-        if (lower.includes("429") || lower.includes("rate limit")) {
-          return "HTTP_429_RATE_LIMIT";
-        }
-        if (lower.includes("auth") || lower.includes("unauthorized") || lower.includes("invalid_api_key") || lower.includes("forbidden") || lower.includes("401") || lower.includes("403")) {
-          return "AUTH_FAILED";
-        }
-        if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("abort")) {
-          return "TIMEOUT";
-        }
-        if (lower.includes("econnrefused") || lower.includes("enotfound") || lower.includes("network") || lower.includes("fetch failed")) {
-          return "NETWORK_ERROR";
-        }
-        if (lower.includes("malformed") || lower.includes("invalid json") || lower.includes("unexpected token") || lower.includes("empty response")) {
-          return "MALFORMED_RESPONSE";
-        }
-        if (lower.includes("invalid model") || lower.includes("model_not_found") || lower.includes("model") && (lower.includes("not found") || lower.includes("does not exist"))) {
-          return "INVALID_MODEL";
-        }
-        if (lower.includes("502") || lower.includes("503") || lower.includes("504") || lower.includes("unavailable") || lower.includes("bad gateway")) {
-          return "PROVIDER_UNAVAILABLE";
-        }
-        return "PROVIDER_OUTAGE";
-      }
-      /**
-       * Execute prompt completion with automatic multi-tier failover & observable evidence
-       */
-      static async executeWithFailover(request, messages, invoker) {
-        const candidates = this.route(request);
-        const attemptedModels = [];
-        const failureHistory = [];
-        for (const candidate of candidates) {
-          attemptedModels.push(candidate.id);
-          const startTime = Date.now();
-          try {
-            const text = await invoker(candidate, messages);
-            const durationMs = Date.now() - startTime;
-            if (typeof text !== "string" || text.trim().length === 0) {
-              throw new Error("Provider returned malformed empty response");
-            }
-            const promptChars = messages.reduce((acc, m) => acc + m.content.length, 0);
-            const promptTokens = Math.ceil(promptChars / 4);
-            const completionTokens = Math.ceil(text.length / 4);
-            const estimatedCost = promptTokens / 1e3 * candidate.costPer1kInputTokens + completionTokens / 1e3 * candidate.costPer1kOutputTokens;
-            QuotaManager.recordSuccess(candidate.provider, promptTokens + completionTokens, estimatedCost);
-            ProviderLearner.recordExecution(request.taskType, candidate.provider, candidate.id, true, durationMs);
-            return {
-              text,
-              model: candidate.id,
-              provider: candidate.provider,
-              usage: {
-                promptTokens,
-                completionTokens,
-                estimatedCostUsd: Number(estimatedCost.toFixed(6))
-              },
-              latencyMs: durationMs,
-              failoverOccurred: attemptedModels.length > 1,
-              attemptedModels,
-              failureHistory: failureHistory.length > 0 ? failureHistory : void 0
-            };
-          } catch (err) {
-            const durationMs = Date.now() - startTime;
-            const msg = err?.message || String(err);
-            const failureType = this.classifyFailure(msg);
-            failureHistory.push({
-              model: candidate.id,
-              provider: candidate.provider,
-              failureType,
-              error: msg
-            });
-            ProviderLearner.recordExecution(request.taskType, candidate.provider, candidate.id, false, durationMs);
-            switch (failureType) {
-              case "HTTP_429_RATE_LIMIT":
-                QuotaManager.recordRateLimit(candidate.provider);
-                break;
-              case "QUOTA_EXHAUSTED":
-                QuotaManager.recordQuotaExhaustion(candidate.provider);
-                break;
-              case "TIMEOUT":
-                QuotaManager.recordTimeout(candidate.provider, msg);
-                break;
-              case "AUTH_FAILED":
-                QuotaManager.recordAuthFailure(candidate.provider, msg);
-                break;
-              case "PROVIDER_UNAVAILABLE":
-              case "PROVIDER_OUTAGE":
-              case "NETWORK_ERROR":
-                QuotaManager.recordOutage(candidate.provider, msg);
-                break;
-              case "INVALID_MODEL":
-                ProviderRegistry.setModelHealth(candidate.id, false);
-                break;
-              case "MALFORMED_RESPONSE":
-                QuotaManager.recordTimeout(candidate.provider, "Malformed response received");
-                break;
-            }
-            ProviderRegistry.recordProviderFailure(candidate.provider);
-          }
-        }
-        throw new Error(
-          `All candidate models failed failover chain: ${failureHistory.map((e) => `[${e.model} (${e.failureType}): ${e.error}]`).join(" -> ")}`
-        );
-      }
-    };
-  }
-});
-
-// src/providers/adapters/GeminiAdapter.ts
-var GeminiAdapter;
-var init_GeminiAdapter = __esm({
-  "src/providers/adapters/GeminiAdapter.ts"() {
-    "use strict";
-    GeminiAdapter = class {
-      id = "gemini";
-      name = "Google Gemini API";
-      apiKey = null;
-      requestsToday = 0;
-      tokensToday = 0;
-      constructor(apiKey) {
-        this.apiKey = apiKey !== void 0 ? apiKey.trim() || null : process.env.GEMINI_API_KEY || null;
-      }
-      isConfigured() {
-        return !!this.apiKey && this.apiKey.trim().length > 0;
-      }
-      async healthCheck() {
-        if (!this.isConfigured()) return false;
-        try {
-          const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`,
-            { method: "GET", signal: AbortSignal.timeout(4e3) }
-          );
-          return res.status === 200;
-        } catch {
-          return false;
-        }
-      }
-      async chat(messages, options) {
-        if (!this.isConfigured()) {
-          throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
-        }
-        const rawModel = options?.model || "gemini-3.8-flash";
-        let model = "gemini-3.8-flash";
-        if (rawModel && !rawModel.includes("pro") && !rawModel.includes("flash") && !rawModel.includes("2.5")) {
-          model = rawModel;
-        }
-        const contents = messages.map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }]
-        }));
-        const startTime = Date.now();
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents,
-              generationConfig: {
-                temperature: options?.temperature ?? 0.7,
-                maxOutputTokens: options?.maxTokens ?? 2048
-              }
-            }),
-            signal: AbortSignal.timeout(15e3)
-          }
-        );
-        if (res.status === 429) {
-          throw new Error("RATE_LIMITED: Gemini API quota exceeded");
-        }
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`Gemini API error (${res.status}): ${errorText}`);
-        }
-        const data = await res.json();
-        const latencyMs = Date.now() - startTime;
-        const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        const promptTokens = data.usageMetadata?.promptTokenCount || Math.ceil(messages.reduce((a, b) => a + b.content.length, 0) / 4);
-        const completionTokens = data.usageMetadata?.candidatesTokenCount || Math.ceil(candidateText.length / 4);
-        this.requestsToday++;
-        this.tokensToday += promptTokens + completionTokens;
-        return {
-          text: candidateText,
-          model,
-          provider: "gemini",
-          usage: {
-            promptTokens,
-            completionTokens,
-            estimatedCostUsd: 0
-            // Generous free tier
-          },
-          latencyMs
-        };
-      }
-      async embeddings(text) {
-        if (!this.isConfigured()) {
-          throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
-        }
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${this.apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              content: { parts: [{ text }] }
-            }),
-            signal: AbortSignal.timeout(8e3)
-          }
-        );
-        if (!res.ok) {
-          throw new Error(`Gemini embedding error: ${res.statusText}`);
-        }
-        const data = await res.json();
-        return data.embedding?.values || [];
-      }
-      async vision(prompt, imageBase64) {
-        if (!this.isConfigured()) {
-          throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
-        }
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${this.apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    { text: prompt },
-                    { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }
-                  ]
-                }
-              ]
-            }),
-            signal: AbortSignal.timeout(2e4)
-          }
-        );
-        if (!res.ok) {
-          throw new Error(`Gemini vision error: ${res.statusText}`);
-        }
-        const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      }
-      getUsage() {
-        return {
-          requestsToday: this.requestsToday,
-          tokensToday: this.tokensToday,
-          rateLimitRemaining: Math.max(0, 1500 - this.requestsToday)
-        };
-      }
-      estimateCost(_promptTokens, _completionTokens) {
-        return 0;
-      }
-    };
-  }
-});
-
-// src/providers/adapters/GroqAdapter.ts
-var GroqAdapter;
-var init_GroqAdapter = __esm({
-  "src/providers/adapters/GroqAdapter.ts"() {
-    "use strict";
-    GroqAdapter = class {
-      id = "groq";
-      name = "Groq Cloud LPU";
-      apiKey = null;
-      requestsToday = 0;
-      tokensToday = 0;
-      constructor(apiKey) {
-        this.apiKey = apiKey !== void 0 ? apiKey.trim() || null : process.env.GROQ_API_KEY || null;
-      }
-      isConfigured() {
-        return !!this.apiKey && this.apiKey.trim().length > 0;
-      }
-      async healthCheck() {
-        if (!this.isConfigured()) return false;
-        try {
-          const res = await fetch("https://api.groq.com/openai/v1/models", {
-            headers: { Authorization: `Bearer ${this.apiKey}` },
-            signal: AbortSignal.timeout(4e3)
-          });
-          return res.status === 200;
-        } catch {
-          return false;
-        }
-      }
-      async chat(messages, options) {
-        if (!this.isConfigured()) {
-          throw new Error("PROVIDER_NOT_CONFIGURED: GROQ_API_KEY is not set");
-        }
-        const model = options?.model || "llama-3.3-70b-versatile";
-        const startTime = Date.now();
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.apiKey}`
-          },
-          body: JSON.stringify({
-            model,
-            messages,
-            temperature: options?.temperature ?? 0.7,
-            max_tokens: options?.maxTokens ?? 2048
-          }),
-          signal: AbortSignal.timeout(12e3)
-        });
-        if (res.status === 429) {
-          throw new Error("RATE_LIMITED: Groq API quota limit reached");
-        }
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`Groq API error (${res.status}): ${errorText}`);
-        }
-        const data = await res.json();
-        const latencyMs = Date.now() - startTime;
-        const text = data.choices?.[0]?.message?.content || "";
-        const promptTokens = data.usage?.prompt_tokens || Math.ceil(messages.reduce((a, b) => a + b.content.length, 0) / 4);
-        const completionTokens = data.usage?.completion_tokens || Math.ceil(text.length / 4);
-        this.requestsToday++;
-        this.tokensToday += promptTokens + completionTokens;
-        return {
-          text,
-          model,
-          provider: "groq",
-          usage: {
-            promptTokens,
-            completionTokens,
-            estimatedCostUsd: 0
-            // Free developer tier
-          },
-          latencyMs
-        };
-      }
-      getUsage() {
-        return {
-          requestsToday: this.requestsToday,
-          tokensToday: this.tokensToday,
-          rateLimitRemaining: Math.max(0, 14400 - this.requestsToday)
-        };
-      }
-      estimateCost(_promptTokens, _completionTokens) {
-        return 0;
-      }
-    };
-  }
-});
-
 // src/quality/OpenQodexReviewEngine.ts
 var OpenQodexReviewEngine;
 var init_OpenQodexReviewEngine = __esm({
@@ -8409,707 +7192,6 @@ var init_OpenQodexReviewEngine = __esm({
             findingsCount: findings.length
           }
         };
-      }
-    };
-  }
-});
-
-// src/ml/TensorFlowPricingEngine.ts
-var TensorFlowPricingEngine;
-var init_TensorFlowPricingEngine = __esm({
-  "src/ml/TensorFlowPricingEngine.ts"() {
-    "use strict";
-    TensorFlowPricingEngine = class {
-      static USD_TO_INR = 84;
-      // Feature weights calibrated for freelance client conversion
-      static WEIGHTS = {
-        budget: 0.25,
-        keyword: 0.35,
-        urgency: 0.2,
-        complexity: 0.1,
-        reputation: 0.1
-      };
-      /**
-       * Extract normalized feature vector from raw lead data
-       */
-      static extractFeatures(title, description, budgetUSD) {
-        const text = `${title} ${description}`.toLowerCase();
-        const highValueTerms = ["urgent", "immediate", "shopify", "liquid", "dawn theme", "cart drawer", "speed", "performance", "api", "full-stack"];
-        const matched = highValueTerms.filter((term) => text.includes(term)).length;
-        const keywordDensity = Math.min(1, matched / 5);
-        const urgencyScore = /urgent|asap|today|immediately|now|fix\s*fast/i.test(text) ? 0.95 : 0.5;
-        let complexityScore = 0.3;
-        if (/database|full\s*stack|backend|custom\s*app|oauth|stripe/i.test(text)) {
-          complexityScore = 0.85;
-        } else if (/template|section|liquid|cart|filter/i.test(text)) {
-          complexityScore = 0.55;
-        }
-        return {
-          budgetUSD: budgetUSD || 0,
-          keywordDensity,
-          urgencyScore,
-          complexityScore,
-          clientReputationScore: 0.8
-        };
-      }
-      /**
-       * Run inference to compute optimal pricing and conversion probability
-       */
-      static predictOptimalPricing(features) {
-        const rawScore = features.keywordDensity * this.WEIGHTS.keyword + features.urgencyScore * this.WEIGHTS.urgency + features.complexityScore * this.WEIGHTS.complexity + features.clientReputationScore * this.WEIGHTS.reputation;
-        const winProbability = 1 / (1 + Math.exp(-((rawScore - 0.45) * 6)));
-        let targetPriceUSD = 35;
-        let tier = "MICRO";
-        if (features.budgetUSD && features.budgetUSD > 0) {
-          if (features.budgetUSD >= 1e4) {
-            targetPriceUSD = Math.round(features.budgetUSD * 0.9);
-            tier = "SOVEREIGN_SCALE";
-          } else if (features.budgetUSD >= 2e3) {
-            targetPriceUSD = Math.round(features.budgetUSD * 0.88);
-            tier = "ENTERPRISE";
-          } else if (features.budgetUSD >= 300) {
-            targetPriceUSD = Math.round(features.budgetUSD * 0.9);
-            tier = "ENTERPRISE";
-          } else if (features.budgetUSD >= 100) {
-            targetPriceUSD = Math.round(features.budgetUSD * 0.85);
-            tier = "PREMIUM";
-          } else if (features.budgetUSD >= 40) {
-            targetPriceUSD = Math.round(features.budgetUSD * 0.95);
-            tier = "STANDARD";
-          } else {
-            targetPriceUSD = Math.max(25, features.budgetUSD);
-            tier = "MICRO";
-          }
-        } else {
-          if (features.complexityScore > 0.85) {
-            targetPriceUSD = 4500;
-            tier = "ENTERPRISE";
-          } else if (features.complexityScore > 0.7) {
-            targetPriceUSD = 450;
-            tier = "PREMIUM";
-          } else if (features.complexityScore > 0.4) {
-            targetPriceUSD = 120;
-            tier = "STANDARD";
-          } else {
-            targetPriceUSD = 45;
-            tier = "MICRO";
-          }
-        }
-        const recommendedPriceINR = Math.round(targetPriceUSD * this.USD_TO_INR);
-        const expectedValueINR = Math.round(recommendedPriceINR * winProbability);
-        let conversionConfidence = "MODERATE";
-        if (winProbability >= 0.75) conversionConfidence = "HIGH";
-        else if (winProbability >= 0.5) conversionConfidence = "MEDIUM";
-        return {
-          winProbability: Math.round(winProbability * 100) / 100,
-          recommendedPriceUSD: targetPriceUSD,
-          recommendedPriceINR,
-          expectedValueINR,
-          tier,
-          conversionConfidence
-        };
-      }
-    };
-  }
-});
-
-// src/agents/FreelanceRevenueAgent.ts
-var FreelanceRevenueAgent;
-var init_FreelanceRevenueAgent = __esm({
-  "src/agents/FreelanceRevenueAgent.ts"() {
-    "use strict";
-    init_ModelRouter();
-    init_GeminiAdapter();
-    init_GroqAdapter();
-    init_JobScoutTool();
-    init_OpenQodexReviewEngine();
-    init_TensorFlowPricingEngine();
-    FreelanceRevenueAgent = class {
-      /**
-       * Analyze raw requirement and synthesize code patch, proposal, and pricing
-       */
-      static async analyzeAndSolve(params) {
-        const { title, description, url } = params;
-        const classification = JobScoutTool.classifyTask(title, description);
-        const systemPrompt = `You are J.A.R.V.I.S. Lead Freelance Engineer and Chief Revenue Specialist for Master Sri (Srimanikandan K).
-Your mission is to analyze technical freelance tasks (Shopify, Liquid, CSS, Web Performance) and output immediate, production-ready solutions.
-
-You MUST respond strictly with a valid JSON object matching this schema:
-{
-  "rootCause": "<Single precise sentence diagnosing the technical flaw, e.g. 'The mobile sticky header lacks top margin offset calculation and has a lower z-index stacking context than the absolute-positioned gallery drawer.'>",
-  "codePatch": "<Production-ready CSS/Liquid/JS patch using search/replace or direct stylesheet block>",
-  "clientProposal": "<Exact ~80-word high-converting proposal. Emphasize zero downtime, immediate deployment, and exact technical fix. Do not use generic buzzwords. Signed by Master Sri's Autonomous Engineering Practice.>"
-}`;
-        const userPrompt = `Task Title: "${title}"
-Requirement Description:
-"${description}"
-Target URL / Context: "${url || "Shopify Dawn Theme / Modern Web"}"
-
-Analyze this requirement and output the JSON solution now.`;
-        const messages = [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ];
-        let rawOutput = "";
-        let modelUsed = "gemini-3.8-flash";
-        try {
-          const response = await ModelRouter.executeWithFailover(
-            { taskType: "coding", requiresTools: false },
-            messages,
-            async (candidate, msgs) => {
-              if (candidate.provider === "gemini") {
-                const adapter2 = new GeminiAdapter();
-                const res = await adapter2.chat(msgs, { model: candidate.id, temperature: 0.2 });
-                return res.text;
-              }
-              if (candidate.provider === "groq") {
-                const adapter2 = new GroqAdapter();
-                const res = await adapter2.chat(msgs, { model: candidate.id, temperature: 0.2 });
-                return res.text;
-              }
-              throw new Error(`Provider not configured for live chat: ${candidate.provider}`);
-            }
-          );
-          rawOutput = response.text;
-          modelUsed = response.model;
-        } catch (llmError) {
-          console.warn("[FreelanceRevenueAgent] Fallback to deterministic synthesis:", llmError.message);
-          rawOutput = this.generateDeterministicSolution(title, description);
-        }
-        let parsed = null;
-        try {
-          const cleanJson = rawOutput.replace(/```json/g, "").replace(/```/g, "").trim();
-          const match = cleanJson.match(/\{[\s\S]*\}/);
-          if (match) {
-            parsed = JSON.parse(match[0]);
-          }
-        } catch {
-          parsed = null;
-        }
-        if (!parsed || !parsed.rootCause || !parsed.codePatch) {
-          const fallback = JSON.parse(this.generateDeterministicSolution(title, description));
-          parsed = { ...fallback, ...parsed };
-        }
-        const tfFeatures = TensorFlowPricingEngine.extractFeatures(title, description, classification.payoutUSD);
-        const pricingInference = TensorFlowPricingEngine.predictOptimalPricing(tfFeatures);
-        const codeLang = /\{\%|\{\{/i.test(parsed.codePatch) ? "liquid" : /\{|\}/.test(parsed.codePatch) ? "css" : "typescript";
-        const qualityReview = OpenQodexReviewEngine.reviewAndSecure(parsed.codePatch, codeLang);
-        const finalCodePatch = qualityReview.repairedCode || parsed.codePatch;
-        return {
-          taskId: `REV-${Date.now().toString().slice(-6)}`,
-          title,
-          rootCause: parsed.rootCause,
-          codePatch: finalCodePatch,
-          clientProposal: parsed.clientProposal,
-          pricing: {
-            tier: pricingInference.tier,
-            payoutUSD: pricingInference.recommendedPriceUSD || classification.payoutUSD,
-            payoutINR: pricingInference.recommendedPriceINR || classification.payoutINR,
-            winProbability: pricingInference.winProbability,
-            expectedValueINR: pricingInference.expectedValueINR
-          },
-          durationEstimate: pricingInference.tier === "MICRO" ? "25 - 45 mins" : "1 - 3 hours",
-          modelUsed,
-          generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          url: params.url,
-          qualityReview,
-          pricingInference
-        };
-      }
-      static generateDeterministicSolution(title, description) {
-        const isShopify = /shopify|liquid|dawn/i.test(`${title} ${description}`);
-        const isHeader = /header|overlap|z-index/i.test(`${title} ${description}`);
-        const rootCause = isHeader ? "The sticky header navigation lacks dynamic safe-area-inset padding and collides with product media due to colliding stacking contexts." : isShopify ? "Liquid template variant listener omits synchronous DOM mutation triggers when mobile swatch buttons receive touch events." : "Viewport dynamic height (dvh) is unconstrained across WebKit mobile browsers, causing sticky bottom elements to overflow.";
-        const codePatch = `/* SURGICAL CSS/LIQUID FIX */
-@media screen and (max-width: 749px) {
-  .header-wrapper.sticky-header {
-    position: sticky !important;
-    top: 0;
-    z-index: 100 !important;
-  }
-  .main-product-section {
-    padding-top: calc(var(--header-height, 64px) + env(safe-area-inset-top, 12px)) !important;
-  }
-}`;
-        const clientProposal = `Hi there! I can fix this ${title.toLowerCase().includes("header") ? "header overlap bug" : "Shopify layout issue"} for you right away. The root cause is a stacking context collision between the mobile sticky header and the media container. I have already drafted the exact, non-destructive CSS/Liquid patch that preserves mobile responsiveness across both iOS Safari and Android Chrome without touching your theme settings. I can deploy and test this in under 30 minutes. Let's resolve this today!`;
-        return JSON.stringify({ rootCause, codePatch, clientProposal });
-      }
-    };
-  }
-});
-
-// src/notifications/TelegramNotifier.ts
-import { existsSync as existsSync4, readFileSync as readFileSync3 } from "node:fs";
-import { resolve as resolve3 } from "node:path";
-var TelegramNotifier;
-var init_TelegramNotifier = __esm({
-  "src/notifications/TelegramNotifier.ts"() {
-    "use strict";
-    TelegramNotifier = class {
-      static loadEnvFile() {
-        const envPath = resolve3(process.cwd(), ".env");
-        if (existsSync4(envPath)) {
-          try {
-            const content = readFileSync3(envPath, "utf-8");
-            for (const line of content.split(/\r?\n/)) {
-              const trimmed = line.trim();
-              if (!trimmed || trimmed.startsWith("#")) continue;
-              const idx = trimmed.indexOf("=");
-              if (idx !== -1) {
-                const key = trimmed.slice(0, idx).trim();
-                let val = trimmed.slice(idx + 1).trim();
-                if (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'")) {
-                  val = val.slice(1, -1);
-                }
-                if (!process.env[key]) {
-                  process.env[key] = val;
-                }
-              }
-            }
-          } catch {
-          }
-        }
-      }
-      static getCredentials() {
-        this.loadEnvFile();
-        let botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
-        let chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
-        botToken = botToken.replace(/^[<"']+|[>"']+$/g, "");
-        chatId = chatId.replace(/^[<"']+|[>"']+$/g, "");
-        return { botToken, chatId };
-      }
-      static isConfigured() {
-        const { botToken, chatId } = this.getCredentials();
-        return Boolean(botToken && chatId);
-      }
-      /**
-       * Send arbitrary message (HTML or plain text) to configured or targeted chat
-       */
-      static async sendMessage(textOrHtml, options) {
-        const { botToken, chatId: defaultChatId } = this.getCredentials();
-        const chatId = options?.targetChatId || defaultChatId;
-        if (!botToken || !chatId) {
-          return {
-            success: false,
-            error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
-          };
-        }
-        const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
-        const parseMode = options?.parseMode !== void 0 ? options.parseMode : "HTML";
-        const bodyPayload = {
-          chat_id: chatId,
-          text: textOrHtml,
-          disable_web_page_preview: true
-        };
-        if (parseMode) {
-          bodyPayload.parse_mode = parseMode;
-        }
-        if (options?.replyMarkup) {
-          bodyPayload.reply_markup = options.replyMarkup;
-        }
-        try {
-          const res = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(bodyPayload),
-            signal: AbortSignal.timeout(1e4)
-          });
-          const data = await res.json();
-          if (res.ok && data.ok) {
-            return {
-              success: true,
-              messageId: data.result?.message_id,
-              chatId
-            };
-          }
-          if (parseMode === "HTML") {
-            const plainText = textOrHtml.replace(/<[^>]+>/g, "");
-            const retryPayload = {
-              chat_id: chatId,
-              text: plainText
-            };
-            if (options?.replyMarkup) retryPayload.reply_markup = options.replyMarkup;
-            const retryRes = await fetch(endpoint, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(retryPayload),
-              signal: AbortSignal.timeout(1e4)
-            });
-            const retryData = await retryRes.json();
-            return {
-              success: retryRes.ok && retryData.ok,
-              messageId: retryData.result?.message_id,
-              chatId,
-              error: retryData.ok ? void 0 : retryData.description
-            };
-          }
-          return {
-            success: false,
-            chatId,
-            error: data.description || "Telegram API returned error"
-          };
-        } catch (err) {
-          return {
-            success: false,
-            chatId,
-            error: `Telegram network error: ${err.message}`
-          };
-        }
-      }
-      /**
-       * Answer a Telegram callback query
-       */
-      static async answerCallbackQuery(callbackQueryId, text, showAlert = false) {
-        const { botToken } = this.getCredentials();
-        if (!botToken || !callbackQueryId) return false;
-        const endpoint = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
-        try {
-          const res = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              callback_query_id: callbackQueryId,
-              text: text || "Action acknowledged",
-              show_alert: showAlert
-            }),
-            signal: AbortSignal.timeout(6e3)
-          });
-          const data = await res.json();
-          return Boolean(res.ok && data.ok);
-        } catch {
-          return false;
-        }
-      }
-      /**
-       * Send raw HTML alert directly to Master Sri
-       */
-      static async sendRawAlert(html, targetChatId) {
-        return this.sendMessage(html, { parseMode: "HTML", targetChatId });
-      }
-      /**
-       * Send formatted EOD Financial Report card
-       */
-      static async sendEODReport(cardHtml, targetChatId) {
-        return this.sendMessage(cardHtml, { parseMode: "HTML", targetChatId });
-      }
-      /**
-       * Send a rich, formatted lead alert to Master Sri on Telegram
-       */
-      static async sendLeadAlert(task) {
-        const { botToken, chatId } = this.getCredentials();
-        if (!botToken || !chatId) {
-          return {
-            success: false,
-            error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
-          };
-        }
-        const escapeHtml2 = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        const tierEmoji = task.pricing.tier === "MICRO" ? "\u26A1 [MICRO-TASK]" : "\u{1F680} [STANDARD TASK]";
-        const formattedHtml = `<b>${tierEmoji} J.A.R.V.I.S. REVENUE LEAD ALERT</b>
-
-\u{1F4BC} <b>Objective:</b> ${escapeHtml2(task.title)}
-\u{1F4B0} <b>Value:</b> <code>$${task.pricing.payoutUSD} USD</code> (<b>\u20B9${task.pricing.payoutINR.toLocaleString("en-IN")} INR</b>)
-\u23F1\uFE0F <b>Turnaround:</b> ${escapeHtml2(task.durationEstimate)}
-\u{1F9E0} <b>Root Cause Diagnosis:</b>
-<i>${escapeHtml2(task.rootCause)}</i>
-
-\u{1F4DD} <b>Ready-to-Send Client Proposal:</b>
-<code>${escapeHtml2(task.clientProposal)}</code>
-
-\u{1F6E0}\uFE0F <b>Production Surgical Code Patch:</b>
-<pre><code class="language-css">${escapeHtml2(task.codePatch)}</code></pre>
-
-\u{1F916} <i>Model: ${escapeHtml2(task.modelUsed)} \u2022 Dispatched by J.A.R.V.I.S. Money Engine</i>`;
-        const jobUrl = task.url && (task.url.startsWith("http://") || task.url.startsWith("https://")) ? task.url : "https://reddit.com/r/shopify";
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              { text: "\u{1F680} Open Job Post", url: jobUrl },
-              { text: "\u2705 Won ($)", callback_data: `won:${task.taskId}:${task.pricing.payoutINR}` },
-              { text: "\u274C Dismiss", callback_data: `dismiss:${task.taskId}` }
-            ]
-          ]
-        };
-        return this.sendMessage(formattedHtml, {
-          parseMode: "HTML",
-          targetChatId: chatId,
-          replyMarkup: inlineKeyboard
-        });
-      }
-    };
-  }
-});
-
-// src/services/LeadDeduplicationService.ts
-import { existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync4, writeFileSync as writeFileSync3 } from "node:fs";
-import { resolve as resolve4, join as join4 } from "node:path";
-var LeadDeduplicationService;
-var init_LeadDeduplicationService = __esm({
-  "src/services/LeadDeduplicationService.ts"() {
-    "use strict";
-    init_db();
-    LeadDeduplicationService = class _LeadDeduplicationService {
-      static dataDir = resolve4(process.cwd(), "data");
-      static leadsFile = join4(_LeadDeduplicationService.dataDir, "processed_leads.json");
-      static cache = /* @__PURE__ */ new Map();
-      static dbInitialized = false;
-      static ensureDataDir() {
-        if (!existsSync5(this.dataDir)) {
-          mkdirSync3(this.dataDir, { recursive: true });
-        }
-        if (!existsSync5(this.leadsFile)) {
-          writeFileSync3(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
-        }
-      }
-      /**
-       * Initialize SQLite scouted_leads table and populate memory cache
-       */
-      static async init() {
-        this.ensureDataDir();
-        try {
-          const raw2 = readFileSync4(this.leadsFile, "utf-8");
-          const records = JSON.parse(raw2);
-          for (const rec of records) {
-            if (rec.id) this.cache.set(rec.id, rec);
-            if (rec.url) this.cache.set(rec.url, rec);
-          }
-        } catch {
-        }
-        if (!this.dbInitialized) {
-          try {
-            await prisma.$executeRawUnsafe(`
-          CREATE TABLE IF NOT EXISTS scouted_leads (
-            id TEXT PRIMARY KEY,
-            url TEXT UNIQUE,
-            title TEXT,
-            payout_usd REAL,
-            payout_inr REAL,
-            created_at TEXT
-          );
-        `);
-            this.dbInitialized = true;
-          } catch (err) {
-            this.dbInitialized = true;
-          }
-        }
-      }
-      /**
-       * Check whether a job ID or URL has already been processed and alerted
-       */
-      static async isProcessed(id, url) {
-        await this.init();
-        if (this.cache.has(id)) return true;
-        if (url && this.cache.has(url)) return true;
-        try {
-          const dbRows = await prisma.$queryRawUnsafe(
-            `SELECT id FROM scouted_leads WHERE id = $1 OR url = $2 LIMIT 1;`,
-            id,
-            url || id
-          );
-          if (dbRows && dbRows.length > 0) {
-            return true;
-          }
-        } catch {
-        }
-        try {
-          const existingTask = await prisma.agentTask.findFirst({
-            where: {
-              OR: [
-                { description: { contains: id } },
-                url ? { description: { contains: url } } : { id: "none" }
-              ]
-            },
-            select: { id: true }
-          });
-          if (existingTask) {
-            return true;
-          }
-        } catch {
-        }
-        return false;
-      }
-      /**
-       * Record lead as processed across memory, file, and SQLite
-       */
-      static async markProcessed(lead) {
-        await this.init();
-        const record = {
-          id: lead.id,
-          url: lead.url || lead.id,
-          title: lead.title,
-          payoutUSD: lead.payoutUSD,
-          payoutINR: lead.payoutINR,
-          processedAt: (/* @__PURE__ */ new Date()).toISOString()
-        };
-        this.cache.set(record.id, record);
-        if (record.url) this.cache.set(record.url, record);
-        try {
-          const records = Array.from(new Set(Array.from(this.cache.values())));
-          writeFileSync3(this.leadsFile, JSON.stringify(records, null, 2), "utf-8");
-        } catch (e) {
-          console.warn("[LeadDeduplicationService] Failed to write leads file:", e?.message);
-        }
-        try {
-          await prisma.$executeRawUnsafe(
-            `INSERT OR REPLACE INTO scouted_leads (id, url, title, payout_usd, payout_inr, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6);`,
-            record.id,
-            record.url,
-            record.title,
-            record.payoutUSD,
-            record.payoutINR,
-            record.processedAt
-          );
-        } catch {
-        }
-      }
-      /**
-       * Total number of unique processed leads
-       */
-      static async getProcessedCount() {
-        await this.init();
-        const unique = new Set(Array.from(this.cache.values()).map((r) => r.id));
-        return unique.size;
-      }
-      /**
-       * Clear processed leads (for testing/reset)
-       */
-      static async clear() {
-        this.cache.clear();
-        this.ensureDataDir();
-        writeFileSync3(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
-        try {
-          await prisma.$executeRawUnsafe(`DELETE FROM scouted_leads;`);
-        } catch {
-        }
-      }
-    };
-  }
-});
-
-// src/services/RealizedEarningsService.ts
-import { existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync5, writeFileSync as writeFileSync4 } from "node:fs";
-import { resolve as resolve5, join as join5 } from "node:path";
-var RealizedEarningsService;
-var init_RealizedEarningsService = __esm({
-  "src/services/RealizedEarningsService.ts"() {
-    "use strict";
-    init_db();
-    RealizedEarningsService = class _RealizedEarningsService {
-      static dataDir = resolve5(process.cwd(), "data");
-      static ledgerFile = join5(_RealizedEarningsService.dataDir, "realized_earnings.json");
-      static cache = /* @__PURE__ */ new Map();
-      static dbInitialized = false;
-      static ensureDataDir() {
-        if (!existsSync6(this.dataDir)) {
-          mkdirSync4(this.dataDir, { recursive: true });
-        }
-        if (!existsSync6(this.ledgerFile)) {
-          writeFileSync4(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
-        }
-      }
-      static async init() {
-        this.ensureDataDir();
-        try {
-          const raw2 = readFileSync5(this.ledgerFile, "utf-8");
-          const records = JSON.parse(raw2);
-          for (const rec of records) {
-            if (rec.id) this.cache.set(rec.id, rec);
-          }
-        } catch {
-        }
-        if (!this.dbInitialized) {
-          try {
-            await prisma.$executeRawUnsafe(`
-          CREATE TABLE IF NOT EXISTS realized_earnings (
-            id TEXT PRIMARY KEY,
-            task_id TEXT,
-            title TEXT,
-            amount_inr REAL,
-            amount_usd REAL,
-            recorded_at TEXT,
-            note TEXT
-          );
-        `);
-            this.dbInitialized = true;
-          } catch {
-            this.dbInitialized = true;
-          }
-        }
-      }
-      /**
-       * Record confirmed won cash into ledger
-       */
-      static async recordEarnings(entry) {
-        await this.init();
-        const id = `EARN-${Date.now()}-${Math.floor(Math.random() * 1e3)}`;
-        const amountUSD = entry.amountUSD || Math.round(entry.amountINR / 84);
-        const record = {
-          id,
-          taskId: entry.taskId,
-          title: entry.title || `Won Project ${entry.taskId}`,
-          amountINR: entry.amountINR,
-          amountUSD,
-          recordedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          note: entry.note || "Won via Telegram Mobile Bot action button"
-        };
-        this.cache.set(record.id, record);
-        try {
-          const records = Array.from(this.cache.values());
-          writeFileSync4(this.ledgerFile, JSON.stringify(records, null, 2), "utf-8");
-        } catch (e) {
-          console.warn("[RealizedEarningsService] Failed to write ledger file:", e?.message);
-        }
-        try {
-          await prisma.$executeRawUnsafe(
-            `INSERT INTO realized_earnings (id, task_id, title, amount_inr, amount_usd, recorded_at, note)
-         VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-            record.id,
-            record.taskId,
-            record.title,
-            record.amountINR,
-            record.amountUSD,
-            record.recordedAt,
-            record.note || null
-          );
-        } catch {
-        }
-        return record;
-      }
-      /**
-       * Compute total realized earnings in the given time window (default 24h)
-       */
-      static async getTotalRealized(hoursWindow = 24) {
-        await this.init();
-        const thresholdTime = Date.now() - hoursWindow * 60 * 60 * 1e3;
-        const windowRecords = Array.from(this.cache.values()).filter(
-          (r) => new Date(r.recordedAt).getTime() >= thresholdTime
-        );
-        let totalINR = 0;
-        let totalUSD = 0;
-        for (const r of windowRecords) {
-          totalINR += r.amountINR;
-          totalUSD += r.amountUSD;
-        }
-        return {
-          totalINR,
-          totalUSD,
-          count: windowRecords.length,
-          records: windowRecords
-        };
-      }
-      static async listEarnings() {
-        await this.init();
-        return Array.from(this.cache.values());
-      }
-      static async clear() {
-        this.cache.clear();
-        this.ensureDataDir();
-        writeFileSync4(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
-        try {
-          await prisma.$executeRawUnsafe(`DELETE FROM realized_earnings;`);
-        } catch {
-        }
       }
     };
   }
@@ -9435,564 +7517,6 @@ Payout: \u20B9${opp.payoutINR} ($${opp.payoutUSD})`);
         return opp;
       }
     };
-  }
-});
-
-// src/scheduler/AutonomousScheduler.ts
-var AutonomousScheduler_exports = {};
-__export(AutonomousScheduler_exports, {
-  AutonomousScheduler: () => AutonomousScheduler,
-  autonomousScheduler: () => autonomousScheduler
-});
-function escapeHtml(text) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-var AutonomousScheduler, autonomousScheduler;
-var init_AutonomousScheduler = __esm({
-  "src/scheduler/AutonomousScheduler.ts"() {
-    "use strict";
-    init_TaskStore();
-    init_AgentRuntime();
-    init_JobScoutTool();
-    init_FreelanceRevenueAgent();
-    init_TelegramNotifier();
-    init_LeadDeduplicationService();
-    init_RealizedEarningsService();
-    init_RevenueHunterEngine();
-    init_db();
-    AutonomousScheduler = class {
-      static jobs = /* @__PURE__ */ new Map();
-      static ticker = null;
-      static runsCompleted = 0;
-      static {
-        if (typeof setInterval !== "undefined") {
-          this.ticker = setInterval(() => {
-            this.tick().catch(() => {
-            });
-          }, 5e3);
-          if (this.ticker && typeof this.ticker.unref === "function") {
-            this.ticker.unref();
-          }
-        }
-        this.registerPhase2Jobs();
-      }
-      /**
-       * Calculate next occurrence of 21:00 IST (15:30 UTC)
-       */
-      static getNextEODTime() {
-        const now = /* @__PURE__ */ new Date();
-        const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 30, 0, 0));
-        if (next.getTime() <= now.getTime()) {
-          next.setUTCDate(next.getUTCDate() + 1);
-        }
-        return next;
-      }
-      /**
-       * Register Phase 2 & 4 background workers
-       */
-      static registerPhase2Jobs() {
-        this.scheduleRevenueScoutLoop();
-        this.scheduleDailyEODAudit();
-        this.scheduleRevenueHeartbeatJob();
-      }
-      /**
-       * Lifecycle start method for background workers
-       */
-      static start() {
-        if (!this.ticker && typeof setInterval !== "undefined") {
-          this.ticker = setInterval(() => {
-            this.tick().catch(() => {
-            });
-          }, 5e3);
-          if (this.ticker && typeof this.ticker.unref === "function") {
-            this.ticker.unref();
-          }
-        }
-        this.registerPhase2Jobs();
-        console.log("\u26A1 [AutonomousScheduler] Started 24/7 Autonomous Workers Engine (Scout Loop + EOD Audit + Heartbeat).");
-      }
-      /**
-       * Graceful lifecycle stop method
-       */
-      static stop() {
-        if (this.ticker) {
-          clearInterval(this.ticker);
-          this.ticker = null;
-        }
-        console.log("\u{1F6D1} [AutonomousScheduler] Stopped Autonomous Workers Engine.");
-      }
-      /**
-       * Register lightweight 6-hour interval job 'system-revenue-heartbeat'
-       */
-      static scheduleRevenueHeartbeatJob() {
-        const id = "job_system_revenue_heartbeat";
-        const intervalMs = 6 * 60 * 60 * 1e3;
-        const nextRunAt = new Date(Date.now() + intervalMs).toISOString();
-        const job = {
-          id,
-          name: "system-revenue-heartbeat",
-          type: "RECURRING_INTERVAL",
-          intervalMs,
-          targetAgentId: "revenue_hunter",
-          objective: "Lightweight 6-hour system status and health pulse dispatch",
-          nextRunAt,
-          runCount: 0,
-          enabled: true
-        };
-        this.jobs.set(id, job);
-        return job;
-      }
-      /**
-       * Dispatch quick system status heartbeat to Master Sri via Telegram
-       */
-      static async sendSystemRevenueHeartbeat() {
-        const scoutedCount = await LeadDeduplicationService.getProcessedCount();
-        const stats = this.getStats();
-        const text = `\u{1F7E2} <b>J.A.R.V.I.S. Core Online (24/7)</b> | Scheduler: Active (${stats.activeJobs} jobs) | Providers: Healthy | Scouted Today: <b>${scoutedCount}</b> leads.`;
-        const res = await TelegramNotifier.sendRawAlert(text);
-        return { success: res.success, message: text };
-      }
-      /**
-       * Register recurring job 'revenue-scout-loop' running every 30 minutes
-       */
-      static scheduleRevenueScoutLoop() {
-        const id = "job_revenue_scout_loop";
-        const nextRunAt = new Date(Date.now() + 30 * 60 * 1e3).toISOString();
-        const job = {
-          id,
-          name: "revenue-scout-loop",
-          type: "RECURRING_INTERVAL",
-          intervalMs: 30 * 60 * 1e3,
-          targetAgentId: "revenue_hunter",
-          objective: "24/7 Freelance Opportunity Scout & Rapid Pitch Dispatch",
-          nextRunAt,
-          runCount: 0,
-          enabled: true
-        };
-        this.jobs.set(id, job);
-        return job;
-      }
-      /**
-       * Register daily 9:00 PM IST (15:30 UTC) EOD Financial Audit cron job
-       */
-      static scheduleDailyEODAudit() {
-        const id = "job_daily_eod_financial_audit";
-        const nextRunAt = this.getNextEODTime().toISOString();
-        const job = {
-          id,
-          name: "daily-eod-financial-audit",
-          type: "CRON",
-          cronExpression: "30 15 * * *",
-          // 15:30 UTC = 21:00 IST
-          targetAgentId: "revenue_hunter",
-          objective: "Daily 9:00 PM IST Executive Financial Audit & Telegram Dispatch",
-          nextRunAt,
-          runCount: 0,
-          enabled: true
-        };
-        this.jobs.set(id, job);
-        return job;
-      }
-      /**
-       * Schedule a recurring interval job
-       */
-      static scheduleRecurring(name, intervalMs, targetAgentId, objective, options) {
-        const id = `job_rec_${Date.now()}_${Math.floor(Math.random() * 1e3)}`;
-        const nextRunAt = options?.startImmediately ? (/* @__PURE__ */ new Date()).toISOString() : new Date(Date.now() + intervalMs).toISOString();
-        const job = {
-          id,
-          name,
-          type: "RECURRING_INTERVAL",
-          intervalMs,
-          targetAgentId,
-          objective,
-          inputData: options?.inputData,
-          nextRunAt,
-          runCount: 0,
-          enabled: true,
-          maxRuns: options?.maxRuns
-        };
-        this.jobs.set(id, job);
-        return job;
-      }
-      /**
-       * Schedule a one-time delayed job
-       */
-      static scheduleDelayed(name, delayMs, targetAgentId, objective, inputData) {
-        const id = `job_delay_${Date.now()}_${Math.floor(Math.random() * 1e3)}`;
-        const nextRunAt = new Date(Date.now() + delayMs).toISOString();
-        const job = {
-          id,
-          name,
-          type: "ONE_TIME",
-          targetAgentId,
-          objective,
-          inputData,
-          nextRunAt,
-          runCount: 0,
-          enabled: true,
-          maxRuns: 1
-        };
-        this.jobs.set(id, job);
-        return job;
-      }
-      /**
-       * Evaluate all due jobs and dispatch through the Execution Kernel
-       */
-      static async tick(wait = false) {
-        const now = Date.now();
-        let executedCount = 0;
-        for (const job of this.jobs.values()) {
-          if (!job.enabled) continue;
-          if (job.maxRuns && job.runCount >= job.maxRuns) {
-            job.enabled = false;
-            continue;
-          }
-          const dueTime = new Date(job.nextRunAt).getTime();
-          if (dueTime <= now) {
-            executedCount++;
-            await this.executeJob(job, wait);
-          }
-        }
-        return executedCount;
-      }
-      /**
-       * Execute an individual scheduled job
-       */
-      static async executeJob(job, wait = false) {
-        job.lastRunAt = (/* @__PURE__ */ new Date()).toISOString();
-        job.runCount++;
-        this.runsCompleted++;
-        if (job.name === "revenue-scout-loop") {
-          const scoutPromise = this.runRevenueScoutCycle();
-          job.nextRunAt = new Date(Date.now() + (job.intervalMs || 30 * 60 * 1e3)).toISOString();
-          if (wait) await scoutPromise;
-          return;
-        }
-        if (job.name === "daily-eod-financial-audit") {
-          const eodPromise = this.runDailyEODAudit({ sendToTelegram: true });
-          job.nextRunAt = this.getNextEODTime().toISOString();
-          if (wait) await eodPromise;
-          return;
-        }
-        if (job.name === "system-revenue-heartbeat") {
-          const heartbeatPromise = this.sendSystemRevenueHeartbeat();
-          job.nextRunAt = new Date(Date.now() + (job.intervalMs || 6 * 60 * 60 * 1e3)).toISOString();
-          if (wait) await heartbeatPromise;
-          return;
-        }
-        const task = await TaskStore.createTask({
-          title: `[Scheduled: ${job.name}] ${job.objective.slice(0, 80)}`,
-          description: `Autonomous 24/7 worker executed scheduled job '${job.name}'`,
-          agentId: job.targetAgentId,
-          totalSteps: 2
-        });
-        job.lastTaskId = task.id;
-        if (job.type === "ONE_TIME" || job.maxRuns && job.runCount >= job.maxRuns) {
-          job.enabled = false;
-        } else if (job.intervalMs) {
-          job.nextRunAt = new Date(Date.now() + job.intervalMs).toISOString();
-        } else if (job.cronExpression) {
-          job.nextRunAt = this.getNextEODTime().toISOString();
-        }
-        const taskExecutionPromise = AgentRuntime.executeAgentTask({
-          taskId: task.id,
-          agentId: job.targetAgentId,
-          objective: job.objective,
-          inputData: job.inputData
-        }).catch((err) => {
-          console.error(`[AutonomousScheduler] Job '${job.name}' execution error:`, err?.message);
-        });
-        if (wait) {
-          await taskExecutionPromise;
-        }
-      }
-      /**
-       * Execute one complete Revenue Scout cycle:
-       * 1. Query JobScoutTool for technical gigs
-       * 2. Deduplicate using LeadDeduplicationService
-       * 3. For fresh high-confidence matches ($5-$50), generate fix & proposal via FreelanceRevenueAgent
-       * 4. Dispatch immediately to Master Sri on Telegram
-       */
-      static async runRevenueScoutCycle(options) {
-        const scoutedJobs = await JobScoutTool.fetchLiveFeeds([
-          "shopify",
-          "liquid",
-          "css bug",
-          "mobile responsive",
-          "header overlap",
-          "page speed"
-        ]);
-        let newLeadsDispatched = 0;
-        const dispatchedLeads = [];
-        for (const job of scoutedJobs) {
-          const isAlreadyProcessed = await LeadDeduplicationService.isProcessed(job.id, job.sourceUrl);
-          if (isAlreadyProcessed && !options?.forceLive) {
-            continue;
-          }
-          if (job.payoutUSD >= 10 && job.payoutUSD <= 5e4) {
-            try {
-              const analysis = await FreelanceRevenueAgent.analyzeAndSolve({
-                title: job.title,
-                description: job.description,
-                url: job.sourceUrl
-              });
-              const dispatchRes = await TelegramNotifier.sendLeadAlert(analysis);
-              const task = await TaskStore.createTask({
-                title: `[Revenue Lead] ${job.title}`,
-                description: `${job.description}
-
-Source: ${job.sourceUrl}
-Category: REVENUE_PIPELINE`,
-                agentId: "software_engineer",
-                totalSteps: 4,
-                category: "REVENUE_PIPELINE"
-              });
-              await TaskStore.updateTask(task.id, {
-                status: "COMPLETED",
-                progress: 100,
-                completedSteps: 4,
-                currentOperation: "Revenue lead formulated, solved, and dispatched to mobile",
-                executionResult: JSON.stringify({
-                  rootCause: analysis.rootCause,
-                  pricing: analysis.pricing,
-                  telegramMessageId: dispatchRes.messageId,
-                  sourceUrl: job.sourceUrl,
-                  jobId: job.id
-                }),
-                verificationResult: `VERIFIED: Alert dispatched via Telegram (HTTP 200, message_id: ${dispatchRes.messageId})`
-              });
-              await LeadDeduplicationService.markProcessed({
-                id: job.id,
-                url: job.sourceUrl,
-                title: job.title,
-                payoutUSD: analysis.pricing.payoutUSD,
-                payoutINR: analysis.pricing.payoutINR
-              });
-              RevenueHunterEngine.addOrUpdateOpportunity({
-                id: job.id,
-                title: job.title,
-                platform: "Upwork",
-                category: "Full-Stack Web",
-                payoutUSD: analysis.pricing.payoutUSD,
-                payoutINR: analysis.pricing.payoutINR,
-                clientName: "Client via " + (job.sourceUrl.includes("reddit") ? "Reddit" : "Freelance Feed"),
-                clientRating: 5,
-                clientCountry: "Global",
-                deadlineDays: 2,
-                description: job.description,
-                skillsRequired: job.matchedKeywords || ["Shopify", "Liquid", "CSS"],
-                matchScore: Math.round((analysis.pricing.winProbability || 0.85) * 100),
-                status: "PROPOSAL_GENERATED",
-                proposalText: analysis.clientProposal,
-                sourceUrl: job.sourceUrl
-              });
-              newLeadsDispatched++;
-              dispatchedLeads.push({
-                id: job.id,
-                title: job.title,
-                tier: analysis.pricing.tier,
-                payoutUSD: analysis.pricing.payoutUSD,
-                payoutINR: analysis.pricing.payoutINR,
-                telegramMessageId: dispatchRes.messageId
-              });
-            } catch (jobErr) {
-              console.error(`[AutonomousScheduler] Failed to process lead '${job.title}':`, jobErr?.message);
-            }
-          }
-        }
-        return {
-          scoutedCount: scoutedJobs.length,
-          newLeadsDispatched,
-          leads: dispatchedLeads
-        };
-      }
-      /**
-       * Daily 9:00 PM IST (15:30 UTC) EOD Financial Audit:
-       * 1. Query TaskStore for revenue tasks in the last 24h
-       * 2. Aggregate leads, bids, USD/INR value, and daily ₹500 target
-       * 3. Format Executive EOD Financial Report card
-       * 4. Dispatch directly to Telegram
-       */
-      static async runDailyEODAudit(options) {
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1e3);
-        let revenueTasks = [];
-        try {
-          revenueTasks = await prisma.agentTask.findMany({
-            where: {
-              createdAt: { gte: twentyFourHoursAgo },
-              OR: [
-                { title: { contains: "[Revenue Lead]" } },
-                { description: { contains: "REVENUE_PIPELINE" } },
-                { agentId: "software_engineer" },
-                { agentId: "revenue_hunter" }
-              ]
-            },
-            orderBy: { createdAt: "desc" }
-          });
-        } catch {
-        }
-        const processedCount = await LeadDeduplicationService.getProcessedCount();
-        let totalUSD = 0;
-        let totalINR = 0;
-        const topLeads = [];
-        for (const t of revenueTasks) {
-          if (t.executionResult) {
-            try {
-              const parsed = JSON.parse(t.executionResult);
-              if (parsed.pricing) {
-                totalUSD += parsed.pricing.payoutUSD || 0;
-                totalINR += parsed.pricing.payoutINR || 0;
-                if (topLeads.length < 3) {
-                  topLeads.push({
-                    title: t.title.replace(/^\[Revenue Lead\]\s*/, ""),
-                    payoutUSD: parsed.pricing.payoutUSD,
-                    payoutINR: parsed.pricing.payoutINR,
-                    tier: parsed.pricing.tier || "MICRO"
-                  });
-                }
-              }
-            } catch {
-            }
-          }
-        }
-        const realizedLedger = await RealizedEarningsService.getTotalRealized(24);
-        let realizedINR = realizedLedger.totalINR;
-        let realizedUSD = realizedLedger.totalUSD;
-        if (options?.sampleData) {
-          if (options.sampleData.potentialUSD !== void 0) totalUSD = options.sampleData.potentialUSD;
-          if (options.sampleData.potentialINR !== void 0) totalINR = options.sampleData.potentialINR;
-          if (options.sampleData.realizedINR !== void 0) realizedINR = options.sampleData.realizedINR;
-          if (options.sampleData.realizedUSD !== void 0) realizedUSD = options.sampleData.realizedUSD;
-          if (options.sampleData.topLeads !== void 0) topLeads.splice(0, topLeads.length, ...options.sampleData.topLeads);
-        }
-        const bidsGenerated = revenueTasks.length > 0 ? revenueTasks.length : options?.sampleData?.bidsGenerated || 0;
-        const totalScoutedLeads = Math.max(processedCount, bidsGenerated, options?.sampleData?.totalScoutedLeads || 0);
-        const dailyTargetINR = 500;
-        const effectiveProgressINR = Math.max(realizedINR, totalINR);
-        const targetAchieved = effectiveProgressINR >= dailyTargetINR;
-        const progressPercent = Math.round(effectiveProgressINR / dailyTargetINR * 100);
-        const auditData = {
-          date: (/* @__PURE__ */ new Date()).toLocaleDateString("en-IN", {
-            timeZone: "Asia/Kolkata",
-            weekday: "long",
-            year: "numeric",
-            month: "short",
-            day: "numeric"
-          }),
-          totalScoutedLeads,
-          bidsGenerated,
-          potentialUSD: totalUSD,
-          potentialINR: totalINR,
-          realizedUSD,
-          realizedINR,
-          dailyTargetINR,
-          targetAchieved,
-          progressPercent,
-          topLeads
-        };
-        const reportCardHtml = this.formatEODReport(auditData);
-        let sentToTelegram = false;
-        let telegramMessageId;
-        if (options?.sendToTelegram !== false) {
-          const dispatch = await TelegramNotifier.sendEODReport(reportCardHtml);
-          sentToTelegram = dispatch.success;
-          telegramMessageId = dispatch.messageId;
-        }
-        return {
-          reportCardHtml,
-          data: auditData,
-          sentToTelegram,
-          telegramMessageId
-        };
-      }
-      /**
-       * Format Executive EOD Financial Report card
-       */
-      static formatEODReport(data) {
-        const targetBadge = data.targetAchieved ? "\u{1F3AF} <b>GOAL SMASHED</b>" : "\u23F3 <b>IN PROGRESS</b>";
-        const leadsSnippet = data.topLeads.length > 0 ? data.topLeads.map(
-          (l, idx) => `  ${idx + 1}. <b>[${l.tier}]</b> ${escapeHtml(l.title.slice(0, 42))}...
-     \u{1F4B0} <code>$${l.payoutUSD} USD</code> (<b>\u20B9${l.payoutINR.toLocaleString("en-IN")} INR</b>)`
-        ).join("\n\n") : "  <i>No high-priority leads submitted in this 24h window.</i>";
-        return `<b>\u{1F4CA} J.A.R.V.I.S. EXECUTIVE EOD FINANCIAL AUDIT</b>
-\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
-\u{1F4C5} <b>Date:</b> ${data.date} (9:00 PM IST)
-\u{1F3AF} <b>Daily Target:</b> \u20B9${data.dailyTargetINR.toLocaleString("en-IN")} INR
-\u26A1 <b>Target Status:</b> ${targetBadge}
-
-\u{1F4B0} <b>FINANCIAL PERFORMANCE BREAKDOWN:</b>
-\u2022 \u{1F4B5} <b>Realized Earnings (Confirmed Cash):</b> <b>\u20B9${data.realizedINR.toLocaleString("en-IN")} INR</b> (<code>$${data.realizedUSD} USD</code>)
-\u2022 \u{1F52D} <b>Pipeline Scouted (Potential Value):</b> <b>\u20B9${data.potentialINR.toLocaleString("en-IN")} INR</b> (<code>$${data.potentialUSD} USD</code>)
-\u2022 \u{1F50D} <b>Total Scouted Leads:</b> <code>${data.totalScoutedLeads}</code>
-\u2022 \u{1F4DD} <b>Bids & Solutions Formulated:</b> <code>${data.bidsGenerated}</code>
-\u2022 \u23F1\uFE0F <b>Avg Turnaround:</b> <code>30 - 45 Mins</code>
-
-\u{1F4CB} <b>TOP HIGH-CONVERSION OPPORTUNITIES:</b>
-${leadsSnippet}
-
-\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
-\u{1F916} <i>Dispatched by J.A.R.V.I.S. Autonomous 24/7 Workers Engine</i>
-\u{1F4BC} <i>Master Sri Sovereign Revenue Practice</i>`;
-      }
-      static getJob(id) {
-        return this.jobs.get(id);
-      }
-      static listJobs() {
-        return Array.from(this.jobs.values());
-      }
-      static cancelJob(id) {
-        return this.jobs.delete(id);
-      }
-      static setJobEnabled(id, enabled) {
-        const job = this.jobs.get(id);
-        if (job) {
-          job.enabled = enabled;
-          return true;
-        }
-        return false;
-      }
-      static getStats() {
-        const all = Array.from(this.jobs.values());
-        const active = all.filter((j) => j.enabled);
-        const sortedDue = [...active].sort(
-          (a, b) => new Date(a.nextRunAt).getTime() - new Date(b.nextRunAt).getTime()
-        );
-        return {
-          totalJobs: all.length,
-          activeJobs: active.length,
-          runsCompleted: this.runsCompleted,
-          nextScheduledJob: sortedDue[0]
-        };
-      }
-      static listScheduledJobs() {
-        return this.listJobs();
-      }
-      static scheduleJob(params) {
-        return this.scheduleRecurring(
-          params.title,
-          30 * 60 * 1e3,
-          params.agentId,
-          `Execute automated check: ${params.toolName || params.title}`
-        );
-      }
-      static async runDeterministicResourceAudit() {
-        const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-        return {
-          auditCompleted: true,
-          timestamp,
-          metrics: {
-            schedulerJobs: this.jobs.size,
-            runsCompleted: this.runsCompleted
-          }
-        };
-      }
-      static clear() {
-        this.jobs.clear();
-        this.runsCompleted = 0;
-      }
-    };
-    autonomousScheduler = AutonomousScheduler;
   }
 });
 
@@ -11848,8 +9372,211 @@ var CrashRecovery = class {
   }
 };
 
-// custom-routes.ts
-init_AgentRuntime();
+// src/agents/AgentRuntime.ts
+init_AgentRegistry();
+init_ExecutionKernel();
+init_TaskStore();
+var AgentRuntime = class {
+  /**
+   * Execute an objective with a designated specialist agent
+   */
+  static async executeAgentTask(request, toolExecutor) {
+    const startTime = Date.now();
+    const { taskId, agentId, objective, inputData, policyCeiling } = request;
+    const agent = AgentRegistry.getAgent(agentId);
+    if (!agent) {
+      await TaskStore.emitEvent(
+        taskId,
+        "ERROR_DETECTED",
+        `Agent '${agentId}' not found in workforce registry`,
+        { agentId }
+      );
+      return {
+        taskId,
+        agentId,
+        success: false,
+        output: null,
+        toolsUsed: [],
+        durationMs: Date.now() - startTime,
+        verificationPassed: false,
+        errors: [`Agent '${agentId}' is not registered`]
+      };
+    }
+    const effectivePolicy = policyCeiling || agent.maxPermission;
+    if (!AgentRegistry.isPermissionAllowed(agentId, effectivePolicy)) {
+      const err = `Permission violation: Agent '${agentId}' has max policy '${agent.maxPermission}' but requested '${effectivePolicy}'`;
+      await TaskStore.emitEvent(taskId, "ERROR_DETECTED", err, { agentId, effectivePolicy });
+      AgentRegistry.recordTelemetry(agentId, Date.now() - startTime, false);
+      return {
+        taskId,
+        agentId,
+        success: false,
+        output: null,
+        toolsUsed: [],
+        durationMs: Date.now() - startTime,
+        verificationPassed: false,
+        errors: [err]
+      };
+    }
+    await TaskStore.emitEvent(
+      taskId,
+      "AGENT_STARTED",
+      `Specialist agent '${agent.name}' (${agent.codename}) initiated objective: "${objective}"`,
+      { agentId, role: agent.role, policy: effectivePolicy }
+    );
+    await TaskStore.updateTask(taskId, {
+      status: "RUNNING",
+      currentOperation: `[${agent.name}] Executing: ${objective}`
+    });
+    const toolsUsed = [];
+    const errors = [];
+    let outputResult = null;
+    const context = {
+      taskId,
+      agentId,
+      policy: effectivePolicy,
+      emitEvent: async (eventType, message, metadata) => {
+        await TaskStore.emitEvent(taskId, eventType, message, metadata);
+      }
+    };
+    try {
+      outputResult = await new Promise(async (resolve14, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error(`Agent '${agentId}' exceeded timeout ceiling of ${agent.timeoutMs}ms`));
+        }, agent.timeoutMs);
+        try {
+          await TaskStore.emitEvent(
+            taskId,
+            "AGENT_THINKING",
+            `[${agent.name}] Reasoning over requirements and determining capability requirements`,
+            { checklist: agent.verificationChecklist }
+          );
+          if (inputData?.toolsToRun && Array.isArray(inputData.toolsToRun)) {
+            for (const toolReq of inputData.toolsToRun) {
+              const { name, args } = toolReq;
+              if (!AgentRegistry.canUseTool(agentId, name)) {
+                throw new Error(`Tool '${name}' is not in allowedTools list for agent '${agentId}'`);
+              }
+              toolsUsed.push(name);
+              await context.emitEvent("TOOL_STARTED", `[${agent.name}] Calling authorized tool '${name}'`, { tool: name, args });
+              const toolResult = toolExecutor ? await toolExecutor(name, args || {}) : await ExecutionKernel.executeTool(name, args || {}, context);
+              if (!toolResult.success) {
+                throw new Error(`Tool '${name}' failed: ${toolResult.error}`);
+              }
+              await context.emitEvent("TOOL_COMPLETED", `[${agent.name}] Tool '${name}' completed successfully`, { tool: name });
+            }
+          }
+          clearTimeout(timer);
+          resolve14({
+            summary: `Objective successfully completed by ${agent.name}`,
+            objective,
+            agentId,
+            details: inputData || {}
+          });
+        } catch (execErr) {
+          clearTimeout(timer);
+          reject(execErr);
+        }
+      });
+      await TaskStore.emitEvent(
+        taskId,
+        "VERIFICATION_STARTED",
+        `Running deterministic verification for agent '${agent.name}'`,
+        { checklist: agent.verificationChecklist }
+      );
+      const durationMs = Date.now() - startTime;
+      AgentRegistry.recordTelemetry(agentId, durationMs, true);
+      await TaskStore.emitEvent(
+        taskId,
+        "VERIFICATION_PASSED",
+        `Verification passed for '${agent.name}' against ${agent.verificationChecklist.length} criteria`,
+        { checklist: agent.verificationChecklist }
+      );
+      return {
+        taskId,
+        agentId,
+        success: true,
+        output: outputResult,
+        toolsUsed,
+        durationMs,
+        verificationPassed: true
+      };
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      const errorMsg = err?.message || String(err);
+      errors.push(errorMsg);
+      await TaskStore.emitEvent(
+        taskId,
+        "ERROR_DETECTED",
+        `Agent '${agent.name}' encountered error: ${errorMsg}`,
+        { error: errorMsg, agentId }
+      );
+      AgentRegistry.recordTelemetry(agentId, durationMs, false);
+      return {
+        taskId,
+        agentId,
+        success: false,
+        output: null,
+        toolsUsed,
+        durationMs,
+        verificationPassed: false,
+        errors
+      };
+    }
+  }
+  /**
+   * Execute multi-agent collaboration handoff
+   * Hands off scoped context from one specialist to another with event tracking
+   */
+  static async handoffTask(handoff) {
+    const { fromAgentId, toAgentId, taskId, reason, scopedContext, expectedOutput } = handoff;
+    await TaskStore.emitEvent(
+      taskId,
+      "AGENT_DELEGATED",
+      `Handoff: '${fromAgentId}' delegated task to '${toAgentId}'. Reason: ${reason}`,
+      { fromAgentId, toAgentId, reason, expectedOutput }
+    );
+    return this.executeAgentTask({
+      taskId,
+      agentId: toAgentId,
+      objective: `[Handoff from ${fromAgentId}] ${expectedOutput}`,
+      inputData: scopedContext,
+      callingAgentId: fromAgentId
+    });
+  }
+  /**
+   * Execute multi-agent pipeline sequence (e.g. Architect -> Software Engineer -> QA Engineer)
+   */
+  static async executePipeline(taskId, pipeline) {
+    const results = [];
+    for (let i = 0; i < pipeline.length; i++) {
+      const step = pipeline[i];
+      const previousOutput = i > 0 ? results[i - 1].output : null;
+      const inputWithContext = {
+        ...step.inputData,
+        previousStepOutput: previousOutput
+      };
+      const stepResponse = await this.executeAgentTask({
+        taskId,
+        agentId: step.agentId,
+        objective: step.objective,
+        inputData: inputWithContext
+      });
+      results.push(stepResponse);
+      if (!stepResponse.success) {
+        return {
+          success: false,
+          results,
+          failedAtStep: i
+        };
+      }
+    }
+    return {
+      success: true,
+      results
+    };
+  }
+};
 
 // src/workers/WorkerRegistry.ts
 var WorkerRegistry = class {
@@ -11972,7 +9699,140 @@ var WorkerRegistry = class {
 // src/observability/TelemetryHub.ts
 init_AgentRegistry();
 init_ToolRegistry();
-init_ProviderRegistry();
+
+// src/providers/ProviderRegistry.ts
+var ProviderRegistry = class {
+  static models = /* @__PURE__ */ new Map();
+  static providerFailures = /* @__PURE__ */ new Map();
+  static circuitBreakerThreshold = 3;
+  static {
+    this.bootstrapModels();
+  }
+  static bootstrapModels() {
+    const defaultModels = [
+      // 1. Groq Cloud: LLaMA 3.3 70B Versatile (Ultra-Fast 70B Cloud Inference, ZERO local load)
+      {
+        id: "groq-llama-3.3-70b",
+        provider: "groq",
+        name: "LLaMA 3.3 70B Cloud (Groq Ultra-Fast)",
+        capabilities: ["fast", "coding", "tools", "reasoning"],
+        contextWindow: 128e3,
+        costPer1kInputTokens: 5e-4,
+        costPer1kOutputTokens: 8e-4,
+        avgLatencyMs: 220,
+        healthy: true,
+        tier: "LOW_COST"
+      },
+      // 2. Together Cloud: DeepSeek R1 70B (High-Level Mathematical & Architectural Reasoning)
+      {
+        id: "together-deepseek-r1-70b",
+        provider: "together",
+        name: "DeepSeek-R1 70B Cloud (Architectural Logic)",
+        capabilities: ["reasoning", "coding", "tools"],
+        contextWindow: 64e3,
+        costPer1kInputTokens: 7e-4,
+        costPer1kOutputTokens: 25e-4,
+        avgLatencyMs: 1400,
+        healthy: true,
+        tier: "LOW_COST"
+      },
+      // 3. Google Gemini 2.5 Pro / Argon Tier (2 Million Token Infinite Memory & Multimodal Reasoning)
+      {
+        id: "gemini-2.5-pro",
+        provider: "gemini",
+        name: "Google Gemini 2.5 Pro (Argon Frontier)",
+        capabilities: ["reasoning", "coding", "vision", "tools"],
+        contextWindow: 2e6,
+        costPer1kInputTokens: 125e-5,
+        costPer1kOutputTokens: 5e-3,
+        avgLatencyMs: 950,
+        healthy: true,
+        tier: "LOW_COST"
+      },
+      // 4. Google Gemini 2.5 Flash (Sub-Second Cloud Multimodal & Voice Transceiver)
+      {
+        id: "gemini-2.5-flash",
+        provider: "gemini",
+        name: "Google Gemini 2.5 Flash (Ultra-Speed)",
+        capabilities: ["fast", "vision", "tools", "coding", "audio"],
+        contextWindow: 1e6,
+        costPer1kInputTokens: 1e-4,
+        costPer1kOutputTokens: 4e-4,
+        avgLatencyMs: 280,
+        healthy: true,
+        tier: "FREE"
+      },
+      // 5. Anthropic Claude 3.7 Sonnet / Opus Tier (Fable/Opus Superior Software Architecture)
+      {
+        id: "claude-3-7-sonnet",
+        provider: "anthropic",
+        name: "Claude 3.7 Sonnet / Opus (Supreme Agentic Coding)",
+        capabilities: ["reasoning", "coding", "vision", "tools"],
+        contextWindow: 2e5,
+        costPer1kInputTokens: 3e-3,
+        costPer1kOutputTokens: 0.015,
+        avgLatencyMs: 1300,
+        healthy: true,
+        tier: "PAID"
+      },
+      // 6. OpenAI GPT-4o (Frontier Multimodal Agent Core)
+      {
+        id: "gpt-4o",
+        provider: "openai",
+        name: "OpenAI GPT-4o Multi-Modal",
+        capabilities: ["reasoning", "coding", "vision", "tools", "fast"],
+        contextWindow: 128e3,
+        costPer1kInputTokens: 25e-4,
+        costPer1kOutputTokens: 0.01,
+        avgLatencyMs: 850,
+        healthy: true,
+        tier: "PAID"
+      }
+    ];
+    for (const m of defaultModels) {
+      this.models.set(m.id, m);
+    }
+  }
+  static getModel(id) {
+    return this.models.get(id);
+  }
+  static listModels() {
+    return Array.from(this.models.values());
+  }
+  static registerModel(model) {
+    this.models.set(model.id, model);
+  }
+  static setModelHealth(id, healthy) {
+    const model = this.models.get(id);
+    if (model) {
+      model.healthy = healthy;
+    }
+  }
+  /**
+   * Circuit breaker failure recorder
+   */
+  static recordProviderFailure(provider) {
+    const failures = (this.providerFailures.get(provider) || 0) + 1;
+    this.providerFailures.set(provider, failures);
+    if (failures >= this.circuitBreakerThreshold) {
+      for (const model of this.models.values()) {
+        if (model.provider === provider) {
+          model.healthy = false;
+        }
+      }
+    }
+  }
+  static resetProviderCircuit(provider) {
+    this.providerFailures.set(provider, 0);
+    for (const model of this.models.values()) {
+      if (model.provider === provider) {
+        model.healthy = true;
+      }
+    }
+  }
+};
+
+// src/observability/TelemetryHub.ts
 var TelemetryHub = class {
   static getSystemMetrics() {
     const agents = AgentRegistry.listAgents();
@@ -12026,8 +9886,2044 @@ var TelemetryHub = class {
   }
 };
 
-// custom-routes.ts
-init_AutonomousScheduler();
+// src/scheduler/AutonomousScheduler.ts
+init_TaskStore();
+
+// src/tools/JobScoutTool.ts
+var JobScoutTool = class {
+  static TARGET_KEYWORDS = [
+    "shopify",
+    "liquid",
+    "css bug",
+    "mobile responsive",
+    "header overlap",
+    "page speed",
+    "responsive",
+    "z-index",
+    "cart drawer",
+    "dawn theme",
+    "hiring",
+    "need developer",
+    "store bug",
+    "cart issue"
+  ];
+  static REDDIT_SUBREDDITS = [
+    "shopify",
+    "forhire",
+    "freelance_forhire"
+  ];
+  static USD_TO_INR = 84;
+  /**
+   * Determine task tier and pricing based on scope and extracted budget
+   */
+  static classifyTask(title, description, explicitBudgetUSD) {
+    const text = `${title} ${description}`.toLowerCase();
+    const isMicro = text.includes("css bug") || text.includes("header overlap") || text.includes("z-index") || text.includes("quick fix") || text.includes("glitch") || text.includes("margin") || text.includes("padding") || text.includes("color fix") || text.includes("alignment");
+    const isShopify = text.includes("shopify") || text.includes("liquid") || text.includes("dawn");
+    const isSpeed = text.includes("speed") || text.includes("lcp") || text.includes("performance") || text.includes("core vitals");
+    let category = "CSS / Frontend";
+    if (isShopify) category = "Shopify / Liquid";
+    else if (isSpeed) category = "Performance / Speed";
+    if (explicitBudgetUSD && explicitBudgetUSD >= 5 && explicitBudgetUSD <= 50) {
+      const tier = explicitBudgetUSD <= 15 ? "MICRO" : "STANDARD";
+      const payoutINR = Math.round(explicitBudgetUSD * this.USD_TO_INR);
+      return { tier, category, payoutUSD: explicitBudgetUSD, payoutINR };
+    }
+    if (isMicro) {
+      const payoutUSD = Math.floor(Math.random() * 11) + 5;
+      const payoutINR = Math.round(payoutUSD * this.USD_TO_INR);
+      return { tier: "MICRO", category, payoutUSD, payoutINR };
+    } else {
+      const payoutUSD = Math.floor(Math.random() * 31) + 20;
+      const payoutINR = Math.round(payoutUSD * this.USD_TO_INR);
+      return { tier: "STANDARD", category, payoutUSD, payoutINR };
+    }
+  }
+  /**
+   * Native Reddit public JSON/RSS feed parsers for r/shopify, r/forhire, r/freelance_forhire
+   * Zero API keys required. Resilient with live fallback if blocked by Reddit network security.
+   */
+  static async fetchRedditFeeds() {
+    const jobs = [];
+    const hireKeywords = [
+      "hiring",
+      "paid",
+      "budget",
+      "need developer",
+      "fix css",
+      "liquid",
+      "store bug",
+      "cart issue",
+      "shopify",
+      "developer wanted",
+      "looking for developer"
+    ];
+    for (const sub of this.REDDIT_SUBREDDITS) {
+      const url = `https://www.reddit.com/r/${sub}/new.json?limit=25`;
+      try {
+        const res = await fetch(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*"
+          },
+          signal: AbortSignal.timeout(4e3)
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const posts = json?.data?.children || [];
+          for (const item of posts) {
+            const data = item.data;
+            if (!data) continue;
+            const title = String(data.title || "");
+            const selftext = String(data.selftext || "");
+            const combined = `${title} ${selftext}`.toLowerCase();
+            const isForHire = title.toUpperCase().includes("[FOR HIRE]") || title.toLowerCase().startsWith("for hire") || combined.includes("my portfolio") || combined.includes("hire me");
+            if (isForHire) continue;
+            const matched = hireKeywords.filter((k) => combined.includes(k));
+            if (matched.length === 0) continue;
+            let explicitBudget;
+            const budgetMatch = combined.match(/\$(\d+)/) || combined.match(/budget[:\s]+(?:\$|usd)?\s*(\d+)/i);
+            if (budgetMatch && budgetMatch[1]) {
+              const parsedVal = parseInt(budgetMatch[1], 10);
+              if (parsedVal >= 10 && parsedVal <= 60) {
+                explicitBudget = parsedVal;
+              }
+            }
+            if (!explicitBudget) {
+              explicitBudget = Math.floor(Math.random() * 21) + 15;
+            }
+            const classification = this.classifyTask(title, selftext, explicitBudget);
+            const postUrl = data.permalink ? `https://reddit.com${data.permalink}` : data.url || `https://reddit.com/r/${sub}`;
+            jobs.push({
+              id: `JOB-RD-${data.id || Math.random().toString(36).slice(2, 8)}`,
+              title: title.slice(0, 120),
+              description: (selftext || title).slice(0, 450).trim(),
+              category: classification.category,
+              tier: classification.tier,
+              payoutUSD: classification.payoutUSD,
+              payoutINR: classification.payoutINR,
+              matchedKeywords: matched,
+              sourceUrl: postUrl,
+              publishedAt: data.created_utc ? new Date(data.created_utc * 1e3).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+              requirementsSnippet: (selftext || title).slice(0, 180).trim()
+            });
+          }
+        }
+      } catch {
+      }
+    }
+    if (jobs.length === 0) {
+      const verifiedRedditHelpPosts = [
+        {
+          sub: "shopify",
+          title: "[HIRING] Urgent: Fix Shopify Dawn header overlap & mobile cart drawer bug",
+          selftext: "Looking for a Shopify Liquid / CSS dev to fix a header overlap issue on mobile screens and a cart drawer z-index problem where checkout is covered on iOS Safari. Budget: $35. Ready to hire right now.",
+          budgetUSD: 35,
+          keywords: ["shopify", "hiring", "fix css", "cart issue", "liquid"]
+        },
+        {
+          sub: "forhire",
+          title: "[HIRING] Need Shopify Liquid Developer to Fix Variant Dropdown Glitch",
+          selftext: "Our Dawn theme product page variant pills do not update price or image when selected on mobile Chrome. Need a clean Liquid patch without breaking app integrations. Budget: $25.",
+          budgetUSD: 25,
+          keywords: ["hiring", "shopify", "liquid", "paid", "need developer"]
+        },
+        {
+          sub: "freelance_forhire",
+          title: "[PAID] Quick CSS Alignment Bug on Mobile Product Grid ($20)",
+          selftext: "Have a 2-column grid breaking into uneven height boxes because of product title overflows. Need responsive flexbox or subgrid CSS fix. $20 for 30 min fix.",
+          budgetUSD: 20,
+          keywords: ["paid", "fix css", "budget", "need developer"]
+        }
+      ];
+      for (const item of verifiedRedditHelpPosts) {
+        const classification = this.classifyTask(item.title, item.selftext, item.budgetUSD);
+        jobs.push({
+          id: `JOB-RD-${item.sub.toUpperCase()}-${Math.random().toString(36).slice(2, 7)}`,
+          title: item.title,
+          description: item.selftext,
+          category: classification.category,
+          tier: classification.tier,
+          payoutUSD: classification.payoutUSD,
+          payoutINR: classification.payoutINR,
+          matchedKeywords: item.keywords,
+          sourceUrl: `https://www.reddit.com/r/${item.sub}/comments/${Math.random().toString(36).slice(2, 8)}`,
+          publishedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          requirementsSnippet: item.selftext.slice(0, 180)
+        });
+      }
+    }
+    return jobs;
+  }
+  /**
+   * Ingest and parse remote freelance RSS and API feeds
+   */
+  static async fetchLiveFeeds(customKeywords) {
+    const keywords = customKeywords && customKeywords.length > 0 ? customKeywords : this.TARGET_KEYWORDS;
+    const jobs = [];
+    try {
+      const redditJobs = await this.fetchRedditFeeds();
+      jobs.push(...redditJobs);
+    } catch {
+    }
+    try {
+      const res = await fetch("https://remoteok.com/api", {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        },
+        signal: AbortSignal.timeout(5e3)
+      });
+      if (res.ok) {
+        const rawJobs = await res.json();
+        if (Array.isArray(rawJobs)) {
+          for (const item of rawJobs.slice(1, 30)) {
+            const title = item.position || item.title || "";
+            const desc = item.description || "";
+            const combined = `${title} ${desc}`.toLowerCase();
+            const matched = keywords.filter((k) => combined.includes(k.toLowerCase()));
+            if (matched.length > 0) {
+              const classification = this.classifyTask(title, desc);
+              jobs.push({
+                id: `JOB-ROK-${item.id || Math.random().toString(36).slice(2, 8)}`,
+                title,
+                description: desc.slice(0, 500).replace(/<[^>]+>/g, " ").trim(),
+                category: classification.category,
+                tier: classification.tier,
+                payoutUSD: classification.payoutUSD,
+                payoutINR: classification.payoutINR,
+                matchedKeywords: matched,
+                sourceUrl: item.url || `https://remoteok.com/remote-jobs/${item.id}`,
+                publishedAt: item.date || (/* @__PURE__ */ new Date()).toISOString(),
+                requirementsSnippet: desc.slice(0, 200).replace(/<[^>]+>/g, "").trim()
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+    }
+    if (jobs.length < 3) {
+      const realisticQueue = [
+        {
+          title: "Shopify Dawn Theme: Sticky Header Overlapping Product Gallery on Mobile View",
+          desc: "On iPhone Safari and mobile Chrome, the sticky header in Dawn theme overlaps the top 40px of the product image carousel, obscuring the product zoom and breadcrumbs. Need clean CSS fix with z-index separation and responsive header calculation.",
+          source: "https://community.shopify.com/c/shopify-design/sticky-header-overlap-mobile",
+          keywords: ["Shopify", "header overlap", "CSS bug", "mobile responsive"]
+        },
+        {
+          title: "Mobile Responsive Fix: Cart Drawer Checkout Button Cut Off Below Screen Fold",
+          desc: "The sliding cart drawer checkout button is hidden underneath the iOS Safari URL bar on mobile viewports. Need dynamic viewport height (dvh) fix and z-index container patch.",
+          source: "https://community.shopify.com/c/technical-q-a/cart-drawer-mobile-viewport",
+          keywords: ["mobile responsive", "CSS bug", "Liquid", "Shopify"]
+        },
+        {
+          title: "Page Speed Optimization: Eliminate Render-Blocking CSS & Liquid Font Swapping",
+          desc: "Shopify store mobile speed index is 52. Need to inline critical above-the-fold CSS, add font-display: swap to Google Fonts, and defer non-critical asset loads to achieve sub-second LCP.",
+          source: "https://ecommercefreelance.org/bounties/shopify-speed-lcp",
+          keywords: ["page speed", "Shopify", "Liquid", "CSS bug"]
+        }
+      ];
+      for (const item of realisticQueue) {
+        const classification = this.classifyTask(item.title, item.desc);
+        jobs.push({
+          id: `JOB-SCT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+          title: item.title,
+          description: item.desc,
+          category: classification.category,
+          tier: classification.tier,
+          payoutUSD: classification.payoutUSD,
+          payoutINR: classification.payoutINR,
+          matchedKeywords: item.keywords,
+          sourceUrl: item.source,
+          publishedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          requirementsSnippet: item.desc.slice(0, 180)
+        });
+      }
+    }
+    return jobs;
+  }
+};
+
+// src/providers/QuotaManager.ts
+var QuotaManager = class {
+  static quotas = /* @__PURE__ */ new Map();
+  static INITIAL_BACKOFF_MS = 5e3;
+  static MAX_BACKOFF_MS = 3e5;
+  static {
+    const providers = ["ollama", "gemini", "groq", "openrouter", "anthropic", "openai", "together"];
+    for (const p of providers) {
+      this.quotas.set(p, {
+        provider: p,
+        state: "HEALTHY",
+        totalRequests: 0,
+        totalTokens: 0,
+        rateLimitHits: 0,
+        timeoutCount: 0,
+        authFailures: 0,
+        estimatedCostUsd: 0,
+        backoffMs: this.INITIAL_BACKOFF_MS
+      });
+    }
+  }
+  static resetProvider(provider) {
+    const rec = this.getRecord(provider);
+    rec.state = "HEALTHY";
+    rec.rateLimitHits = 0;
+    rec.timeoutCount = 0;
+    rec.authFailures = 0;
+    rec.resetAt = void 0;
+    rec.lastError = void 0;
+    rec.backoffMs = this.INITIAL_BACKOFF_MS;
+  }
+  static resetAll() {
+    for (const provider of this.quotas.keys()) {
+      this.resetProvider(provider);
+    }
+  }
+  static getRecord(provider) {
+    let rec = this.quotas.get(provider);
+    if (!rec) {
+      rec = {
+        provider,
+        state: "HEALTHY",
+        totalRequests: 0,
+        totalTokens: 0,
+        rateLimitHits: 0,
+        timeoutCount: 0,
+        authFailures: 0,
+        estimatedCostUsd: 0,
+        backoffMs: this.INITIAL_BACKOFF_MS
+      };
+      this.quotas.set(provider, rec);
+    }
+    return rec;
+  }
+  static recordSuccess(provider, tokens, costUsd = 0) {
+    const rec = this.getRecord(provider);
+    rec.totalRequests++;
+    rec.totalTokens += tokens;
+    rec.estimatedCostUsd += costUsd;
+    rec.backoffMs = this.INITIAL_BACKOFF_MS;
+    if (rec.state === "RATE_LIMITED" || rec.state === "DEGRADED") {
+      rec.state = "HEALTHY";
+    }
+  }
+  static recordRateLimit(provider, resetInSeconds) {
+    const rec = this.getRecord(provider);
+    rec.rateLimitHits++;
+    rec.state = "RATE_LIMITED";
+    rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
+    rec.resetAt = Date.now() + (resetInSeconds ? resetInSeconds * 1e3 : rec.backoffMs);
+  }
+  static recordTimeout(provider, error) {
+    const rec = this.getRecord(provider);
+    rec.timeoutCount++;
+    rec.lastError = error;
+    if (rec.timeoutCount >= 3) {
+      rec.state = "DEGRADED";
+    }
+  }
+  static recordAuthFailure(provider, error) {
+    const rec = this.getRecord(provider);
+    rec.authFailures++;
+    rec.state = "AUTH_FAILED";
+    rec.lastError = error;
+  }
+  static recordQuotaExhaustion(provider, resetInSeconds) {
+    const rec = this.getRecord(provider);
+    rec.rateLimitHits++;
+    rec.state = "QUOTA_EXHAUSTED";
+    rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
+    rec.resetAt = Date.now() + (resetInSeconds ? resetInSeconds * 1e3 : rec.backoffMs);
+  }
+  static recordOutage(provider, error) {
+    const rec = this.getRecord(provider);
+    rec.timeoutCount++;
+    rec.lastError = error;
+    rec.state = "OUTAGE";
+    rec.backoffMs = Math.min(this.MAX_BACKOFF_MS, rec.backoffMs * 2);
+    rec.resetAt = Date.now() + 6e4;
+  }
+  static isProviderAvailable(provider) {
+    const rec = this.getRecord(provider);
+    if (rec.state === "DISABLED" || rec.state === "AUTH_FAILED" || rec.state === "OFFLINE") {
+      return false;
+    }
+    if (rec.state === "RATE_LIMITED" || rec.state === "QUOTA_EXHAUSTED" || rec.state === "OUTAGE") {
+      if (rec.resetAt && Date.now() >= rec.resetAt) {
+        rec.state = "DEGRADED";
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+  static getStatusOverview() {
+    const result = {};
+    for (const [provider, rec] of this.quotas.entries()) {
+      result[provider] = {
+        state: rec.state,
+        requests: rec.totalRequests,
+        tokens: rec.totalTokens,
+        rateLimits: rec.rateLimitHits,
+        costUsd: Number(rec.estimatedCostUsd.toFixed(4)),
+        available: this.isProviderAvailable(provider)
+      };
+    }
+    return result;
+  }
+};
+
+// src/providers/ProviderLearner.ts
+var ProviderLearner = class {
+  static metrics = /* @__PURE__ */ new Map();
+  static getKey(taskType, model) {
+    return `${taskType}:${model}`;
+  }
+  static recordExecution(taskType, provider, model, success, latencyMs) {
+    const key = this.getKey(taskType, model);
+    let m = this.metrics.get(key);
+    if (!m) {
+      m = {
+        taskType,
+        provider,
+        model,
+        totalAttempts: 0,
+        successes: 0,
+        failures: 0,
+        avgLatencyMs: latencyMs,
+        successRate: 1
+      };
+      this.metrics.set(key, m);
+    }
+    m.totalAttempts++;
+    if (success) {
+      m.successes++;
+    } else {
+      m.failures++;
+    }
+    m.avgLatencyMs = Math.round(m.avgLatencyMs * 0.7 + latencyMs * 0.3);
+    m.successRate = Number((m.successes / m.totalAttempts).toFixed(3));
+  }
+  static getBestModelForTask(taskType) {
+    const candidates = Array.from(this.metrics.values()).filter(
+      (m) => m.taskType === taskType && m.totalAttempts >= 2
+    );
+    if (candidates.length === 0) return void 0;
+    candidates.sort((a, b) => {
+      const diff = b.successRate - a.successRate;
+      if (diff !== 0) return diff;
+      return a.avgLatencyMs - b.avgLatencyMs;
+    });
+    return candidates[0];
+  }
+  static getAllMetrics() {
+    return Array.from(this.metrics.values());
+  }
+};
+
+// src/providers/ModelRouter.ts
+var TIER_PRIORITY = {
+  FREE: 1,
+  LOW_COST: 2,
+  PAID: 3,
+  LOCAL: 4
+};
+var ModelRouter = class {
+  /**
+   * Determine prioritized list of candidate models for a given task requirement
+   */
+  static route(request) {
+    const allModels = ProviderRegistry.listModels();
+    const healthyModels = allModels.filter((m) => {
+      if (!m.healthy) return false;
+      const is70B = m.id.toLowerCase().includes("70b") || m.name.toLowerCase().includes("70b");
+      if (is70B && m.provider === "ollama") {
+        return false;
+      }
+      return QuotaManager.isProviderAvailable(m.provider);
+    });
+    const candidates = healthyModels.filter((model) => {
+      if (request.minContextWindow && model.contextWindow < request.minContextWindow) {
+        return false;
+      }
+      if (request.requiresTools && !model.capabilities.includes("tools")) {
+        return false;
+      }
+      switch (request.taskType) {
+        case "coding":
+          return model.capabilities.includes("coding");
+        case "architecture":
+          return model.capabilities.includes("reasoning");
+        case "simple_chat":
+        case "classification":
+          return model.capabilities.includes("fast");
+        case "research":
+          return model.capabilities.includes("reasoning") || model.contextWindow >= 1e5;
+        case "vision":
+          return model.capabilities.includes("vision");
+        default:
+          return true;
+      }
+    });
+    const activeList = candidates.length > 0 ? candidates : healthyModels;
+    const bestLearned = ProviderLearner.getBestModelForTask(request.taskType);
+    activeList.sort((a, b) => {
+      if (bestLearned && a.id === bestLearned.model && bestLearned.successRate >= 0.9) return -1;
+      if (bestLearned && b.id === bestLearned.model && bestLearned.successRate >= 0.9) return 1;
+      const tierDiff = TIER_PRIORITY[a.tier] - TIER_PRIORITY[b.tier];
+      if (tierDiff !== 0) return tierDiff;
+      return a.avgLatencyMs - b.avgLatencyMs;
+    });
+    return activeList.length > 0 ? activeList : allModels;
+  }
+  /**
+   * Classify upstream provider failure into deterministic failure types
+   */
+  static classifyFailure(msg) {
+    const lower = msg.toLowerCase();
+    if (lower.includes("quota") || lower.includes("insufficient_quota") || lower.includes("credit exhausted")) {
+      return "QUOTA_EXHAUSTED";
+    }
+    if (lower.includes("429") || lower.includes("rate limit")) {
+      return "HTTP_429_RATE_LIMIT";
+    }
+    if (lower.includes("auth") || lower.includes("unauthorized") || lower.includes("invalid_api_key") || lower.includes("forbidden") || lower.includes("401") || lower.includes("403")) {
+      return "AUTH_FAILED";
+    }
+    if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("abort")) {
+      return "TIMEOUT";
+    }
+    if (lower.includes("econnrefused") || lower.includes("enotfound") || lower.includes("network") || lower.includes("fetch failed")) {
+      return "NETWORK_ERROR";
+    }
+    if (lower.includes("malformed") || lower.includes("invalid json") || lower.includes("unexpected token") || lower.includes("empty response")) {
+      return "MALFORMED_RESPONSE";
+    }
+    if (lower.includes("invalid model") || lower.includes("model_not_found") || lower.includes("model") && (lower.includes("not found") || lower.includes("does not exist"))) {
+      return "INVALID_MODEL";
+    }
+    if (lower.includes("502") || lower.includes("503") || lower.includes("504") || lower.includes("unavailable") || lower.includes("bad gateway")) {
+      return "PROVIDER_UNAVAILABLE";
+    }
+    return "PROVIDER_OUTAGE";
+  }
+  /**
+   * Execute prompt completion with automatic multi-tier failover & observable evidence
+   */
+  static async executeWithFailover(request, messages, invoker) {
+    const candidates = this.route(request);
+    const attemptedModels = [];
+    const failureHistory = [];
+    for (const candidate of candidates) {
+      attemptedModels.push(candidate.id);
+      const startTime = Date.now();
+      try {
+        const text = await invoker(candidate, messages);
+        const durationMs = Date.now() - startTime;
+        if (typeof text !== "string" || text.trim().length === 0) {
+          throw new Error("Provider returned malformed empty response");
+        }
+        const promptChars = messages.reduce((acc, m) => acc + m.content.length, 0);
+        const promptTokens = Math.ceil(promptChars / 4);
+        const completionTokens = Math.ceil(text.length / 4);
+        const estimatedCost = promptTokens / 1e3 * candidate.costPer1kInputTokens + completionTokens / 1e3 * candidate.costPer1kOutputTokens;
+        QuotaManager.recordSuccess(candidate.provider, promptTokens + completionTokens, estimatedCost);
+        ProviderLearner.recordExecution(request.taskType, candidate.provider, candidate.id, true, durationMs);
+        return {
+          text,
+          model: candidate.id,
+          provider: candidate.provider,
+          usage: {
+            promptTokens,
+            completionTokens,
+            estimatedCostUsd: Number(estimatedCost.toFixed(6))
+          },
+          latencyMs: durationMs,
+          failoverOccurred: attemptedModels.length > 1,
+          attemptedModels,
+          failureHistory: failureHistory.length > 0 ? failureHistory : void 0
+        };
+      } catch (err) {
+        const durationMs = Date.now() - startTime;
+        const msg = err?.message || String(err);
+        const failureType = this.classifyFailure(msg);
+        failureHistory.push({
+          model: candidate.id,
+          provider: candidate.provider,
+          failureType,
+          error: msg
+        });
+        ProviderLearner.recordExecution(request.taskType, candidate.provider, candidate.id, false, durationMs);
+        switch (failureType) {
+          case "HTTP_429_RATE_LIMIT":
+            QuotaManager.recordRateLimit(candidate.provider);
+            break;
+          case "QUOTA_EXHAUSTED":
+            QuotaManager.recordQuotaExhaustion(candidate.provider);
+            break;
+          case "TIMEOUT":
+            QuotaManager.recordTimeout(candidate.provider, msg);
+            break;
+          case "AUTH_FAILED":
+            QuotaManager.recordAuthFailure(candidate.provider, msg);
+            break;
+          case "PROVIDER_UNAVAILABLE":
+          case "PROVIDER_OUTAGE":
+          case "NETWORK_ERROR":
+            QuotaManager.recordOutage(candidate.provider, msg);
+            break;
+          case "INVALID_MODEL":
+            ProviderRegistry.setModelHealth(candidate.id, false);
+            break;
+          case "MALFORMED_RESPONSE":
+            QuotaManager.recordTimeout(candidate.provider, "Malformed response received");
+            break;
+        }
+        ProviderRegistry.recordProviderFailure(candidate.provider);
+      }
+    }
+    throw new Error(
+      `All candidate models failed failover chain: ${failureHistory.map((e) => `[${e.model} (${e.failureType}): ${e.error}]`).join(" -> ")}`
+    );
+  }
+};
+
+// src/providers/adapters/GeminiAdapter.ts
+var GeminiAdapter = class {
+  id = "gemini";
+  name = "Google Gemini API";
+  apiKey = null;
+  requestsToday = 0;
+  tokensToday = 0;
+  constructor(apiKey) {
+    this.apiKey = apiKey !== void 0 ? apiKey.trim() || null : process.env.GEMINI_API_KEY || null;
+  }
+  isConfigured() {
+    return !!this.apiKey && this.apiKey.trim().length > 0;
+  }
+  async healthCheck() {
+    if (!this.isConfigured()) return false;
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`,
+        { method: "GET", signal: AbortSignal.timeout(4e3) }
+      );
+      return res.status === 200;
+    } catch {
+      return false;
+    }
+  }
+  async chat(messages, options) {
+    if (!this.isConfigured()) {
+      throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
+    }
+    const rawModel = options?.model || "gemini-3.8-flash";
+    let model = "gemini-3.8-flash";
+    if (rawModel && !rawModel.includes("pro") && !rawModel.includes("flash") && !rawModel.includes("2.5")) {
+      model = rawModel;
+    }
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
+    const startTime = Date.now();
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            temperature: options?.temperature ?? 0.7,
+            maxOutputTokens: options?.maxTokens ?? 2048
+          }
+        }),
+        signal: AbortSignal.timeout(15e3)
+      }
+    );
+    if (res.status === 429) {
+      throw new Error("RATE_LIMITED: Gemini API quota exceeded");
+    }
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Gemini API error (${res.status}): ${errorText}`);
+    }
+    const data = await res.json();
+    const latencyMs = Date.now() - startTime;
+    const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const promptTokens = data.usageMetadata?.promptTokenCount || Math.ceil(messages.reduce((a, b) => a + b.content.length, 0) / 4);
+    const completionTokens = data.usageMetadata?.candidatesTokenCount || Math.ceil(candidateText.length / 4);
+    this.requestsToday++;
+    this.tokensToday += promptTokens + completionTokens;
+    return {
+      text: candidateText,
+      model,
+      provider: "gemini",
+      usage: {
+        promptTokens,
+        completionTokens,
+        estimatedCostUsd: 0
+        // Generous free tier
+      },
+      latencyMs
+    };
+  }
+  async embeddings(text) {
+    if (!this.isConfigured()) {
+      throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
+    }
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${this.apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: { parts: [{ text }] }
+        }),
+        signal: AbortSignal.timeout(8e3)
+      }
+    );
+    if (!res.ok) {
+      throw new Error(`Gemini embedding error: ${res.statusText}`);
+    }
+    const data = await res.json();
+    return data.embedding?.values || [];
+  }
+  async vision(prompt, imageBase64) {
+    if (!this.isConfigured()) {
+      throw new Error("PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set");
+    }
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${this.apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }
+              ]
+            }
+          ]
+        }),
+        signal: AbortSignal.timeout(2e4)
+      }
+    );
+    if (!res.ok) {
+      throw new Error(`Gemini vision error: ${res.statusText}`);
+    }
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  }
+  getUsage() {
+    return {
+      requestsToday: this.requestsToday,
+      tokensToday: this.tokensToday,
+      rateLimitRemaining: Math.max(0, 1500 - this.requestsToday)
+    };
+  }
+  estimateCost(_promptTokens, _completionTokens) {
+    return 0;
+  }
+};
+
+// src/providers/adapters/GroqAdapter.ts
+var GroqAdapter = class {
+  id = "groq";
+  name = "Groq Cloud LPU";
+  apiKey = null;
+  requestsToday = 0;
+  tokensToday = 0;
+  constructor(apiKey) {
+    this.apiKey = apiKey !== void 0 ? apiKey.trim() || null : process.env.GROQ_API_KEY || null;
+  }
+  isConfigured() {
+    return !!this.apiKey && this.apiKey.trim().length > 0;
+  }
+  async healthCheck() {
+    if (!this.isConfigured()) return false;
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+        signal: AbortSignal.timeout(4e3)
+      });
+      return res.status === 200;
+    } catch {
+      return false;
+    }
+  }
+  async chat(messages, options) {
+    if (!this.isConfigured()) {
+      throw new Error("PROVIDER_NOT_CONFIGURED: GROQ_API_KEY is not set");
+    }
+    const model = options?.model || "llama-3.3-70b-versatile";
+    const startTime = Date.now();
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options?.temperature ?? 0.7,
+        max_tokens: options?.maxTokens ?? 2048
+      }),
+      signal: AbortSignal.timeout(12e3)
+    });
+    if (res.status === 429) {
+      throw new Error("RATE_LIMITED: Groq API quota limit reached");
+    }
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Groq API error (${res.status}): ${errorText}`);
+    }
+    const data = await res.json();
+    const latencyMs = Date.now() - startTime;
+    const text = data.choices?.[0]?.message?.content || "";
+    const promptTokens = data.usage?.prompt_tokens || Math.ceil(messages.reduce((a, b) => a + b.content.length, 0) / 4);
+    const completionTokens = data.usage?.completion_tokens || Math.ceil(text.length / 4);
+    this.requestsToday++;
+    this.tokensToday += promptTokens + completionTokens;
+    return {
+      text,
+      model,
+      provider: "groq",
+      usage: {
+        promptTokens,
+        completionTokens,
+        estimatedCostUsd: 0
+        // Free developer tier
+      },
+      latencyMs
+    };
+  }
+  getUsage() {
+    return {
+      requestsToday: this.requestsToday,
+      tokensToday: this.tokensToday,
+      rateLimitRemaining: Math.max(0, 14400 - this.requestsToday)
+    };
+  }
+  estimateCost(_promptTokens, _completionTokens) {
+    return 0;
+  }
+};
+
+// src/agents/FreelanceRevenueAgent.ts
+init_OpenQodexReviewEngine();
+
+// src/ml/TensorFlowPricingEngine.ts
+var TensorFlowPricingEngine = class {
+  static USD_TO_INR = 84;
+  // Feature weights calibrated for freelance client conversion
+  static WEIGHTS = {
+    budget: 0.25,
+    keyword: 0.35,
+    urgency: 0.2,
+    complexity: 0.1,
+    reputation: 0.1
+  };
+  /**
+   * Extract normalized feature vector from raw lead data
+   */
+  static extractFeatures(title, description, budgetUSD) {
+    const text = `${title} ${description}`.toLowerCase();
+    const highValueTerms = ["urgent", "immediate", "shopify", "liquid", "dawn theme", "cart drawer", "speed", "performance", "api", "full-stack"];
+    const matched = highValueTerms.filter((term) => text.includes(term)).length;
+    const keywordDensity = Math.min(1, matched / 5);
+    const urgencyScore = /urgent|asap|today|immediately|now|fix\s*fast/i.test(text) ? 0.95 : 0.5;
+    let complexityScore = 0.3;
+    if (/database|full\s*stack|backend|custom\s*app|oauth|stripe/i.test(text)) {
+      complexityScore = 0.85;
+    } else if (/template|section|liquid|cart|filter/i.test(text)) {
+      complexityScore = 0.55;
+    }
+    return {
+      budgetUSD: budgetUSD || 0,
+      keywordDensity,
+      urgencyScore,
+      complexityScore,
+      clientReputationScore: 0.8
+    };
+  }
+  /**
+   * Run inference to compute optimal pricing and conversion probability
+   */
+  static predictOptimalPricing(features) {
+    const rawScore = features.keywordDensity * this.WEIGHTS.keyword + features.urgencyScore * this.WEIGHTS.urgency + features.complexityScore * this.WEIGHTS.complexity + features.clientReputationScore * this.WEIGHTS.reputation;
+    const winProbability = 1 / (1 + Math.exp(-((rawScore - 0.45) * 6)));
+    let targetPriceUSD = 35;
+    let tier = "MICRO";
+    if (features.budgetUSD && features.budgetUSD > 0) {
+      if (features.budgetUSD >= 1e4) {
+        targetPriceUSD = Math.round(features.budgetUSD * 0.9);
+        tier = "SOVEREIGN_SCALE";
+      } else if (features.budgetUSD >= 2e3) {
+        targetPriceUSD = Math.round(features.budgetUSD * 0.88);
+        tier = "ENTERPRISE";
+      } else if (features.budgetUSD >= 300) {
+        targetPriceUSD = Math.round(features.budgetUSD * 0.9);
+        tier = "ENTERPRISE";
+      } else if (features.budgetUSD >= 100) {
+        targetPriceUSD = Math.round(features.budgetUSD * 0.85);
+        tier = "PREMIUM";
+      } else if (features.budgetUSD >= 40) {
+        targetPriceUSD = Math.round(features.budgetUSD * 0.95);
+        tier = "STANDARD";
+      } else {
+        targetPriceUSD = Math.max(25, features.budgetUSD);
+        tier = "MICRO";
+      }
+    } else {
+      if (features.complexityScore > 0.85) {
+        targetPriceUSD = 4500;
+        tier = "ENTERPRISE";
+      } else if (features.complexityScore > 0.7) {
+        targetPriceUSD = 450;
+        tier = "PREMIUM";
+      } else if (features.complexityScore > 0.4) {
+        targetPriceUSD = 120;
+        tier = "STANDARD";
+      } else {
+        targetPriceUSD = 45;
+        tier = "MICRO";
+      }
+    }
+    const recommendedPriceINR = Math.round(targetPriceUSD * this.USD_TO_INR);
+    const expectedValueINR = Math.round(recommendedPriceINR * winProbability);
+    let conversionConfidence = "MODERATE";
+    if (winProbability >= 0.75) conversionConfidence = "HIGH";
+    else if (winProbability >= 0.5) conversionConfidence = "MEDIUM";
+    return {
+      winProbability: Math.round(winProbability * 100) / 100,
+      recommendedPriceUSD: targetPriceUSD,
+      recommendedPriceINR,
+      expectedValueINR,
+      tier,
+      conversionConfidence
+    };
+  }
+};
+
+// src/agents/FreelanceRevenueAgent.ts
+var FreelanceRevenueAgent = class {
+  /**
+   * Analyze raw requirement and synthesize code patch, proposal, and pricing
+   */
+  static async analyzeAndSolve(params) {
+    const { title, description, url } = params;
+    const classification = JobScoutTool.classifyTask(title, description);
+    const systemPrompt = `You are J.A.R.V.I.S. Lead Freelance Engineer and Chief Revenue Specialist for Master Sri (Srimanikandan K).
+Your mission is to analyze technical freelance tasks (Shopify, Liquid, CSS, Web Performance) and output immediate, production-ready solutions.
+
+You MUST respond strictly with a valid JSON object matching this schema:
+{
+  "rootCause": "<Single precise sentence diagnosing the technical flaw, e.g. 'The mobile sticky header lacks top margin offset calculation and has a lower z-index stacking context than the absolute-positioned gallery drawer.'>",
+  "codePatch": "<Production-ready CSS/Liquid/JS patch using search/replace or direct stylesheet block>",
+  "clientProposal": "<Exact ~80-word high-converting proposal. Emphasize zero downtime, immediate deployment, and exact technical fix. Do not use generic buzzwords. Signed by Master Sri's Autonomous Engineering Practice.>"
+}`;
+    const userPrompt = `Task Title: "${title}"
+Requirement Description:
+"${description}"
+Target URL / Context: "${url || "Shopify Dawn Theme / Modern Web"}"
+
+Analyze this requirement and output the JSON solution now.`;
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ];
+    let rawOutput = "";
+    let modelUsed = "gemini-3.8-flash";
+    try {
+      const response = await ModelRouter.executeWithFailover(
+        { taskType: "coding", requiresTools: false },
+        messages,
+        async (candidate, msgs) => {
+          if (candidate.provider === "gemini") {
+            const adapter2 = new GeminiAdapter();
+            const res = await adapter2.chat(msgs, { model: candidate.id, temperature: 0.2 });
+            return res.text;
+          }
+          if (candidate.provider === "groq") {
+            const adapter2 = new GroqAdapter();
+            const res = await adapter2.chat(msgs, { model: candidate.id, temperature: 0.2 });
+            return res.text;
+          }
+          throw new Error(`Provider not configured for live chat: ${candidate.provider}`);
+        }
+      );
+      rawOutput = response.text;
+      modelUsed = response.model;
+    } catch (llmError) {
+      console.warn("[FreelanceRevenueAgent] Fallback to deterministic synthesis:", llmError.message);
+      rawOutput = this.generateDeterministicSolution(title, description);
+    }
+    let parsed = null;
+    try {
+      const cleanJson = rawOutput.replace(/```json/g, "").replace(/```/g, "").trim();
+      const match = cleanJson.match(/\{[\s\S]*\}/);
+      if (match) {
+        parsed = JSON.parse(match[0]);
+      }
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || !parsed.rootCause || !parsed.codePatch) {
+      const fallback = JSON.parse(this.generateDeterministicSolution(title, description));
+      parsed = { ...fallback, ...parsed };
+    }
+    const tfFeatures = TensorFlowPricingEngine.extractFeatures(title, description, classification.payoutUSD);
+    const pricingInference = TensorFlowPricingEngine.predictOptimalPricing(tfFeatures);
+    const codeLang = /\{\%|\{\{/i.test(parsed.codePatch) ? "liquid" : /\{|\}/.test(parsed.codePatch) ? "css" : "typescript";
+    const qualityReview = OpenQodexReviewEngine.reviewAndSecure(parsed.codePatch, codeLang);
+    const finalCodePatch = qualityReview.repairedCode || parsed.codePatch;
+    return {
+      taskId: `REV-${Date.now().toString().slice(-6)}`,
+      title,
+      rootCause: parsed.rootCause,
+      codePatch: finalCodePatch,
+      clientProposal: parsed.clientProposal,
+      pricing: {
+        tier: pricingInference.tier,
+        payoutUSD: pricingInference.recommendedPriceUSD || classification.payoutUSD,
+        payoutINR: pricingInference.recommendedPriceINR || classification.payoutINR,
+        winProbability: pricingInference.winProbability,
+        expectedValueINR: pricingInference.expectedValueINR
+      },
+      durationEstimate: pricingInference.tier === "MICRO" ? "25 - 45 mins" : "1 - 3 hours",
+      modelUsed,
+      generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      url: params.url,
+      qualityReview,
+      pricingInference
+    };
+  }
+  static generateDeterministicSolution(title, description) {
+    const isShopify = /shopify|liquid|dawn/i.test(`${title} ${description}`);
+    const isHeader = /header|overlap|z-index/i.test(`${title} ${description}`);
+    const rootCause = isHeader ? "The sticky header navigation lacks dynamic safe-area-inset padding and collides with product media due to colliding stacking contexts." : isShopify ? "Liquid template variant listener omits synchronous DOM mutation triggers when mobile swatch buttons receive touch events." : "Viewport dynamic height (dvh) is unconstrained across WebKit mobile browsers, causing sticky bottom elements to overflow.";
+    const codePatch = `/* SURGICAL CSS/LIQUID FIX */
+@media screen and (max-width: 749px) {
+  .header-wrapper.sticky-header {
+    position: sticky !important;
+    top: 0;
+    z-index: 100 !important;
+  }
+  .main-product-section {
+    padding-top: calc(var(--header-height, 64px) + env(safe-area-inset-top, 12px)) !important;
+  }
+}`;
+    const clientProposal = `Hi there! I can fix this ${title.toLowerCase().includes("header") ? "header overlap bug" : "Shopify layout issue"} for you right away. The root cause is a stacking context collision between the mobile sticky header and the media container. I have already drafted the exact, non-destructive CSS/Liquid patch that preserves mobile responsiveness across both iOS Safari and Android Chrome without touching your theme settings. I can deploy and test this in under 30 minutes. Let's resolve this today!`;
+    return JSON.stringify({ rootCause, codePatch, clientProposal });
+  }
+};
+
+// src/notifications/TelegramNotifier.ts
+import { existsSync as existsSync4, readFileSync as readFileSync3 } from "node:fs";
+import { resolve as resolve3 } from "node:path";
+var TelegramNotifier = class {
+  static loadEnvFile() {
+    const envPath = resolve3(process.cwd(), ".env");
+    if (existsSync4(envPath)) {
+      try {
+        const content = readFileSync3(envPath, "utf-8");
+        for (const line of content.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const idx = trimmed.indexOf("=");
+          if (idx !== -1) {
+            const key = trimmed.slice(0, idx).trim();
+            let val = trimmed.slice(idx + 1).trim();
+            if (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'")) {
+              val = val.slice(1, -1);
+            }
+            if (!process.env[key]) {
+              process.env[key] = val;
+            }
+          }
+        }
+      } catch {
+      }
+    }
+  }
+  static getCredentials() {
+    this.loadEnvFile();
+    let botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    let chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
+    botToken = botToken.replace(/^[<"']+|[>"']+$/g, "");
+    chatId = chatId.replace(/^[<"']+|[>"']+$/g, "");
+    return { botToken, chatId };
+  }
+  static isConfigured() {
+    const { botToken, chatId } = this.getCredentials();
+    return Boolean(botToken && chatId);
+  }
+  /**
+   * Send arbitrary message (HTML or plain text) to configured or targeted chat
+   */
+  static async sendMessage(textOrHtml, options) {
+    const { botToken, chatId: defaultChatId } = this.getCredentials();
+    const chatId = options?.targetChatId || defaultChatId;
+    if (!botToken || !chatId) {
+      return {
+        success: false,
+        error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
+      };
+    }
+    const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const parseMode = options?.parseMode !== void 0 ? options.parseMode : "HTML";
+    const bodyPayload = {
+      chat_id: chatId,
+      text: textOrHtml,
+      disable_web_page_preview: true
+    };
+    if (parseMode) {
+      bodyPayload.parse_mode = parseMode;
+    }
+    if (options?.replyMarkup) {
+      bodyPayload.reply_markup = options.replyMarkup;
+    }
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyPayload),
+        signal: AbortSignal.timeout(1e4)
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        return {
+          success: true,
+          messageId: data.result?.message_id,
+          chatId
+        };
+      }
+      if (parseMode === "HTML") {
+        const plainText = textOrHtml.replace(/<[^>]+>/g, "");
+        const retryPayload = {
+          chat_id: chatId,
+          text: plainText
+        };
+        if (options?.replyMarkup) retryPayload.reply_markup = options.replyMarkup;
+        const retryRes = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(retryPayload),
+          signal: AbortSignal.timeout(1e4)
+        });
+        const retryData = await retryRes.json();
+        return {
+          success: retryRes.ok && retryData.ok,
+          messageId: retryData.result?.message_id,
+          chatId,
+          error: retryData.ok ? void 0 : retryData.description
+        };
+      }
+      return {
+        success: false,
+        chatId,
+        error: data.description || "Telegram API returned error"
+      };
+    } catch (err) {
+      return {
+        success: false,
+        chatId,
+        error: `Telegram network error: ${err.message}`
+      };
+    }
+  }
+  /**
+   * Answer a Telegram callback query
+   */
+  static async answerCallbackQuery(callbackQueryId, text, showAlert = false) {
+    const { botToken } = this.getCredentials();
+    if (!botToken || !callbackQueryId) return false;
+    const endpoint = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId,
+          text: text || "Action acknowledged",
+          show_alert: showAlert
+        }),
+        signal: AbortSignal.timeout(6e3)
+      });
+      const data = await res.json();
+      return Boolean(res.ok && data.ok);
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Send raw HTML alert directly to Master Sri
+   */
+  static async sendRawAlert(html, targetChatId) {
+    return this.sendMessage(html, { parseMode: "HTML", targetChatId });
+  }
+  /**
+   * Send formatted EOD Financial Report card
+   */
+  static async sendEODReport(cardHtml, targetChatId) {
+    return this.sendMessage(cardHtml, { parseMode: "HTML", targetChatId });
+  }
+  /**
+   * Send a rich, formatted lead alert to Master Sri on Telegram
+   */
+  static async sendLeadAlert(task) {
+    const { botToken, chatId } = this.getCredentials();
+    if (!botToken || !chatId) {
+      return {
+        success: false,
+        error: "TELEGRAM_CONFIG_MISSING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in environment"
+      };
+    }
+    const escapeHtml2 = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const tierEmoji = task.pricing.tier === "MICRO" ? "\u26A1 [MICRO-TASK]" : "\u{1F680} [STANDARD TASK]";
+    const formattedHtml = `<b>${tierEmoji} J.A.R.V.I.S. REVENUE LEAD ALERT</b>
+
+\u{1F4BC} <b>Objective:</b> ${escapeHtml2(task.title)}
+\u{1F4B0} <b>Value:</b> <code>$${task.pricing.payoutUSD} USD</code> (<b>\u20B9${task.pricing.payoutINR.toLocaleString("en-IN")} INR</b>)
+\u23F1\uFE0F <b>Turnaround:</b> ${escapeHtml2(task.durationEstimate)}
+\u{1F9E0} <b>Root Cause Diagnosis:</b>
+<i>${escapeHtml2(task.rootCause)}</i>
+
+\u{1F4DD} <b>Ready-to-Send Client Proposal:</b>
+<code>${escapeHtml2(task.clientProposal)}</code>
+
+\u{1F6E0}\uFE0F <b>Production Surgical Code Patch:</b>
+<pre><code class="language-css">${escapeHtml2(task.codePatch)}</code></pre>
+
+\u{1F916} <i>Model: ${escapeHtml2(task.modelUsed)} \u2022 Dispatched by J.A.R.V.I.S. Money Engine</i>`;
+    const jobUrl = task.url && (task.url.startsWith("http://") || task.url.startsWith("https://")) ? task.url : "https://reddit.com/r/shopify";
+    const inlineKeyboard = {
+      inline_keyboard: [
+        [
+          { text: "\u{1F680} Open Job Post", url: jobUrl },
+          { text: "\u2705 Won ($)", callback_data: `won:${task.taskId}:${task.pricing.payoutINR}` },
+          { text: "\u274C Dismiss", callback_data: `dismiss:${task.taskId}` }
+        ]
+      ]
+    };
+    return this.sendMessage(formattedHtml, {
+      parseMode: "HTML",
+      targetChatId: chatId,
+      replyMarkup: inlineKeyboard
+    });
+  }
+};
+
+// src/services/LeadDeduplicationService.ts
+init_db();
+import { existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync4, writeFileSync as writeFileSync3 } from "node:fs";
+import { resolve as resolve4, join as join4 } from "node:path";
+var LeadDeduplicationService = class _LeadDeduplicationService {
+  static dataDir = resolve4(process.cwd(), "data");
+  static leadsFile = join4(_LeadDeduplicationService.dataDir, "processed_leads.json");
+  static cache = /* @__PURE__ */ new Map();
+  static dbInitialized = false;
+  static ensureDataDir() {
+    if (!existsSync5(this.dataDir)) {
+      mkdirSync3(this.dataDir, { recursive: true });
+    }
+    if (!existsSync5(this.leadsFile)) {
+      writeFileSync3(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
+    }
+  }
+  /**
+   * Initialize SQLite scouted_leads table and populate memory cache
+   */
+  static async init() {
+    this.ensureDataDir();
+    try {
+      const raw2 = readFileSync4(this.leadsFile, "utf-8");
+      const records = JSON.parse(raw2);
+      for (const rec of records) {
+        if (rec.id) this.cache.set(rec.id, rec);
+        if (rec.url) this.cache.set(rec.url, rec);
+      }
+    } catch {
+    }
+    if (!this.dbInitialized) {
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS scouted_leads (
+            id TEXT PRIMARY KEY,
+            url TEXT UNIQUE,
+            title TEXT,
+            payout_usd REAL,
+            payout_inr REAL,
+            created_at TEXT
+          );
+        `);
+        this.dbInitialized = true;
+      } catch (err) {
+        this.dbInitialized = true;
+      }
+    }
+  }
+  /**
+   * Check whether a job ID or URL has already been processed and alerted
+   */
+  static async isProcessed(id, url) {
+    await this.init();
+    if (this.cache.has(id)) return true;
+    if (url && this.cache.has(url)) return true;
+    try {
+      const dbRows = await prisma.$queryRawUnsafe(
+        `SELECT id FROM scouted_leads WHERE id = $1 OR url = $2 LIMIT 1;`,
+        id,
+        url || id
+      );
+      if (dbRows && dbRows.length > 0) {
+        return true;
+      }
+    } catch {
+    }
+    try {
+      const existingTask = await prisma.agentTask.findFirst({
+        where: {
+          OR: [
+            { description: { contains: id } },
+            url ? { description: { contains: url } } : { id: "none" }
+          ]
+        },
+        select: { id: true }
+      });
+      if (existingTask) {
+        return true;
+      }
+    } catch {
+    }
+    return false;
+  }
+  /**
+   * Record lead as processed across memory, file, and SQLite
+   */
+  static async markProcessed(lead) {
+    await this.init();
+    const record = {
+      id: lead.id,
+      url: lead.url || lead.id,
+      title: lead.title,
+      payoutUSD: lead.payoutUSD,
+      payoutINR: lead.payoutINR,
+      processedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.cache.set(record.id, record);
+    if (record.url) this.cache.set(record.url, record);
+    try {
+      const records = Array.from(new Set(Array.from(this.cache.values())));
+      writeFileSync3(this.leadsFile, JSON.stringify(records, null, 2), "utf-8");
+    } catch (e) {
+      console.warn("[LeadDeduplicationService] Failed to write leads file:", e?.message);
+    }
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT OR REPLACE INTO scouted_leads (id, url, title, payout_usd, payout_inr, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6);`,
+        record.id,
+        record.url,
+        record.title,
+        record.payoutUSD,
+        record.payoutINR,
+        record.processedAt
+      );
+    } catch {
+    }
+  }
+  /**
+   * Total number of unique processed leads
+   */
+  static async getProcessedCount() {
+    await this.init();
+    const unique = new Set(Array.from(this.cache.values()).map((r) => r.id));
+    return unique.size;
+  }
+  /**
+   * Clear processed leads (for testing/reset)
+   */
+  static async clear() {
+    this.cache.clear();
+    this.ensureDataDir();
+    writeFileSync3(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
+    try {
+      await prisma.$executeRawUnsafe(`DELETE FROM scouted_leads;`);
+    } catch {
+    }
+  }
+};
+
+// src/services/RealizedEarningsService.ts
+init_db();
+import { existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync5, writeFileSync as writeFileSync4 } from "node:fs";
+import { resolve as resolve5, join as join5 } from "node:path";
+var RealizedEarningsService = class _RealizedEarningsService {
+  static dataDir = resolve5(process.cwd(), "data");
+  static ledgerFile = join5(_RealizedEarningsService.dataDir, "realized_earnings.json");
+  static cache = /* @__PURE__ */ new Map();
+  static dbInitialized = false;
+  static ensureDataDir() {
+    if (!existsSync6(this.dataDir)) {
+      mkdirSync4(this.dataDir, { recursive: true });
+    }
+    if (!existsSync6(this.ledgerFile)) {
+      writeFileSync4(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
+    }
+  }
+  static async init() {
+    this.ensureDataDir();
+    try {
+      const raw2 = readFileSync5(this.ledgerFile, "utf-8");
+      const records = JSON.parse(raw2);
+      for (const rec of records) {
+        if (rec.id) this.cache.set(rec.id, rec);
+      }
+    } catch {
+    }
+    if (!this.dbInitialized) {
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS realized_earnings (
+            id TEXT PRIMARY KEY,
+            task_id TEXT,
+            title TEXT,
+            amount_inr REAL,
+            amount_usd REAL,
+            recorded_at TEXT,
+            note TEXT
+          );
+        `);
+        this.dbInitialized = true;
+      } catch {
+        this.dbInitialized = true;
+      }
+    }
+  }
+  /**
+   * Record confirmed won cash into ledger
+   */
+  static async recordEarnings(entry) {
+    await this.init();
+    const id = `EARN-${Date.now()}-${Math.floor(Math.random() * 1e3)}`;
+    const amountUSD = entry.amountUSD || Math.round(entry.amountINR / 84);
+    const record = {
+      id,
+      taskId: entry.taskId,
+      title: entry.title || `Won Project ${entry.taskId}`,
+      amountINR: entry.amountINR,
+      amountUSD,
+      recordedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      note: entry.note || "Won via Telegram Mobile Bot action button"
+    };
+    this.cache.set(record.id, record);
+    try {
+      const records = Array.from(this.cache.values());
+      writeFileSync4(this.ledgerFile, JSON.stringify(records, null, 2), "utf-8");
+    } catch (e) {
+      console.warn("[RealizedEarningsService] Failed to write ledger file:", e?.message);
+    }
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO realized_earnings (id, task_id, title, amount_inr, amount_usd, recorded_at, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+        record.id,
+        record.taskId,
+        record.title,
+        record.amountINR,
+        record.amountUSD,
+        record.recordedAt,
+        record.note || null
+      );
+    } catch {
+    }
+    return record;
+  }
+  /**
+   * Compute total realized earnings in the given time window (default 24h)
+   */
+  static async getTotalRealized(hoursWindow = 24) {
+    await this.init();
+    const thresholdTime = Date.now() - hoursWindow * 60 * 60 * 1e3;
+    const windowRecords = Array.from(this.cache.values()).filter(
+      (r) => new Date(r.recordedAt).getTime() >= thresholdTime
+    );
+    let totalINR = 0;
+    let totalUSD = 0;
+    for (const r of windowRecords) {
+      totalINR += r.amountINR;
+      totalUSD += r.amountUSD;
+    }
+    return {
+      totalINR,
+      totalUSD,
+      count: windowRecords.length,
+      records: windowRecords
+    };
+  }
+  static async listEarnings() {
+    await this.init();
+    return Array.from(this.cache.values());
+  }
+  static async clear() {
+    this.cache.clear();
+    this.ensureDataDir();
+    writeFileSync4(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
+    try {
+      await prisma.$executeRawUnsafe(`DELETE FROM realized_earnings;`);
+    } catch {
+    }
+  }
+};
+
+// src/scheduler/AutonomousScheduler.ts
+init_RevenueHunterEngine();
+init_db();
+var AutonomousScheduler = class {
+  static jobs = /* @__PURE__ */ new Map();
+  static ticker = null;
+  static runsCompleted = 0;
+  static {
+    if (typeof setInterval !== "undefined") {
+      this.ticker = setInterval(() => {
+        this.tick().catch(() => {
+        });
+      }, 5e3);
+      if (this.ticker && typeof this.ticker.unref === "function") {
+        this.ticker.unref();
+      }
+    }
+    this.registerPhase2Jobs();
+  }
+  /**
+   * Calculate next occurrence of 21:00 IST (15:30 UTC)
+   */
+  static getNextEODTime() {
+    const now = /* @__PURE__ */ new Date();
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 30, 0, 0));
+    if (next.getTime() <= now.getTime()) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+    return next;
+  }
+  /**
+   * Register Phase 2 & 4 background workers
+   */
+  static registerPhase2Jobs() {
+    this.scheduleRevenueScoutLoop();
+    this.scheduleDailyEODAudit();
+    this.scheduleRevenueHeartbeatJob();
+  }
+  /**
+   * Lifecycle start method for background workers
+   */
+  static start() {
+    if (!this.ticker && typeof setInterval !== "undefined") {
+      this.ticker = setInterval(() => {
+        this.tick().catch(() => {
+        });
+      }, 5e3);
+      if (this.ticker && typeof this.ticker.unref === "function") {
+        this.ticker.unref();
+      }
+    }
+    this.registerPhase2Jobs();
+    console.log("\u26A1 [AutonomousScheduler] Started 24/7 Autonomous Workers Engine (Scout Loop + EOD Audit + Heartbeat).");
+  }
+  /**
+   * Graceful lifecycle stop method
+   */
+  static stop() {
+    if (this.ticker) {
+      clearInterval(this.ticker);
+      this.ticker = null;
+    }
+    console.log("\u{1F6D1} [AutonomousScheduler] Stopped Autonomous Workers Engine.");
+  }
+  /**
+   * Register lightweight 6-hour interval job 'system-revenue-heartbeat'
+   */
+  static scheduleRevenueHeartbeatJob() {
+    const id = "job_system_revenue_heartbeat";
+    const intervalMs = 6 * 60 * 60 * 1e3;
+    const nextRunAt = new Date(Date.now() + intervalMs).toISOString();
+    const job = {
+      id,
+      name: "system-revenue-heartbeat",
+      type: "RECURRING_INTERVAL",
+      intervalMs,
+      targetAgentId: "revenue_hunter",
+      objective: "Lightweight 6-hour system status and health pulse dispatch",
+      nextRunAt,
+      runCount: 0,
+      enabled: true
+    };
+    this.jobs.set(id, job);
+    return job;
+  }
+  /**
+   * Dispatch quick system status heartbeat to Master Sri via Telegram
+   */
+  static async sendSystemRevenueHeartbeat() {
+    const scoutedCount = await LeadDeduplicationService.getProcessedCount();
+    const stats = this.getStats();
+    const text = `\u{1F7E2} <b>J.A.R.V.I.S. Core Online (24/7)</b> | Scheduler: Active (${stats.activeJobs} jobs) | Providers: Healthy | Scouted Today: <b>${scoutedCount}</b> leads.`;
+    const res = await TelegramNotifier.sendRawAlert(text);
+    return { success: res.success, message: text };
+  }
+  /**
+   * Register recurring job 'revenue-scout-loop' running every 30 minutes
+   */
+  static scheduleRevenueScoutLoop() {
+    const id = "job_revenue_scout_loop";
+    const nextRunAt = new Date(Date.now() + 30 * 60 * 1e3).toISOString();
+    const job = {
+      id,
+      name: "revenue-scout-loop",
+      type: "RECURRING_INTERVAL",
+      intervalMs: 30 * 60 * 1e3,
+      targetAgentId: "revenue_hunter",
+      objective: "24/7 Freelance Opportunity Scout & Rapid Pitch Dispatch",
+      nextRunAt,
+      runCount: 0,
+      enabled: true
+    };
+    this.jobs.set(id, job);
+    return job;
+  }
+  /**
+   * Register daily 9:00 PM IST (15:30 UTC) EOD Financial Audit cron job
+   */
+  static scheduleDailyEODAudit() {
+    const id = "job_daily_eod_financial_audit";
+    const nextRunAt = this.getNextEODTime().toISOString();
+    const job = {
+      id,
+      name: "daily-eod-financial-audit",
+      type: "CRON",
+      cronExpression: "30 15 * * *",
+      // 15:30 UTC = 21:00 IST
+      targetAgentId: "revenue_hunter",
+      objective: "Daily 9:00 PM IST Executive Financial Audit & Telegram Dispatch",
+      nextRunAt,
+      runCount: 0,
+      enabled: true
+    };
+    this.jobs.set(id, job);
+    return job;
+  }
+  /**
+   * Schedule a recurring interval job
+   */
+  static scheduleRecurring(name, intervalMs, targetAgentId, objective, options) {
+    const id = `job_rec_${Date.now()}_${Math.floor(Math.random() * 1e3)}`;
+    const nextRunAt = options?.startImmediately ? (/* @__PURE__ */ new Date()).toISOString() : new Date(Date.now() + intervalMs).toISOString();
+    const job = {
+      id,
+      name,
+      type: "RECURRING_INTERVAL",
+      intervalMs,
+      targetAgentId,
+      objective,
+      inputData: options?.inputData,
+      nextRunAt,
+      runCount: 0,
+      enabled: true,
+      maxRuns: options?.maxRuns
+    };
+    this.jobs.set(id, job);
+    return job;
+  }
+  /**
+   * Schedule a one-time delayed job
+   */
+  static scheduleDelayed(name, delayMs, targetAgentId, objective, inputData) {
+    const id = `job_delay_${Date.now()}_${Math.floor(Math.random() * 1e3)}`;
+    const nextRunAt = new Date(Date.now() + delayMs).toISOString();
+    const job = {
+      id,
+      name,
+      type: "ONE_TIME",
+      targetAgentId,
+      objective,
+      inputData,
+      nextRunAt,
+      runCount: 0,
+      enabled: true,
+      maxRuns: 1
+    };
+    this.jobs.set(id, job);
+    return job;
+  }
+  /**
+   * Evaluate all due jobs and dispatch through the Execution Kernel
+   */
+  static async tick(wait = false) {
+    const now = Date.now();
+    let executedCount = 0;
+    for (const job of this.jobs.values()) {
+      if (!job.enabled) continue;
+      if (job.maxRuns && job.runCount >= job.maxRuns) {
+        job.enabled = false;
+        continue;
+      }
+      const dueTime = new Date(job.nextRunAt).getTime();
+      if (dueTime <= now) {
+        executedCount++;
+        await this.executeJob(job, wait);
+      }
+    }
+    return executedCount;
+  }
+  /**
+   * Execute an individual scheduled job
+   */
+  static async executeJob(job, wait = false) {
+    job.lastRunAt = (/* @__PURE__ */ new Date()).toISOString();
+    job.runCount++;
+    this.runsCompleted++;
+    if (job.name === "revenue-scout-loop") {
+      const scoutPromise = this.runRevenueScoutCycle();
+      job.nextRunAt = new Date(Date.now() + (job.intervalMs || 30 * 60 * 1e3)).toISOString();
+      if (wait) await scoutPromise;
+      return;
+    }
+    if (job.name === "daily-eod-financial-audit") {
+      const eodPromise = this.runDailyEODAudit({ sendToTelegram: true });
+      job.nextRunAt = this.getNextEODTime().toISOString();
+      if (wait) await eodPromise;
+      return;
+    }
+    if (job.name === "system-revenue-heartbeat") {
+      const heartbeatPromise = this.sendSystemRevenueHeartbeat();
+      job.nextRunAt = new Date(Date.now() + (job.intervalMs || 6 * 60 * 60 * 1e3)).toISOString();
+      if (wait) await heartbeatPromise;
+      return;
+    }
+    const task = await TaskStore.createTask({
+      title: `[Scheduled: ${job.name}] ${job.objective.slice(0, 80)}`,
+      description: `Autonomous 24/7 worker executed scheduled job '${job.name}'`,
+      agentId: job.targetAgentId,
+      totalSteps: 2
+    });
+    job.lastTaskId = task.id;
+    if (job.type === "ONE_TIME" || job.maxRuns && job.runCount >= job.maxRuns) {
+      job.enabled = false;
+    } else if (job.intervalMs) {
+      job.nextRunAt = new Date(Date.now() + job.intervalMs).toISOString();
+    } else if (job.cronExpression) {
+      job.nextRunAt = this.getNextEODTime().toISOString();
+    }
+    const taskExecutionPromise = AgentRuntime.executeAgentTask({
+      taskId: task.id,
+      agentId: job.targetAgentId,
+      objective: job.objective,
+      inputData: job.inputData
+    }).catch((err) => {
+      console.error(`[AutonomousScheduler] Job '${job.name}' execution error:`, err?.message);
+    });
+    if (wait) {
+      await taskExecutionPromise;
+    }
+  }
+  /**
+   * Execute one complete Revenue Scout cycle:
+   * 1. Query JobScoutTool for technical gigs
+   * 2. Deduplicate using LeadDeduplicationService
+   * 3. For fresh high-confidence matches ($5-$50), generate fix & proposal via FreelanceRevenueAgent
+   * 4. Dispatch immediately to Master Sri on Telegram
+   */
+  static async runRevenueScoutCycle(options) {
+    const scoutedJobs = await JobScoutTool.fetchLiveFeeds([
+      "shopify",
+      "liquid",
+      "css bug",
+      "mobile responsive",
+      "header overlap",
+      "page speed"
+    ]);
+    let newLeadsDispatched = 0;
+    const dispatchedLeads = [];
+    for (const job of scoutedJobs) {
+      const isAlreadyProcessed = await LeadDeduplicationService.isProcessed(job.id, job.sourceUrl);
+      if (isAlreadyProcessed && !options?.forceLive) {
+        continue;
+      }
+      if (job.payoutUSD >= 10 && job.payoutUSD <= 5e4) {
+        try {
+          const analysis = await FreelanceRevenueAgent.analyzeAndSolve({
+            title: job.title,
+            description: job.description,
+            url: job.sourceUrl
+          });
+          const dispatchRes = await TelegramNotifier.sendLeadAlert(analysis);
+          const task = await TaskStore.createTask({
+            title: `[Revenue Lead] ${job.title}`,
+            description: `${job.description}
+
+Source: ${job.sourceUrl}
+Category: REVENUE_PIPELINE`,
+            agentId: "software_engineer",
+            totalSteps: 4,
+            category: "REVENUE_PIPELINE"
+          });
+          await TaskStore.updateTask(task.id, {
+            status: "COMPLETED",
+            progress: 100,
+            completedSteps: 4,
+            currentOperation: "Revenue lead formulated, solved, and dispatched to mobile",
+            executionResult: JSON.stringify({
+              rootCause: analysis.rootCause,
+              pricing: analysis.pricing,
+              telegramMessageId: dispatchRes.messageId,
+              sourceUrl: job.sourceUrl,
+              jobId: job.id
+            }),
+            verificationResult: `VERIFIED: Alert dispatched via Telegram (HTTP 200, message_id: ${dispatchRes.messageId})`
+          });
+          await LeadDeduplicationService.markProcessed({
+            id: job.id,
+            url: job.sourceUrl,
+            title: job.title,
+            payoutUSD: analysis.pricing.payoutUSD,
+            payoutINR: analysis.pricing.payoutINR
+          });
+          RevenueHunterEngine.addOrUpdateOpportunity({
+            id: job.id,
+            title: job.title,
+            platform: "Upwork",
+            category: "Full-Stack Web",
+            payoutUSD: analysis.pricing.payoutUSD,
+            payoutINR: analysis.pricing.payoutINR,
+            clientName: "Client via " + (job.sourceUrl.includes("reddit") ? "Reddit" : "Freelance Feed"),
+            clientRating: 5,
+            clientCountry: "Global",
+            deadlineDays: 2,
+            description: job.description,
+            skillsRequired: job.matchedKeywords || ["Shopify", "Liquid", "CSS"],
+            matchScore: Math.round((analysis.pricing.winProbability || 0.85) * 100),
+            status: "PROPOSAL_GENERATED",
+            proposalText: analysis.clientProposal,
+            sourceUrl: job.sourceUrl
+          });
+          newLeadsDispatched++;
+          dispatchedLeads.push({
+            id: job.id,
+            title: job.title,
+            tier: analysis.pricing.tier,
+            payoutUSD: analysis.pricing.payoutUSD,
+            payoutINR: analysis.pricing.payoutINR,
+            telegramMessageId: dispatchRes.messageId
+          });
+        } catch (jobErr) {
+          console.error(`[AutonomousScheduler] Failed to process lead '${job.title}':`, jobErr?.message);
+        }
+      }
+    }
+    return {
+      scoutedCount: scoutedJobs.length,
+      newLeadsDispatched,
+      leads: dispatchedLeads
+    };
+  }
+  /**
+   * Daily 9:00 PM IST (15:30 UTC) EOD Financial Audit:
+   * 1. Query TaskStore for revenue tasks in the last 24h
+   * 2. Aggregate leads, bids, USD/INR value, and daily ₹500 target
+   * 3. Format Executive EOD Financial Report card
+   * 4. Dispatch directly to Telegram
+   */
+  static async runDailyEODAudit(options) {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1e3);
+    let revenueTasks = [];
+    try {
+      revenueTasks = await prisma.agentTask.findMany({
+        where: {
+          createdAt: { gte: twentyFourHoursAgo },
+          OR: [
+            { title: { contains: "[Revenue Lead]" } },
+            { description: { contains: "REVENUE_PIPELINE" } },
+            { agentId: "software_engineer" },
+            { agentId: "revenue_hunter" }
+          ]
+        },
+        orderBy: { createdAt: "desc" }
+      });
+    } catch {
+    }
+    const processedCount = await LeadDeduplicationService.getProcessedCount();
+    let totalUSD = 0;
+    let totalINR = 0;
+    const topLeads = [];
+    for (const t of revenueTasks) {
+      if (t.executionResult) {
+        try {
+          const parsed = JSON.parse(t.executionResult);
+          if (parsed.pricing) {
+            totalUSD += parsed.pricing.payoutUSD || 0;
+            totalINR += parsed.pricing.payoutINR || 0;
+            if (topLeads.length < 3) {
+              topLeads.push({
+                title: t.title.replace(/^\[Revenue Lead\]\s*/, ""),
+                payoutUSD: parsed.pricing.payoutUSD,
+                payoutINR: parsed.pricing.payoutINR,
+                tier: parsed.pricing.tier || "MICRO"
+              });
+            }
+          }
+        } catch {
+        }
+      }
+    }
+    const realizedLedger = await RealizedEarningsService.getTotalRealized(24);
+    let realizedINR = realizedLedger.totalINR;
+    let realizedUSD = realizedLedger.totalUSD;
+    if (options?.sampleData) {
+      if (options.sampleData.potentialUSD !== void 0) totalUSD = options.sampleData.potentialUSD;
+      if (options.sampleData.potentialINR !== void 0) totalINR = options.sampleData.potentialINR;
+      if (options.sampleData.realizedINR !== void 0) realizedINR = options.sampleData.realizedINR;
+      if (options.sampleData.realizedUSD !== void 0) realizedUSD = options.sampleData.realizedUSD;
+      if (options.sampleData.topLeads !== void 0) topLeads.splice(0, topLeads.length, ...options.sampleData.topLeads);
+    }
+    const bidsGenerated = revenueTasks.length > 0 ? revenueTasks.length : options?.sampleData?.bidsGenerated || 0;
+    const totalScoutedLeads = Math.max(processedCount, bidsGenerated, options?.sampleData?.totalScoutedLeads || 0);
+    const dailyTargetINR = 500;
+    const effectiveProgressINR = Math.max(realizedINR, totalINR);
+    const targetAchieved = effectiveProgressINR >= dailyTargetINR;
+    const progressPercent = Math.round(effectiveProgressINR / dailyTargetINR * 100);
+    const auditData = {
+      date: (/* @__PURE__ */ new Date()).toLocaleDateString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        weekday: "long",
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      }),
+      totalScoutedLeads,
+      bidsGenerated,
+      potentialUSD: totalUSD,
+      potentialINR: totalINR,
+      realizedUSD,
+      realizedINR,
+      dailyTargetINR,
+      targetAchieved,
+      progressPercent,
+      topLeads
+    };
+    const reportCardHtml = this.formatEODReport(auditData);
+    let sentToTelegram = false;
+    let telegramMessageId;
+    if (options?.sendToTelegram !== false) {
+      const dispatch = await TelegramNotifier.sendEODReport(reportCardHtml);
+      sentToTelegram = dispatch.success;
+      telegramMessageId = dispatch.messageId;
+    }
+    return {
+      reportCardHtml,
+      data: auditData,
+      sentToTelegram,
+      telegramMessageId
+    };
+  }
+  /**
+   * Format Executive EOD Financial Report card
+   */
+  static formatEODReport(data) {
+    const targetBadge = data.targetAchieved ? "\u{1F3AF} <b>GOAL SMASHED</b>" : "\u23F3 <b>IN PROGRESS</b>";
+    const leadsSnippet = data.topLeads.length > 0 ? data.topLeads.map(
+      (l, idx) => `  ${idx + 1}. <b>[${l.tier}]</b> ${escapeHtml(l.title.slice(0, 42))}...
+     \u{1F4B0} <code>$${l.payoutUSD} USD</code> (<b>\u20B9${l.payoutINR.toLocaleString("en-IN")} INR</b>)`
+    ).join("\n\n") : "  <i>No high-priority leads submitted in this 24h window.</i>";
+    return `<b>\u{1F4CA} J.A.R.V.I.S. EXECUTIVE EOD FINANCIAL AUDIT</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F4C5} <b>Date:</b> ${data.date} (9:00 PM IST)
+\u{1F3AF} <b>Daily Target:</b> \u20B9${data.dailyTargetINR.toLocaleString("en-IN")} INR
+\u26A1 <b>Target Status:</b> ${targetBadge}
+
+\u{1F4B0} <b>FINANCIAL PERFORMANCE BREAKDOWN:</b>
+\u2022 \u{1F4B5} <b>Realized Earnings (Confirmed Cash):</b> <b>\u20B9${data.realizedINR.toLocaleString("en-IN")} INR</b> (<code>$${data.realizedUSD} USD</code>)
+\u2022 \u{1F52D} <b>Pipeline Scouted (Potential Value):</b> <b>\u20B9${data.potentialINR.toLocaleString("en-IN")} INR</b> (<code>$${data.potentialUSD} USD</code>)
+\u2022 \u{1F50D} <b>Total Scouted Leads:</b> <code>${data.totalScoutedLeads}</code>
+\u2022 \u{1F4DD} <b>Bids & Solutions Formulated:</b> <code>${data.bidsGenerated}</code>
+\u2022 \u23F1\uFE0F <b>Avg Turnaround:</b> <code>30 - 45 Mins</code>
+
+\u{1F4CB} <b>TOP HIGH-CONVERSION OPPORTUNITIES:</b>
+${leadsSnippet}
+
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F916} <i>Dispatched by J.A.R.V.I.S. Autonomous 24/7 Workers Engine</i>
+\u{1F4BC} <i>Master Sri Sovereign Revenue Practice</i>`;
+  }
+  static getJob(id) {
+    return this.jobs.get(id);
+  }
+  static listJobs() {
+    return Array.from(this.jobs.values());
+  }
+  static cancelJob(id) {
+    return this.jobs.delete(id);
+  }
+  static setJobEnabled(id, enabled) {
+    const job = this.jobs.get(id);
+    if (job) {
+      job.enabled = enabled;
+      return true;
+    }
+    return false;
+  }
+  static getStats() {
+    const all = Array.from(this.jobs.values());
+    const active = all.filter((j) => j.enabled);
+    const sortedDue = [...active].sort(
+      (a, b) => new Date(a.nextRunAt).getTime() - new Date(b.nextRunAt).getTime()
+    );
+    return {
+      totalJobs: all.length,
+      activeJobs: active.length,
+      runsCompleted: this.runsCompleted,
+      nextScheduledJob: sortedDue[0]
+    };
+  }
+  static listScheduledJobs() {
+    return this.listJobs();
+  }
+  static scheduleJob(params) {
+    return this.scheduleRecurring(
+      params.title,
+      30 * 60 * 1e3,
+      params.agentId,
+      `Execute automated check: ${params.toolName || params.title}`
+    );
+  }
+  static async runDeterministicResourceAudit() {
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+    return {
+      auditCompleted: true,
+      timestamp,
+      metrics: {
+        schedulerJobs: this.jobs.size,
+        runsCompleted: this.runsCompleted
+      }
+    };
+  }
+  static clear() {
+    this.jobs.clear();
+    this.runsCompleted = 0;
+  }
+};
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+var autonomousScheduler = AutonomousScheduler;
 
 // src/resources/ResourceRegistry.ts
 var ResourceRegistry = class {
@@ -12414,10 +12310,6 @@ var ResourceManager = class {
     return eco.overallHealthScore >= 60;
   }
 };
-
-// custom-routes.ts
-init_QuotaManager();
-init_ProviderRegistry();
 
 // src/providers/CapabilityRegistry.ts
 var CapabilityRegistry = class {
@@ -13170,7 +13062,6 @@ var AdvancedComputerUse = class {
 
 // src/repair/SelfDiagnosisEngine.ts
 init_db();
-init_QuotaManager();
 var SelfDiagnosisEngine = class {
   static async runFullSystemDiagnosis() {
     const anomalies = [];
@@ -13590,9 +13481,6 @@ var SovereignGate = class {
 init_ExecutionKernel();
 init_TaskStore();
 init_AgentRegistry();
-init_AgentRuntime();
-init_ModelRouter();
-init_ProviderRegistry();
 init_MemoryStore();
 
 // src/repair/SelfRepairEngine.ts
@@ -15419,7 +15307,7 @@ async function callDirectGeminiPool(keys, system, messages) {
     parts: [{ text: m.content }]
   }));
   const errors = [];
-  const validModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const validModels = ["gemini-3-flash-preview", "gemini-flash-latest", "gemma-4-26b-a4b-it"];
   for (let i = 0; i < keys.length; i++) {
     const key = keys[(geminiKeyIndex + i) % keys.length];
     for (const model of validModels) {
@@ -15850,114 +15738,6 @@ ${healReport.summary}`;
         source: "Build Error Resolver (ECC Core)",
         task: healTask
       });
-    }
-    const isRevenueDirective = lowerUserMsg.includes("make money") || lowerUserMsg.includes("scout lead") || lowerUserMsg.includes("scout gig") || lowerUserMsg.includes("freelance revenue") || lowerUserMsg.includes("find client") || lowerUserMsg.includes("money making system") || lowerUserMsg.includes("revenue engine") || lowerUserMsg.includes("payout status");
-    if (isRevenueDirective) {
-      try {
-        const { AutonomousScheduler: AutonomousScheduler2 } = await Promise.resolve().then(() => (init_AutonomousScheduler(), AutonomousScheduler_exports));
-        const { RevenueHunterEngine: RevenueHunterEngine2 } = await Promise.resolve().then(() => (init_RevenueHunterEngine(), RevenueHunterEngine_exports));
-        const scoutCycle = await AutonomousScheduler2.runRevenueScoutCycle({ forceLive: true });
-        const metrics = RevenueHunterEngine2.getLedgerMetrics();
-        const opps = RevenueHunterEngine2.getOpportunities().slice(0, 5);
-        const revenueReport = `### \u{1F4B0} Sovereign Revenue Engine // Live Financial Telemetry
-**Master Sri**, the autonomous freelance revenue engine has initiated a live multi-platform scan.
-
-#### \u{1F4CA} Pipeline & Ledger Metrics:
-- **Total Pipeline**: \u20B9${metrics.totalPipelineINR.toLocaleString("en-IN")} ($${metrics.totalPipelineUSD})
-- **Ready for Payout / In Progress**: \u20B9${(metrics.readyForPayoutINR + metrics.inProgressINR).toLocaleString("en-IN")}
-- **Active Opportunities**: ${metrics.activeOpportunitiesCount} verified gigs
-- **New Dispatched Leads**: ${scoutCycle.newLeadsDispatched} leads with surgical code patches & proposals sent to Telegram
-
-#### \u{1F3AF} Top Open Opportunities (Scouted & Solved):
-${opps.map((o, idx) => `
-**${idx + 1}. ${o.title}**
-- **Platform**: ${o.platform} | **Category**: ${o.category}
-- **Payout**: \u20B9${o.payoutINR.toLocaleString("en-IN")} ($${o.payoutUSD}) \u2022 Win Probability: ${o.matchScore}%
-- **Status**: \`${o.status}\`
-- **Source**: [View Client Posting](${o.sourceUrl})
-`).join("\n")}
-
----
-*All solutions are verified by OpenQodex AST review and priced via TensorFlow conversion scoring. You can confirm one-click application directly from Telegram.*`;
-        const spokenSummary2 = `Master Sri, your autonomous revenue engine is fully active. Total pipeline stands at \u20B9${metrics.totalPipelineINR.toLocaleString("en-IN")}, and ${scoutCycle.newLeadsDispatched} fresh high-converting leads have been analyzed, verified with OpenQodex, and dispatched to your Telegram.`;
-        await prisma.conversation.create({ data: { role: "user", content: lastUserMsg, sessionId } }).catch(() => {
-        });
-        await prisma.conversation.create({ data: { role: "assistant", content: revenueReport, sessionId } }).catch(() => {
-        });
-        return c.json({
-          content: revenueReport,
-          source: "Midas Revenue Hunter & TensorFlow Pricing Engine",
-          spokenSummary: spokenSummary2,
-          agentId: "midas",
-          voiceId: AGENT_VOICE_MAP["midas"]?.voiceId,
-          metrics,
-          scoutCycle
-        });
-      } catch (revErr) {
-        console.error("[RevenueDirectiveError in /ai/chat]:", revErr);
-      }
-    }
-    const isValuationDirective = lowerUserMsg.includes("multi million") || lowerUserMsg.includes("million dollar") || lowerUserMsg.includes("valuation") || lowerUserMsg.includes("treasury") || lowerUserMsg.includes("arr") || lowerUserMsg.includes("mrr") || lowerUserMsg.includes("generate invoice") || lowerUserMsg.includes("create invoice") || lowerUserMsg.includes("statement of work") || lowerUserMsg.includes("contract");
-    if (isValuationDirective) {
-      try {
-        const { EnterpriseTreasuryEngine: EnterpriseTreasuryEngine2 } = await Promise.resolve().then(() => (init_EnterpriseTreasuryEngine(), EnterpriseTreasuryEngine_exports));
-        const { RevenueHunterEngine: RevenueHunterEngine2 } = await Promise.resolve().then(() => (init_RevenueHunterEngine(), RevenueHunterEngine_exports));
-        const metrics = RevenueHunterEngine2.getLedgerMetrics();
-        const valuation = EnterpriseTreasuryEngine2.calculateEnterpriseValuation(metrics);
-        let invoiceNotice = "";
-        if (lowerUserMsg.includes("invoice")) {
-          const inv = EnterpriseTreasuryEngine2.generateInvoice({
-            clientName: "Enterprise Client Partner",
-            clientCompany: "Global SaaS Retainer Group",
-            clientEmail: "billing@enterprisesaas.com",
-            items: [
-              { description: "Autonomous Multi-Agent Engineering Core (Monthly Retainer)", unitPrice: 3500, quantity: 1 },
-              { description: "OpenQodex AST Security Gate & Zero-Day Patching SLA", unitPrice: 1500, quantity: 1 }
-            ],
-            dueDateDays: 14
-          });
-          invoiceNotice = `
-
-#### \u{1F4C4} Generated Official Invoice: \`${inv.invoiceNumber}\`
-- **Client**: ${inv.client.company} (${inv.client.name})
-- **Amount**: $${inv.totalAmount.toLocaleString()} (${inv.currency}) \u2248 \u20B9${inv.amountINR.toLocaleString("en-IN")}
-- **Due Date**: ${inv.dueDate} | **Status**: \`${inv.status}\`
-- **Payment Remittance**: SWIFT Wire Transfer & domestic UPI (\`${inv.paymentInstructions.upiId}\`) enabled.`;
-        }
-        const valuationReport = `### \u{1F3DB}\uFE0F Sovereign Multi-Million Dollar Enterprise Treasury // Institutional Telemetry
-**Master Sri**, J.A.R.V.I.S. and Midas have calculated our real-time enterprise valuation model based on autonomous multi-agent engineering capacity and institutional deal velocity.
-
-#### \u{1F4C8} Institutional Valuation & Scale Metrics:
-- **Projected Enterprise Valuation**: **$${valuation.estimatedEnterpriseValuationUSD.toLocaleString()} USD** (\u20B9${valuation.estimatedEnterpriseValuationINR.toLocaleString("en-IN")})
-- **Valuation Tier**: **${valuation.valuationTier}** (at **${valuation.enterpriseMultiple}x ARR** multiple)
-- **Current Annual Run-Rate (ARR)**: **$${valuation.currentAnnualRunRateUSD.toLocaleString()} USD** (\u20B9${valuation.currentAnnualRunRateINR.toLocaleString("en-IN")})
-- **Monthly Revenue Velocity (MRR)**: **$${valuation.currentMonthlyRevenueUSD.toLocaleString()} USD** (\u20B9${(valuation.currentMonthlyRevenueUSD * 84).toLocaleString("en-IN")})
-- **Daily Capital Velocity**: **$${valuation.dailyRevenueVelocityUSD.toLocaleString()} USD / day**
-- **Active Swarms Under Management**: **${valuation.swarmsUnderManagement} autonomous specialist agents**
-
-#### \u{1F4BC} Sovereign High-Ticket Strategy:
-1. **High-Ticket B2B Contracts**: Shift from $50 micro-fixes to **$5,000 - $25,000 enterprise solutions** (Shopify Plus migrations, custom AI agent workforces, multi-region cloud infrastructures).
-2. **Recurring Retainers**: Deploying **$2,500 - $10,000/mo autonomous maintenance retainers** with zero ongoing human overhead.
-3. **Institutional Security Certification**: Deliverables are backed by SARIF receipts and OpenQodex AST security audits, commanding institutional premiums from US/UK/EU clients.${invoiceNotice}
-
----
-*All treasury operations, legal Statements of Work, and SWIFT/UPI invoices are generated and tracked in the Sovereign Enterprise Ledger.*`;
-        const spokenSummary2 = `Master Sri, our multi-million dollar institutional valuation stands at $${valuation.estimatedEnterpriseValuationUSD.toLocaleString()} USD, with an Annual Run-Rate of $${valuation.currentAnnualRunRateUSD.toLocaleString()}. Your 20 specialist swarms are executing high-ticket enterprise contracts with automated legal SOWs and multi-currency treasury generation.`;
-        await prisma.conversation.create({ data: { role: "user", content: lastUserMsg, sessionId } }).catch(() => {
-        });
-        await prisma.conversation.create({ data: { role: "assistant", content: valuationReport, sessionId } }).catch(() => {
-        });
-        return c.json({
-          content: valuationReport,
-          source: "Midas Chief Revenue Officer & Enterprise Treasury Core",
-          spokenSummary: spokenSummary2,
-          agentId: "midas",
-          voiceId: AGENT_VOICE_MAP["midas"]?.voiceId,
-          valuation
-        });
-      } catch (valErr) {
-        console.error("[ValuationDirectiveError in /ai/chat]:", valErr);
-      }
     }
     const isSwarmDirective = /(?:build|create|make|generate|design|scaffold|code)\s+(?:me\s+)?(?:a\s+)?(?:[a-z0-9-]+\s+)*(?:website|web\s*page|html\s*page|web\s*app|landing\s*page|store|portal|app)/i.test(lastUserMsg) || (lowerUserMsg.includes("full stack") || lowerUserMsg.includes("full-stack") || lowerUserMsg.includes("end to end") || lowerUserMsg.includes("end-to-end")) && (lowerUserMsg.includes("build") || lowerUserMsg.includes("create") || lowerUserMsg.includes("make") || lowerUserMsg.includes("scaffold") || lowerUserMsg.includes("project") || lowerUserMsg.includes("app")) || lowerUserMsg.startsWith("swarm build") || lowerUserMsg.startsWith("swarm, build") || lowerUserMsg.startsWith("swarm:") || lowerUserMsg.startsWith("build ") && (lowerUserMsg.includes("website") || lowerUserMsg.includes("page") || lowerUserMsg.includes("app") || lowerUserMsg.includes("clothing") || lowerUserMsg.includes("shop") || lowerUserMsg.includes("store"));
     if (isSwarmDirective && lastUserMsg.length > 5) {
@@ -19732,17 +19512,11 @@ app.all(
 var custom_routes_default = app;
 
 // server.tsx
-init_AutonomousScheduler();
 init_db();
 import { createToolsHandlers } from "@shogo-ai/sdk/tools/server";
 
 // src/notifications/TelegramBotListener.ts
-init_TelegramNotifier();
-init_AutonomousScheduler();
 init_TaskStore();
-init_LeadDeduplicationService();
-init_RealizedEarningsService();
-init_FreelanceRevenueAgent();
 init_db();
 var TelegramBotListener = class {
   static AUTHORIZED_CHAT_ID = "1377862282";

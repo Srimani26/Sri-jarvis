@@ -1100,7 +1100,7 @@ async function callDirectGeminiPool(keys: string[], system: string, messages: an
   }))
 
   const errors: string[] = []
-  const validModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+  const validModels = ['gemini-3-flash-preview', 'gemini-flash-latest', 'gemma-4-26b-a4b-it']
 
   // Try each Gemini key in rotation across valid model endpoints
   for (let i = 0; i < keys.length; i++) {
@@ -1208,7 +1208,7 @@ async function callDirectGemini(key: string, system: string, messages: any[]): P
     parts: [{ text: m.content }],
   }))
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1642,141 +1642,7 @@ ${healReport.summary}`;
       });
     }
 
-    // Direct Autonomous Revenue & Money-Making Directive
-    const isRevenueDirective = (
-      lowerUserMsg.includes('make money') ||
-      lowerUserMsg.includes('scout lead') ||
-      lowerUserMsg.includes('scout gig') ||
-      lowerUserMsg.includes('freelance revenue') ||
-      lowerUserMsg.includes('find client') ||
-      lowerUserMsg.includes('money making system') ||
-      lowerUserMsg.includes('revenue engine') ||
-      lowerUserMsg.includes('payout status')
-    );
 
-    if (isRevenueDirective) {
-      try {
-        const { AutonomousScheduler } = await import('./src/scheduler/AutonomousScheduler');
-        const { RevenueHunterEngine } = await import('./src/agents/RevenueHunterEngine');
-        
-        // Execute live scout cycle immediately
-        const scoutCycle = await AutonomousScheduler.runRevenueScoutCycle({ forceLive: true });
-        const metrics = RevenueHunterEngine.getLedgerMetrics();
-        const opps = RevenueHunterEngine.getOpportunities().slice(0, 5);
-
-        const revenueReport = `### 💰 Sovereign Revenue Engine // Live Financial Telemetry
-**Master Sri**, the autonomous freelance revenue engine has initiated a live multi-platform scan.
-
-#### 📊 Pipeline & Ledger Metrics:
-- **Total Pipeline**: ₹${metrics.totalPipelineINR.toLocaleString('en-IN')} ($${metrics.totalPipelineUSD})
-- **Ready for Payout / In Progress**: ₹${(metrics.readyForPayoutINR + metrics.inProgressINR).toLocaleString('en-IN')}
-- **Active Opportunities**: ${metrics.activeOpportunitiesCount} verified gigs
-- **New Dispatched Leads**: ${scoutCycle.newLeadsDispatched} leads with surgical code patches & proposals sent to Telegram
-
-#### 🎯 Top Open Opportunities (Scouted & Solved):
-${opps.map((o, idx) => `
-**${idx + 1}. ${o.title}**
-- **Platform**: ${o.platform} | **Category**: ${o.category}
-- **Payout**: ₹${o.payoutINR.toLocaleString('en-IN')} ($${o.payoutUSD}) • Win Probability: ${o.matchScore}%
-- **Status**: \`${o.status}\`
-- **Source**: [View Client Posting](${o.sourceUrl})
-`).join('\n')}
-
----
-*All solutions are verified by OpenQodex AST review and priced via TensorFlow conversion scoring. You can confirm one-click application directly from Telegram.*`;
-
-        const spokenSummary = `Master Sri, your autonomous revenue engine is fully active. Total pipeline stands at ₹${metrics.totalPipelineINR.toLocaleString('en-IN')}, and ${scoutCycle.newLeadsDispatched} fresh high-converting leads have been analyzed, verified with OpenQodex, and dispatched to your Telegram.`;
-
-        // Save conversation
-        await (prisma as any).conversation.create({ data: { role: 'user', content: lastUserMsg, sessionId } }).catch(() => {});
-        await (prisma as any).conversation.create({ data: { role: 'assistant', content: revenueReport, sessionId } }).catch(() => {});
-
-        return c.json({
-          content: revenueReport,
-          source: 'Midas Revenue Hunter & TensorFlow Pricing Engine',
-          spokenSummary,
-          agentId: 'midas',
-          voiceId: AGENT_VOICE_MAP['midas']?.voiceId,
-          metrics,
-          scoutCycle,
-        });
-      } catch (revErr: any) {
-        console.error('[RevenueDirectiveError in /ai/chat]:', revErr);
-      }
-    }
-
-    // Direct Multi-Million Dollar Sovereign Valuation & Treasury Directive
-    const isValuationDirective = (
-      lowerUserMsg.includes('multi million') ||
-      lowerUserMsg.includes('million dollar') ||
-      lowerUserMsg.includes('valuation') ||
-      lowerUserMsg.includes('treasury') ||
-      lowerUserMsg.includes('arr') ||
-      lowerUserMsg.includes('mrr') ||
-      lowerUserMsg.includes('generate invoice') ||
-      lowerUserMsg.includes('create invoice') ||
-      lowerUserMsg.includes('statement of work') ||
-      lowerUserMsg.includes('contract')
-    );
-
-    if (isValuationDirective) {
-      try {
-        const { EnterpriseTreasuryEngine } = await import('./src/treasury/EnterpriseTreasuryEngine');
-        const { RevenueHunterEngine } = await import('./src/agents/RevenueHunterEngine');
-        const metrics = RevenueHunterEngine.getLedgerMetrics();
-        const valuation = EnterpriseTreasuryEngine.calculateEnterpriseValuation(metrics);
-
-        let invoiceNotice = '';
-        if (lowerUserMsg.includes('invoice')) {
-          const inv = EnterpriseTreasuryEngine.generateInvoice({
-            clientName: 'Enterprise Client Partner',
-            clientCompany: 'Global SaaS Retainer Group',
-            clientEmail: 'billing@enterprisesaas.com',
-            items: [
-              { description: 'Autonomous Multi-Agent Engineering Core (Monthly Retainer)', unitPrice: 3500, quantity: 1 },
-              { description: 'OpenQodex AST Security Gate & Zero-Day Patching SLA', unitPrice: 1500, quantity: 1 },
-            ],
-            dueDateDays: 14,
-          });
-          invoiceNotice = `\n\n#### 📄 Generated Official Invoice: \`${inv.invoiceNumber}\`\n- **Client**: ${inv.client.company} (${inv.client.name})\n- **Amount**: $${inv.totalAmount.toLocaleString()} (${inv.currency}) ≈ ₹${inv.amountINR.toLocaleString('en-IN')}\n- **Due Date**: ${inv.dueDate} | **Status**: \`${inv.status}\`\n- **Payment Remittance**: SWIFT Wire Transfer & domestic UPI (\`${inv.paymentInstructions.upiId}\`) enabled.`;
-        }
-
-        const valuationReport = `### 🏛️ Sovereign Multi-Million Dollar Enterprise Treasury // Institutional Telemetry
-**Master Sri**, J.A.R.V.I.S. and Midas have calculated our real-time enterprise valuation model based on autonomous multi-agent engineering capacity and institutional deal velocity.
-
-#### 📈 Institutional Valuation & Scale Metrics:
-- **Projected Enterprise Valuation**: **$${valuation.estimatedEnterpriseValuationUSD.toLocaleString()} USD** (₹${valuation.estimatedEnterpriseValuationINR.toLocaleString('en-IN')})
-- **Valuation Tier**: **${valuation.valuationTier}** (at **${valuation.enterpriseMultiple}x ARR** multiple)
-- **Current Annual Run-Rate (ARR)**: **$${valuation.currentAnnualRunRateUSD.toLocaleString()} USD** (₹${valuation.currentAnnualRunRateINR.toLocaleString('en-IN')})
-- **Monthly Revenue Velocity (MRR)**: **$${valuation.currentMonthlyRevenueUSD.toLocaleString()} USD** (₹${(valuation.currentMonthlyRevenueUSD * 84).toLocaleString('en-IN')})
-- **Daily Capital Velocity**: **$${valuation.dailyRevenueVelocityUSD.toLocaleString()} USD / day**
-- **Active Swarms Under Management**: **${valuation.swarmsUnderManagement} autonomous specialist agents**
-
-#### 💼 Sovereign High-Ticket Strategy:
-1. **High-Ticket B2B Contracts**: Shift from $50 micro-fixes to **$5,000 - $25,000 enterprise solutions** (Shopify Plus migrations, custom AI agent workforces, multi-region cloud infrastructures).
-2. **Recurring Retainers**: Deploying **$2,500 - $10,000/mo autonomous maintenance retainers** with zero ongoing human overhead.
-3. **Institutional Security Certification**: Deliverables are backed by SARIF receipts and OpenQodex AST security audits, commanding institutional premiums from US/UK/EU clients.${invoiceNotice}
-
----
-*All treasury operations, legal Statements of Work, and SWIFT/UPI invoices are generated and tracked in the Sovereign Enterprise Ledger.*`;
-
-        const spokenSummary = `Master Sri, our multi-million dollar institutional valuation stands at $${valuation.estimatedEnterpriseValuationUSD.toLocaleString()} USD, with an Annual Run-Rate of $${valuation.currentAnnualRunRateUSD.toLocaleString()}. Your 20 specialist swarms are executing high-ticket enterprise contracts with automated legal SOWs and multi-currency treasury generation.`;
-
-        await (prisma as any).conversation.create({ data: { role: 'user', content: lastUserMsg, sessionId } }).catch(() => {});
-        await (prisma as any).conversation.create({ data: { role: 'assistant', content: valuationReport, sessionId } }).catch(() => {});
-
-        return c.json({
-          content: valuationReport,
-          source: 'Midas Chief Revenue Officer & Enterprise Treasury Core',
-          spokenSummary,
-          agentId: 'midas',
-          voiceId: AGENT_VOICE_MAP['midas']?.voiceId,
-          valuation,
-        });
-      } catch (valErr: any) {
-        console.error('[ValuationDirectiveError in /ai/chat]:', valErr);
-      }
-    }
 
     // 1. Full-Stack End-to-End Swarm Directive via Chat
     const isSwarmDirective = (
