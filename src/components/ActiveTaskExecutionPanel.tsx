@@ -138,7 +138,9 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
 
   useEffect(() => {
     loadTasks()
-    const cancelPoll = MobileThermalShield.createSafeInterval(loadTasks, 5000, 3)
+    // Poll every 1.5s for real-time live progression when active tasks exist, else 4s
+    const pollInterval = tasks.some(t => t.status === 'RUNNING' || t.status === 'QUEUED') ? 1500 : 4000
+    const cancelPoll = MobileThermalShield.createSafeInterval(loadTasks, pollInterval, 1)
 
     let eventSource: EventSource | null = null
     try {
@@ -158,7 +160,7 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
       cancelPoll()
       if (eventSource) eventSource.close()
     }
-  }, [])
+  }, [tasks.some(t => t.status === 'RUNNING' || t.status === 'QUEUED')])
 
   const handleLaunchTask = async (directiveText: string, specificAgent?: string) => {
     if (!directiveText.trim()) return
@@ -194,11 +196,27 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
       })
       if (res.ok) {
         const data = await res.json()
+        const newTaskId = data.missionId || data.taskId || `task_${Date.now()}`
         setQuickInput('')
-        loadTasks()
-        if (data.missionId || data.taskId) {
-          setSelectedTaskId(data.missionId || data.taskId)
-        }
+        setSelectedTaskId(newTaskId)
+        setTasks((prev) => [
+          {
+            id: newTaskId,
+            taskNumber: `TASK-${newTaskId.slice(-4).toUpperCase()}`,
+            title: directiveText.trim(),
+            agentId: targetAgent,
+            status: 'RUNNING',
+            progress: 15,
+            currentOperation: `[${targetAgent.toUpperCase()}] Initiating autonomous ReAct execution pipeline`,
+            totalSteps: 6,
+            completedSteps: 1,
+            startedAt: new Date().toISOString(),
+            filesChanged: [],
+            commandsRun: [],
+          },
+          ...prev.filter(t => t.id !== newTaskId),
+        ])
+        setTimeout(loadTasks, 400)
       }
     } catch (err) {
       console.error('[LaunchTask] Failed', err)

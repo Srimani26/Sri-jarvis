@@ -330,8 +330,8 @@ function fallbackWebSpeech(
       utterance.rate = 1.05
       utterance.pitch = 0.98
 
-      // Watchdog: If browser onend fails to fire, advance automatically
-      const expectedDurationMs = Math.max(3500, (textChunk.length * 90) + 2000)
+      // Watchdog: If browser onend fails to fire, advance automatically without cutting off natural pauses
+      const expectedDurationMs = Math.max(6000, (textChunk.length * 160) + 6000)
       watchdogTimer = setTimeout(() => {
         if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
           currentIndex++

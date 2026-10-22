@@ -185,7 +185,7 @@ Important:
 
         await TaskStore.emitEvent(
           taskId,
-          'AGENT_PROGRESS',
+          'AGENT_THINKING',
           `[${agent.name}] ReAct Loop reached Final Answer at step ${stepNum}`,
           { step: stepNum, finalAnswer: finalAnswer.slice(0, 300) }
         );
@@ -273,6 +273,17 @@ Important:
           durationMs: Date.now() - stepStartTime,
         };
         steps.push(stepRecord);
+
+        // Update live task telemetry in TaskStore so UI cockpit displays live progress
+        await TaskStore.updateTask(taskId, {
+          status: 'RUNNING',
+          progress: Math.min(95, Math.round((stepNum / maxSteps) * 100)),
+          currentOperation: `[${agent.name}] Step ${stepNum}: ${thought.slice(0, 90)}`,
+          currentTool: action,
+          completedSteps: stepNum,
+          commandsRun: Array.from(toolsUsed),
+          filesChanged: Array.from(artifactsCreated),
+        }).catch(() => {});
 
         // Feed step back into conversation history for the next iteration!
         historyMessages.push({

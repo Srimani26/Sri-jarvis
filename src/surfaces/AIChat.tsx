@@ -4,7 +4,7 @@ import {
   Loader2, AlertTriangle, Cpu, RefreshCw, Volume2, VolumeX, Shield,
   Code2, Workflow, DollarSign, Brain, Laptop, Layers, Zap, ExternalLink, Play,
   Plane, ShoppingCart, Radio, PhoneCall, Check, Compass, MessageSquare, Plus,
-  History, X, Trash2, Copy, PanelLeftClose, PanelLeft, ChevronDown
+  History, X, Trash2, Copy, PanelLeftClose, PanelLeft, ChevronDown, Clock
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
@@ -56,14 +56,14 @@ interface Message {
 }
 
 const QUICK_ACTIONS = [
+  { icon: '📅', label: "Today's Live Date & Time", query: "What is today's exact date and current live time?" },
+  { icon: '🎨', label: 'Generate 4K Visual Concept', query: 'Generate 4K image of a futuristic hyper-advanced AI cyber command portal with holographic neon HUD' },
   { icon: '🏗️', label: 'Full-Stack SaaS Scaffolding', query: 'Swarm, build a full-stack SaaS project end to end: AI Roof Inspection and Automated Quotation Portal with database models, frontend HUD, and API routes.' },
+  { icon: '⚡', label: 'Build N8N Automation', query: 'Vortex, generate a complete copy-pasteable n8n workflow JSON for automated webhook lead intake, CRM synchronization, and email alerts.' },
+  { icon: '🏢', label: 'Enterprise ERP Architecture', query: 'Daedalus, design a full-stack multi-tenant ERP system architecture with role-based access, inventory tracking, and invoice pipelines.' },
   { icon: '⚡', label: 'Parallel Swarm Multitask', query: 'Execute parallel multitasking: Daedalus design API schema, Friday implement auth routes, Aegis scan vulnerabilities, and Midas compute unit economics concurrently.' },
   { icon: '🎧', label: 'Best TWS Under ₹2,000', query: 'I plan to buy a new TWS in this festival season so can you analyze in Flipkart and Amazon for the best deal and my budget is 2000 rupees' },
-  { icon: '📈', label: 'Quant Scan (NVDA & BTC)', query: 'Run quantitative market scan for NVDA and BTC with RSI, MACD, and Bollinger Bands using TradingAgents' },
-  { icon: '🛡️', label: 'flowsint OSINT Recon', query: 'Execute flowsint perimeter and SSL security audit for render.com' },
-  { icon: '✈️', label: 'Mumbai to Miami Flights', query: 'Hey Jarvis, can you look for flights from Mumbai to Miami today? Find the best deal and direct booking options.' },
-  { icon: '📱', label: 'Flagship Mobile Recon', query: 'Analyze Flipkart and Amazon for the best deals on Samsung Galaxy S24 Ultra and iPhone 16 Pro.' },
-  { icon: '⚡', label: 'Export n8n Automation', query: 'Vortex, generate a complete copy-pasteable n8n workflow JSON for lead qualification and Zoho CRM quotation.' },
+  { icon: '📱', label: 'Flagship Mobile Recon', query: 'Analyze Flipkart and Amazon for the best deals on Samsung Galaxy S26 Ultra and iPhone 16 Pro with true market pricing.' },
   { icon: '💰', label: 'Make Me Money (B2B Retainer)', query: 'Midas, generate a high-ticket client acquisition pitch and cold outreach strategy to sell ₹1,50,000 automated CRM quotation engines.' },
 ]
 
@@ -118,6 +118,41 @@ function renderMarkdown(text: string) {
       <div key={i} className="space-y-2">
         {part.split('\n').map((line, j) => {
           if (!line.trim()) return <div key={j} className="h-1.5" />
+
+          // Inline Markdown Image Rendering (4K Visual Examples & Diagrams)
+          const imgMatch = line.match(/!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/)
+          if (imgMatch) {
+            const alt = imgMatch[1] || 'Visual Generation'
+            const src = imgMatch[2]
+            return (
+              <div key={j} className="my-3 rounded-2xl overflow-hidden border border-cyan-500/30 bg-slate-950/80 shadow-2xl">
+                <div className="relative group overflow-hidden">
+                  <img
+                    src={src}
+                    alt={alt}
+                    className="w-full max-h-[480px] object-cover rounded-t-2xl transition-transform duration-300 group-hover:scale-[1.01]"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3">
+                    <span className="text-xs font-mono text-cyan-300 font-bold truncate pr-2">{alt}</span>
+                    <a
+                      href={src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-1.5 shadow-lg shrink-0 hover:bg-cyan-400"
+                    >
+                      <span>Full 4K Res</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+                <div className="p-3 bg-slate-900/90 border-t border-slate-800 text-[11px] font-mono text-cyan-300 flex items-center justify-between">
+                  <span className="font-semibold truncate">🎨 {alt}</span>
+                  <span className="text-[10px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">Visual Core // 4K</span>
+                </div>
+              </div>
+            )
+          }
 
           if (line.match(/^\s*[-*•]\s/)) {
             return (
@@ -200,6 +235,12 @@ export default function AIChat() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [searchFilter, setSearchFilter] = useState('')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
+  const [currentClock, setCurrentClock] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentClock(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -306,8 +347,15 @@ Command me directly with voice or text:
     try { localStorage.setItem('jarvis_active_session', newSessionId) } catch {}
     setMessages([GREETING])
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
-    fetchSessions()
-  }, [GREETING, fetchSessions])
+    setSessions((prev) => [
+      { id: newSessionId, title: 'New Conversation', messageCount: 0, updatedAt: new Date().toISOString() },
+      ...prev.filter((s) => s.id !== newSessionId),
+    ])
+    setSearchFilter('')
+    setTimeout(() => {
+      if (inputRef.current) inputRef.current.focus()
+    }, 50)
+  }, [GREETING])
 
   // Delete a specific session
   const deleteSession = useCallback(async (e: React.MouseEvent, targetSessionId: string) => {
@@ -431,7 +479,7 @@ Command me directly with voice or text:
     setInput('')
     setIsTyping(true)
     setHudStatus('thinking')
-    playJarvisChime('chime')
+    playJarvisChime('wake')
 
     const failAssistant = (fallback: string, detail?: string, setupHint?: string) => {
       setMessages((prev) => [
@@ -453,11 +501,16 @@ Command me directly with voice or text:
     try {
       const historyPayload = messages
         .filter((m) => !m.error)
-        .slice(-10)
+        .slice(-12)
         .map((m) => ({
           role: m.role,
           content: m.content,
         }))
+
+      const messagesPayload = [
+        ...historyPayload,
+        { role: 'user', content: text.trim() },
+      ]
 
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -465,6 +518,7 @@ Command me directly with voice or text:
         body: JSON.stringify({
           message: text.trim(),
           history: historyPayload,
+          messages: messagesPayload,
           model: selectedModel,
           moa: moaMode,
           agentId: selectedAgent !== 'all' ? selectedAgent : undefined,
@@ -473,12 +527,13 @@ Command me directly with voice or text:
       })
 
       const data = await res.json().catch(() => ({}))
+      const replyText = data?.reply || data?.content
 
-      if (res.ok && data?.reply) {
+      if (res.ok && replyText) {
         const assistantMsg: Message = {
           id: generateId(),
           role: 'assistant',
-          content: data.reply,
+          content: replyText,
           timestamp: new Date(),
           source: data?.source || 'Argon MoA Cloud Matrix',
           flightData,
@@ -487,12 +542,21 @@ Command me directly with voice or text:
           actionTriggered: data?.actionTriggered,
         }
         setMessages((prev) => [...prev, assistantMsg])
-        speakJarvisResponse(data.reply, selectedAgent)
+        speakJarvisResponse(replyText, selectedAgent)
+
+        // Update local session title if it was a new conversation
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === currentSessionId && (s.title === 'New Conversation' || s.title === 'New Chat')
+              ? { ...s, title: text.trim().slice(0, 42) + (text.trim().length > 42 ? '...' : ''), messageCount: s.messageCount + 2 }
+              : s
+          )
+        )
         return
       }
 
       failAssistant(
-        data?.reply || data?.error || 'Neural processor encountered an unhandled exception.',
+        data?.reply || data?.content || data?.error || 'Neural processor encountered an unhandled exception.',
         data?.detail || 'No response returned from the MoA neural engine.',
         data?.setupHint
       )
@@ -791,6 +855,26 @@ Command me directly with voice or text:
                 <option value="groq-llama-3.3-70b">Groq Llama 3.3 70B (220ms LPU)</option>
                 <option value="deepseek-r1">DeepSeek R1 (Reasoning Cloud)</option>
               </select>
+
+              {/* Live Temporal Clock (Zero Cutoff Verification) */}
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/90 border border-slate-800 text-[10px] font-mono text-cyan-300">
+                <Clock className="w-3 h-3 text-cyan-400 shrink-0" />
+                <span>{currentClock.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })} • {currentClock.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })} IST</span>
+              </div>
+
+              {/* Audio Mute / Unmute Toggle */}
+              <button
+                onClick={toggleMute}
+                className={cn(
+                  'p-1.5 rounded-xl border transition-colors',
+                  isMuted
+                    ? 'border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300'
+                    : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20'
+                )}
+                title={isMuted ? 'Unmute voice responses' : 'Mute voice responses'}
+              >
+                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              </button>
 
               <button
                 onClick={toggleSentinel}
