@@ -24,6 +24,7 @@ import { RevenueHunter } from './surfaces/RevenueHunter'
 import StorageVault from './surfaces/StorageVault'
 import JarvisVoiceModal from './components/JarvisVoiceModal'
 import ActiveTaskExecutionPanel from './components/ActiveTaskExecutionPanel'
+import SovereignSurfacesDeck from './components/SovereignSurfacesDeck'
 import {
   LayoutDashboard, MessageSquare, Layers, Code2, Workflow,
   CalendarCheck, Target, BookOpen, BarChart3, Brain, Globe, HardDrive,
@@ -603,35 +604,19 @@ export default function App() {
 
       {/* Mobile More Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-[#030712]/98 backdrop-blur-3xl overflow-auto p-4 animate-in fade-in">
-          <div className="flex items-center justify-between mb-5 pb-3 border-b border-cyan-500/20">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-cyan-400" />
-              <h2 className="text-base font-bold text-white font-mono">All Sovereign Surfaces</h2>
-            </div>
-            <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => handleNavigate(item.id)}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-3.5 rounded-2xl border transition-all text-center",
-                  activeTab === item.id
-                    ? "bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.3)] font-bold"
-                    : "bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-                )}
-              >
-                <div className={cn("p-2 rounded-xl", activeTab === item.id ? "bg-cyan-500/30 text-cyan-300" : "bg-slate-800/80 text-slate-400")}>
-                  {item.icon}
-                </div>
-                <span className="text-xs font-mono font-medium">{item.label}</span>
-              </button>
-            ))}
-          </div>
+        <div className="md:hidden fixed inset-0 z-50 bg-[#030712]/98 backdrop-blur-3xl overflow-auto p-4 pb-24 animate-in fade-in">
+          <SovereignSurfacesDeck
+            activeTab={activeTab}
+            onNavigate={(tab) => {
+              handleNavigate(tab)
+              setMobileMenuOpen(false)
+            }}
+            onClose={() => setMobileMenuOpen(false)}
+            onVoiceTrigger={() => {
+              setMobileMenuOpen(false)
+              handleOpenVoiceComms()
+            }}
+          />
         </div>
       )}
 
@@ -663,15 +648,11 @@ export default function App() {
         {activeTab === 'memory' && <MemoryView />}
         {activeTab === 'connections' && <ConnectionsView />}
         {activeTab === 'more' && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {navItems.map(item => (
-              <button key={item.id} onClick={() => handleNavigate(item.id)}
-                className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white transition-all">
-                {item.icon}
-                <span className="text-xs font-medium font-mono">{item.mobileLabel}</span>
-              </button>
-            ))}
-          </div>
+          <SovereignSurfacesDeck
+            activeTab={activeTab}
+            onNavigate={handleNavigate}
+            onVoiceTrigger={() => handleOpenVoiceComms()}
+          />
         )}
       </div>
 

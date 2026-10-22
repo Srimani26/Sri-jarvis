@@ -704,18 +704,20 @@ Command me directly with voice or text:
   )
 
   return (
-    <div className="space-y-4">
-      {/* Top Arc Reactor Status Header */}
-      <ArcReactorHUD
-        status={hudStatus}
-        activeModel={selectedModel === 'auto' ? 'Argon MoA Cloud (70B+)' : selectedModel}
-        isMuted={isMuted}
-        onToggleMute={toggleMute}
-        onVoiceTrigger={toggleVoiceOnce}
-      />
+    <div className="space-y-2 md:space-y-4">
+      {/* Top Arc Reactor Status Header — Hidden on mobile to maximize chat viewport */}
+      <div className="hidden md:block">
+        <ArcReactorHUD
+          status={hudStatus}
+          activeModel={selectedModel === 'auto' ? 'Argon MoA Cloud (70B+)' : selectedModel}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+          onVoiceTrigger={toggleVoiceOnce}
+        />
+      </div>
 
-      {/* Main ChatGPT / Claude / Gemini Split Interface */}
-      <div className="flex h-[76vh] min-h-[640px] rounded-3xl border border-cyan-500/25 bg-slate-950/80 backdrop-blur-2xl overflow-hidden shadow-2xl relative">
+      {/* Main ChatGPT / Claude / Gemini Full-Viewport Interface */}
+      <div className="flex h-[calc(100dvh-140px)] md:h-[78vh] md:min-h-[640px] rounded-2xl md:rounded-3xl border border-cyan-500/25 bg-slate-950/90 backdrop-blur-2xl overflow-hidden shadow-2xl relative">
         
         {/* Left Conversation Archive Sidebar (ChatGPT / Claude / Gemini Architecture) */}
         <div

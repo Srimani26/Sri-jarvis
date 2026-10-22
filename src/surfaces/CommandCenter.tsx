@@ -277,85 +277,116 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
     <div className="space-y-6 text-slate-100 min-h-screen">
       
       {/* Hero Portal Deck */}
-      <div className="relative rounded-3xl bg-gradient-to-br from-slate-900/90 via-slate-950/95 to-slate-950 border border-cyan-500/30 p-6 sm:p-8 shadow-[0_0_60px_rgba(6,182,212,0.15)] overflow-hidden backdrop-blur-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Hero Portal Deck */}
+      <div className="relative rounded-3xl bg-gradient-to-br from-slate-900/95 via-slate-950/98 to-slate-950 border border-cyan-500/30 p-5 sm:p-7 shadow-[0_0_50px_rgba(6,182,212,0.12)] overflow-hidden backdrop-blur-2xl">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative z-10">
           
           {/* Left Greeting & Salutation */}
-          <div className="space-y-3 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-[10px] font-mono tracking-widest uppercase shadow-[0_0_15px_rgba(6,182,212,0.25)]">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-              <span>J.A.R.V.I.S. MARK-V // COMMAND PORTAL</span>
+          <div className="space-y-2.5 max-w-xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-[10px] font-mono tracking-widest uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                <span>J.A.R.V.I.S. MARK-V // COMMAND PORTAL</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                ALL SYSTEMS OPERATIONAL
+              </span>
             </div>
 
             <div>
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
                 {getTimeGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-300">Master Sri</span>.
               </h1>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1.5 font-sans leading-relaxed">
-                Your sovereign multi-agent OS is primed. 20 specialist agents armed, with 2,182 Public APIs and frontier cloud reasoning standing by.
+              <p className="text-xs text-slate-300 mt-1 font-sans leading-relaxed">
+                Your sovereign multi-agent OS is primed. 20 specialist agents armed, with 2,182 Public APIs and active workspace access.
               </p>
             </div>
 
-            {/* Live Telemetry Pills */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 font-mono text-[10px]">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                CLOUD 70B+ (GROQ / GEMINI / CLAUDE)
+            {/* Compact Unified Telemetry Bar */}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5 font-mono text-[10px]">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
+                <Clock className="w-3 h-3 text-cyan-400" />
+                <span>{clock}</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
-                <Database className="w-3 h-3 text-cyan-400" />
-                SQLITE KERNEL: 1,850+ TASKS
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
+                <Calendar className="w-3 h-3 text-cyan-400" />
+                <span>{formatDate()}</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300">
                 <Brain className="w-3 h-3 text-purple-400" />
-                259 COGNITIVE VECTORS
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs font-mono text-slate-400 pt-1">
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-950/80 border border-slate-800">
-                <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                {clock}
-              </span>
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-950/80 border border-slate-800">
-                <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                {formatDate()}
+                <span>259 VECTORS</span>
               </span>
             </div>
           </div>
 
-          {/* Fluid Apple Siri / Cyberpunk Liquid Arc Reactor */}
-          <div className="flex flex-col items-center justify-center w-full lg:w-auto">
+          {/* Fluid Stark Arc Reactor / Raphael Core Orb */}
+          <div className="flex flex-col items-center justify-center w-full md:w-auto pt-2 md:pt-0">
             <div
               onClick={handleVoiceClick}
               className="relative group cursor-pointer flex flex-col items-center select-none"
               title="Click to initialize J.A.R.V.I.S. duplex neural voice comms"
             >
-              <div className="absolute w-36 h-36 rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 blur-2xl opacity-60 group-hover:opacity-95 transition-opacity animate-pulse" />
+              <div className="absolute w-28 h-28 rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 blur-xl opacity-50 group-hover:opacity-90 transition-opacity animate-pulse" />
 
               <div
-                className="w-28 h-28 rounded-full p-[2px] bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-600 shadow-[0_0_50px_rgba(6,182,212,0.55)] group-hover:shadow-[0_0_70px_rgba(6,182,212,0.9)] flex items-center justify-center animate-spin transition-all"
-                style={{ animationDuration: '6s' }}
+                className="w-20 h-20 sm:w-22 sm:h-22 rounded-full p-[2px] bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-600 shadow-[0_0_35px_rgba(6,182,212,0.45)] group-hover:shadow-[0_0_55px_rgba(6,182,212,0.85)] flex items-center justify-center animate-spin transition-all"
+                style={{ animationDuration: '8s' }}
               >
                 <div className="w-full h-full rounded-full bg-gradient-to-b from-slate-900/95 to-slate-950 flex flex-col items-center justify-center backdrop-blur-xl border border-cyan-400/40 group-hover:border-cyan-300">
-                  <Mic className="w-7 h-7 text-cyan-300 group-hover:scale-115 drop-shadow-[0_0_12px_#22d3ee] transition-transform animate-pulse" />
-                  <span className="text-[8px] font-mono font-bold text-cyan-300 uppercase mt-0.5 tracking-wider">
-                    SIRI VOICE
+                  <Mic className="w-6 h-6 text-cyan-300 group-hover:scale-110 drop-shadow-[0_0_10px_#22d3ee] transition-transform animate-pulse" />
+                  <span className="text-[7px] font-mono font-bold text-cyan-300 uppercase mt-0.5 tracking-wider">
+                    VOICE
                   </span>
                 </div>
               </div>
 
-              <span className="text-[11px] font-mono font-bold text-cyan-300 mt-2.5 uppercase tracking-wider">
-                DUPLEX VOICE TRANSCEIVER
+              <span className="text-[10px] font-mono font-bold text-cyan-300 mt-2 uppercase tracking-wider flex items-center gap-1">
+                <span>J.A.R.V.I.S. & RAPHAEL</span>
               </span>
-              <span className="text-[9px] font-mono text-slate-400">
-                Tap to speak with British Neural Voice
+              <span className="text-[8px] font-mono text-slate-400">
+                Tap to speak duplex voice
               </span>
             </div>
           </div>
+        </div>
+
+        {/* 1-Tap Real-World Operations Strip */}
+        <div className="mt-4 pt-3.5 border-t border-slate-800/80 relative z-10 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+            Real Directives:
+          </span>
+          <button
+            onClick={() => onNavigate && onNavigate('tasks')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-xs font-mono font-medium transition-all active:scale-95"
+          >
+            <ShoppingBag className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Audit invi-theme</span>
+          </button>
+          <button
+            onClick={() => onNavigate && onNavigate('storage')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-medium transition-all active:scale-95"
+          >
+            <Database className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Storage Vault PDF</span>
+          </button>
+          <button
+            onClick={() => onNavigate && onNavigate('revenue')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 text-teal-300 text-xs font-mono font-medium transition-all active:scale-95"
+          >
+            <DollarSign className="w-3.5 h-3.5 text-teal-400" />
+            <span>Scout Remote Gigs</span>
+          </button>
+          <button
+            onClick={() => onNavigate && onNavigate('cyber')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-mono font-medium transition-all active:scale-95"
+          >
+            <Shield className="w-3.5 h-3.5 text-rose-400" />
+            <span>Cyber Perimeter</span>
+          </button>
         </div>
 
         {/* Unified Command Input Bar */}

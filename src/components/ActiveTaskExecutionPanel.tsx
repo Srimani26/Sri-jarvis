@@ -45,6 +45,22 @@ interface AgentTask {
 
 const HEAVY_MISSION_PRESETS = [
   {
+    title: 'Shopify Dawn Theme Audit',
+    agentId: 'aegis',
+    icon: '🛍️',
+    description: 'Inspect c:/Users/hp/invi-theme assets, section-main-product.css stacking context, and Liquid health',
+    directive: 'Aegis, execute live shopify_theme_audit on c:/Users/hp/invi-theme, audit section-main-product.css and header.liquid for CSS stacking context leaks, and compile findings.',
+    heavy: true,
+  },
+  {
+    title: 'Live Remote Contract Scout',
+    agentId: 'midas',
+    icon: '💼',
+    description: 'Scan live freelance job boards, remote contracts, and Upwork feeds for high-paying developer contracts',
+    directive: 'Midas, scan remote developer contracts, freelance jobs, and project opportunities, synthesize rates and requirements into structured deliverables.',
+    heavy: true,
+  },
+  {
     title: 'Full-Stack SaaS Scaffolding',
     agentId: 'aegis',
     icon: '🏗️',
@@ -325,6 +341,32 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
             <span className="text-[10px] font-mono text-slate-500 uppercase">Cloud Execution SLA</span>
             <div className="text-lg font-black text-purple-400 font-mono">100% PASS</div>
           </div>
+        </div>
+
+        {/* Instant 1-Tap Directive Quick Triggers */}
+        <div className="pt-1 flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mr-1">Direct Run:</span>
+          <button
+            onClick={() => handleLaunchTask('Aegis, execute live shopify_theme_audit on c:/Users/hp/invi-theme, audit section-main-product.css and header.liquid for CSS stacking context leaks, and compile findings.', 'aegis')}
+            className="px-2.5 py-1 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 transition-all flex items-center gap-1 active:scale-95"
+          >
+            <span>🛍️</span>
+            <span>Audit Shopify Theme</span>
+          </button>
+          <button
+            onClick={() => handleLaunchTask('Midas, scan remote developer contracts, freelance jobs, and project opportunities, synthesize rates and requirements into structured deliverables.', 'midas')}
+            className="px-2.5 py-1 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 text-teal-300 transition-all flex items-center gap-1 active:scale-95"
+          >
+            <span>💼</span>
+            <span>Scout Remote Contracts</span>
+          </button>
+          <button
+            onClick={() => handleLaunchTask('Vortex, execute Crawl4AI live extraction on https://news.ycombinator.com and synthesize top 10 AI engineering breakthroughs with structured JSON.', 'vortex')}
+            className="px-2.5 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 transition-all flex items-center gap-1 active:scale-95"
+          >
+            <span>🌐</span>
+            <span>Crawl4AI Live Intel</span>
+          </button>
         </div>
 
         {/* Quick Directive Command Launcher */}

@@ -5,7 +5,7 @@ import {
   CheckCircle2, Radio, Zap, Play, FileSpreadsheet, Image as ImageIcon,
   Upload, FileText, Check, ChevronRight, Layers, Cpu, Moon, Sun,
   ExternalLink, Search, Copy, CheckCheck, Compass, Lock, Unlock, AlertTriangle, RefreshCw,
-  Clock, Rocket, TrendingUp
+  Clock, Rocket, TrendingUp, ShoppingBag
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
