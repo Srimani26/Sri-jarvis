@@ -1100,7 +1100,7 @@ async function callDirectGeminiPool(keys: string[], system: string, messages: an
   }))
 
   const errors: string[] = []
-  const validModels = ['gemini-3-flash-preview', 'gemini-flash-latest', 'gemma-4-26b-a4b-it']
+  const validModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
 
   // Try each Gemini key in rotation across valid model endpoints
   for (let i = 0; i < keys.length; i++) {
@@ -1137,7 +1137,7 @@ async function callDirectGeminiPool(keys: string[], system: string, messages: an
 }
 
 async function callDirectGroq(key: string, system: string, messages: any[]): Promise<string> {
-  const groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b']
+  const groqModels = ['deepseek-r1-distill-llama-70b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
   let lastErr = ''
   for (const model of groqModels) {
     try {
@@ -1167,21 +1167,37 @@ async function callDirectGroq(key: string, system: string, messages: any[]): Pro
 }
 
 async function callDirectOpenRouter(key: string, system: string, messages: any[]): Promise<string> {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://standardroofs.com', 'X-Title': 'J.A.R.V.I.S. Command Center' },
-    body: JSON.stringify({
-      model: 'deepseek/deepseek-r1:free',
-      messages: [{ role: 'system', content: system }, ...messages],
-      max_tokens: 4096,
-    }),
-    signal: AbortSignal.timeout(60_000),
-  })
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 200)}`)
-  const data: any = await res.json()
-  const text = data?.choices?.[0]?.message?.content
-  if (!text) throw new Error('OpenRouter returned empty response')
-  return text
+  const openRouterModels = [
+    'deepseek/deepseek-r1:free',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'qwen/qwen-2.5-coder-32b-instruct:free',
+    'mistralai/mistral-small-24b-instruct-2501:free'
+  ]
+  let lastErr = ''
+  for (const model of openRouterModels) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://standardroofs.com', 'X-Title': 'J.A.R.V.I.S. Command Center' },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'system', content: system }, ...messages],
+          max_tokens: 4096,
+        }),
+        signal: AbortSignal.timeout(60_000),
+      })
+      if (!res.ok) {
+        lastErr = `OpenRouter ${res.status}: ${(await res.text()).slice(0, 150)}`
+        continue
+      }
+      const data: any = await res.json()
+      const text = data?.choices?.[0]?.message?.content
+      if (text) return text
+    } catch (err: any) {
+      lastErr = err.message
+    }
+  }
+  throw new Error(`OpenRouter models failed: ${lastErr}`)
 }
 
 async function callDirectMistral(key: string, system: string, messages: any[]): Promise<string> {
