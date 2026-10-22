@@ -1307,6 +1307,48 @@ ${p.assimilatedCapabilities.map(c => `- ${c}`).join('\n')}${fileSnippet}`;
 3. Provide rigorous, complete, type-safe, production-ready solutions with zero placeholders.`;
 }
 
+// ============================================================================
+// REAL WORKSPACE & SHOPIFY THEME FILE/AUDIT GROUNDING ENGINE
+// Automatically detects referenced files or theme audits and injects real code
+// ============================================================================
+async function retrieveWorkspaceOrThemeContext(query: string): Promise<string> {
+  const lower = query.toLowerCase();
+  let context = '';
+
+  // 1. Detect Shopify theme requests or audits
+  if (lower.includes('shopify') || lower.includes('theme') || lower.includes('drawer') || lower.includes('invi-theme')) {
+    if (lower.includes('audit') || lower.includes('check') || lower.includes('inspect') || lower.includes('health')) {
+      try {
+        const { ToolRegistry } = await import('./src/tools/ToolRegistry');
+        const audit = await ToolRegistry.executeTool('shopify_theme_audit', {});
+        if (audit.success && audit.output) {
+          context += `\n\n[LIVE SHOPIFY THEME AUDIT (c:/Users/hp/invi-theme)]:\n${JSON.stringify(audit.output, null, 2)}\n`;
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Detect mentions of specific files (e.g. section-main-product.css, header-drawer.liquid)
+  const fileRegex = /([a-zA-Z0-9_\-./\\]+\.(css|liquid|js|ts|tsx|json|html|md))/g;
+  const matches = query.match(fileRegex) || [];
+  for (const match of matches.slice(0, 3)) {
+    try {
+      const cleanPath = match.trim().replace(/^['"]|['"]$/g, '');
+      let fullPath = resolve(process.cwd(), cleanPath);
+      if (cleanPath.startsWith('assets/') || cleanPath.startsWith('sections/') || cleanPath.startsWith('snippets/') || cleanPath.startsWith('layout/')) {
+        const inviCandidate = resolve('c:/Users/hp/invi-theme', cleanPath);
+        if (existsSync(inviCandidate)) fullPath = inviCandidate;
+      }
+      if (existsSync(fullPath) && statSync(fullPath).isFile()) {
+        const content = readFileSync(fullPath, 'utf-8');
+        context += `\n\n[VERIFIED DISK FILE: ${cleanPath}]:\n\`\`\`\n${content.slice(0, 3000)}\n\`\`\`\n`;
+      }
+    } catch {}
+  }
+
+  return context;
+}
+
 async function callAI(systemPrompt: string, messages: Array<{ role: string; content: string }>, preferredModelId?: string): Promise<{ text: string; source: string }> {
   const errors: string[] = []
   const chatMessages = messages.map(m => ({ role: m.role, content: m.content }))
@@ -1951,7 +1993,8 @@ Role Directive: ${targetAgent.systemPrompt}
 Directly converse with Master Sri as a trusted, highly skilled human colleague. Speak with natural intelligence, warmth, authority, and conciseness. Never give robotic generic disclaimers or repetitive canned phrases.` + liveContext;
       }
       const openSourceIntel = retrieveOpenSourceIntelligence(lastUserMsg)
-      const groundedPrompt = customSystemPrompt + webGrounding + openSourceIntel
+      const workspaceContext = await retrieveWorkspaceOrThemeContext(lastUserMsg)
+      const groundedPrompt = customSystemPrompt + webGrounding + openSourceIntel + workspaceContext
       answer = await callAI(groundedPrompt, messages, preferredModelId)
       if (effectiveAgentId && AGENT_REGISTRY[effectiveAgentId]) {
         answer.source = `${AGENT_REGISTRY[effectiveAgentId].name} (${AGENT_REGISTRY[effectiveAgentId].callsign})`;

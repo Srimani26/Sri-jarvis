@@ -1512,7 +1512,7 @@ export class ToolRegistry {
             success: true,
             output: {
               themePath: themeRoot,
-              assetsAudited: ['assets/section-main-product.css', 'sections/header.liquid'],
+              assetsAudited: ['assets/section-main-product.css', 'sections/header.liquid', 'assets/component-menu-drawer.css'],
               totalRecommendations: auditResults.length,
               findings: auditResults,
               summary: auditResults.length === 0
@@ -1522,6 +1522,104 @@ export class ToolRegistry {
           };
         } catch (err: any) {
           return { tool: 'shopify_theme_audit', success: false, output: null, error: err?.message || String(err) };
+        }
+      },
+    });
+
+    // 25. shopify_file_read — Read any file in invi-theme
+    this.registerTool({
+      name: 'shopify_file_read',
+      description: 'Read any Liquid, CSS, or JS asset from Master Sri\'s active Shopify theme (c:/Users/hp/invi-theme)',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          relativePath: { type: 'string', description: 'Relative path within theme (e.g. assets/section-main-product.css, snippets/header-drawer.liquid)' },
+        },
+        required: ['relativePath'],
+      },
+      requiredPermission: 'READ_ONLY',
+      riskLevel: 'SAFE',
+      timeoutMs: 10_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const themeRoot = resolve('c:/Users/hp/invi-theme');
+          const filePath = resolve(themeRoot, args.relativePath);
+          if (!filePath.toLowerCase().startsWith(themeRoot.toLowerCase())) {
+            return { tool: 'shopify_file_read', success: false, output: null, error: 'Access outside invi-theme is forbidden.' };
+          }
+          if (!existsSync(filePath)) {
+            return { tool: 'shopify_file_read', success: false, output: null, error: `File not found in theme: ${args.relativePath}` };
+          }
+          const content = readFileSync(filePath, 'utf-8');
+          return {
+            tool: 'shopify_file_read',
+            success: true,
+            output: { relativePath: args.relativePath, sizeBytes: Buffer.byteLength(content, 'utf-8'), content },
+            filesTouched: [args.relativePath],
+          };
+        } catch (err: any) {
+          return { tool: 'shopify_file_read', success: false, output: null, error: err?.message || String(err) };
+        }
+      },
+    });
+
+    // 26. shopify_file_write — Write or surgically update any file in invi-theme with safety backup
+    this.registerTool({
+      name: 'shopify_file_write',
+      description: 'Write or surgically update a Liquid, CSS, or JS asset in Master Sri\'s active Shopify theme (c:/Users/hp/invi-theme)',
+      category: 'FILES',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          relativePath: { type: 'string', description: 'Relative path within theme (e.g. assets/section-main-product.css)' },
+          content: { type: 'string', description: 'Complete updated content for the file' },
+        },
+        required: ['relativePath', 'content'],
+      },
+      requiredPermission: 'PROJECT_WRITE',
+      riskLevel: 'MEDIUM',
+      timeoutMs: 15_000,
+      requiresConfirmation: false,
+      requiresAuth: false,
+      health: 'ONLINE',
+      telemetry: this.createDefaultTelemetry(),
+      execute: async (args) => {
+        try {
+          const themeRoot = resolve('c:/Users/hp/invi-theme');
+          const filePath = resolve(themeRoot, args.relativePath);
+          if (!filePath.toLowerCase().startsWith(themeRoot.toLowerCase())) {
+            return { tool: 'shopify_file_write', success: false, output: null, error: 'Write outside invi-theme is forbidden.' };
+          }
+
+          // Ensure directory exists
+          mkdirSync(dirname(filePath), { recursive: true });
+
+          // Create safety backup if file exists
+          if (existsSync(filePath)) {
+            const backupDir = resolve(themeRoot, '.jarvis_backups');
+            mkdirSync(backupDir, { recursive: true });
+            const backupName = `${path.basename(filePath)}.${Date.now()}.bak`;
+            writeFileSync(resolve(backupDir, backupName), readFileSync(filePath));
+          }
+
+          writeFileSync(filePath, args.content, 'utf-8');
+          return {
+            tool: 'shopify_file_write',
+            success: true,
+            output: {
+              relativePath: args.relativePath,
+              bytesWritten: Buffer.byteLength(args.content, 'utf-8'),
+              message: `Successfully updated ${args.relativePath} in invi-theme with automated rollback backup.`,
+            },
+            filesTouched: [args.relativePath],
+          };
+        } catch (err: any) {
+          return { tool: 'shopify_file_write', success: false, output: null, error: err?.message || String(err) };
         }
       },
     });
@@ -1603,4 +1701,21 @@ export class ToolRegistry {
 
     return result;
   }
+
+  /**
+   * Direct tool execution with default elevated context
+   */
+  public static async executeTool(
+    name: string,
+    args: Record<string, any> = {}
+  ): Promise<KernelToolResult> {
+    const defaultContext: KernelExecutionContext = {
+      taskId: `EXEC-${Date.now()}`,
+      agentId: 'jarvis',
+      policy: 'PRODUCTION',
+      emitEvent: async () => {},
+    };
+    return this.execute(name, args, defaultContext);
+  }
 }
+

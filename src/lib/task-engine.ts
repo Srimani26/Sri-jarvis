@@ -458,8 +458,22 @@ export class TaskEngine {
       const filesModified: string[] = [];
       const commandsExecuted: string[] = [];
 
-      // Check if this is a diagnostic/self-healing mission
-      if (task.agentId === 'debugger' || task.title.toLowerCase().includes('fix') || task.title.toLowerCase().includes('error') || task.title.toLowerCase().includes('issue') || task.title.toLowerCase().includes('bug')) {
+      // Check if this is a theme audit or inspection mission
+      if (task.title.toLowerCase().includes('theme') && (task.title.toLowerCase().includes('audit') || task.title.toLowerCase().includes('check') || task.title.toLowerCase().includes('inspect'))) {
+        try {
+          const { ToolRegistry } = await import('../tools/ToolRegistry');
+          const audit = await ToolRegistry.executeTool('shopify_theme_audit', {});
+          actionDetails = `### Shopify Dawn Theme Verified Audit Report (c:/Users/hp/invi-theme):\n` +
+            `- Total Findings: ${audit.output?.totalRecommendations || 0}\n` +
+            `- Assets Audited: ${(audit.output?.assetsAudited || []).join(', ')}\n\n` +
+            `#### Findings & Recommendations:\n` +
+            (audit.output?.findings || []).map((f: any) => `- [${f.severity}] **${f.asset}**: ${f.issue} (Fix: ${f.recommendation})`).join('\n') +
+            `\n\n${audit.output?.summary || 'Audit completed.'}`;
+          await TaskEngine.emitEvent(taskId, 'TOOL_COMPLETED', `Completed automated Shopify Theme Audit across invi-theme assets`);
+        } catch (auditErr: any) {
+          actionDetails = `Shopify Theme Audit error: ${auditErr?.message}`;
+        }
+      } else if (task.agentId === 'debugger' || task.title.toLowerCase().includes('fix') || task.title.toLowerCase().includes('error') || task.title.toLowerCase().includes('issue') || task.title.toLowerCase().includes('bug')) {
         const healReport = await SelfHealingEngine.runDiagnosticsAndRepair(task.description, options?.onAiCall);
         actionDetails = healReport.summary;
         if (healReport.repairedFiles.length > 0) {
@@ -485,6 +499,33 @@ export class TaskEngine {
         actionDetails = aiRes.text;
       } else {
         actionDetails = `Directive executed by ${agent.name} across workspace parameters.`;
+      }
+
+      // Automated Code-to-Disk Synthesis:
+      // Automatically detect and write code blocks with file paths to disk
+      const fileBlockRegex = /```([a-zA-Z0-9_\-]+)?[:\s]([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)\n([\s\S]*?)```/g;
+      let match;
+      while ((match = fileBlockRegex.exec(actionDetails)) !== null) {
+        const targetRelPath = match[2].trim();
+        const fileContent = match[3];
+        let targetFullPath = path.resolve(process.cwd(), targetRelPath);
+        
+        // Check if targeting Shopify theme directory
+        if (targetRelPath.startsWith('assets/') || targetRelPath.startsWith('sections/') || targetRelPath.startsWith('snippets/') || targetRelPath.startsWith('layout/')) {
+          const inviCandidate = path.resolve('c:/Users/hp/invi-theme', targetRelPath);
+          if (fs.existsSync(path.dirname(inviCandidate))) {
+            targetFullPath = inviCandidate;
+          }
+        }
+
+        try {
+          fs.mkdirSync(path.dirname(targetFullPath), { recursive: true });
+          fs.writeFileSync(targetFullPath, fileContent, 'utf-8');
+          if (!filesModified.includes(targetRelPath)) filesModified.push(targetRelPath);
+          await TaskEngine.emitEvent(taskId, 'FILE_CHANGED', `Synthesized production file: ${targetRelPath} (${Buffer.byteLength(fileContent, 'utf-8')} bytes)`);
+        } catch (writeErr: any) {
+          console.warn(`[TaskEngine] Auto-write failed for ${targetRelPath}:`, writeErr?.message);
+        }
       }
 
       // Phase 3: Verification
