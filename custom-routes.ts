@@ -61,6 +61,7 @@ import { ECommerceReconEngine } from './src/services/ECommerceReconEngine'
 import { RevenueHunterEngine } from './src/agents/RevenueHunterEngine'
 import { DailyBriefingEngine } from './src/agents/DailyBriefingEngine'
 import { SkillCreationEngine } from './src/agents/SkillCreationEngine'
+import { OPEN_SOURCE_PROJECTS_VAULT } from './src/data/openSourceProjectsData'
 
 function loadJwtSecret(): string {
   return SovereignGate.getJwtSecret()
@@ -1224,7 +1225,7 @@ async function callDirectGemini(key: string, system: string, messages: any[]): P
     parts: [{ text: m.content }],
   }))
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1238,9 +1239,6 @@ async function callDirectGemini(key: string, system: string, messages: any[]): P
   if (!text) throw new Error('Gemini returned empty response')
   return text
 }
-
-
-
 
 // ============================================================================
 // LIVE REAL-TIME WEB GROUNDING ENGINE (BROWSER-USE & DUCKDUCKGO / TAVILY)
@@ -1271,6 +1269,42 @@ ${r.snippet}`
     console.warn('[Web Grounding] Search fallback error:', err?.message)
   }
   return ''
+}
+
+// ============================================================================
+// DEEP OPEN-SOURCE REPOSITORY RAG & INTELLIGENCE RETRIEVAL ENGINE
+// Synthesizes proven architectural blueprints from 32 premier GitHub projects
+// ============================================================================
+function retrieveOpenSourceIntelligence(query: string): string {
+  const lower = query.toLowerCase();
+  const matchedProjects = OPEN_SOURCE_PROJECTS_VAULT.filter(p => {
+    const nameMatch = p.name.toLowerCase().includes(lower) || p.id.toLowerCase().includes(lower);
+    const catMatch = p.category.toLowerCase().includes(lower);
+    const words = lower.split(/\s+/).filter(w => w.length > 3);
+    const descMatch = words.some(w => p.description.toLowerCase().includes(w));
+    const archMatch = p.keyArchitecture.some(a => words.some(w => a.toLowerCase().includes(w)));
+    return nameMatch || catMatch || descMatch || archMatch;
+  });
+
+  if (matchedProjects.length === 0) {
+    return '';
+  }
+
+  const topMatches = matchedProjects.slice(0, 2);
+  const blueprints = topMatches.map(p => {
+    const fileSnippet = p.files[0] ? `\nSample Architecture File [${p.files[0].filename}]:\n\`\`\`${p.files[0].language}\n${p.files[0].content.slice(0, 600)}\n\`\`\`` : '';
+    return `### [ASSIMILATED OPEN-SOURCE REPOSITORY: ${p.name.toUpperCase()} (${p.repo})]
+Category: ${p.category} | Stars: ${p.stars} | License: ${p.license}
+Core Architecture:
+${p.keyArchitecture.map(a => `- ${a}`).join('\n')}
+Assimilated Capabilities:
+${p.assimilatedCapabilities.map(c => `- ${c}`).join('\n')}${fileSnippet}`;
+  }).join('\n\n');
+
+  return `\n\n[DEEP OPEN-SOURCE REPOSITORY INTELLIGENCE & ARCHITECTURAL VAULT]:\n${blueprints}\n\nPOWERHOUSE DIRECTIVE (GPT-5.0 / GEMINI 4 ARGON TIER):
+1. Think like a world-class principal software architect and strategic operations executive.
+2. Ground your architecture, code patterns, and system design in the assimilated open-source blueprints above.
+3. Provide rigorous, complete, type-safe, production-ready solutions with zero placeholders.`;
 }
 
 async function callAI(systemPrompt: string, messages: Array<{ role: string; content: string }>, preferredModelId?: string): Promise<{ text: string; source: string }> {
@@ -1916,7 +1950,8 @@ Permissions: ${targetAgent.permissions.join(', ')}.
 Role Directive: ${targetAgent.systemPrompt}
 Directly converse with Master Sri as a trusted, highly skilled human colleague. Speak with natural intelligence, warmth, authority, and conciseness. Never give robotic generic disclaimers or repetitive canned phrases.` + liveContext;
       }
-      const groundedPrompt = customSystemPrompt + webGrounding
+      const openSourceIntel = retrieveOpenSourceIntelligence(lastUserMsg)
+      const groundedPrompt = customSystemPrompt + webGrounding + openSourceIntel
       answer = await callAI(groundedPrompt, messages, preferredModelId)
       if (effectiveAgentId && AGENT_REGISTRY[effectiveAgentId]) {
         answer.source = `${AGENT_REGISTRY[effectiveAgentId].name} (${AGENT_REGISTRY[effectiveAgentId].callsign})`;

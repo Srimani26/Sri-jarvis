@@ -15999,6 +15999,7 @@ var SkillCreationEngine = class _SkillCreationEngine {
 };
 
 // custom-routes.ts
+init_openSourceProjectsData();
 import bcrypt from "bcryptjs";
 import jwt2 from "jsonwebtoken";
 import { generateSecret, generateURI, verify as verifyOtp } from "otplib";
@@ -16937,6 +16938,43 @@ CRITICAL GROUNDING DIRECTIVE: Ground your answer strictly in these live facts an
   }
   return "";
 }
+function retrieveOpenSourceIntelligence(query) {
+  const lower = query.toLowerCase();
+  const matchedProjects = OPEN_SOURCE_PROJECTS_VAULT.filter((p) => {
+    const nameMatch = p.name.toLowerCase().includes(lower) || p.id.toLowerCase().includes(lower);
+    const catMatch = p.category.toLowerCase().includes(lower);
+    const words = lower.split(/\s+/).filter((w) => w.length > 3);
+    const descMatch = words.some((w) => p.description.toLowerCase().includes(w));
+    const archMatch = p.keyArchitecture.some((a) => words.some((w) => a.toLowerCase().includes(w)));
+    return nameMatch || catMatch || descMatch || archMatch;
+  });
+  if (matchedProjects.length === 0) {
+    return "";
+  }
+  const topMatches = matchedProjects.slice(0, 2);
+  const blueprints = topMatches.map((p) => {
+    const fileSnippet = p.files[0] ? `
+Sample Architecture File [${p.files[0].filename}]:
+\`\`\`${p.files[0].language}
+${p.files[0].content.slice(0, 600)}
+\`\`\`` : "";
+    return `### [ASSIMILATED OPEN-SOURCE REPOSITORY: ${p.name.toUpperCase()} (${p.repo})]
+Category: ${p.category} | Stars: ${p.stars} | License: ${p.license}
+Core Architecture:
+${p.keyArchitecture.map((a) => `- ${a}`).join("\n")}
+Assimilated Capabilities:
+${p.assimilatedCapabilities.map((c) => `- ${c}`).join("\n")}${fileSnippet}`;
+  }).join("\n\n");
+  return `
+
+[DEEP OPEN-SOURCE REPOSITORY INTELLIGENCE & ARCHITECTURAL VAULT]:
+${blueprints}
+
+POWERHOUSE DIRECTIVE (GPT-5.0 / GEMINI 4 ARGON TIER):
+1. Think like a world-class principal software architect and strategic operations executive.
+2. Ground your architecture, code patterns, and system design in the assimilated open-source blueprints above.
+3. Provide rigorous, complete, type-safe, production-ready solutions with zero placeholders.`;
+}
 async function callAI(systemPrompt, messages, preferredModelId) {
   const errors = [];
   const chatMessages = messages.map((m) => ({ role: m.role, content: m.content }));
@@ -17442,7 +17480,8 @@ Permissions: ${targetAgent.permissions.join(", ")}.
 Role Directive: ${targetAgent.systemPrompt}
 Directly converse with Master Sri as a trusted, highly skilled human colleague. Speak with natural intelligence, warmth, authority, and conciseness. Never give robotic generic disclaimers or repetitive canned phrases.` + liveContext;
       }
-      const groundedPrompt = customSystemPrompt + webGrounding;
+      const openSourceIntel = retrieveOpenSourceIntelligence(lastUserMsg2);
+      const groundedPrompt = customSystemPrompt + webGrounding + openSourceIntel;
       answer = await callAI(groundedPrompt, messages, preferredModelId);
       if (effectiveAgentId && AGENT_REGISTRY[effectiveAgentId]) {
         answer.source = `${AGENT_REGISTRY[effectiveAgentId].name} (${AGENT_REGISTRY[effectiveAgentId].callsign})`;
