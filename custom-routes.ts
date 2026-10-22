@@ -1476,6 +1476,7 @@ const ELEVENLABS_DEFAULT_KEY = 'sk_da60f0e4de182e85118e7fca5b676a224a95d9ab5d814
 const AGENT_VOICE_MAP: Record<string, { voiceId: string; gender: 'male' | 'female'; name: string }> = {
   jarvis: { voiceId: 'pNInz6obpgDQGcFmaJgB', gender: 'male', name: 'Adam (Grand Commander)' },
   friday: { voiceId: '21m00Tcm4TlvDq8ikWAM', gender: 'female', name: 'Rachel (Lead Engineer)' },
+  raphael: { voiceId: 'EXAVITQu4vr4xnSDxMaL', gender: 'female', name: 'Raphael (Lord of Wisdom)' },
   aegis: { voiceId: 'JBFqnCBsd6RMkjVDRZzb', gender: 'male', name: 'George (Cyber Security)' },
   sentinel: { voiceId: 'EXAVITQu4vr4xnSDxMaL', gender: 'female', name: 'Sarah (QA Marshal)' },
   daedalus: { voiceId: 'N2lVS1w4EtoT3dr4eOWO', gender: 'male', name: 'Callum (System Architect)' },

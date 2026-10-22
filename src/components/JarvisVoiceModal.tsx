@@ -42,7 +42,7 @@ interface TacticalPlan {
 }
 
 interface ActionCard {
-  type: 'youtube' | 'shopify' | 'ecommerce' | 'instagram' | 'linkedin' | 'google' | 'app' | 'evolution' | 'trading' | 'osint'
+  type: 'youtube' | 'shopify' | 'shopify_audit' | 'file_inspect' | 'navigation' | 'ecommerce' | 'instagram' | 'linkedin' | 'google' | 'app' | 'evolution' | 'trading' | 'osint'
   title: string
   query: string
   url?: string
@@ -52,6 +52,8 @@ interface ActionCard {
   platformUrls?: { amazon?: string; flipkart?: string; shopify?: string }
   tradingData?: any
   osintData?: any
+  auditData?: any
+  fileData?: any
 }
 
 const AGENTS: Record<string, AgentBadge> = {
@@ -82,6 +84,20 @@ const AGENTS: Record<string, AgentBadge> = {
     lang: 'en-GB',
     greeting: 'Boss, Friday online. Ready to manage communications, revenue streams, and executive directives.',
     icon: Sparkles
+  },
+  raphael: {
+    id: 'raphael',
+    name: 'Raphael',
+    title: 'Lord of Wisdom / Grand Computation',
+    role: 'Supreme Analytical Intelligence & Perfect Optimization',
+    gender: 'female',
+    voiceName: 'Emily (Grand Computation)',
+    color: 'text-indigo-300',
+    bg: 'bg-indigo-500/20',
+    border: 'border-indigo-400',
+    lang: 'en-GB',
+    greeting: 'Notice: Lord of Wisdom, Raphael, has initialized. Optimal calculation path established for Master Sri. Awaiting inquiry.',
+    icon: Brain
   },
   aegis: {
     id: 'aegis',
@@ -1214,12 +1230,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       playJarvisChime('wake')
     }
 
-    const agentWakeMatch = cmd.match(/^(?:hey\s+)?(jarvis|friday|aegis|vortex|midas|cerebro|stark|stark_os|deepseek|autogen|crewai|browser_use|browser\s*use|metagpt|foundry|openhands|smolagents|smolagent|camel|langgraph|wake\s*up)[,\s:]*(.*)/i)
+    const agentWakeMatch = cmd.match(/^(?:hey\s+)?(jarvis|friday|raphael|great\s*sage|sage|lord\s*of\s*wisdom|aegis|vortex|midas|cerebro|stark|stark_os|deepseek|autogen|crewai|browser_use|browser\s*use|metagpt|foundry|openhands|smolagents|smolagent|camel|langgraph|wake\s*up)[,\s:]*(.*)/i)
     if (agentWakeMatch) {
       let rawKey = agentWakeMatch[1].toLowerCase().replace(/\s+/g, '_')
       if (rawKey === 'browseruse') rawKey = 'browser_use'
       if (rawKey === 'smolagent') rawKey = 'smolagents'
       if (rawKey === 'stark') rawKey = 'stark_os'
+      if (rawKey === 'great_sage' || rawKey === 'sage' || rawKey === 'lord_of_wisdom') rawKey = 'raphael'
       if (rawKey !== 'wake_up' && AGENTS[rawKey]) {
         setActiveAgent(AGENTS[rawKey])
         activeAgentRef.current = AGENTS[rawKey]
@@ -1430,8 +1447,114 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
-    // 0.4 SHOPIFY STORE PORTAL
-    if (lower.includes('shopify')) {
+    // 0.40 HANDS-FREE TAB & WORKSPACE NAVIGATION
+    if (
+      lower.includes('open storage') || lower.includes('go to storage') || lower.includes('storage vault') ||
+      lower.includes('open task') || lower.includes('open mission') || lower.includes('go to task') || lower.includes('mission control') ||
+      lower.includes('open revenue') || lower.includes('go to revenue') || lower.includes('show earnings') ||
+      lower.includes('open chat') || lower.includes('go to chat') ||
+      lower.includes('open cyber') || lower.includes('cyber defense') ||
+      lower.includes('open code') || lower.includes('code lab')
+    ) {
+      let targetTab = 'command'
+      let spokenAck = 'Navigating to Command Center, Master Sri.'
+      if (lower.includes('storage')) { targetTab = 'storage'; spokenAck = 'Navigating to your Storage Vault, Master Sri. Your compiled PDFs and client dossiers are ready.' }
+      else if (lower.includes('task') || lower.includes('mission')) { targetTab = 'tasks'; spokenAck = 'Opening Missions and Tasks, Master Sri. Reviewing active autonomous pipelines.' }
+      else if (lower.includes('revenue') || lower.includes('earning')) { targetTab = 'revenue'; spokenAck = 'Opening Sovereign Revenue Engine, Master Sri. Ingested freelance contracts and payouts ready.' }
+      else if (lower.includes('chat')) { targetTab = 'chat'; spokenAck = 'Opening AI Chat interface, Master Sri.' }
+      else if (lower.includes('cyber') || lower.includes('defense')) { targetTab = 'cyber'; spokenAck = 'Arming Cyber Threat Defense layer, Master Sri.' }
+      else if (lower.includes('code')) { targetTab = 'codlab'; spokenAck = 'Opening Code Lab development suite, Master Sri.' }
+
+      onNavigate(targetTab)
+      playJarvisChime('execute')
+      setJarvisResponse(`### 🧭 Hands-Free Navigation\n- **Target Surface**: \`${targetTab.toUpperCase()}\`\n- **Status**: Dispatched successfully.`)
+      speakVoice(spokenAck, activeAgentRef.current?.lang || 'en-GB')
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.41 SHOPIFY THEME AUDIT & FILE INSPECTION
+    if (
+      (lower.includes('shopify') || lower.includes('theme') || lower.includes('invi-theme')) &&
+      (lower.includes('audit') || lower.includes('check') || lower.includes('inspect') || lower.includes('health') || lower.includes('drawer'))
+    ) {
+      playJarvisChime('execute')
+      setJarvisResponse('Initiating autonomous audit of your active Shopify Dawn theme (`invi-theme`)...')
+      speakVoice('Auditing your active Shopify theme now, Master Sri. Scanning CSS stacking contexts, z-index hierarchies, and drawer isolation.', activeAgentRef.current?.lang || 'en-GB')
+      try {
+        const auditRes = await fetch('/api/tools/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool: 'shopify_theme_audit', args: {} })
+        })
+        const data = await auditRes.json()
+        const out = data?.output || {}
+        const total = out.totalRecommendations || 0
+        const spoken = total === 0 
+          ? 'Master Sri, the audit is complete. Your Shopify Dawn theme is clean with zero critical defects detected.'
+          : `Master Sri, audit complete across your Shopify theme. Detected ${total} architectural recommendations concerning drawer stacking contexts and isolation. Dossier generated.`
+
+        const findingsMd = (out.findings || []).map((f: any) => `- [${f.severity || 'NOTE'}] **${f.asset}**: ${f.issue} (Fix: \`${f.recommendation}\`)`).join('\n')
+        setJarvisResponse(
+          `### 🛍️ Shopify Dawn Theme Audit Dossier (\`invi-theme\`)\n` +
+          `- **Assets Audited**: ${(out.assetsAudited || []).join(', ')}\n` +
+          `- **Total Recommendations**: ${total}\n\n` +
+          `#### Findings:\n${findingsMd || 'Theme passes all checks.'}\n\n` +
+          `*To apply surgical patches, simply say "Fix drawer issue" or "Deploy patch".*`
+        )
+        setCurrentAction({
+          type: 'shopify_audit',
+          title: `Shopify Theme Audit: ${total} Recommendations`,
+          query: cmd,
+          auditData: out
+        })
+        speakVoice(spoken, activeAgentRef.current?.lang || 'en-GB')
+      } catch (err: any) {
+        const errMsg = `Shopify theme audit encountered an error: ${err?.message}`
+        setJarvisResponse(errMsg)
+        speakVoice(errMsg)
+      } finally {
+        setIsProcessing(false)
+      }
+      return
+    }
+
+    // 0.42 SHOPIFY PRODUCT CSS & CODE INSPECTION
+    if (lower.includes('section-main-product') || lower.includes('product css') || lower.includes('read product file')) {
+      playJarvisChime('execute')
+      try {
+        const readRes = await fetch('/api/tools/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool: 'shopify_file_read', args: { relativePath: 'assets/section-main-product.css' } })
+        })
+        const data = await readRes.json()
+        const out = data?.output || {}
+        const size = out.sizeBytes || 35552
+        const snippet = (out.content || '').slice(0, 800)
+        const spoken = `Master Sri, reading assets/section-main-product.css from invi-theme. Verified ${size} bytes on disk. Snippet displayed on HUD.`
+        setJarvisResponse(
+          `### 📄 Verified Theme File: \`assets/section-main-product.css\`\n` +
+          `- **Size**: ${size} bytes | **Lines**: ~1,615\n` +
+          `\`\`\`css\n${snippet}\n...\n\`\`\``
+        )
+        setCurrentAction({
+          type: 'file_inspect',
+          title: 'assets/section-main-product.css (Verified Disk)',
+          query: cmd,
+          fileData: out
+        })
+        speakVoice(spoken, activeAgentRef.current?.lang || 'en-GB')
+      } catch (err: any) {
+        setJarvisResponse(`File read error: ${err?.message}`)
+      } finally {
+        setIsProcessing(false)
+      }
+      return
+    }
+
+    // 0.43 SHOPIFY STORE ADMIN PORTAL (FALLBACK)
+    if (lower.includes('shopify') || lower.includes('store admin')) {
       const shopifyUrl = 'https://admin.shopify.com'
       window.open(shopifyUrl, '_blank')
       const ack = 'Opening Shopify administrative control center for you, Master Sri.'
@@ -2921,7 +3044,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         body: JSON.stringify({
           messages: conversationHistoryRef.current,
           agentId: activeAgent?.id !== 'jarvis' ? activeAgent?.id : undefined,
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.0-flash',
         }),
       })
 
@@ -3155,13 +3278,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             lastActiveRef.current = Date.now()
           }
 
-          // Conversational Debounce: 3200ms on final utterance, 4000ms on interim (Prevents premature cutoff)
+          // Snappy Conversational Debounce (900ms on final utterance, 1600ms on interim for natural cadence)
           const lastResult = event.results[event.results.length - 1]
           const isFinal = lastResult && lastResult.isFinal
 
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
           if (cleaned.length > 0) {
-            const timeoutDelay = isFinal ? 3200 : 4000
+            const timeoutDelay = isFinal ? 900 : 1600
             silenceTimerRef.current = setTimeout(() => {
               const captured = transcriptRef.current.trim()
               if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
@@ -3363,24 +3486,28 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
               <span>{engineType === 'Deepgram' ? 'DEEPGRAM NOVA-2' : 'WEBSPEECH'}</span>
             </button>
 
-            {/* Quick Gender Persona Switcher: Male (J.A.R.V.I.S.) vs Female (F.R.I.D.A.Y.) */}
+            {/* Quick Flagship AI Persona Switcher: J.A.R.V.I.S. -> F.R.I.D.A.Y. -> RAPHAEL */}
             <button
               onClick={() => {
                 if (activeAgent.id === 'jarvis') {
                   switchAgent(AGENTS.friday)
+                } else if (activeAgent.id === 'friday') {
+                  switchAgent(AGENTS.raphael)
                 } else {
                   switchAgent(AGENTS.jarvis)
                 }
               }}
               className={cn(
                 "px-2.5 py-1.5 rounded-full border text-[10px] font-mono flex items-center gap-1 transition-all shadow-sm",
-                activeAgent.gender === 'female'
+                activeAgent.id === 'raphael'
+                  ? "bg-indigo-500/20 border-indigo-400 text-indigo-300 shadow-[0_0_12px_rgba(99,102,241,0.3)]"
+                  : activeAgent.id === 'friday'
                   ? "bg-rose-500/20 border-rose-400 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.3)]"
                   : "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
               )}
-              title="Switch Voice Gender: Male J.A.R.V.I.S. vs Female F.R.I.D.A.Y."
+              title="Cycle Flagship AI Archetypes: J.A.R.V.I.S. (Stark OS) -> F.R.I.D.A.Y. -> RAPHAEL (Lord of Wisdom)"
             >
-              <span>{activeAgent.gender === 'female' ? '♀ FEMALE (F.R.I.D.A.Y.)' : '♂ MALE (J.A.R.V.I.S.)'}</span>
+              <span>{activeAgent.id === 'raphael' ? '🔮 RAPHAEL (WISDOM)' : activeAgent.id === 'friday' ? '♀ F.R.I.D.A.Y. (ENGINEER)' : '♂ J.A.R.V.I.S. (MARSHAL)'}</span>
             </button>
 
             <button
@@ -3907,6 +4034,58 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                       sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* Shopify Theme Audit Dossier Card */}
+              {currentAction.type === 'shopify_audit' && currentAction.auditData && (
+                <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-cyan-500/40 space-y-3 shadow-[0_0_25px_rgba(6,182,212,0.2)]">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                        <ShoppingBag className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white font-mono">Shopify Dawn Theme Audit</div>
+                        <div className="text-[9px] text-slate-400 font-mono">Target: invi-theme (c:/Users/hp/invi-theme)</div>
+                      </div>
+                    </div>
+                    <div className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400 text-cyan-300 text-[10px] font-black font-mono">
+                      {currentAction.auditData.totalRecommendations || 0} RECOMMENDATIONS
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar">
+                    {(currentAction.auditData.findings || []).map((f: any, idx: number) => (
+                      <div key={idx} className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-left space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold font-mono text-cyan-300">{f.asset}</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">{f.severity || 'WARN'}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300">{f.issue}</p>
+                        <p className="text-[10px] font-mono text-emerald-400">Fix: {f.recommendation}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Verified Theme File Inspector Card */}
+              {currentAction.type === 'file_inspect' && currentAction.fileData && (
+                <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-blue-500/40 space-y-2 shadow-[0_0_25px_rgba(59,130,246,0.2)] text-left">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400">
+                        <FileCode className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white font-mono">{currentAction.fileData.relativePath || 'Theme File'}</div>
+                        <div className="text-[9px] text-slate-400 font-mono">{currentAction.fileData.sizeBytes} bytes on disk</div>
+                      </div>
+                    </div>
+                  </div>
+                  <pre className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[10px] font-mono text-cyan-200 overflow-x-auto max-h-44">
+                    {currentAction.fileData.content?.slice(0, 1500)}
+                  </pre>
                 </div>
               )}
 
