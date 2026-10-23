@@ -289,7 +289,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-[10px] font-mono tracking-widest uppercase">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-                <span>J.A.R.V.I.S. MARK-V // COMMAND PORTAL</span>
+                <span>J.A.R.V.I.S. MARK-VI // QUANTUM COMMAND MATRIX</span>
               </div>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -345,9 +345,9 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
               </div>
 
               <span className="text-[10px] font-mono font-bold text-cyan-300 mt-2 uppercase tracking-wider flex items-center gap-1">
-                <span>J.A.R.V.I.S. & RAPHAEL</span>
+                <span>J.A.R.V.I.S. MARK-VI</span>
               </span>
-              <span className="text-[8px] font-mono text-slate-400">
+              <span className="text-[8px] font-mono text-cyan-400/80">
                 Tap to speak duplex voice
               </span>
             </div>

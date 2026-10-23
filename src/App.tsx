@@ -410,13 +410,13 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-black tracking-wider text-white font-mono">J.A.R.V.I.S.</h1>
-                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                  MARK-V SOVEREIGN
+                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-cyan-500/25 to-blue-500/25 text-cyan-300 border border-cyan-400/60 shadow-[0_0_15px_rgba(6,182,212,0.4)]">
+                  MARK-VI // QUANTUM CORE
                 </span>
               </div>
-              <p className="text-[9px] text-cyan-400/80 font-mono tracking-wider flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-                20 AGENTS ARMED // NEON DURABLE // 42ms
+              <p className="text-[9px] text-cyan-400/90 font-mono tracking-wider flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping inline-block" />
+                20 SWARMS PRIMED // DUPLEX NEURAL // 28ms
               </p>
             </div>
           </div>
@@ -504,7 +504,7 @@ export default function App() {
             <button
               onClick={() => handleOpenVoiceComms()}
               className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 text-slate-950 text-xs font-mono font-black tracking-wider transition-all shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:shadow-[0_0_35px_rgba(6,182,212,0.8)] hover:scale-105 active:scale-95"
-              title="Open J.A.R.V.I.S. Mark-V Neural Voice Comms"
+              title="Open J.A.R.V.I.S. Mark-VI Neural Voice Comms"
             >
               <Mic className="w-3.5 h-3.5 text-slate-950 animate-pulse" />
               <span>VOICE LINK</span>
@@ -556,10 +556,10 @@ export default function App() {
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="text-xs font-black tracking-wider text-white font-mono">J.A.R.V.I.S.</h1>
-                <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">v5.0</span>
+                <span className="text-[8px] font-mono font-bold px-1.5 py-0.2 rounded bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(6,182,212,0.3)]">v6.0 QUANTUM</span>
               </div>
-              <p className="text-[8px] text-emerald-400 font-mono tracking-tight flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+              <p className="text-[8px] text-cyan-400 font-mono tracking-tight flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" />
                 ONLINE // 20 SWARMS
               </p>
             </div>
@@ -724,22 +724,22 @@ export default function App() {
           </div>
 
           <div className="space-y-4 max-w-md">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-xs font-mono tracking-widest uppercase">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/15 border border-cyan-400/50 text-cyan-300 text-xs font-mono tracking-widest uppercase shadow-[0_0_15px_rgba(6,182,212,0.3)]">
               <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" /> Sovereign Master Sri Recognized
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white font-mono">
-              J.A.R.V.I.S. MARK-V
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white font-mono bg-gradient-to-r from-white via-cyan-200 to-cyan-400 bg-clip-text text-transparent">
+              J.A.R.V.I.S. MARK-VI
             </h1>
             <p className="text-sm text-cyan-300/90 font-mono">
-              ⚡ Sovereign Autonomous Engine Active • 20 Specialist Swarms Synchronized • Durable Neon Cloud PostgreSQL Online
+              ⚡ Sovereign Quantum Core Online • 20 Specialist Swarms Synchronized • Duplex Neural Comms Activated
             </p>
             <div className="pt-2">
-              <button className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 text-slate-950 font-black text-sm font-mono tracking-widest uppercase shadow-[0_0_50px_rgba(6,182,212,0.8)] hover:scale-105 active:scale-95 transition-all">
+              <button className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 text-slate-950 font-black text-sm font-mono tracking-widest uppercase shadow-[0_0_50px_rgba(6,182,212,0.8)] hover:scale-105 active:scale-95 transition-all">
                 TAP ANYWHERE TO ACTIVATE & SPEAK
               </button>
             </div>
             <p className="text-[10px] text-slate-500 font-mono">
-              AUTOPLAY COMPLIANT // UNLOCKS HIGH-FIDELITY NEURAL SPEECH & CONTINUOUS VAD
+              MARK-VI AUTOPLAY PROTOCOL // UNLOCKS HIGH-FIDELITY NEURAL SPEECH & CONTINUOUS VAD
             </p>
           </div>
         </div>

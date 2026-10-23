@@ -1,7 +1,7 @@
-// Sovereign J.A.R.V.I.S. Mark-V PWA Service Worker (NETWORK-FIRST STRATEGY)
-// Guarantees mobile always gets the latest deployed bundle and UI updates immediately.
+// Sovereign J.A.R.V.I.S. Mark-VI PWA Service Worker (NETWORK-FIRST STRATEGY)
+// Guarantees mobile and desktop always get the latest deployed Mark-VI bundle immediately.
 
-const CACHE_NAME = 'jarvis-mark5-v1-network-first'
+const CACHE_NAME = 'jarvis-mark6-quantum-v2'
 
 self.addEventListener('install', (e) => {
   self.skipWaiting()
@@ -10,9 +10,12 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) => {
-      // Purge all old caches immediately
+      // Purge ALL legacy Mark-V and stale caches immediately
       return Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+        keys.filter((k) => k !== CACHE_NAME).map((k) => {
+          console.log('[SW] Purging outdated cache:', k)
+          return caches.delete(k)
+        })
       )
     }).then(() => self.clients.claim())
   )

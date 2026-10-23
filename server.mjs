@@ -17312,7 +17312,7 @@ async function callDirectGeminiPool(keys, system, messages) {
     parts: [{ text: m.content }]
   }));
   const errors = [];
-  const validModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+  const validModels = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.8-flash", "gemini-flash-latest"];
   for (let i = 0; i < keys.length; i++) {
     const key = keys[(geminiKeyIndex + i) % keys.length];
     for (const model of validModels) {
@@ -17715,17 +17715,31 @@ Give me any directive, Master Sri, and I will execute it.`,
       source: "J.A.R.V.I.S. Supreme Viceroy"
     };
   }
+  if (lowerQ.includes("python") || lowerQ.includes("code") || lowerQ.includes("programming") || lowerQ.includes("develop")) {
+    return {
+      text: `Indeed I do, Master Sri. Python, TypeScript, Node.js, and multi-language software engineering are central to my operational architecture.
+
+I can autonomously:
+1. **Develop Production Applications**: Scaffold FastAPI, Flask, Django, or Next.js codebases.
+2. **Execute Sandboxed Scripts**: Run mathematical models, data parsers, and automation loops.
+3. **Audit Codebases & Fix Regressions**: Scan AST syntax, resolve stack-overflows, and verify zero defects.
+
+What would you like me to build or analyze in Python today?`,
+      source: "Aegis (Software Architect)"
+    };
+  }
   return {
-    text: `Master Sri, directive acknowledged: "${lastQuestion}".
+    text: `Master Sri, I am at your command.
 
-All execution pipelines are online. I have logged this directive across the multi-agent queue. You can command any of the following real operations:
-1. **"Audit my Shopify theme"** \u2014 Scans \`invi-theme\` assets and CSS rules.
-2. **"Open Storage Vault"** \u2014 Access print-ready PDF reports and deliverables.
-3. **"Scout remote developer contracts"** \u2014 Runs live freelance market reconnaissance.
-4. **"Activate Raphael voice"** \u2014 Switches neural duplex voice to Lord of Wisdom.
+Regarding **"${lastQuestion}"**:
+My autonomous multi-agent swarm is synchronized and ready. You can command me directly to:
+\u2022 **Write & Execute Code**: Python, TypeScript, or bash automation scripts.
+\u2022 **Inspect Your Repositories**: Audit \`invi-theme\` (Shopify) or \`zoho-automation\`.
+\u2022 **Launch Full-Stack Clones**: Re-engineer any website or SaaS platform in an isolated sandbox.
+\u2022 **Compile Formal Deliverables**: Generate print-ready PDF, Word, Excel, and Markdown reports.
 
-Standing by for your confirmation.`,
-    source: "J.A.R.V.I.S. Core Kernel"
+Direct my focus wherever you require, Master Sri. How shall we proceed?`,
+    source: "J.A.R.V.I.S. Mark-VI Core"
   };
 }
 PersistentTaskQueue.setAiCaller((sys, msgs) => callAI(sys, msgs));
