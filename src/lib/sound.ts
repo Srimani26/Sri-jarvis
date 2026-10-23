@@ -161,77 +161,45 @@ export function playNeuralSpeech(
 
 
   try {
-    const spokenSlice = clean.slice(0, 20000)
+    const spokenSlice = clean.slice(0, 30000)
 
-    // For long spoken responses (> 300 chars) without pre-rendered audio, use POST
-    if (!staticAudioPath && spokenSlice.length > 300) {
-      fetch('/api/voice/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: spokenSlice, lang, agentId })
-      })
-      .then(res => {
-        if (!res.ok) throw new Error('POST TTS failed')
-        return res.blob()
-      })
-      .then(blob => {
-        if (sessionId !== activeSpeechSessionId) return
-        const blobUrl = URL.createObjectURL(blob)
-        const audio = new Audio(blobUrl)
-        activeAudio = audio
-        audio.onplay = () => { if (sessionId === activeSpeechSessionId && onStart) onStart() }
-        audio.onended = () => {
-          activeAudio = null
-          URL.revokeObjectURL(blobUrl)
-          if (sessionId === activeSpeechSessionId && onEnd) onEnd()
-        }
-        audio.onerror = () => {
-          activeAudio = null
-          URL.revokeObjectURL(blobUrl)
+    // Primary High-Fidelity Path: Direct Stream from Backend /api/voice/speak (ElevenLabs + Google Neural Stream)
+    fetch('/api/voice/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: spokenSlice, lang, agentId })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error(`POST TTS failed with status ${res.status}`)
+      return res.blob()
+    })
+    .then(blob => {
+      if (sessionId !== activeSpeechSessionId) return
+      const blobUrl = URL.createObjectURL(blob)
+      const audio = new Audio(blobUrl)
+      activeAudio = audio
+      audio.onplay = () => { if (sessionId === activeSpeechSessionId && onStart) onStart() }
+      audio.onended = () => {
+        activeAudio = null
+        URL.revokeObjectURL(blobUrl)
+        if (sessionId === activeSpeechSessionId && onEnd) onEnd()
+      }
+      audio.onerror = () => {
+        activeAudio = null
+        URL.revokeObjectURL(blobUrl)
+        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+      }
+      const p = audio.play()
+      if (p !== undefined) {
+        p.catch(() => {
           if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
-        }
-        const p = audio.play()
-        if (p !== undefined) {
-          p.catch(() => {
-            if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
-          })
-        }
-      })
-      .catch(() => {
-        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
-      })
-      return null
-    }
-
-    const encoded = encodeURIComponent(spokenSlice.slice(0, 1000))
-    const audioUrl = staticAudioPath || `/api/voice/speak?text=${encoded}&lang=${lang}&agentId=${agentId}&t=${Date.now()}`
-    const audio = new Audio(audioUrl)
-    activeAudio = audio
-
-    audio.onplay = () => {
-      if (sessionId === activeSpeechSessionId && onStart) onStart()
-    }
-
-    audio.onended = () => {
-      activeAudio = null
-      if (sessionId === activeSpeechSessionId && onEnd) onEnd()
-    }
-
-    audio.onerror = () => {
-      console.warn('Streaming neural audio failed, falling back to Web Speech')
-      activeAudio = null
+        })
+      }
+    })
+    .catch(() => {
       if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
-    }
-
-    const p = audio.play()
-    if (p !== undefined) {
-      p.catch((err) => {
-        console.warn('Audio play blocked by browser policy:', err)
-        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
-      })
-    }
-
-    return audio
+    })
+    return null
   } catch {
     fallbackWebSpeech(clean, lang, onStart, onEnd, onError)
     return null
@@ -295,22 +263,6 @@ function fallbackWebSpeech(
     let hasStarted = false
     let watchdogTimer: any = null
 
-    // Chromium keep-alive heartbeat: periodically pause/resume to prevent garbage collection
-    const keepAliveTimer = setInterval(() => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        if (window.speechSynthesis.speaking) {
-          window.speechSynthesis.pause()
-          setTimeout(() => {
-            if (typeof window !== 'undefined' && window.speechSynthesis) {
-              window.speechSynthesis.resume()
-            }
-          }, 30)
-        } else {
-          clearInterval(keepAliveTimer)
-        }
-      }
-    }, 6000)
-
     const speakNext = () => {
       if (watchdogTimer) {
         clearTimeout(watchdogTimer)
@@ -318,13 +270,14 @@ function fallbackWebSpeech(
       }
 
       if (currentIndex >= sentences.length) {
-        clearInterval(keepAliveTimer)
+        (window as any).__activeUtterance = null
         if (onEnd) onEnd()
         return
       }
 
       const textChunk = sentences[currentIndex]
       const utterance = new SpeechSynthesisUtterance(textChunk)
+      ;(window as any).__activeUtterance = utterance
       utterance.lang = lang || 'en-GB'
       if (voice) utterance.voice = voice
       utterance.rate = 1.05

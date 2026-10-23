@@ -435,7 +435,7 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
               </span>
               <span className="text-slate-400 font-mono">artifacts/storage/{liveTask.taskNumber}/</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <a
                 href={`/api/storage/download/${liveTask.taskNumber}/pdf`}
                 target="_blank"
@@ -455,6 +455,16 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
               >
                 <Download className="w-3.5 h-3.5 text-blue-400" />
                 <span>Word .DOC</span>
+              </a>
+              <a
+                href={`/api/storage/download/${liveTask.taskNumber}/xlsx`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold transition-all text-center"
+                title="Download Excel Spreadsheet Report"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Excel .XLSX</span>
               </a>
               <a
                 href={`/api/storage/download/${liveTask.taskNumber}/md`}

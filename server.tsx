@@ -13,6 +13,7 @@ process.on('unhandledRejection', (reason) => {
  * Serves both API endpoints and the production frontend PWA on a single cloud port.
  */
 
+import 'dotenv/config'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'

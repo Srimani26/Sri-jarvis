@@ -475,32 +475,56 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     const id = (agentBadge?.id || 'jarvis').toLowerCase()
 
     if (id === 'friday') {
-      return `${timeStr}, Boss. F.R.I.D.A.Y. online. Revenue channels, communications, and executive directives synchronized. Awaiting your orders.`
+      const fridayPool = [
+        `${timeStr}, Boss. F.R.I.D.A.Y. online. Revenue channels, communications, and executive directives synchronized. What can I do, Boss?`,
+        `${timeStr}, Boss. Friday here. Tactical operations and real-time telemetry active. What can I do, Boss?`,
+        `${timeStr}, Boss. Executive Sovereign Assistant primed and ready for orders. What can I do, Boss?`
+      ]
+      return fridayPool[Math.floor(Math.random() * fridayPool.length)]
     }
-    if (id === 'aegis') {
-      return `${timeStr}, Master Sri. Aegis online. Full-stack architecture, compiler sandbox, and cyber defense protocols armed. Standing by.`
-    }
-    if (id === 'vortex') {
-      return `${timeStr}, Master Sri. Vortex operational. Enterprise workflows, n8n swarms, and data pipelines standing by.`
+    if (id === 'raphael') {
+      const raphaelPool = [
+        `Notice: Lord of Wisdom, Raphael, has initialized. Optimal calculation path established for Master Sri. What can I do, Master?`,
+        `${timeStr}, Master Sri. Raphael online. Grand computation matrices primed for high-accuracy reasoning. What can I do, Master?`,
+        `Lord of Wisdom active. Telemetry nominal and algorithmic optimizers standing by. What can I do, Master?`
+      ]
+      return raphaelPool[Math.floor(Math.random() * raphaelPool.length)]
     }
     if (id === 'midas') {
-      return `${timeStr}, Master Sri. M.I.D.A.S. online. Capital velocity, freelance bounty hunting, and quant trading intelligence primed.`
+      const midasPool = [
+        `${timeStr}, Master Sri. M.I.D.A.S. online. Capital velocity, quant engines, and revenue pipelines primed. What can I do, Master?`,
+        `${timeStr}, Master Sri. Midas ready. Scouting freelance bounties, trading analytics, and high-yield contracts. What can I do, Master?`,
+        `Revenue hunter Midas operational, Master Sri. All monetization swarms synchronized. What can I do, Master?`
+      ]
+      return midasPool[Math.floor(Math.random() * midasPool.length)]
+    }
+    if (id === 'aegis') {
+      const aegisPool = [
+        `${timeStr}, Master Sri. Aegis online. Full-stack architecture, compiler sandbox, and cyber defense protocols armed. What can I do, Master?`,
+        `${timeStr}, Master Sri. Software engineering core active. Ready to build, compile, and deploy. What can I do, Master?`,
+        `Aegis ready, Master Sri. AST scanners, code synthesis, and automated test runners standing by. What can I do, Master?`
+      ]
+      return aegisPool[Math.floor(Math.random() * aegisPool.length)]
+    }
+    if (id === 'vortex') {
+      return `${timeStr}, Master Sri. Vortex operational. Enterprise workflows, n8n swarms, and data pipelines standing by. What can I do, Master?`
     }
     if (id === 'openhands') {
-      return `${timeStr}, Master Sri. OpenHands autonomous software engineer reporting. Ready to code, debug, and execute in sandbox.`
+      return `${timeStr}, Master Sri. OpenHands autonomous software engineer reporting. Ready to code, debug, and execute in sandbox. What can I do, Master?`
     }
     if (id === 'cerebro') {
-      return `${timeStr}, Master Sri. Cerebro activated. Deep market intelligence, neural indexing, and telemetry online.`
+      return `${timeStr}, Master Sri. Cerebro activated. Deep market intelligence, neural indexing, and telemetry online. What can I do, Master?`
     }
 
-    const pool = [
-      `${timeStr}, Master Sri. Grand Marshal J.A.R.V.I.S. online. All 20 sovereign neural agent swarms are synchronized and armed. System telemetry at peak performance. What is your directive, Sire?`,
-      `${timeStr}, Master Sri. J.A.R.V.I.S. Mark-V operational. Core matrix primed, database links nominal, and all specialist agents standing by for your voice command.`,
-      `${timeStr}, Master Sri. Grand Marshal J.A.R.V.I.S. reporting. Autonomous execution engines and intelligence networks ready. How may I serve you, Sire?`,
-      `${timeStr}, Master Sri. J.A.R.V.I.S. online and at your command. Fleet orchestrator active, 16 autonomous sub-agents ready. Standing by for your voice directives.`
+    const jarvisPool = [
+      `${timeStr}, Master Sri. J.A.R.V.I.S. Mark-VI online. Neural telemetry at 100%, sovereign sub-agent swarms synchronized. What can I do, Master?`,
+      `${timeStr}, Master Sri. Grand Marshal J.A.R.V.I.S. operational. Autonomous pipelines, compiler matrix, and intelligence cores primed. What can I do, Master?`,
+      `${timeStr}, Master Sri. Systems energized, biometric audio link locked onto your voice. All sovereign engines are standing by. What can I do, Master?`,
+      `${timeStr}, Master Sri. Mark-VI multi-agent matrix initialized. Background daemons active and storage vaults verified. What can I do, Master?`,
+      `${timeStr}, Master Sri. J.A.R.V.I.S. at your full command. MOA neural models and sovereign MCP bridges connected. What can I do, Master?`,
+      `${timeStr}, Master Sri. Grand Marshal reporting. Real-time telemetry nominal, ready for tactical operations and software development. What can I do, Master?`
     ]
-    const idx = (Math.floor(Date.now() / 20000) + hour) % pool.length
-    return pool[idx]
+    return jarvisPool[Math.floor(Math.random() * jarvisPool.length)]
   }
 
   useEffect(() => {
@@ -873,7 +897,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         const plan: TacticalPlan = {
           task: taskText,
           planText: data.plan || '',
-          spokenProposal: data.spokenProposal || `Master Sri, I have structured the tactical execution plan. Shall I proceed with full deployment across your agent fleet, Sire?`,
+          spokenProposal: data.spokenProposal || `Master Sri, we have driven the R&D and tactical execution plan for this mission. Can we have your permission to proceed?`,
           phases: [
             { phase: 'Phase 1: Architecture & Recon', agent: 'Cerebro / Code Lab', desc: 'System specs, requirements decomposition, and intelligence audit.' },
             { phase: 'Phase 2: Full-Stack Engineering', agent: 'Aegis', desc: 'Code synthesis, API scaffolding, and schema generation.' },
@@ -893,7 +917,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     const fallbackPlan: TacticalPlan = {
       task: taskText,
       planText: `### Sovereign Tactical Plan\n- **Directive**: ${taskText}\n- **Phase 1**: Aegis constructs core code and data architecture\n- **Phase 2**: Vortex hooks n8n automation and webhooks\n- **Phase 3**: Midas packages client offer for revenue\n- **Phase 4**: J.A.R.V.I.S. synchronizes all systems to Master Sri.`,
-      spokenProposal: 'Master Sri, tactical plan synthesized: Aegis compiles the system architecture, Vortex provisions automated pipelines, and Midas packages the deliverable. Shall I proceed with execution, Sire?'
+      spokenProposal: 'Master Sri, this is the plan we drove: Aegis compiles the architecture, Vortex connects automations, and Sentinel verifies zero defects. Can we have your permission to proceed?'
     }
     setCurrentPlan(fallbackPlan)
     setJarvisResponse(fallbackPlan.planText)
@@ -978,8 +1002,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           ]
         }
         setActiveTask(finishedTask)
-        const completeSpeech = `Plan execution finalized under ${data.taskNumber || taskNum}, Master Sri. Deliverables and evidence report are ready on your display.`
-        setJarvisResponse(`### [${data.taskNumber || taskNum}] Tactical Plan Executed\n**Workspace**: \`${workspacePath}\`\n**Status**: COMPLETED (100% Verified)\n\n${data.report || 'All phases executed.'}`)
+        const completeSpeech = `Master Sri, the task has been completed and verified under ${data.taskNumber || taskNum}. Here is the output, check that and let us know.`
+        setJarvisResponse(`### [${data.taskNumber || taskNum}] Tactical Plan Executed\n**Workspace**: \`${workspacePath}\`\n**Status**: COMPLETED (100% Verified)\n\n${data.report || 'All phases executed.'}\n\n*Master Sri, here is the output, check that and let us know.*`)
         speakVoice(completeSpeech)
       }
     } catch {
@@ -1223,6 +1247,24 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
+    // Plan approval voice gate
+    if (currentPlan && (
+      lower === 'yes' ||
+      lower === 'approve' ||
+      lower === 'approved' ||
+      lower === 'proceed' ||
+      lower === 'go ahead' ||
+      lower === 'execute' ||
+      lower === 'do it' ||
+      lower.includes('you have my permission') ||
+      lower.includes('permission granted') ||
+      lower.includes('start the work')
+    )) {
+      handleExecutePlan()
+      setIsProcessing(false)
+      return
+    }
+
     // 0.1 WAKE UP & SPECIALIST AGENT ROUTING (STANDBY OR AWAKE)
     if (isSleepingRef.current) {
       setIsSleeping(false)
@@ -1244,10 +1286,49 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
       const remainder = (agentWakeMatch[2] || '').trim()
       if (!remainder || remainder.toLowerCase() === 'please' || remainder.toLowerCase() === 'online') {
-        const agentName = activeAgentRef.current?.name || 'J.A.R.V.I.S.'
-        const dynamicWake = `${agentName} online, Master Sri. I am listening. What is your directive?`
+        let dynamicWake = ''
+        if (rawKey === 'friday') {
+          const fridayWakePool = [
+            `Right here, Boss! Revenue channels and executive comms active. What can I do, Boss?`,
+            `At your service, Boss. Tactical operations ready. What can I do, Boss?`,
+            `F.R.I.D.A.Y. listening, Boss. What is our target today?`,
+            `Online, Boss. All executive workflows primed. What can I do, Boss?`
+          ]
+          dynamicWake = fridayWakePool[Math.floor(Math.random() * fridayWakePool.length)]
+        } else if (rawKey === 'raphael') {
+          const raphaelWakePool = [
+            `Notice: Lord of Wisdom, Raphael, has initialized. Master Sri, what calculation or analysis shall we solve?`,
+            `Raphael listening. Grand computation matrices aligned. What can I do, Master?`,
+            `Lord of Wisdom active. Optimal pathway ready for derivation. What can I do for you, Master Sri?`
+          ]
+          dynamicWake = raphaelWakePool[Math.floor(Math.random() * raphaelWakePool.length)]
+        } else if (rawKey === 'midas') {
+          const midasWakePool = [
+            `M.I.D.A.S. online, Master Sri! Capital velocity, quant engines, and revenue pipelines primed. What can I do, Master?`,
+            `Ready to generate revenue, Master Sri. Scouting bounties and market moves. What can I do for you?`,
+            `Midas at your service, Master Sri. Let's make some serious capital. What is your directive?`
+          ]
+          dynamicWake = midasWakePool[Math.floor(Math.random() * midasWakePool.length)]
+        } else if (rawKey === 'aegis') {
+          const aegisWakePool = [
+            `Aegis online, Master Sri. Full-stack compilers and sandboxes ready. What can I do, Master?`,
+            `Software architecture and cyber defense primed, Master Sri. What are we building today?`,
+            `Aegis listening, Master Sri. Code generators and verification gates standing by. What can I do for you?`
+          ]
+          dynamicWake = aegisWakePool[Math.floor(Math.random() * aegisWakePool.length)]
+        } else {
+          const jarvisWakePool = [
+            `Yes, Master Sri? Grand Marshal standing by. What can I do, Master?`,
+            `I am here, Master Sri. All neural systems locked onto your voice. What can I do for you?`,
+            `At your command, Master Sri. Multi-agent swarms ready. What can I do, Master?`,
+            `Always ready, Master. Autonomous pipelines and storage vaults online. What can I do for you?`,
+            `Grand Marshal reporting, Master Sri. Listening intently. What can I do, Master?`,
+            `Online and awaiting your word, Master Sri. What can I do for you?`
+          ]
+          dynamicWake = jarvisWakePool[Math.floor(Math.random() * jarvisWakePool.length)]
+        }
         setJarvisResponse(dynamicWake)
-        speakVoice(dynamicWake, activeAgentRef.current?.lang || 'en-GB')
+        speakVoice(dynamicWake, activeAgentRef.current?.lang || 'en-GB', undefined, rawKey)
         setIsProcessing(false)
         return
       }
@@ -2948,8 +3029,18 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
     }
 
-    // 9. TACTICAL PLAN PROPOSAL ("can you do this task for me", "plan this", etc.)
+    // 9. TACTICAL PLAN & R&D PROPOSAL ("do this work", "clone this website", "can you do this task for me", "plan this", etc.)
     if (
+      lower.includes('do this work') ||
+      lower.includes('do this task') ||
+      lower.includes('take this task') ||
+      lower.includes('clone this website') ||
+      lower.includes('clone website') ||
+      lower.includes('clone software') ||
+      lower.includes('develop this') ||
+      lower.includes('recreate this') ||
+      lower.includes('r&d') ||
+      lower.includes('research and develop') ||
       lower.startsWith('can you do this task') ||
       lower.includes('can you do this task for me') ||
       lower.startsWith('can you plan') ||
@@ -3259,32 +3350,31 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         }
 
         recognition.onresult = (event: any) => {
-          let bestText = ''
-          for (let i = event.results.length - 1; i >= 0; i--) {
+          let fullTranscript = ''
+          for (let i = 0; i < event.results.length; i++) {
             const res = event.results[i]
             if (res && res[0]?.transcript) {
-              bestText = res[0].transcript
-              break
+              fullTranscript += res[0].transcript + ' '
             }
           }
-          if (!bestText && event.results.length > 0) {
-            bestText = event.results[event.results.length - 1]?.[0]?.transcript || ''
+          if (!fullTranscript && event.results.length > 0) {
+            fullTranscript = event.results[event.results.length - 1]?.[0]?.transcript || ''
           }
 
-          const cleaned = cleanAndDeduplicateTranscript(bestText.trim())
+          const cleaned = cleanAndDeduplicateTranscript(fullTranscript.trim())
           if (cleaned) {
             setTranscript(cleaned)
             transcriptRef.current = cleaned
             lastActiveRef.current = Date.now()
           }
 
-          // Snappy Conversational Debounce (900ms on final utterance, 1600ms on interim for natural cadence)
+          // Patient, natural conversational debounce (1800ms on final utterance, 2500ms on interim for zero premature cutoff)
           const lastResult = event.results[event.results.length - 1]
           const isFinal = lastResult && lastResult.isFinal
 
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
           if (cleaned.length > 0) {
-            const timeoutDelay = isFinal ? 900 : 1600
+            const timeoutDelay = isFinal ? 1800 : 2500
             silenceTimerRef.current = setTimeout(() => {
               const captured = transcriptRef.current.trim()
               if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
@@ -4157,7 +4247,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                   className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs font-mono tracking-wider uppercase transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)] flex items-center gap-1.5"
                 >
                   <Play className="w-3 h-3 fill-slate-950" />
-                  {isExecutingPlan ? 'EXECUTING SWARM...' : 'PROCEED & EXECUTE'}
+                  {isExecutingPlan ? 'EXECUTING SWARM...' : 'APPROVE & EXECUTE (OR SAY "YES")'}
                 </button>
               </div>
             </div>

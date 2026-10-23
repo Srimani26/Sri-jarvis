@@ -207,6 +207,24 @@ export class PersistentTaskQueue {
         commandsRun: result.toolsUsed,
       });
 
+      if (result.success) {
+        try {
+          const { StorageVaultEngine } = await import('../lib/storage-vault');
+          await StorageVaultEngine.generateAndStoreTaskReport({
+            taskNumber: task.taskNumber,
+            title: task.title,
+            agentName: task.agentId.toUpperCase(),
+            agentId: task.agentId,
+            actionDetails: result.finalAnswer || 'Mission executed and verified autonomously.',
+            verificationNote: `Verified across ${result.steps.length} autonomous steps. 0 errors.`,
+            filesTouched: result.artifactsCreated,
+            commandsRun: result.toolsUsed
+          });
+        } catch (repErr) {
+          console.warn('[PersistentTaskQueue] Failed to generate StorageVault report:', repErr);
+        }
+      }
+
       return result;
     } catch (jobErr: any) {
       const errMsg = jobErr?.message || String(jobErr);

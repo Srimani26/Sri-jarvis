@@ -14,18 +14,22 @@ interface TaskReportSummary {
   pdfFile?: string
   docFile?: string
   mdFile?: string
+  xlsxFile?: string
   hasPdf: boolean
   hasDoc: boolean
   hasMd: boolean
+  hasXlsx?: boolean
   pdfSizeBytes?: number
   docSizeBytes?: number
   mdSizeBytes?: number
+  xlsxSizeBytes?: number
 }
 
 interface StorageStats {
   totalTasks: number
   pdfCount: number
   docCount: number
+  xlsxCount: number
   mdCount: number
   totalBytes: number
 }
@@ -34,13 +38,13 @@ export default function StorageVault() {
   const [reports, setReports] = useState<TaskReportSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterFormat, setFilterFormat] = useState<'all' | 'pdf' | 'doc' | 'md'>('all')
+  const [filterFormat, setFilterFormat] = useState<'all' | 'pdf' | 'doc' | 'xlsx' | 'md'>('all')
   const [previewContent, setPreviewContent] = useState<{ title: string; content: string } | null>(null)
   
   // Custom Doc Generator Modal state
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false)
   const [genTitle, setGenTitle] = useState('')
-  const [genFormat, setGenFormat] = useState<'pdf' | 'doc' | 'md'>('pdf')
+  const [genFormat, setGenFormat] = useState<'pdf' | 'doc' | 'xlsx' | 'md'>('pdf')
   const [genContent, setGenContent] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [genSuccessMsg, setGenSuccessMsg] = useState('')
@@ -69,11 +73,12 @@ export default function StorageVault() {
       acc.totalTasks += 1
       if (r.hasPdf) acc.pdfCount += 1
       if (r.hasDoc) acc.docCount += 1
+      if (r.hasXlsx) acc.xlsxCount += 1
       if (r.hasMd) acc.mdCount += 1
-      acc.totalBytes += (r.pdfSizeBytes || 0) + (r.docSizeBytes || 0) + (r.mdSizeBytes || 0)
+      acc.totalBytes += (r.pdfSizeBytes || 0) + (r.docSizeBytes || 0) + (r.mdSizeBytes || 0) + (r.xlsxSizeBytes || 0)
       return acc
     },
-    { totalTasks: 0, pdfCount: 0, docCount: 0, mdCount: 0, totalBytes: 0 }
+    { totalTasks: 0, pdfCount: 0, docCount: 0, xlsxCount: 0, mdCount: 0, totalBytes: 0 }
   )
 
   const formatBytes = (bytes: number) => {
@@ -182,6 +187,7 @@ The architecture combines a Mixture-of-Agents (MoA) neural gateway with 20 speci
     if (!matchesSearch) return false
     if (filterFormat === 'pdf') return r.hasPdf
     if (filterFormat === 'doc') return r.hasDoc
+    if (filterFormat === 'xlsx') return r.hasXlsx
     if (filterFormat === 'md') return r.hasMd
     return true
   })
@@ -274,7 +280,7 @@ The architecture combines a Mixture-of-Agents (MoA) neural gateway with 20 speci
         </div>
 
         <div className="flex items-center gap-1.5 w-full sm:w-auto">
-          {(['all', 'pdf', 'doc', 'md'] as const).map((fmt) => (
+          {(['all', 'pdf', 'doc', 'xlsx', 'md'] as const).map((fmt) => (
             <button
               key={fmt}
               onClick={() => setFilterFormat(fmt)}
@@ -340,24 +346,24 @@ The architecture combines a Mixture-of-Agents (MoA) neural gateway with 20 speci
                 <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
                   <span>Deliverables Available:</span>
                   <span className="text-emerald-400 font-semibold">
-                    {[report.hasPdf && 'PDF', report.hasDoc && 'DOC', report.hasMd && 'MD'].filter(Boolean).join(' • ')}
+                    {[report.hasPdf && 'PDF', report.hasDoc && 'DOC', report.hasXlsx && 'XLSX', report.hasMd && 'MD'].filter(Boolean).join(' • ')}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-4 gap-1.5">
                   {report.hasPdf ? (
                     <a
                       href={`/api/storage/download/${report.taskNumber}/pdf`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-mono text-[11px] font-bold transition-all text-center"
+                      className="flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-mono text-[10px] font-bold transition-all text-center"
                       title={`Download PDF (${formatBytes(report.pdfSizeBytes || 0)})`}
                     >
                       <Download className="w-3 h-3 shrink-0" />
                       <span>.PDF</span>
                     </a>
                   ) : (
-                    <span className="px-2 py-1.5 rounded-xl bg-slate-900/40 border border-slate-800/50 text-slate-600 font-mono text-[11px] text-center">
+                    <span className="px-1.5 py-1.5 rounded-xl bg-slate-900/40 border border-slate-800/50 text-slate-600 font-mono text-[10px] text-center">
                       —
                     </span>
                   )}
@@ -367,14 +373,31 @@ The architecture combines a Mixture-of-Agents (MoA) neural gateway with 20 speci
                       href={`/api/storage/download/${report.taskNumber}/doc`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 font-mono text-[11px] font-bold transition-all text-center"
+                      className="flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 font-mono text-[10px] font-bold transition-all text-center"
                       title={`Download Word DOC (${formatBytes(report.docSizeBytes || 0)})`}
                     >
                       <Download className="w-3 h-3 shrink-0" />
                       <span>.DOC</span>
                     </a>
                   ) : (
-                    <span className="px-2 py-1.5 rounded-xl bg-slate-900/40 border border-slate-800/50 text-slate-600 font-mono text-[11px] text-center">
+                    <span className="px-1.5 py-1.5 rounded-xl bg-slate-900/40 border border-slate-800/50 text-slate-600 font-mono text-[10px] text-center">
+                      —
+                    </span>
+                  )}
+
+                  {report.hasXlsx ? (
+                    <a
+                      href={`/api/storage/download/${report.taskNumber}/xlsx`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold transition-all text-center"
+                      title="Download Excel Spreadsheet (.XLSX)"
+                    >
+                      <Download className="w-3 h-3 shrink-0" />
+                      <span>.XLSX</span>
+                    </a>
+                  ) : (
+                    <span className="px-1.5 py-1.5 rounded-xl bg-slate-900/40 border border-slate-800/50 text-slate-600 font-mono text-[10px] text-center">
                       —
                     </span>
                   )}
@@ -384,14 +407,14 @@ The architecture combines a Mixture-of-Agents (MoA) neural gateway with 20 speci
                       href={`/api/storage/download/${report.taskNumber}/md`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-mono text-[11px] font-bold transition-all text-center"
+                      className="flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-mono text-[10px] font-bold transition-all text-center"
                       title={`Download Markdown (${formatBytes(report.mdSizeBytes || 0)})`}
                     >
                       <Download className="w-3 h-3 shrink-0" />
                       <span>.MD</span>
                     </a>
                   ) : (
-                    <span className="px-2 py-1.5 rounded-xl bg-slate-900/40 border border-slate-800/50 text-slate-600 font-mono text-[11px] text-center">
+                    <span className="px-1.5 py-1.5 rounded-xl bg-slate-900/40 border border-slate-800/50 text-slate-600 font-mono text-[10px] text-center">
                       —
                     </span>
                   )}

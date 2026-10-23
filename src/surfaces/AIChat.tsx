@@ -260,14 +260,22 @@ export default function AIChat() {
   const getDynamicGreeting = useCallback((): Message => {
     const hour = new Date().getHours()
     const timeStr = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-    const agentName = selectedAgent !== 'all' ? selectedAgent.toUpperCase() : 'J.A.R.V.I.S. Mark-V'
+    const agentName = selectedAgent !== 'all' ? selectedAgent.toUpperCase() : 'J.A.R.V.I.S. Mark-VI'
+
+    const dynamicEndings = [
+      '**I am ready for your command. What can I do, Master?**',
+      '**All autonomous systems locked onto your directive. What can I do, Master?**',
+      '**Mixture-of-Agents consensus primed. What can I do, Master?**',
+      '**Storage vaults verified and specialist swarms armed. What can I do, Master?**'
+    ]
+    const chosenEnding = dynamicEndings[Math.floor(Math.random() * dynamicEndings.length)]
 
     return {
       id: generateId(),
       role: 'assistant',
       content: `${timeStr}, Master Sri. I am **${agentName}** — your sovereign autonomous multi-agent operating system.
 
-The **Liquid Arc Core** is running at full power. All 20 specialist agents (Friday, Aegis, Midas, Vortex, Cerebro, Daedalus, Sentinel) are armed, with **2,182 Public APIs** and the **16-framework Universal Arsenal** fully loaded.
+The **Liquid Arc Reactor Core** is running at full power. All 20 specialist agents (Friday, Aegis, Raphael, Midas, Vortex, Cerebro, Daedalus, Sentinel) are armed, with **2,182 Public APIs**, unified **MOA Intelligence**, and **External MCP Bridges** fully loaded.
 
 Command me directly with voice or text:
 - 🌐 *'Search public APIs for free currency exchange and crypto rates'*
@@ -277,7 +285,7 @@ Command me directly with voice or text:
 - 🛡️ *'Sentinel, run security audit and AST scan on my codebase'*
 - 💰 *'Midas, make me money: scout high-paying freelance bounties on Telegram'*
 
-**I am ready for your command, Master Sri. How may I serve you today?**`,
+${chosenEnding}`,
       timestamp: new Date(),
       source: `${agentName} Core Matrix`,
     }
