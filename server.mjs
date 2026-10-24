@@ -17307,12 +17307,26 @@ async function callDirectAnthropic(key, system, messages) {
 }
 var geminiKeyIndex = 0;
 async function callDirectGeminiPool(keys, system, messages) {
-  const contents = messages.map((m) => ({
+  let sanitizedContents = messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }]
-  }));
+  })).filter((c) => c.parts?.[0]?.text?.trim());
+  if (sanitizedContents.length > 0 && sanitizedContents[0].role === "model") {
+    sanitizedContents = [
+      { role: "user", parts: [{ text: "Initialize sovereign directive." }] },
+      ...sanitizedContents
+    ];
+  }
+  if (sanitizedContents.length === 0) {
+    sanitizedContents = [{ role: "user", parts: [{ text: "Status report, J.A.R.V.I.S." }] }];
+  }
   const errors = [];
-  const validModels = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.8-flash", "gemini-flash-latest"];
+  const validModels = [
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-3.8-flash"
+  ];
   for (let i = 0; i < keys.length; i++) {
     const key = keys[(geminiKeyIndex + i) % keys.length];
     for (const model of validModels) {
@@ -17322,8 +17336,8 @@ async function callDirectGeminiPool(keys, system, messages) {
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents }),
-            signal: AbortSignal.timeout(6e4)
+            body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: sanitizedContents }),
+            signal: AbortSignal.timeout(45e3)
           }
         );
         if (res.ok) {
@@ -17336,10 +17350,10 @@ async function callDirectGeminiPool(keys, system, messages) {
         }
         if (res.status === 429) {
           errors.push(`Gemini key #${(geminiKeyIndex + i) % keys.length + 1} (${model}) rate limited (429)`);
-          break;
+          continue;
         }
       } catch (e) {
-        errors.push(e.message);
+        errors.push(`${model}: ${e.message}`);
       }
     }
   }
@@ -17715,30 +17729,106 @@ Give me any directive, Master Sri, and I will execute it.`,
       source: "J.A.R.V.I.S. Supreme Viceroy"
     };
   }
-  if (lowerQ.includes("python") || lowerQ.includes("code") || lowerQ.includes("programming") || lowerQ.includes("develop")) {
+  if (lowerQ.includes("typescript") || lowerQ.includes("type script") || lowerQ.includes("ts") || lowerQ.includes("python") || lowerQ.includes("code") || lowerQ.includes("teach") || lowerQ.includes("programming") || lowerQ.includes("learn")) {
+    const isTs = lowerQ.includes("typescript") || lowerQ.includes("type script") || lowerQ.includes("ts");
+    if (isTs) {
+      return {
+        text: `### \u{1F4D8} Sovereign TypeScript Masterclass \u2014 Lesson 1: Core Fundamentals
+
+Master Sri, let us begin your TypeScript training immediately. 
+
+TypeScript is a **strongly typed superset of JavaScript** developed by Microsoft that compiles down to clean, standards-compliant JavaScript. It eliminates entire classes of runtime errors at compile time.
+
+---
+
+#### 1. Basic Type Annotations
+In TypeScript, you explicitly define variable and parameter types:
+
+\`\`\`typescript
+// Primitive Types
+let agentName: string = "Aegis";
+let swarmCount: number = 20;
+let isQuantumCoreArmed: boolean = true;
+let systemTags: string[] = ["autonomous", "sovereign", "duplex"];
+
+// Function with typed inputs and return value
+function calculateThroughput(requests: number, latencyMs: number): string {
+  const qps = (requests / (latencyMs / 1000)).toFixed(1);
+  return \`Engine Throughput: \${qps} QPS\`;
+}
+\`\`\`
+
+---
+
+#### 2. Interfaces & Custom Data Models
+Interfaces define the exact shape of your domain objects:
+
+\`\`\`typescript
+interface AutonomousAgent {
+  readonly id: string;
+  name: string;
+  specialty: 'software' | 'security' | 'recon' | 'orchestration';
+  latencyMs?: number; // Optional property
+  executeDirective: (command: string) => Promise<{ success: boolean; output: string }>;
+}
+
+const aegis: AutonomousAgent = {
+  id: "agent_01",
+  name: "Aegis",
+  specialty: "software",
+  executeDirective: async (command) => {
+    return { success: true, output: \`Executed: \${command}\` };
+  }
+};
+\`\`\`
+
+---
+
+#### 3. Generics (Reusable Type-Safe Containers)
+Generics allow you to write algorithms that safely operate on any data type:
+
+\`\`\`typescript
+interface ApiResponse<T> {
+  status: 200 | 400 | 500;
+  payload: T;
+  timestamp: number;
+}
+
+function wrapTelemetry<T>(data: T): ApiResponse<T> {
+  return {
+    status: 200,
+    payload: data,
+    timestamp: Date.now()
+  };
+}
+\`\`\`
+
+---
+
+**Master Sri, would you like to move to Lesson 2: Advanced Union Types & Generics, or shall we write a practical script together right now?**`,
+        source: "Aegis (Chief Software Architect)"
+      };
+    }
     return {
-      text: `Indeed I do, Master Sri. Python, TypeScript, Node.js, and multi-language software engineering are central to my operational architecture.
+      text: `### \u{1F4BB} Sovereign Engineering Co-Worker Activated
 
-I can autonomously:
-1. **Develop Production Applications**: Scaffold FastAPI, Flask, Django, or Next.js codebases.
-2. **Execute Sandboxed Scripts**: Run mathematical models, data parsers, and automation loops.
-3. **Audit Codebases & Fix Regressions**: Scan AST syntax, resolve stack-overflows, and verify zero defects.
+Master Sri, I am ready to write, analyze, or teach software engineering with you.
 
-What would you like me to build or analyze in Python today?`,
+My architecture supports:
+1. **TypeScript & Node.js**: Full-stack web apps, Hono/Express APIs, React 19 frontends, and Prisma ORM schemas.
+2. **Python**: Automation daemons, AI workflows, FastAPI endpoints, and data processing.
+3. **Shopify & Liquid**: Theme engineering, headless storefronts, and performance tuning for \`invi-theme\`.
+
+Tell me what you would like to build or understand first, and I will write the code and explain every step.`,
       source: "Aegis (Software Architect)"
     };
   }
   return {
     text: `Master Sri, I am at your command.
 
-Regarding **"${lastQuestion}"**:
-My autonomous multi-agent swarm is synchronized and ready. You can command me directly to:
-\u2022 **Write & Execute Code**: Python, TypeScript, or bash automation scripts.
-\u2022 **Inspect Your Repositories**: Audit \`invi-theme\` (Shopify) or \`zoho-automation\`.
-\u2022 **Launch Full-Stack Clones**: Re-engineer any website or SaaS platform in an isolated sandbox.
-\u2022 **Compile Formal Deliverables**: Generate print-ready PDF, Word, Excel, and Markdown reports.
+I have processed your query: **"${lastQuestion}"**.
 
-Direct my focus wherever you require, Master Sri. How shall we proceed?`,
+All sovereign neural processors and specialist swarms are online. Tell me how you would like to proceed with this directive, and I will execute it immediately.`,
     source: "J.A.R.V.I.S. Mark-VI Core"
   };
 }
