@@ -64,15 +64,22 @@ export class WorkspaceManager {
   /**
    * Write a file inside the project workspace
    */
-  public static writeFile(projectName: string, relativePath: string, content: string): { success: boolean; filePath: string; bytesWritten: number; bytes: number } {
+  public static writeFile(
+    projectName: string,
+    relativePath?: string,
+    content: string = ''
+  ): { success: boolean; filePath: string; bytesWritten: number; bytes: number } {
+    if (!projectName) projectName = 'default';
+    const targetPath = (relativePath && typeof relativePath === 'string' && relativePath.trim()) ? relativePath.trim() : 'index.html';
+
     const projectPath = this.getProjectPath(projectName);
     if (!existsSync(projectPath)) {
       mkdirSync(projectPath, { recursive: true });
     }
 
-    const fullFilePath = resolve(projectPath, relativePath);
+    const fullFilePath = resolve(projectPath, targetPath);
     if (!fullFilePath.startsWith(projectPath)) {
-      throw new Error(`Path traversal denied: '${relativePath}' escapes project root`);
+      throw new Error(`Path traversal denied: '${targetPath}' escapes project root`);
     }
 
     const parentDir = resolve(fullFilePath, '..');

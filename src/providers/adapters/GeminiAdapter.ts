@@ -42,40 +42,54 @@ export class GeminiAdapter implements ProviderAdapter {
       throw new Error('PROVIDER_NOT_CONFIGURED: GEMINI_API_KEY is not set');
     }
 
-    const rawModel = options?.model || 'gemini-3.8-flash';
-    // Google v1beta actively routes requests to gemini-3.8-flash
-    let model = 'gemini-3.8-flash';
-    if (rawModel && !rawModel.includes('pro') && !rawModel.includes('flash') && !rawModel.includes('2.5')) {
-      model = rawModel;
-    }
+    const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+    const selectedModel = options?.model && candidateModels.includes(options.model)
+      ? options.model
+      : 'gemini-3.5-flash-lite';
+
+    const modelsToTry = [selectedModel, ...candidateModels.filter(m => m !== selectedModel)];
     const contents = messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
     const startTime = Date.now();
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: options?.temperature ?? 0.7,
-            maxOutputTokens: options?.maxTokens ?? 2048,
-          },
-        }),
-        signal: AbortSignal.timeout(15000),
-      }
-    );
+    let res: Response | null = null;
+    let lastError = '';
 
-    if (res.status === 429) {
-      throw new Error('RATE_LIMITED: Gemini API quota exceeded');
+    for (const model of modelsToTry) {
+      try {
+        const attempt = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents,
+              generationConfig: {
+                temperature: options?.temperature ?? 0.7,
+                maxOutputTokens: options?.maxTokens ?? 2048,
+              },
+            }),
+            signal: AbortSignal.timeout(8000),
+          }
+        );
+
+        if (attempt.ok) {
+          res = attempt;
+          break;
+        } else if (attempt.status === 429) {
+          lastError = 'RATE_LIMITED: Gemini API quota exceeded';
+        } else {
+          lastError = `Gemini API error (${attempt.status}): ${await attempt.text()}`;
+        }
+      } catch (err: any) {
+        lastError = err?.message || 'Network error';
+      }
     }
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Gemini API error (${res.status}): ${errorText}`);
+
+    if (!res) {
+      throw new Error(lastError || 'Gemini API failed on all candidate models');
     }
 
     const data = await res.json();

@@ -6458,6 +6458,28 @@ const serveWorkspaceFile = (projectName: string, subPath?: string) => {
 app.get('/workspaces/preview/:projectName', async (c) => {
   try {
     const projectName = c.req.param('projectName');
+
+    // If browser requested a bare file like /api/workspaces/preview/styles.css without project prefix:
+    if (projectName.includes('.')) {
+      const workspacesDir = WorkspaceManager.WORKSPACES_ROOT || resolve(process.cwd(), 'workspaces');
+      if (existsSync(workspacesDir)) {
+        const entries = readdirSync(workspacesDir, { withFileTypes: true })
+          .filter(d => d.isDirectory())
+          .map(d => ({ name: d.name, time: statSync(join(workspacesDir, d.name)).mtimeMs }))
+          .sort((a, b) => b.time - a.time);
+        for (const entry of entries) {
+          const candidate = serveWorkspaceFile(entry.name, projectName);
+          if (candidate.status === 200 && candidate.content) {
+            return c.body(candidate.content, 200, {
+              'Content-Type': candidate.contentType || 'text/plain; charset=utf-8',
+              'X-Frame-Options': 'SAMEORIGIN',
+              'Cache-Control': 'no-cache',
+            });
+          }
+        }
+      }
+    }
+
     const res = serveWorkspaceFile(projectName);
     if (res.status === 404) {
       return c.html(`<div style="font-family:sans-serif;padding:2rem;background:#09090b;color:#fff;min-height:100vh"><h2>Project Index Not Found</h2><p>No <code>index.html</code> was generated in workspace <strong>${projectName}</strong>.</p></div>`, 404);
@@ -6465,7 +6487,24 @@ app.get('/workspaces/preview/:projectName', async (c) => {
     if (res.status !== 200 || !res.content) {
       return c.text(res.error || 'Preview error', (res.status || 500) as any);
     }
-    return c.body(res.content, 200, {
+
+    let bodyContent: Buffer | string = res.content;
+    if (res.contentType && res.contentType.includes('text/html')) {
+      let htmlStr = typeof res.content === 'string' ? res.content : res.content.toString('utf-8');
+      const baseTag = `<base href="/api/workspaces/preview/${projectName}/">`;
+      if (!htmlStr.includes('<base ')) {
+        if (htmlStr.includes('<head>')) {
+          htmlStr = htmlStr.replace('<head>', `<head>\n  ${baseTag}`);
+        } else if (htmlStr.includes('<html>')) {
+          htmlStr = htmlStr.replace('<html>', `<html>\n<head>${baseTag}</head>`);
+        } else {
+          htmlStr = `${baseTag}\n${htmlStr}`;
+        }
+      }
+      bodyContent = htmlStr;
+    }
+
+    return c.body(bodyContent, 200, {
       'Content-Type': res.contentType || 'text/html; charset=utf-8',
       'X-Frame-Options': 'SAMEORIGIN',
       'Cache-Control': 'no-cache',
@@ -6483,7 +6522,24 @@ app.get('/workspaces/preview/:projectName/:file{.*}', async (c) => {
     if (res.status !== 200 || !res.content) {
       return c.text(res.error || 'File not found', (res.status || 404) as any);
     }
-    return c.body(res.content, 200, {
+
+    let bodyContent: Buffer | string = res.content;
+    if (res.contentType && res.contentType.includes('text/html')) {
+      let htmlStr = typeof res.content === 'string' ? res.content : res.content.toString('utf-8');
+      const baseTag = `<base href="/api/workspaces/preview/${projectName}/">`;
+      if (!htmlStr.includes('<base ')) {
+        if (htmlStr.includes('<head>')) {
+          htmlStr = htmlStr.replace('<head>', `<head>\n  ${baseTag}`);
+        } else if (htmlStr.includes('<html>')) {
+          htmlStr = htmlStr.replace('<html>', `<html>\n<head>${baseTag}</head>`);
+        } else {
+          htmlStr = `${baseTag}\n${htmlStr}`;
+        }
+      }
+      bodyContent = htmlStr;
+    }
+
+    return c.body(bodyContent, 200, {
       'Content-Type': res.contentType || 'text/plain; charset=utf-8',
       'X-Frame-Options': 'SAMEORIGIN',
       'Cache-Control': 'no-cache',

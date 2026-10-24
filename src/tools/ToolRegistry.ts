@@ -652,9 +652,16 @@ export class ToolRegistry {
       requiresAuth: false,
       health: 'ONLINE',
       telemetry: this.createDefaultTelemetry(),
-      execute: async (args) => {
+      execute: async (args: any) => {
         try {
-          const res = WorkspaceManager.writeFile(args.projectName, args.path, args.content);
+          const projectName = args?.projectName || args?.project || 'default';
+          const filePath = args?.path || args?.filename || args?.filePath || args?.file || (args?.raw && String(args.raw).match(/"path"\s*:\s*"([^"]+)"/)?.[1]) || 'index.html';
+          let content = args?.content ?? args?.code ?? args?.text ?? '';
+          if (!content && args?.raw) {
+            const m = String(args.raw).match(/"content"\s*:\s*"([\s\S]*)"/);
+            if (m) content = m[1];
+          }
+          const res = WorkspaceManager.writeFile(projectName, filePath, content);
           return {
             tool: 'workspace_write_file',
             success: true,

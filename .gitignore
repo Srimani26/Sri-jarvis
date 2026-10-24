@@ -28,4 +28,5 @@ workers/**/dist/
 /data/
 !src/data/
 artifacts/
+.superpowers/
 
