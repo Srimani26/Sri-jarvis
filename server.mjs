@@ -4694,18 +4694,19 @@ var init_OpenSourceIntelligenceEngine = __esm({
           const { TaskStore: TaskStore2 } = await Promise.resolve().then(() => (init_TaskStore(), TaskStore_exports));
           await TaskStore2.emitEvent(
             taskId,
-            "TOOL_CALLED",
+            "TOOL_STARTED",
             `Assimilating open-source repository: ${projectName} (${repo})`,
             { repo, patterns }
           );
         }
         const { MemoryStore: MemoryStore2 } = await Promise.resolve().then(() => (init_MemoryStore(), MemoryStore_exports));
-        await MemoryStore2.recordMemory({
+        MemoryStore2.store({
           key: `open_source_repo_${Date.now()}`,
           content: `Assimilated Open-Source Project: ${projectName}. Repository: ${repo}. Capabilities: ${patterns.join("; ")}`,
-          scope: "SHARED",
+          scope: "PROJECT",
+          source: "OPEN_SOURCE_INTELLIGENCE_ENGINE",
+          confidence: 1,
           metadata: { repo, category: existing?.category || "autonomous_agents" }
-        }).catch(() => {
         });
         const spokenSummary = `Master Sri, repository "${projectName}" has been successfully audited and assimilated into our sovereign architecture. Key capabilities are now live across your specialist agent workforce.`;
         return {
@@ -8502,7 +8503,7 @@ ${params.actionDetails}
           }
         }
         const reportData = {
-          taskId: params.taskId,
+          taskId: params.taskId || params.taskNumber,
           taskNumber: params.taskNumber,
           title: params.title,
           agentId: params.agentId,
@@ -20386,13 +20387,13 @@ app.post("/agents/dispatch", requireAuth, async (c) => {
         durationMs: reactResult.totalDurationMs
       });
     }
-    await TaskStore.emitEvent(task.id, "DELEGATION_CREATED", `Delegation initialized: J.A.R.V.I.S. assigned task to ${agentSpec.name}`, {
+    await TaskStore.emitEvent(task.id, "AGENT_DELEGATED", `Delegation initialized: J.A.R.V.I.S. assigned task to ${agentSpec.name}`, {
       taskId: task.id,
       taskNumber: task.taskNumber,
       agentId: agentSpec.id,
       objective: taskObjective
     });
-    await TaskStore.emitEvent(task.id, "AGENT_ACCEPTED", `Specialist agent '${agentSpec.name}' accepted task '${task.taskNumber}'`, {
+    await TaskStore.emitEvent(task.id, "AGENT_STARTED", `Specialist agent '${agentSpec.name}' accepted task '${task.taskNumber}'`, {
       taskId: task.id,
       agentId: agentSpec.id,
       role: agentSpec.role
