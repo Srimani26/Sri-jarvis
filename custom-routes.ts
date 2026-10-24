@@ -5807,9 +5807,9 @@ app.post('/evolution/assimilate', async (c) => {
     const res = await OpenSourceIntelligenceEngine.assimilateRepository(repoUrl || frameworkName || 'OpenHands');
     return c.json({
       success: true,
-      report: res.report,
+      report: (res as any).report || res.spokenSummary,
       spokenSummary: res.spokenSummary,
-      assimilatedCapabilities: res.assimilatedCapabilities
+      assimilatedCapabilities: (res as any).assimilatedCapabilities || res.assimilatedPatterns
     });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
@@ -5823,9 +5823,9 @@ app.post('/open-source/assimilate', async (c) => {
     const res = await OpenSourceIntelligenceEngine.assimilateRepository(repoUrl || frameworkName || 'OpenHands');
     return c.json({
       success: true,
-      report: res.report,
+      report: (res as any).report || res.spokenSummary,
       spokenSummary: res.spokenSummary,
-      assimilatedCapabilities: res.assimilatedCapabilities
+      assimilatedCapabilities: (res as any).assimilatedCapabilities || res.assimilatedPatterns
     });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);

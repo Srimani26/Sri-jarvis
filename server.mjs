@@ -9161,7 +9161,7 @@ var init_RevenueHunterEngine = __esm({
         const opps = this.getOpportunities();
         const collectedINR = opps.filter((o) => o.status === "COLLECTED").reduce((sum, o) => sum + o.payoutINR, 0);
         const readyForPayoutINR = opps.filter((o) => o.status === "DELIVERABLE_READY" || o.status === "PAYOUT_READY").reduce((sum, o) => sum + o.payoutINR, 0);
-        const inProgressINR = opps.filter((o) => o.status === "APPLIED" || o.status === "IN_PROGRESS" || o.status === "PROPOSAL_GENERATED" || o.status === "SCOUTED" || o.status === "DISCOVERED").reduce((sum, o) => sum + o.payoutINR, 0);
+        const inProgressINR = opps.filter((o) => o.status === "APPLIED" || o.status === "IN_PROGRESS" || o.status === "PROPOSAL_GENERATED" || o.status === "OPEN").reduce((sum, o) => sum + o.payoutINR, 0);
         const totalPipelineINR = collectedINR + readyForPayoutINR + inProgressINR;
         return {
           collectedINR,
@@ -21336,9 +21336,9 @@ app.post("/evolution/assimilate", async (c) => {
     const res = await OpenSourceIntelligenceEngine2.assimilateRepository(repoUrl || frameworkName || "OpenHands");
     return c.json({
       success: true,
-      report: res.report,
+      report: res.report || res.spokenSummary,
       spokenSummary: res.spokenSummary,
-      assimilatedCapabilities: res.assimilatedCapabilities
+      assimilatedCapabilities: res.assimilatedCapabilities || res.assimilatedPatterns
     });
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -21351,9 +21351,9 @@ app.post("/open-source/assimilate", async (c) => {
     const res = await OpenSourceIntelligenceEngine2.assimilateRepository(repoUrl || frameworkName || "OpenHands");
     return c.json({
       success: true,
-      report: res.report,
+      report: res.report || res.spokenSummary,
       spokenSummary: res.spokenSummary,
-      assimilatedCapabilities: res.assimilatedCapabilities
+      assimilatedCapabilities: res.assimilatedCapabilities || res.assimilatedPatterns
     });
   } catch (err) {
     return c.json({ error: err.message }, 500);
@@ -22807,7 +22807,7 @@ app2.use("*", async (c, next) => {
   c.res.headers.set("Access-Control-Allow-Origin", "*");
   c.res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   c.res.headers.set("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  if (c.req.method === "OPTIONS") return c.text("", 204);
+  if (c.req.method === "OPTIONS") return c.body(null, 204);
   await next();
 });
 app2.get("/health", async (c) => {
