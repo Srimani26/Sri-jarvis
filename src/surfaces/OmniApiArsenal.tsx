@@ -279,7 +279,7 @@ export default function OmniApiArsenal() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredProjects.map((project: OpenSourceProject) => (
+            {filteredProjects.map((project: OpenSourceProjectDetail) => (
               <div
                 key={project.id}
                 className="p-5 rounded-2xl border border-slate-800/90 bg-slate-950/80 backdrop-blur-md hover:border-cyan-500/40 transition-all flex flex-col justify-between group space-y-4"
@@ -312,7 +312,7 @@ export default function OmniApiArsenal() {
                       Core Architecture & Patterns:
                     </span>
                     <ul className="text-xs text-slate-300 space-y-1 font-mono">
-                      {project.keyArchitecture.map((arch, i) => (
+                      {project.keyArchitecture.map((arch: string, i: number) => (
                         <li key={i} className="flex items-center gap-1.5">
                           <span className="text-cyan-400">▸</span> {arch}
                         </li>
@@ -326,14 +326,14 @@ export default function OmniApiArsenal() {
                       <CheckCircle2 className="w-3 h-3" /> Assimilated in J.A.R.V.I.S.:
                     </span>
                     <ul className="text-[11px] text-slate-400 space-y-0.5">
-                      {project.assimilatedCapabilities.map((cap, i) => (
+                      {project.assimilatedCapabilities.map((cap: string, i: number) => (
                         <li key={i}>• {cap}</li>
                       ))}
                     </ul>
                   </div>
 
                   {/* Assimilation Report (if active) */}
-                  {assimilationReport?.id === project.id && (
+                  {assimilationReport && assimilationReport.id === project.id && (
                     <div className="mt-3 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-xs font-mono text-emerald-300 space-y-1">
                       <div className="font-bold flex items-center gap-1.5">
                         <CheckCircle className="w-4 h-4 text-emerald-400" />
@@ -600,10 +600,10 @@ export default function OmniApiArsenal() {
               </div>
 
               {/* Benchmarks if present */}
-              {selectedProjectForFiles.benchmarks && selectedProjectForFiles.benchmarks.length > 0 && (
+              {selectedProjectForFiles.datasetAndBenchmarks && selectedProjectForFiles.datasetAndBenchmarks.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] font-mono text-slate-500 uppercase mr-1">Benchmarks:</span>
-                  {selectedProjectForFiles.benchmarks.map((bm, idx) => (
+                  {selectedProjectForFiles.datasetAndBenchmarks.map((bm: string, idx: number) => (
                     <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                       {bm}
                     </span>
@@ -639,7 +639,7 @@ export default function OmniApiArsenal() {
                       <span className="text-slate-500">— {selectedProjectForFiles.files[activeFileTab].description}</span>
                     </div>
                     <button
-                      onClick={() => copySnippet(selectedProjectForFiles.files[activeFileTab].code)}
+                      onClick={() => copySnippet(selectedProjectForFiles.files[activeFileTab].content)}
                       className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-cyan-400 flex items-center gap-1 text-[11px] transition-colors"
                     >
                       {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
@@ -647,7 +647,7 @@ export default function OmniApiArsenal() {
                     </button>
                   </div>
                   <pre className="p-4 rounded-xl bg-slate-900/90 border border-slate-800/80 font-mono text-xs text-slate-200 overflow-x-auto max-h-[380px] leading-relaxed select-text">
-                    {selectedProjectForFiles.files[activeFileTab].code}
+                    {selectedProjectForFiles.files[activeFileTab].content}
                   </pre>
                 </div>
               )}
@@ -663,7 +663,7 @@ export default function OmniApiArsenal() {
                   const proj = selectedProjectForFiles
                   setSelectedProjectForFiles(null)
                   setActiveAgentForRun(proj)
-                  setAgentMissionInput(proj.sampleDirectives?.[0] || `Run autonomous analysis using ${proj.name}`)
+                  setAgentMissionInput(proj.sampleCommand || `Run autonomous analysis using ${proj.name}`)
                 }}
                 className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs font-mono flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20"
               >
@@ -713,21 +713,18 @@ export default function OmniApiArsenal() {
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {/* Sample Directives */}
-              {activeAgentForRun.sampleDirectives && activeAgentForRun.sampleDirectives.length > 0 && (
+              {activeAgentForRun.sampleCommand && (
                 <div>
                   <span className="text-[10px] font-mono text-slate-500 uppercase block mb-1.5">
-                    Preconfigured Directives (Click to Load)
+                    Preconfigured Directive (Click to Load)
                   </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {activeAgentForRun.sampleDirectives.map((directive, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setAgentMissionInput(directive)}
-                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 text-[11px] font-mono text-slate-300 text-left transition-colors"
-                      >
-                        "{directive}"
-                      </button>
-                    ))}
+                    <button
+                      onClick={() => setAgentMissionInput(activeAgentForRun.sampleCommand)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 text-[11px] font-mono text-slate-300 text-left transition-colors"
+                    >
+                      "{activeAgentForRun.sampleCommand}"
+                    </button>
                   </div>
                 </div>
               )}

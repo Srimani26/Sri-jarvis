@@ -5,7 +5,7 @@
  */
 
 import { OpenSourceProject } from './types';
-export { OpenSourceProject };
+export type { OpenSourceProject };
 
 export class OpenSourceIntelligenceEngine {
   private static curatedCatalog: OpenSourceProject[] = [
@@ -397,7 +397,7 @@ export class OpenSourceIntelligenceEngine {
       const { TaskStore } = await import('../kernel/TaskStore');
       await TaskStore.emitEvent(
         taskId,
-        'TOOL_CALLED',
+        'TOOL_STARTED',
         `Assimilating open-source repository: ${projectName} (${repo})`,
         { repo, patterns }
       );
@@ -405,12 +405,14 @@ export class OpenSourceIntelligenceEngine {
 
     // Persist into memory store
     const { MemoryStore } = await import('../memory/MemoryStore');
-    await MemoryStore.recordMemory({
+    MemoryStore.store({
       key: `open_source_repo_${Date.now()}`,
       content: `Assimilated Open-Source Project: ${projectName}. Repository: ${repo}. Capabilities: ${patterns.join('; ')}`,
-      scope: 'SHARED',
+      scope: 'PROJECT',
+      source: 'OPEN_SOURCE_INTELLIGENCE_ENGINE',
+      confidence: 1.0,
       metadata: { repo, category: existing?.category || 'autonomous_agents' },
-    }).catch(() => {});
+    });
 
     const spokenSummary = `Master Sri, repository "${projectName}" has been successfully audited and assimilated into our sovereign architecture. Key capabilities are now live across your specialist agent workforce.`;
 

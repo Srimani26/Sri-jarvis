@@ -4525,14 +4525,14 @@ app.post('/agents/dispatch', requireAuth, async (c) => {
     }
 
     // 2. Emit delegation handshake events
-    await TaskStore.emitEvent(task.id, 'DELEGATION_CREATED', `Delegation initialized: J.A.R.V.I.S. assigned task to ${agentSpec.name}`, {
+    await TaskStore.emitEvent(task.id, 'AGENT_DELEGATED', `Delegation initialized: J.A.R.V.I.S. assigned task to ${agentSpec.name}`, {
       taskId: task.id,
       taskNumber: task.taskNumber,
       agentId: agentSpec.id,
       objective: taskObjective
     })
 
-    await TaskStore.emitEvent(task.id, 'AGENT_ACCEPTED', `Specialist agent '${agentSpec.name}' accepted task '${task.taskNumber}'`, {
+    await TaskStore.emitEvent(task.id, 'AGENT_STARTED', `Specialist agent '${agentSpec.name}' accepted task '${task.taskNumber}'`, {
       taskId: task.id,
       agentId: agentSpec.id,
       role: agentSpec.role

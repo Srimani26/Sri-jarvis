@@ -162,7 +162,10 @@ export interface ToolExecutionResult {
   success: boolean
   data: any
   spokenSummary: string
-  artifacts?: Array<{ name: string; type: string; content: string }>
+  artifacts?: Array<{ name: string; type: string; content: string; path?: string; previewUrl?: string }>
+  projectName?: string
+  previewUrl?: string
+  [key: string]: any
 }
 
 /**

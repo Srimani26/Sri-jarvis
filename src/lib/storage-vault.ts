@@ -58,7 +58,7 @@ export class StorageVaultEngine {
    * Automatically generate and store multi-format deliverable reports for finished tasks
    */
   public static async generateAndStoreTaskReport(params: {
-    taskId: string;
+    taskId?: string;
     taskNumber: string;
     title: string;
     agentId: string;
@@ -345,7 +345,7 @@ ${params.actionDetails}
 
     // Save meta.json
     const reportData: any = {
-      taskId: params.taskId,
+      taskId: params.taskId || params.taskNumber,
       taskNumber: params.taskNumber,
       title: params.title,
       agentId: params.agentId,

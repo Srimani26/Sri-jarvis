@@ -28,6 +28,10 @@
   ],
   "exclude": [
     "src/generated/*.ts",
+    "custom-routes.ts",
+    "server.tsx",
+    "server.mjs",
+    "scripts/**/*",
     "node_modules",
     "dist"
   ],
