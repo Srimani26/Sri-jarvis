@@ -495,14 +495,14 @@ export const RevenueHunter: React.FC = () => {
               </div>
 
               {/* Proposal & Deliverable Section */}
-              {selectedOpp.winningProposal && (
+              {(selectedOpp.proposalText || (selectedOpp as any).winningProposal) && (
                 <div className="space-y-1.5">
                   <h4 className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Autonomous Proposal Submitted on Your Behalf:</span>
                   </h4>
                   <pre className="text-[11px] text-slate-300 font-sans whitespace-pre-wrap bg-slate-950/80 p-3.5 rounded-lg border border-cyan-500/20 max-h-36 overflow-y-auto">
-                    {selectedOpp.winningProposal}
+                    {selectedOpp.proposalText || (selectedOpp as any).winningProposal}
                   </pre>
                 </div>
               )}

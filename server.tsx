@@ -34,7 +34,7 @@ app.use('*', async (c, next) => {
   c.res.headers.set('Access-Control-Allow-Origin', '*')
   c.res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
   c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-  if (c.req.method === 'OPTIONS') return c.text('', 204)
+  if (c.req.method === 'OPTIONS') return c.body(null, 204)
   await next()
 })
 

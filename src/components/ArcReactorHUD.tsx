@@ -55,45 +55,49 @@ export default function ArcReactorHUD({
             title="Arc Reactor Core: Click to trigger Voice Interaction"
           >
             {/* Ambient Blur Glow */}
-            <div className="absolute -inset-2 rounded-full bg-cyan-500/30 blur-md opacity-70 group-hover:opacity-100 transition-opacity" />
-            {/* Outer fluid glowing ring */}
-            <div className="absolute -inset-1 rounded-full p-[1.5px] bg-gradient-to-tr from-cyan-400 via-indigo-500 to-sky-400 animate-spin transition-all" style={{ animationDuration: '6s' }} />
+            <div className="absolute -inset-3 rounded-full bg-cyan-400/40 blur-lg opacity-80 group-hover:opacity-100 transition-opacity quantum-glow" />
+            {/* Outer fluid clockwise ring */}
+            <div className="absolute -inset-1.5 rounded-full p-[2px] bg-gradient-to-tr from-cyan-400 via-sky-300 to-indigo-500 arc-spin-cw transition-all shadow-[0_0_20px_rgba(6,182,212,0.6)]" />
+            {/* Counter-rotating inner ring */}
+            <div className="absolute -inset-0.5 rounded-full p-[1px] border border-dashed border-cyan-300/80 arc-spin-ccw" />
             {/* Glowing Core */}
             <div
               className={cn(
-                'relative w-12 h-12 rounded-full bg-gradient-to-tr border flex items-center justify-center transition-all duration-300 shadow-[0_0_25px_rgba(6,182,212,0.6)]',
+                'relative w-12 h-12 rounded-full bg-gradient-to-tr border flex items-center justify-center transition-all duration-300 shadow-[0_0_30px_rgba(6,182,212,0.8)]',
                 getStatusColor()
               )}
             >
-              <div className="w-6 h-6 rounded-full bg-slate-950 border border-cyan-400/80 flex items-center justify-center">
-                <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+              <div className="w-6 h-6 rounded-full bg-slate-950 border border-cyan-300 flex items-center justify-center shadow-inner">
+                <div className="w-2.5 h-2.5 rounded-full bg-cyan-300 animate-ping shadow-[0_0_10px_#22d3ee]" />
               </div>
             </div>
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-200 to-amber-200 uppercase font-mono">
-                J.A.R.V.I.S. MARK-V
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-200 to-indigo-300 uppercase font-mono drop-shadow-[0_0_12px_rgba(6,182,212,0.6)]">
+                J.A.R.V.I.S. MARK-VI // QUANTUM CORE
               </span>
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                SIRI DUPLEX
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                NEURAL DUPLEX
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
-                <Shield className="w-2.5 h-2.5 text-cyan-400" />
-                SOVEREIGN ALPHA
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">
+                <Shield className="w-2.5 h-2.5 text-emerald-400" />
+                20 SWARMS PRIMED
               </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse shadow-[0_0_10px_rgba(168,85,247,0.3)]">
                 <Zap className="w-2.5 h-2.5 text-purple-400" />
-                {evolutionStats.currentGeneration} // SELF-EVOLVED
+                AUTONOMOUS // ZERO-CANNED
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-slate-300 font-mono flex items-center gap-1.5 mt-1">
               <span>Sole Commander:</span>
-              <strong className="text-slate-200 font-semibold">Master Sri</strong>
-              <span className="text-slate-600">•</span>
-              <span className="text-cyan-400/90 font-mono truncate">{activeModel}</span>
+              <strong className="text-white font-semibold tracking-wide">Master Sri</strong>
+              <span className="text-cyan-600">•</span>
+              <span className="text-cyan-300 font-mono truncate px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-500/30">
+                Gemini 3 Flash Pro (Quantum Real-Time)
+              </span>
             </p>
           </div>
         </div>

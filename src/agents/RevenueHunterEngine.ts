@@ -132,7 +132,7 @@ export class RevenueHunterEngine {
       .reduce((sum, o) => sum + o.payoutINR, 0);
 
     const inProgressINR = opps
-      .filter(o => o.status === 'APPLIED' || o.status === 'IN_PROGRESS' || o.status === 'PROPOSAL_GENERATED' || o.status === 'SCOUTED' || o.status === 'DISCOVERED')
+      .filter(o => o.status === 'APPLIED' || o.status === 'IN_PROGRESS' || o.status === 'PROPOSAL_GENERATED' || o.status === 'OPEN')
       .reduce((sum, o) => sum + o.payoutINR, 0);
 
     const totalPipelineINR = collectedINR + readyForPayoutINR + inProgressINR;
