@@ -27,7 +27,7 @@
     "*.config.ts"
   ],
   "exclude": [
-    "src/generated/*.ts",
+    "src/generated/**/*",
     "custom-routes.ts",
     "server.tsx",
     "server.mjs",

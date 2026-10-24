@@ -33,7 +33,7 @@
       if ('caches' in window) {
         caches.keys().then((keys) => {
           keys.forEach((key) => {
-            if (key !== 'jarvis-mark6-quantum-v2') {
+            if (key !== 'jarvis-mark6-quantum-v3') {
               console.log('[CacheBuster] Deleting outdated cache:', key);
               caches.delete(key);
             }

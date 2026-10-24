@@ -1,29 +1,32 @@
 @import "tailwindcss";
 @import "shadcn/tailwind.css";
 
+@source "../index.html";
+@source "../src/**/*.{js,ts,jsx,tsx}";
+
 @custom-variant dark (&:is(.dark *));
 
 @plugin "tailwindcss-animate";
 
 :root {
-  --background: #030712;
-  --foreground: #f8fafc;
-  --card: rgba(10, 15, 29, 0.75);
+  --background: #02040a;
+  --foreground: #f1f5f9;
+  --card: rgba(6, 12, 28, 0.8);
   --card-foreground: #f8fafc;
-  --popover: rgba(8, 14, 26, 0.95);
+  --popover: rgba(5, 10, 24, 0.96);
   --popover-foreground: #f8fafc;
-  --primary: #06b6d4;
+  --primary: #00f0ff;
   --primary-foreground: #020617;
-  --secondary: #1e1b4b;
+  --secondary: #131131;
   --secondary-foreground: #e0e7ff;
-  --muted: #0f172a;
+  --muted: #0b1120;
   --muted-foreground: #94a3b8;
-  --accent: #4f46e5;
+  --accent: #6366f1;
   --accent-foreground: #f8fafc;
-  --destructive: #ef4444;
-  --border: rgba(56, 189, 248, 0.18);
-  --input: rgba(15, 23, 42, 0.8);
-  --ring: #06b6d4;
+  --destructive: #f43f5e;
+  --border: rgba(0, 240, 255, 0.22);
+  --input: rgba(11, 18, 38, 0.85);
+  --ring: #00f0ff;
   --radius: 0.85rem;
 }
 
@@ -63,12 +66,13 @@
   
   html, body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-    background-color: #030712;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #02040a;
     background-image: 
-      radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.04) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, rgba(0, 240, 255, 0.12) 0px, transparent 45%),
+      radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.12) 0px, transparent 45%),
+      radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.06) 0px, transparent 50%),
+      radial-gradient(at 50% 30%, rgba(30, 58, 138, 0.08) 0px, transparent 60%);
     background-attachment: fixed;
     min-height: 100vh;
     overflow-x: hidden;
@@ -81,47 +85,47 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: rgba(3, 7, 18, 0.6);
+    background: rgba(2, 4, 10, 0.8);
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(56, 189, 248, 0.25);
+    background: rgba(0, 240, 255, 0.28);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(6, 182, 212, 0.5);
+    background: rgba(0, 240, 255, 0.6);
   }
 }
 
 @layer utilities {
   /* Quantum Holographic Glows */
   .jarvis-glow {
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.2), 0 0 40px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 24px rgba(0, 240, 255, 0.25), 0 0 48px rgba(99, 102, 241, 0.12);
   }
   
   .jarvis-glow-strong {
-    box-shadow: 0 0 25px rgba(6, 182, 212, 0.35),
-                0 0 50px rgba(14, 165, 233, 0.15),
-                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.4),
+                0 0 60px rgba(14, 165, 233, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
   
   .jarvis-border {
-    border: 1px solid rgba(6, 182, 212, 0.25);
+    border: 1px solid rgba(0, 240, 255, 0.28);
   }
   
   .jarvis-border-subtle {
-    border: 1px solid rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.14);
   }
   
   .jarvis-text-glow {
-    text-shadow: 0 0 12px rgba(6, 182, 212, 0.65), 0 0 24px rgba(99, 102, 241, 0.35);
+    text-shadow: 0 0 14px rgba(0, 240, 255, 0.7), 0 0 28px rgba(99, 102, 241, 0.4);
   }
   
   .jarvis-card {
-    background: rgba(8, 14, 26, 0.78);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(56, 189, 248, 0.18);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    background: rgba(6, 12, 28, 0.82);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
   
   .jarvis-card-hover {
@@ -129,17 +133,17 @@
   }
   
   .jarvis-card-hover:hover {
-    border-color: rgba(6, 182, 212, 0.45);
-    box-shadow: 0 12px 40px 0 rgba(6, 182, 212, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    border-color: rgba(0, 240, 255, 0.5);
+    box-shadow: 0 12px 40px 0 rgba(0, 240, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.15);
     transform: translateY(-2px);
   }
 
   .jarvis-gradient {
-    background: linear-gradient(135deg, rgba(8, 14, 26, 0.95), rgba(15, 23, 42, 0.85));
+    background: linear-gradient(135deg, rgba(6, 12, 28, 0.95), rgba(15, 23, 42, 0.85));
   }
   
   .jarvis-gradient-border {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(99, 102, 241, 0.1));
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(99, 102, 241, 0.15));
   }
 
   /* Safe area utility for mobile home bars & notches */

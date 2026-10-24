@@ -1,7 +1,7 @@
 // Sovereign J.A.R.V.I.S. Mark-VI PWA Service Worker (NETWORK-FIRST STRATEGY)
 // Guarantees mobile and desktop always get the latest deployed Mark-VI bundle immediately.
 
-const CACHE_NAME = 'jarvis-mark6-quantum-v2'
+const CACHE_NAME = 'jarvis-mark6-quantum-v3'
 
 self.addEventListener('install', (e) => {
   self.skipWaiting()
