@@ -11,6 +11,7 @@ import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
 import ArcReactorHUD from '@/components/ArcReactorHUD'
 import TaskProgressCard, { AgentTask } from '@/components/TaskProgressCard'
+import { ConversationOS } from '@/voice/ConversationOS'
 
 interface FlightDeal {
   airline: string
@@ -273,21 +274,13 @@ export default function AIChat() {
     return {
       id: generateId(),
       role: 'assistant',
-      content: `${timeStr}, Master Sri. I am **${agentName}** — your sovereign autonomous multi-agent operating system.
+      content: `${timeStr}, Master Sri. I am **${agentName}** — your sovereign autonomous operating system.
 
-The **Liquid Arc Reactor Core** is running at full power. All 20 specialist agents (Friday, Aegis, Raphael, Midas, Vortex, Cerebro, Daedalus, Sentinel) are armed, with **2,182 Public APIs**, unified **MOA Intelligence**, and **External MCP Bridges** fully loaded.
-
-Command me directly with voice or text:
-- 🌐 *'Search public APIs for free currency exchange and crypto rates'*
-- 🎧 *'Analyze Flipkart and Amazon for the best TWS earbuds under 2000'*
-- 🏗️ *'Swarm, build a full-stack SaaS project end-to-end'*
-- ⚡ *'Execute parallel multitasking: Daedalus design API schema, Friday implement auth routes'*
-- 🛡️ *'Sentinel, run security audit and AST scan on my codebase'*
-- 💰 *'Midas, make me money: scout high-paying freelance bounties on Telegram'*
+The **Mark-VI Quantum Arc Reactor Core** is operating at 100% nominal capacity. All 20 specialist swarms are armed, with live neural duplex channels and real-time tool execution active.
 
 ${chosenEnding}`,
       timestamp: new Date(),
-      source: `${agentName} Core Matrix`,
+      source: `${agentName} Quantum Matrix`,
     }
   }, [selectedAgent])
 
@@ -635,10 +628,21 @@ ${chosenEnding}`,
           if (!isSendingSpeechRef.current && normalized.trim()) {
             isSendingSpeechRef.current = true
             setIsListening(false)
-            sendMessageRef.current(normalized)
+
+            const directive = ConversationOS.parseVoiceDirective(normalized)
+            if (directive.action === 'NAVIGATE' && directive.surface) {
+              window.dispatchEvent(new CustomEvent('jarvis-navigate', { detail: { surface: directive.surface } }))
+              speakJarvisResponse(directive.reply || `Navigating to ${directive.surface}, sir.`, 'jarvis')
+            } else if (directive.action === 'CREATE_TASK' && directive.title) {
+              window.dispatchEvent(new CustomEvent('jarvis-create-task', { detail: { title: directive.title } }))
+              speakJarvisResponse(`Creating and dispatching task for: ${directive.title}, sir.`, 'jarvis')
+            } else {
+              sendMessageRef.current(normalized)
+            }
+
             setTimeout(() => { isSendingSpeechRef.current = false }, 1200)
           }
-        }, 3200)
+        }, 3000)
       }
     }
 
@@ -875,13 +879,14 @@ ${chosenEnding}`,
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-cyan-300 rounded-xl px-2.5 py-1 text-[11px] font-mono focus:outline-none"
+                className="bg-slate-900/90 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 rounded-xl px-2.5 py-1 text-[11px] font-mono focus:outline-none shadow-[0_0_10px_rgba(6,182,212,0.2)]"
               >
-                <option value="auto">Auto (Argon MoA Cloud 70B+)</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Argon 2M Tier)</option>
-                <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Opus Tier)</option>
+                <option value="auto">⚡ Auto (Gemini 3 Flash • Quantum Active)</option>
+                <option value="gemini-3.5-flash">Gemini 3.5 Flash (Ultra-Low Latency)</option>
+                <option value="gemini-3-flash-preview">Gemini 3 Flash Pro (Tactical)</option>
+                <option value="deepseek-r1">DeepSeek R1 (Deep Reasoning)</option>
                 <option value="groq-llama-3.3-70b">Groq Llama 3.3 70B (220ms LPU)</option>
-                <option value="deepseek-r1">DeepSeek R1 (Reasoning Cloud)</option>
+                <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Opus Matrix)</option>
               </select>
 
               {/* Live Temporal Clock (Zero Cutoff Verification) */}
@@ -1019,26 +1024,27 @@ ${chosenEnding}`,
                 {/* Message Bubble Body */}
                 <div
                   className={cn(
-                    'rounded-2xl p-4 border text-xs leading-relaxed space-y-3 max-w-[90%] shadow-lg',
+                    'rounded-2xl p-4 md:p-5 border text-xs leading-relaxed space-y-3 max-w-[92%] backdrop-blur-xl transition-all',
                     msg.role === 'user'
-                      ? 'bg-cyan-500/10 border-cyan-500/30 text-white'
+                      ? 'bg-gradient-to-br from-cyan-500/20 via-blue-600/15 to-indigo-600/20 border-cyan-400/50 text-white shadow-[0_0_25px_rgba(6,182,212,0.2)]'
                       : msg.error
-                      ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-                      : 'bg-slate-900/80 border-slate-800/90 text-slate-200'
+                      ? 'bg-rose-950/60 border-rose-500/50 text-rose-200 shadow-[0_0_25px_rgba(244,63,94,0.2)]'
+                      : 'bg-gradient-to-br from-slate-900/95 via-slate-950/98 to-slate-950 border-cyan-500/30 text-slate-100 shadow-[0_0_35px_rgba(0,0,0,0.7)]'
                   )}
                 >
-                  <div className="flex items-center justify-between gap-4 pb-1 border-b border-slate-800/60 text-[10px] font-mono text-slate-400">
-                    <span className="font-bold text-cyan-400 uppercase">
-                      {msg.role === 'user' ? 'Master Sri' : 'J.A.R.V.I.S. Core'}
+                  <div className="flex items-center justify-between gap-4 pb-2 border-b border-cyan-500/15 text-[10px] font-mono text-slate-400">
+                    <span className="font-black text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className={cn("w-1.5 h-1.5 rounded-full", msg.role === 'user' ? "bg-cyan-400" : "bg-emerald-400 animate-pulse")} />
+                      {msg.role === 'user' ? 'Master Sri (Commander)' : (msg.source || 'J.A.R.V.I.S. Mark-VI Core')}
                     </span>
                     <div className="flex items-center gap-2">
-                      <span>{formatTime(msg.timestamp)}</span>
+                      <span className="text-slate-500">{formatTime(msg.timestamp)}</span>
                       <button
                         onClick={() => copyMessage(msg.id, msg.content)}
-                        className="text-slate-500 hover:text-cyan-300 transition-colors"
+                        className="p-1 rounded text-slate-500 hover:text-cyan-300 transition-colors"
                         title="Copy message"
                       >
-                        {copiedMessageId === msg.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiedMessageId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   </div>
@@ -1217,11 +1223,11 @@ ${chosenEnding}`,
                 className="w-full bg-transparent px-3 py-1 text-xs text-white placeholder-slate-500 focus:outline-none resize-none font-mono"
               />
 
-              <div className="flex items-center justify-between pt-1.5 px-2 border-t border-slate-800/80 gap-2">
-                <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                  <span>COMMANDER: <strong className="text-slate-300">MASTER SRI</strong></span>
-                  <span className="hidden sm:inline">•</span>
-                  <span className="hidden sm:inline">ROUTING: <strong className="text-cyan-400">CLOUD ONLY (70B+)</strong></span>
+              <div className="flex items-center justify-between pt-2 px-2 border-t border-cyan-500/15 gap-2">
+                <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                  <span>COMMANDER: <strong className="text-cyan-300 font-bold">MASTER SRI</strong></span>
+                  <span className="hidden sm:inline text-slate-600">•</span>
+                  <span className="hidden sm:inline text-slate-400">QUANTUM ENGINE: <strong className="text-cyan-400 font-bold">GEMINI 3 FLASH // REAL-TIME</strong></span>
                 </div>
 
                 <div className="flex items-center gap-2">

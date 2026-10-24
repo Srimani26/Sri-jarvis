@@ -16,7 +16,7 @@ export class VoiceEngine {
     language: 'en-GB',
     bargeInEnabled: true,
     voicePersona: 'British Sophisticated Butler',
-    silenceThresholdMs: 800,
+    silenceThresholdMs: 3000,
   };
   private isSpeaking = false;
 

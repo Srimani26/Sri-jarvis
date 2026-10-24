@@ -241,6 +241,52 @@ Rules for Spoken Output:
     return `At your command, Sir. Initializing mission parameters now.`;
   }
 
+  public static generateDynamicGreeting(commanderName: string = 'Master Sri'): string {
+    const hour = new Date().getHours();
+    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+    const greetings = [
+      `Good ${timeOfDay}, ${commanderName}. All sovereign systems and ten agent cores are synchronized and standing by.`,
+      `Welcome back, ${commanderName}. Arc Reactor is stable at peak capacity. All swarms standing by for your directives.`,
+      `Systems primed, ${commanderName}. Tactical swarms are online and ready to execute your commands.`,
+      `Good ${timeOfDay}, Commander. All agent swarms are active, security perimeters are armed, and we are ready for today's mission.`,
+      `Greetings ${commanderName}. Ten autonomous specialists are standing by. Name your objective and we will execute.`,
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
+  }
+
+  public static parseVoiceDirective(transcript: string): { action: 'NAVIGATE' | 'CREATE_TASK' | 'CHAT'; surface?: string; title?: string; reply?: string } {
+    const clean = transcript.toLowerCase().trim();
+    if (/(?:open|go to|show|switch to)\s+(?:the\s+)?task(?:\s+page|\s+pipeline|\s+hub)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'tasks', reply: 'Opening Task Pipeline, sir.' };
+    }
+    if (/(?:open|go to|show|switch to)\s+(?:the\s+)?code(?:\s*base|\s*lab|\s*editor)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'codlab', reply: 'Accessing Sovereign Code Lab, sir.' };
+    }
+    if (/(?:open|go to|show|switch to)\s+(?:the\s+)?(?:money|revenue|freelance|earnings)(?:\s+making|\s+hunter|\s+space)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'revenue', reply: 'Routing to Midas Revenue Space, sir.' };
+    }
+    if (/(?:open|go to|show|switch to)\s+(?:the\s+)?(?:self\s*healing|defense|diagnostics|repair)(?:\s+chamber|\s+page)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'cyber', reply: 'Engaging Cyber Defense and Self-Healing Chamber, sir.' };
+    }
+    if (/(?:open|go to|show|switch to)\s+(?:the\s+)?(?:agent|fleet|swarm)(?:\s+space|\s+ecosystem|\s+page)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'swarms', reply: 'Deploying Agent Fleet Roster, sir.' };
+    }
+    if (/(?:open|go to|show|switch to)\s+(?:the\s+)?(?:chat|ai\s+chat|console)(?:\s+page)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'chat', reply: 'Opening AI Chat Console, sir.' };
+    }
+    if (/(?:open|go to|show|switch to|return to)\s+(?:the\s+)?(?:home|command\s+center|hud)(?:\s+page)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'command', reply: 'Returning to Sovereign Command Center, sir.' };
+    }
+    if (/(?:open|go to|show|switch to)\s+(?:the\s+)?(?:storage|vault|files|documents)(?:\s+page|\s+vault)?/i.test(clean)) {
+      return { action: 'NAVIGATE', surface: 'storage', reply: 'Opening Storage Vault and Documents, sir.' };
+    }
+    if (/(?:create|dispatch|start|launch)\s+task\s+(?:for\s+)?(.+)/i.test(clean)) {
+      const match = clean.match(/(?:create|dispatch|start|launch)\s+task\s+(?:for\s+)?(.+)/i);
+      return { action: 'CREATE_TASK', title: match ? match[1].trim() : 'New Autonomous Directive', reply: `Dispatching autonomous task, sir.` };
+    }
+    return { action: 'CHAT' };
+  }
+
   public static getHistory(): Utterance[] {
     return [...this.history];
   }
@@ -254,3 +300,4 @@ Rules for Spoken Output:
     }
   }
 }
+

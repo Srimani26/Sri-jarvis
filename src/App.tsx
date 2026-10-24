@@ -34,6 +34,7 @@ import {
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } from '@/lib/api'
 import { playJarvisChime, playNeuralSpeech, primeAudioPlayback } from '@/lib/sound'
+import { ConversationOS } from './voice/ConversationOS'
 import { MobileThermalShield, type ThermalState } from './lib/thermal-shield'
 
 const primaryNav = [
@@ -247,6 +248,49 @@ export default function App() {
     }
     window.addEventListener('open-jarvis-voice', handler)
     return () => window.removeEventListener('open-jarvis-voice', handler)
+  }, [])
+
+  // Dynamic Startup Greeting & Hands-Free Audio Announcement
+  const [hasGreeted, setHasGreeted] = useState(false)
+  useEffect(() => {
+    if (token && !hasGreeted) {
+      setHasGreeted(true)
+      const greeting = ConversationOS.generateDynamicGreeting(username || 'Master Sri')
+      const timer = setTimeout(() => {
+        playJarvisChime('wake')
+        playNeuralSpeech(greeting, 'en-GB', undefined, undefined, undefined, 'jarvis')
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [token, hasGreeted, username])
+
+  // Global Hands-Free Voice Navigation & Task Dispatcher
+  useEffect(() => {
+    const navHandler = (e: any) => {
+      const surface = e.detail?.surface
+      if (surface) {
+        setActiveTab(surface)
+        playJarvisChime('execute')
+      }
+    }
+    const taskHandler = (e: any) => {
+      const title = e.detail?.title
+      if (title) {
+        setActiveTab('tasks')
+        playJarvisChime('execute')
+        fetch('/api/tasks/dispatch', {
+          method: 'POST',
+          headers: jsonAuthHeaders(),
+          body: JSON.stringify({ title, agentId: 'friday' })
+        }).catch(() => {})
+      }
+    }
+    window.addEventListener('jarvis-navigate', navHandler)
+    window.addEventListener('jarvis-create-task', taskHandler)
+    return () => {
+      window.removeEventListener('jarvis-navigate', navHandler)
+      window.removeEventListener('jarvis-create-task', taskHandler)
+    }
   }, [])
 
   // Mobile Thermal & Battery Shield state

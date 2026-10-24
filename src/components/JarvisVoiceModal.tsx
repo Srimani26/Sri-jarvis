@@ -3194,7 +3194,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       let hasSpoken = false
       let silenceStartTime: number | null = null
       const SILENCE_THRESHOLD_RMS = 0.005 // Lowered so ordinary room voice triggers VAD
-      const SILENCE_DURATION_MS = 1400
+      const SILENCE_DURATION_MS = 3000
 
       let rmsInterval: any = null
       try {
@@ -3374,7 +3374,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
           if (cleaned.length > 0) {
-            const timeoutDelay = isFinal ? 1800 : 2500
+            const timeoutDelay = 3000
             silenceTimerRef.current = setTimeout(() => {
               const captured = transcriptRef.current.trim()
               if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
