@@ -58,6 +58,7 @@ import { AgentRegistry } from './src/agents/AgentRegistry'
 import { WorkspaceManager } from './src/workspace/WorkspaceManager'
 import { AutonomousReActEngine } from './src/agents/AutonomousReActEngine'
 import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
+import { HermesDocumentService } from './src/services/HermesDocumentService'
 import { ECommerceReconEngine } from './src/services/ECommerceReconEngine'
 import { RevenueHunterEngine } from './src/agents/RevenueHunterEngine'
 import { DailyBriefingEngine } from './src/agents/DailyBriefingEngine'
@@ -6638,6 +6639,60 @@ app.post('/revenue/payout-settings', requireAuth, async (c) => {
     return c.json({ ok: false, error: err.message }, 500);
   }
 });
+
+// GET & POST /api/revenue/scan — Midas Revenue Scanner
+app.all('/revenue/scan', requireAuth, async (c) => {
+  try {
+    let opps = RevenueHunterEngine.getOpportunities();
+    if (opps.length === 0) {
+      const liveRes = await RevenueHunterEngine.fetchLiveRemoteJobs();
+      if (liveRes.success && liveRes.jobs.length > 0) {
+        opps = liveRes.jobs;
+      }
+    }
+    const ledger = RevenueHunterEngine.getLedgerMetrics();
+    return c.json({ ok: true, opportunities: opps, contracts: opps, ledger, totalRevenueUSD: ledger.totalPipelineUSD });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/docs/generate — Hermes Document Studio (PDF & DOC Compiler)
+app.post('/docs/generate', requireAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const result = await HermesDocumentService.generateDocument({
+      title: body.title || 'Executive Dossier',
+      format: body.format || 'pdf',
+      content: body.content || 'Sovereign J.A.R.V.I.S. Artifact',
+      author: body.author || 'Hermes Document Studio',
+      subtitle: body.subtitle
+    });
+    return c.json({ ok: true, ...result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// GET /api/docs/download/:filename — Download compiled PDF/DOC files
+app.get('/docs/download/:filename', async (c) => {
+  try {
+    const filename = c.req.param('filename');
+    const safePath = join(process.cwd(), 'artifacts', 'storage', filename.replace(/[^a-zA-Z0-9_.-]/g, ''));
+    if (!existsSync(safePath)) {
+      return c.json({ error: 'File not found' }, 404);
+    }
+    const fileBytes = readFileSync(safePath);
+    const contentType = filename.endsWith('.pdf') ? 'application/pdf' : filename.endsWith('.doc') ? 'application/msword' : 'application/octet-stream';
+    return c.body(fileBytes, 200, {
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${filename}"`
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 
 // ═══════════════════════════════════════════════════════════════════
 // DAILY EXECUTIVE INTELLIGENCE BRIEFING & MESSAGE APPROVALS

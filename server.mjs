@@ -382,7 +382,7 @@ var init_ExecutionKernel = __esm({
        * Verify task outputs
        */
       static verifyResult(checks) {
-        return new Promise(async (resolve14) => {
+        return new Promise(async (resolve15) => {
           const checksRun = [];
           const failures = [];
           for (const check of checks) {
@@ -394,7 +394,7 @@ var init_ExecutionKernel = __esm({
               failures.push(`${check.name} threw: ${err.message}`);
             }
           }
-          resolve14({
+          resolve15({
             passed: failures.length === 0,
             checksRun,
             failures,
@@ -534,7 +534,7 @@ var init_WorkspaceManager = __esm({
           }
         }
         const start = Date.now();
-        return new Promise((resolve14) => {
+        return new Promise((resolve15) => {
           const proc = spawn(command, {
             cwd: projectPath,
             shell: true,
@@ -568,7 +568,7 @@ Command timed out after ${timeoutMs}ms`;
           proc.on("close", (code) => {
             if (timer) clearTimeout(timer);
             const durationMs = Date.now() - start;
-            resolve14({
+            resolve15({
               success: code === 0,
               stdout: stdout.trim(),
               stderr: stderr.trim(),
@@ -579,7 +579,7 @@ Command timed out after ${timeoutMs}ms`;
           proc.on("error", (err) => {
             if (timer) clearTimeout(timer);
             const durationMs = Date.now() - start;
-            resolve14({
+            resolve15({
               success: false,
               stdout: stdout.trim(),
               stderr: `${stderr}
@@ -9452,26 +9452,26 @@ var EnterpriseTreasuryEngine_exports = {};
 __export(EnterpriseTreasuryEngine_exports, {
   EnterpriseTreasuryEngine: () => EnterpriseTreasuryEngine
 });
-import { existsSync as existsSync13, mkdirSync as mkdirSync10, writeFileSync as writeFileSync11, readFileSync as readFileSync10 } from "fs";
-import { resolve as resolve12, join as join12 } from "path";
+import { existsSync as existsSync14, mkdirSync as mkdirSync11, writeFileSync as writeFileSync12, readFileSync as readFileSync10 } from "fs";
+import { resolve as resolve13, join as join13 } from "path";
 var EnterpriseTreasuryEngine;
 var init_EnterpriseTreasuryEngine = __esm({
   "src/treasury/EnterpriseTreasuryEngine.ts"() {
     "use strict";
     EnterpriseTreasuryEngine = class _EnterpriseTreasuryEngine {
-      static dataDir = resolve12(process.cwd(), "data");
-      static invoicesFile = join12(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
-      static contractsFile = join12(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
+      static dataDir = resolve13(process.cwd(), "data");
+      static invoicesFile = join13(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
+      static contractsFile = join13(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
       static USD_TO_INR = 84;
       static ensureStorage() {
-        if (!existsSync13(this.dataDir)) {
-          mkdirSync10(this.dataDir, { recursive: true });
+        if (!existsSync14(this.dataDir)) {
+          mkdirSync11(this.dataDir, { recursive: true });
         }
-        if (!existsSync13(this.invoicesFile)) {
-          writeFileSync11(this.invoicesFile, JSON.stringify([], null, 2), "utf-8");
+        if (!existsSync14(this.invoicesFile)) {
+          writeFileSync12(this.invoicesFile, JSON.stringify([], null, 2), "utf-8");
         }
-        if (!existsSync13(this.contractsFile)) {
-          writeFileSync11(this.contractsFile, JSON.stringify([], null, 2), "utf-8");
+        if (!existsSync14(this.contractsFile)) {
+          writeFileSync12(this.contractsFile, JSON.stringify([], null, 2), "utf-8");
         }
       }
       /**
@@ -9548,7 +9548,7 @@ var init_EnterpriseTreasuryEngine = __esm({
         invoice.printableHtml = this.generateInvoiceHtml(invoice);
         const allInvoices = this.getInvoices();
         allInvoices.unshift(invoice);
-        writeFileSync11(this.invoicesFile, JSON.stringify(allInvoices, null, 2), "utf-8");
+        writeFileSync12(this.invoicesFile, JSON.stringify(allInvoices, null, 2), "utf-8");
         return invoice;
       }
       /**
@@ -9612,7 +9612,7 @@ var init_EnterpriseTreasuryEngine = __esm({
         sow.contractHtml = this.generateSOWHtml(sow);
         const allContracts = this.getContracts();
         allContracts.unshift(sow);
-        writeFileSync11(this.contractsFile, JSON.stringify(allContracts, null, 2), "utf-8");
+        writeFileSync12(this.contractsFile, JSON.stringify(allContracts, null, 2), "utf-8");
         return sow;
       }
       /**
@@ -9861,8 +9861,8 @@ import "dotenv/config";
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync as existsSync15, readFileSync as readFileSync12 } from "node:fs";
-import { join as join14 } from "node:path";
+import { existsSync as existsSync16, readFileSync as readFileSync12 } from "node:fs";
+import { join as join15 } from "node:path";
 
 // custom-routes.ts
 import "dotenv/config";
@@ -11620,7 +11620,7 @@ var AgentRuntime = class {
       }
     };
     try {
-      outputResult = await new Promise(async (resolve14, reject) => {
+      outputResult = await new Promise(async (resolve15, reject) => {
         const timer = setTimeout(() => {
           reject(new Error(`Agent '${agentId}' exceeded timeout ceiling of ${agent.timeoutMs}ms`));
         }, agent.timeoutMs);
@@ -11647,7 +11647,7 @@ var AgentRuntime = class {
             }
           }
           clearTimeout(timer);
-          resolve14({
+          resolve15({
             summary: `Objective successfully completed by ${agent.name}`,
             objective,
             agentId,
@@ -15412,8 +15412,8 @@ var DisasterRecoveryManager = class {
 };
 
 // custom-routes.ts
-import { readFileSync as readFileSync11, writeFileSync as writeFileSync12, existsSync as existsSync14, chmodSync as chmodSync2, mkdirSync as mkdirSync11, readdirSync as readdirSync3, statSync as statSync3 } from "fs";
-import { join as join13, resolve as resolve13, extname } from "path";
+import { readFileSync as readFileSync11, writeFileSync as writeFileSync13, existsSync as existsSync15, chmodSync as chmodSync2, mkdirSync as mkdirSync12, readdirSync as readdirSync3, statSync as statSync4 } from "fs";
+import { join as join14, resolve as resolve14, extname } from "path";
 import { randomBytes as randomBytes2 } from "crypto";
 
 // src/security/SovereignGate.ts
@@ -16366,6 +16366,186 @@ var PersistentTaskQueue = class {
   }
 };
 
+// src/services/HermesDocumentService.ts
+import { existsSync as existsSync12, mkdirSync as mkdirSync9, writeFileSync as writeFileSync10, statSync as statSync3 } from "fs";
+import { resolve as resolve11, join as join11 } from "path";
+var HermesDocumentService = class {
+  static storageDir = resolve11(process.cwd(), "artifacts", "storage");
+  static ensureStorageDir() {
+    if (!existsSync12(this.storageDir)) {
+      mkdirSync9(this.storageDir, { recursive: true });
+    }
+  }
+  /**
+   * Compiles an executive document in PDF, DOC, or Markdown
+   */
+  static async generateDocument(options) {
+    this.ensureStorageDir();
+    const timestamp = Date.now();
+    const cleanTitle = (options.title || "Executive_Document").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+    const author = options.author || "H.E.R.M.E.S. Document Studio // J.A.R.V.I.S.";
+    const dateStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    let filename = "";
+    let fileBuffer;
+    if (options.format === "doc") {
+      filename = `${cleanTitle}_${timestamp}.doc`;
+      const docHtml = `
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset="utf-8">
+  <title>${options.title}</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+  <style>
+    body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.6; padding: 20px; }
+    h1 { color: #004d66; font-size: 22pt; border-bottom: 2px solid #00F0FF; padding-bottom: 8px; margin-bottom: 15px; }
+    h2 { color: #006680; font-size: 15pt; margin-top: 20px; border-bottom: 1px solid #e0e0e0; }
+    h3 { color: #333333; font-size: 12pt; }
+    p { margin-bottom: 10px; }
+    .header-box { background: #f0f7f9; border-left: 4px solid #00F0FF; padding: 12px; margin-bottom: 20px; }
+    .footer-note { font-size: 9pt; color: #777777; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 10px; }
+    table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+    th, td { border: 1px solid #cccccc; padding: 8px 12px; text-align: left; }
+    th { background: #e6f7ff; color: #004d66; }
+  </style>
+</head>
+<body>
+  <div class="header-box">
+    <h1>${options.title}</h1>
+    <p><strong>Commander:</strong> Master Sri | <strong>Prepared By:</strong> ${author}</p>
+    <p><strong>Date:</strong> ${dateStr} | <strong>System:</strong> J.A.R.V.I.S. Sovereign Fleet</p>
+  </div>
+  <div>
+    ${options.content.split("\n").map((line) => {
+        if (line.startsWith("# ")) return `<h1>${line.slice(2)}</h1>`;
+        if (line.startsWith("## ")) return `<h2>${line.slice(3)}</h2>`;
+        if (line.startsWith("### ")) return `<h3>${line.slice(4)}</h3>`;
+        if (line.startsWith("- ") || line.startsWith("* ")) return `<li>${line.slice(2)}</li>`;
+        if (line.trim().length === 0) return `<br/>`;
+        return `<p>${line}</p>`;
+      }).join("\n")}
+  </div>
+  <div class="footer-note">
+    Confidential & Proprietary \u2022 Certified Sovereign Artifact \u2022 J.A.R.V.I.S. Autonomous Ecosystem
+  </div>
+</body>
+</html>`;
+      fileBuffer = Buffer.from(docHtml, "utf-8");
+    } else {
+      filename = `${cleanTitle}_${timestamp}.pdf`;
+      fileBuffer = this.buildBinaryPdf({
+        title: options.title,
+        author,
+        date: dateStr,
+        content: options.content
+      });
+    }
+    const targetPath = join11(this.storageDir, filename);
+    writeFileSync10(targetPath, fileBuffer);
+    const stats = statSync3(targetPath);
+    return {
+      success: true,
+      filename,
+      filePath: targetPath,
+      downloadUrl: `/api/docs/download/${filename}`,
+      sizeBytes: stats.size,
+      format: options.format || "pdf",
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  /**
+   * Generates a compliant PDF-1.4 binary file with layout, fonts, and catalog
+   */
+  static buildBinaryPdf(data) {
+    const lines = [
+      `TITLE: ${data.title}`,
+      `DATE: ${data.date}  |  PREPARED FOR: Master Sri`,
+      `AUTHOR: ${data.author}`,
+      `STATUS: VERIFIED SOVEREIGN ARTIFACT`,
+      "------------------------------------------------------------------",
+      ""
+    ];
+    const contentLines = data.content.replace(/\r/g, "").split("\n").map((l) => l.replace(/[^\x20-\x7E]/g, " "));
+    lines.push(...contentLines);
+    let yPos = 730;
+    const streamParts = [];
+    streamParts.push("BT");
+    streamParts.push("/F1 14 Tf");
+    streamParts.push(`50 ${yPos} Td`);
+    streamParts.push(`(${this.escapePdf(lines[0])}) Tj`);
+    streamParts.push("/F1 10 Tf");
+    for (let i = 1; i < lines.length; i++) {
+      if (yPos < 60) break;
+      const line = lines[i];
+      yPos -= 16;
+      streamParts.push(`0 -16 Td`);
+      streamParts.push(`(${this.escapePdf(line)}) Tj`);
+    }
+    streamParts.push("ET");
+    const streamContent = streamParts.join("\n");
+    const streamLength = Buffer.byteLength(streamContent, "utf-8");
+    const objects = [
+      `1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+`,
+      `2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+`,
+      `3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+`,
+      `4 0 obj
+<< /Length ${streamLength} >>
+stream
+${streamContent}
+endstream
+endobj
+`,
+      `5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+`
+    ];
+    let pdfOutput = "%PDF-1.4\n";
+    const xrefOffsets = [0];
+    for (const obj of objects) {
+      xrefOffsets.push(Buffer.byteLength(pdfOutput, "utf-8"));
+      pdfOutput += obj;
+    }
+    const xrefStart = Buffer.byteLength(pdfOutput, "utf-8");
+    pdfOutput += `xref
+0 ${objects.length + 1}
+`;
+    pdfOutput += "0000000000 65535 f \n";
+    for (let i = 1; i < xrefOffsets.length; i++) {
+      const offsetStr = String(xrefOffsets[i]).padStart(10, "0");
+      pdfOutput += `${offsetStr} 00000 n 
+`;
+    }
+    pdfOutput += `trailer
+<< /Size ${objects.length + 1} /Root 1 0 R >>
+`;
+    pdfOutput += `startxref
+${xrefStart}
+%%EOF
+`;
+    return Buffer.from(pdfOutput, "utf-8");
+  }
+  static escapePdf(str) {
+    return str.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  }
+};
+
 // custom-routes.ts
 init_ECommerceReconEngine();
 init_RevenueHunterEngine();
@@ -16460,11 +16640,11 @@ var DailyBriefingEngine = class {
 };
 
 // src/agents/SkillCreationEngine.ts
-import { existsSync as existsSync12, mkdirSync as mkdirSync9, writeFileSync as writeFileSync10, readFileSync as readFileSync9 } from "fs";
-import { resolve as resolve11, join as join11 } from "path";
+import { existsSync as existsSync13, mkdirSync as mkdirSync10, writeFileSync as writeFileSync11, readFileSync as readFileSync9 } from "fs";
+import { resolve as resolve12, join as join12 } from "path";
 var SkillCreationEngine = class _SkillCreationEngine {
-  static dataDir = resolve11(process.cwd(), "data");
-  static skillsFile = join11(_SkillCreationEngine.dataDir, "custom_skills.json");
+  static dataDir = resolve12(process.cwd(), "data");
+  static skillsFile = join12(_SkillCreationEngine.dataDir, "custom_skills.json");
   static defaultSkills = [
     {
       id: "SKILL-GROCERY-AI",
@@ -16507,11 +16687,11 @@ var SkillCreationEngine = class _SkillCreationEngine {
     }
   ];
   static ensureDataDir() {
-    if (!existsSync12(this.dataDir)) {
-      mkdirSync9(this.dataDir, { recursive: true });
+    if (!existsSync13(this.dataDir)) {
+      mkdirSync10(this.dataDir, { recursive: true });
     }
-    if (!existsSync12(this.skillsFile)) {
-      writeFileSync10(this.skillsFile, JSON.stringify(this.defaultSkills, null, 2), "utf-8");
+    if (!existsSync13(this.skillsFile)) {
+      writeFileSync11(this.skillsFile, JSON.stringify(this.defaultSkills, null, 2), "utf-8");
     }
   }
   static getSkills() {
@@ -16546,7 +16726,7 @@ var SkillCreationEngine = class _SkillCreationEngine {
       executionCount: 1
     };
     skills.push(newSkill);
-    writeFileSync10(this.skillsFile, JSON.stringify(skills, null, 2), "utf-8");
+    writeFileSync11(this.skillsFile, JSON.stringify(skills, null, 2), "utf-8");
     return newSkill;
   }
 };
@@ -16621,10 +16801,10 @@ async function ensureDatabaseSchema() {
     schemaRepairAttempted = true;
     console.error("[jarvis] database schema missing, repairing:", msg);
     try {
-      const { readFileSync: readFileSync13, writeFileSync: writeFileSync13 } = await import("node:fs");
-      const { join: join15 } = await import("node:path");
+      const { readFileSync: readFileSync13, writeFileSync: writeFileSync14 } = await import("node:fs");
+      const { join: join16 } = await import("node:path");
       const { execFileSync } = await import("node:child_process");
-      const schemaPath = join15(process.cwd(), "prisma", "schema.prisma");
+      const schemaPath = join16(process.cwd(), "prisma", "schema.prisma");
       const rawDbUrl2 = process.env.DATABASE_URL || "";
       const isPg = rawDbUrl2.startsWith("postgres://") || rawDbUrl2.startsWith("postgresql://");
       const targetProvider = isPg ? "postgresql" : "sqlite";
@@ -16637,7 +16817,7 @@ async function ensureDatabaseSchema() {
 }`
         );
         if (schema !== updated) {
-          writeFileSync13(schemaPath, updated, "utf-8");
+          writeFileSync14(schemaPath, updated, "utf-8");
         }
       } catch (_) {
       }
@@ -16677,9 +16857,9 @@ var JWT_SECRET = loadJwtSecret();
 var BCRYPT_ROUNDS = 12;
 function loadInviteCode() {
   if (process.env.JARVIS_INVITE_CODE) return process.env.JARVIS_INVITE_CODE;
-  const inviteFile = join13(process.cwd(), ".jarvis-invite");
+  const inviteFile = join14(process.cwd(), ".jarvis-invite");
   try {
-    if (existsSync14(inviteFile)) {
+    if (existsSync15(inviteFile)) {
       const stored = readFileSync11(inviteFile, "utf8").trim();
       if (stored.length >= 8) return stored;
     }
@@ -16687,7 +16867,7 @@ function loadInviteCode() {
   }
   const generated = randomBytes2(9).toString("base64url");
   try {
-    writeFileSync12(inviteFile, generated, { mode: 384 });
+    writeFileSync13(inviteFile, generated, { mode: 384 });
     chmodSync2(inviteFile, 384);
   } catch {
   }
@@ -17277,9 +17457,9 @@ function isModelReady(model) {
   return false;
 }
 var runtimeKeyOverrides = {};
-var KEYS_FILE = join13(process.cwd(), ".jarvis-keys.json");
+var KEYS_FILE = join14(process.cwd(), ".jarvis-keys.json");
 function loadKeys() {
-  if (existsSync14(KEYS_FILE)) {
+  if (existsSync15(KEYS_FILE)) {
     try {
       const diskKeys = JSON.parse(readFileSync11(KEYS_FILE, "utf8"));
       Object.assign(runtimeKeyOverrides, diskKeys);
@@ -17312,7 +17492,7 @@ function loadKeys() {
 function saveKeys(keys) {
   Object.assign(runtimeKeyOverrides, keys);
   try {
-    writeFileSync12(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
+    writeFileSync13(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
     chmodSync2(KEYS_FILE, 384);
   } catch {
   }
@@ -17566,12 +17746,12 @@ ${JSON.stringify(audit.output, null, 2)}
   for (const match of matches.slice(0, 3)) {
     try {
       const cleanPath = match.trim().replace(/^['"]|['"]$/g, "");
-      let fullPath = resolve13(process.cwd(), cleanPath);
+      let fullPath = resolve14(process.cwd(), cleanPath);
       if (cleanPath.startsWith("assets/") || cleanPath.startsWith("sections/") || cleanPath.startsWith("snippets/") || cleanPath.startsWith("layout/")) {
-        const inviCandidate = resolve13("c:/Users/hp/invi-theme", cleanPath);
-        if (existsSync14(inviCandidate)) fullPath = inviCandidate;
+        const inviCandidate = resolve14("c:/Users/hp/invi-theme", cleanPath);
+        if (existsSync15(inviCandidate)) fullPath = inviCandidate;
       }
-      if (existsSync14(fullPath) && statSync3(fullPath).isFile()) {
+      if (existsSync15(fullPath) && statSync4(fullPath).isFile()) {
         const content = readFileSync11(fullPath, "utf-8");
         context += `
 
@@ -18476,10 +18656,10 @@ app.post("/storage/generate", async (c) => {
 app.get("/storage/download-custom/:filename", async (c) => {
   try {
     const filename = c.req.param("filename");
-    const { resolve: resolve14 } = await import("node:path");
-    const { existsSync: existsSync16, readFileSync: readFileSync13 } = await import("node:fs");
-    const filePath = resolve14(process.cwd(), "artifacts", "storage", filename);
-    if (!existsSync16(filePath)) {
+    const { resolve: resolve15 } = await import("node:path");
+    const { existsSync: existsSync17, readFileSync: readFileSync13 } = await import("node:fs");
+    const filePath = resolve15(process.cwd(), "artifacts", "storage", filename);
+    if (!existsSync17(filePath)) {
       return c.text("Custom document not found", 404);
     }
     const fileBytes = readFileSync13(filePath);
@@ -21610,20 +21790,20 @@ app.post("/workspace/execute", async (c) => {
 });
 app.get("/workspaces", requireAuth, async (c) => {
   try {
-    const baseDir = resolve13(process.cwd(), "workspaces");
-    if (!existsSync14(baseDir)) mkdirSync11(baseDir, { recursive: true });
+    const baseDir = resolve14(process.cwd(), "workspaces");
+    if (!existsSync15(baseDir)) mkdirSync12(baseDir, { recursive: true });
     const items = readdirSync3(baseDir, { withFileTypes: true });
     const projects = items.filter((item) => item.isDirectory()).map((dir) => {
-      const pPath = join13(baseDir, dir.name);
+      const pPath = join14(baseDir, dir.name);
       const files = WorkspaceManager.listFiles(dir.name);
-      const stats = statSync3(pPath);
+      const stats = statSync4(pPath);
       return {
         name: dir.name,
         path: pPath,
         filesCount: files.length,
         updatedAt: stats.mtime.toISOString(),
         previewUrl: `/api/workspaces/preview/${dir.name}`,
-        hasIndexHtml: existsSync14(join13(pPath, "index.html"))
+        hasIndexHtml: existsSync15(join14(pPath, "index.html"))
       };
     }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     return c.json({ ok: true, projects });
@@ -21671,16 +21851,16 @@ var MIME_MAP = {
 };
 var serveWorkspaceFile = (projectName, subPath) => {
   const projectPath = WorkspaceManager.getProjectPath(projectName);
-  let filePath = subPath ? resolve13(projectPath, subPath) : resolve13(projectPath, "index.html");
+  let filePath = subPath ? resolve14(projectPath, subPath) : resolve14(projectPath, "index.html");
   if (!filePath.startsWith(projectPath)) {
     return { status: 403, error: "Path traversal denied" };
   }
-  if (existsSync14(filePath) && statSync3(filePath).isDirectory()) {
-    filePath = resolve13(filePath, "index.html");
+  if (existsSync15(filePath) && statSync4(filePath).isDirectory()) {
+    filePath = resolve14(filePath, "index.html");
   }
-  if (!existsSync14(filePath)) {
-    const rootIndex = resolve13(projectPath, "index.html");
-    if (existsSync14(rootIndex)) {
+  if (!existsSync15(filePath)) {
+    const rootIndex = resolve14(projectPath, "index.html");
+    if (existsSync15(rootIndex)) {
       filePath = rootIndex;
     } else {
       return { status: 404, error: `File not found in ${projectName}` };
@@ -21846,6 +22026,53 @@ app.post("/revenue/payout-settings", requireAuth, async (c) => {
     return c.json({ ok: true, settings: updated });
   } catch (err) {
     return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.all("/revenue/scan", requireAuth, async (c) => {
+  try {
+    let opps = RevenueHunterEngine.getOpportunities();
+    if (opps.length === 0) {
+      const liveRes = await RevenueHunterEngine.fetchLiveRemoteJobs();
+      if (liveRes.success && liveRes.jobs.length > 0) {
+        opps = liveRes.jobs;
+      }
+    }
+    const ledger = RevenueHunterEngine.getLedgerMetrics();
+    return c.json({ ok: true, opportunities: opps, contracts: opps, ledger, totalRevenueUSD: ledger.totalPipelineUSD });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.post("/docs/generate", requireAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const result = await HermesDocumentService.generateDocument({
+      title: body.title || "Executive Dossier",
+      format: body.format || "pdf",
+      content: body.content || "Sovereign J.A.R.V.I.S. Artifact",
+      author: body.author || "Hermes Document Studio",
+      subtitle: body.subtitle
+    });
+    return c.json({ ok: true, ...result });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+app.get("/docs/download/:filename", async (c) => {
+  try {
+    const filename = c.req.param("filename");
+    const safePath = join14(process.cwd(), "artifacts", "storage", filename.replace(/[^a-zA-Z0-9_.-]/g, ""));
+    if (!existsSync15(safePath)) {
+      return c.json({ error: "File not found" }, 404);
+    }
+    const fileBytes = readFileSync11(safePath);
+    const contentType = filename.endsWith(".pdf") ? "application/pdf" : filename.endsWith(".doc") ? "application/msword" : "application/octet-stream";
+    return c.body(fileBytes, 200, {
+      "Content-Type": contentType,
+      "Content-Disposition": `attachment; filename="${filename}"`
+    });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
   }
 });
 app.get("/briefing/daily", requireAuth, async (c) => {
@@ -22245,7 +22472,7 @@ var TelegramBotListener = class {
           await this.pollUpdates(botToken, authorizedId);
         } catch (err) {
           if (!this.pollingActive) break;
-          await new Promise((resolve14) => setTimeout(resolve14, 3e3));
+          await new Promise((resolve15) => setTimeout(resolve15, 3e3));
         }
       }
     })().catch((err) => {
@@ -22615,8 +22842,8 @@ app2.post("/api/tools/execute", (c) => tools.execute(c.req.raw));
 app2.get("/api/tools/schemas", (c) => tools.list(c.req.raw));
 app2.use("/*", serveStatic({ root: "./dist" }));
 app2.get("*", (c) => {
-  const indexPath = join14(process.cwd(), "dist", "index.html");
-  if (existsSync15(indexPath)) {
+  const indexPath = join15(process.cwd(), "dist", "index.html");
+  if (existsSync16(indexPath)) {
     return c.html(readFileSync12(indexPath, "utf-8"));
   }
   return c.text("J.A.R.V.I.S. Sovereign Cloud Engine Active", 200);
