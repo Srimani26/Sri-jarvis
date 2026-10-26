@@ -57,6 +57,7 @@ export class GeminiAdapter implements ProviderAdapter {
     let res: Response | null = null;
     let lastError = '';
 
+    let chosenModel = options?.model || modelsToTry[0];
     for (const model of modelsToTry) {
       try {
         const attempt = await fetch(
@@ -77,6 +78,7 @@ export class GeminiAdapter implements ProviderAdapter {
 
         if (attempt.ok) {
           res = attempt;
+          chosenModel = model;
           break;
         } else if (attempt.status === 429) {
           lastError = 'RATE_LIMITED: Gemini API quota exceeded';
@@ -105,7 +107,7 @@ export class GeminiAdapter implements ProviderAdapter {
 
     return {
       text: candidateText,
-      model,
+      model: chosenModel,
       provider: 'gemini',
       usage: {
         promptTokens,

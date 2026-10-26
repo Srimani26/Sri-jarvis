@@ -443,5 +443,56 @@
   animation: laser-border-sweep 6s ease infinite;
 }
 
+/* Next-Level Sovereign Quantum UI Tokens */
+.glass-panel-quantum {
+  background: linear-gradient(135deg, rgba(8, 14, 30, 0.85) 0%, rgba(3, 7, 18, 0.92) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 20px rgba(0, 240, 255, 0.04);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+}
+
+.glass-panel-quantum:hover {
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(0, 240, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.quantum-omnibar {
+  background: rgba(3, 7, 24, 0.94);
+  border: 1.5px solid rgba(0, 240, 255, 0.35);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.06);
+  backdrop-filter: blur(32px);
+}
+
+.quantum-omnibar:focus-within {
+  border-color: rgba(0, 240, 255, 0.8);
+  box-shadow: 0 0 45px rgba(0, 240, 255, 0.35), inset 0 0 20px rgba(0, 240, 255, 0.1);
+}
+
+.pill-glow-cyan {
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.25);
+}
+
+.pill-glow-violet {
+  background: rgba(168, 85, 247, 0.14);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.25);
+}
+
+.pill-glow-emerald {
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+}
+
+.cyber-grid-overlay {
+  background-image: 
+    linear-gradient(to right, rgba(0, 240, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 240, 255, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
 
 
