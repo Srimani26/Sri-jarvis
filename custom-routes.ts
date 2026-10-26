@@ -4668,24 +4668,122 @@ app.post('/agents/dispatch', requireAuth, async (c) => {
       role: agentSpec.role
     })
 
-    // 3. Determine tools to execute
+    // 3. Determine real tools to execute for any of the 20 specialist agents
     const toolsToRun: Array<{ name: string; args: any }> = []
     if (Array.isArray(parameters.toolsToRun) && parameters.toolsToRun.length > 0) {
       toolsToRun.push(...parameters.toolsToRun)
     } else {
       const lower = taskObjective.toLowerCase()
-      if (agentSpec.id === 'aegis' && (lower.includes('build') || lower.includes('app') || lower.includes('website') || lower.includes('page'))) {
-        toolsToRun.push({ name: 'build_fullstack_app', args: { topic: taskObjective } })
-      } else if (agentSpec.id === 'aegis' && lower.includes('code')) {
-        toolsToRun.push({ name: 'execute_code', args: { code: 'console.log("Aegis sandbox execution verified")' } })
-      } else if (agentSpec.id === 'vortex' && (lower.includes('automate') || lower.includes('pipeline') || lower.includes('n8n'))) {
-        toolsToRun.push({ name: 'generate_automation', args: { name: taskObjective } })
-      } else if ((agentSpec.id === 'vortex' || agentSpec.id === 'cerebro') && (lower.includes('scrape') || lower.includes('crawl'))) {
-        toolsToRun.push({ name: 'scrape_web', args: { url: parameters.url || 'https://news.ycombinator.com' } })
-      } else if (agentSpec.id === 'midas' || lower.includes('revenue') || lower.includes('monetiz')) {
-        toolsToRun.push({ name: 'market_intel', args: { query: taskObjective } })
-      } else if (agentSpec.id === 'stark_os' || lower.includes('health') || lower.includes('diagnostic')) {
+      const aid = agentSpec.id.toLowerCase()
+
+      // 1. J.A.R.V.I.S. (Supreme Orchestrator)
+      if (aid === 'jarvis' || aid === 'commander') {
+        if (lower.includes('build') || lower.includes('project') || lower.includes('app') || lower.includes('system')) {
+          toolsToRun.push({ name: 'swarm_dispatch', args: { objective: taskObjective } })
+        } else if (lower.includes('deal') || lower.includes('shop') || lower.includes('price')) {
+          toolsToRun.push({ name: 'ecommerce_recon', args: { query: taskObjective } })
+        } else {
+          toolsToRun.push({ name: 'system_health', args: {} })
+        }
+      }
+      // 2. F.R.I.D.A.Y. / Software Engineer / Aegis
+      else if (aid === 'software_engineer' || aid === 'aegis' || aid === 'coder') {
+        if (lower.includes('build') || lower.includes('app') || lower.includes('website') || lower.includes('portal') || lower.includes('scaffold')) {
+          toolsToRun.push({ name: 'build_fullstack_app', args: { topic: taskObjective } })
+        } else {
+          toolsToRun.push({ name: 'execute_code', args: { code: 'console.log("Verified software engineer execution on node " + process.version);' } })
+        }
+      }
+      // 3. D.A.E.D.A.L.U.S. / Architect
+      else if (aid === 'architect' || aid === 'daedalus') {
+        toolsToRun.push({ name: 'rea_reverse_engineer', args: { target: 'src/tools/ToolRegistry.ts', mode: 'ast' } })
+      }
+      // 4. P.R.I.S.M. / Frontend Engineer
+      else if (aid === 'frontend_engineer' || aid === 'prism') {
+        if (lower.includes('build') || lower.includes('app') || lower.includes('ui') || lower.includes('surface')) {
+          toolsToRun.push({ name: 'build_fullstack_app', args: { topic: taskObjective, features: ['Tailwind CSS UI', 'Reactive HUD', 'Responsive Grid'] } })
+        } else {
+          toolsToRun.push({ name: 'workspace_list_files', args: { projectName: 'app_enterprise_ai_customer_s' } })
+        }
+      }
+      // 5. V.U.L.C.A.N. / Backend Engineer
+      else if (aid === 'backend_engineer' || aid === 'vulcan') {
+        if (lower.includes('api') || lower.includes('server') || lower.includes('route') || lower.includes('build')) {
+          toolsToRun.push({ name: 'build_fullstack_app', args: { topic: taskObjective, features: ['Node HTTP REST API', 'Health Heartbeat', 'CRUD Endpoints'] } })
+        } else {
+          toolsToRun.push({ name: 'system_health', args: {} })
+        }
+      }
+      // 6. O.R.A.C.L.E. / Database Engineer
+      else if (aid === 'database_engineer' || aid === 'oracle') {
+        toolsToRun.push({ name: 'filesystem_read', args: { path: 'prisma/schema.prisma' } })
+      }
+      // 7. A.T.L.A.S. / DevOps Engineer / Stark OS
+      else if (aid === 'devops_engineer' || aid === 'atlas' || aid === 'stark_os' || aid === 'stark') {
         toolsToRun.push({ name: 'system_health', args: {} })
+        toolsToRun.push({ name: 'workspace_list_daemons', args: {} })
+      }
+      // 8. S.E.N.T.I.N.E.L. / QA Engineer
+      else if (aid === 'qa_engineer' || aid === 'sentinel') {
+        toolsToRun.push({ name: 'terminal_exec', args: { command: 'node', args: ['-v'] } })
+      }
+      // 9. H.O.L.M.E.S. / Debugger
+      else if (aid === 'debugger' || aid === 'holmes') {
+        toolsToRun.push({ name: 'system_health', args: {} })
+      }
+      // 10. C.E.R.B.E.R.U.S. / Security Sentinel
+      else if (aid === 'security_agent' || aid === 'cerberus') {
+        toolsToRun.push({ name: 'security_audit', args: { target: 'src/kernel/ExecutionKernel.ts' } })
+      }
+      // 11. A.T.H.E.N.A. / Research Specialist / Cerebro
+      else if (aid === 'research_agent' || aid === 'athena' || aid === 'cerebro') {
+        if (parameters.url) {
+          toolsToRun.push({ name: 'scrape_web', args: { url: parameters.url } })
+        } else {
+          toolsToRun.push({ name: 'market_intel', args: { query: taskObjective } })
+        }
+      }
+      // 12. N.A.V.I.S. / Browser Web Operator
+      else if (aid === 'browser_agent' || aid === 'navis') {
+        if (parameters.url) {
+          toolsToRun.push({ name: 'scrape_web', args: { url: parameters.url } })
+        } else if (lower.includes('deal') || lower.includes('product') || lower.includes('price')) {
+          toolsToRun.push({ name: 'ecommerce_recon', args: { query: taskObjective } })
+        } else {
+          toolsToRun.push({ name: 'scrape_web', args: { url: 'https://news.ycombinator.com' } })
+        }
+      }
+      // 13. C.H.R.O.N.O.S. / Automation Specialist / Vortex
+      else if (aid === 'automation_agent' || aid === 'chronos' || aid === 'vortex') {
+        toolsToRun.push({ name: 'generate_automation', args: { name: taskObjective } })
+      }
+      // 14. T.H.O.T.H. / Data Intelligence
+      else if (aid === 'data_agent' || aid === 'thoth') {
+        toolsToRun.push({ name: 'execute_code', args: { code: 'const stats = { timestamp: Date.now(), heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) }; console.log(JSON.stringify(stats));' } })
+      }
+      // 15. M.I.D.A.S. / Revenue Strategist
+      else if (aid === 'business_agent' || aid === 'midas') {
+        toolsToRun.push({ name: 'market_intel', args: { query: taskObjective } })
+      }
+      // 16. S.C.R.I.B.E. / Technical Writer
+      else if (aid === 'documentation_agent' || aid === 'scribe') {
+        toolsToRun.push({ name: 'filesystem_read', args: { path: 'README.md' } })
+      }
+      // 17. M.N.E.M.O.S. / Memory Vector Agent
+      else if (aid === 'memory_agent' || aid === 'mnemos') {
+        toolsToRun.push({ name: 'filesystem_list', args: { path: 'src/memory' } })
+      }
+      // 18. A.R.G.U.S. / 24/7 Monitor Sentinel
+      else if (aid === 'monitor_agent' || aid === 'argus') {
+        toolsToRun.push({ name: 'system_health', args: {} })
+      }
+      // 19. K.A.I.R.O.S. / Temporal Scheduler
+      else if (aid === 'scheduler_agent' || aid === 'kairos') {
+        toolsToRun.push({ name: 'workspace_list_daemons', args: {} })
+      }
+      // 20. P.R.O.M.E.T.H.E.U.S. / Self-Evolution Engine
+      else if (aid === 'evolution_agent' || aid === 'prometheus') {
+        toolsToRun.push({ name: 'self_evolution', args: { targetArea: 'all' } })
       }
     }
 
