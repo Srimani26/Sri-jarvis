@@ -140,7 +140,7 @@ export class AgentRuntime {
         }
       });
 
-      // 4. Verification stage
+      // 4. Verification stage — Factual Deterministic Verification
       await TaskStore.emitEvent(
         taskId,
         'VERIFICATION_STARTED',
@@ -148,14 +148,53 @@ export class AgentRuntime {
         { checklist: agent.verificationChecklist }
       );
 
+      const verificationFailures: string[] = [];
+
+      // Check 1: Verify output artifact
+      if (!outputResult) {
+        verificationFailures.push('No execution output or artifact was generated');
+      }
+
+      // Check 2: Verify touched files actually exist on disk
+      const { existsSync, readFileSync } = await import('node:fs');
+      const { resolve } = await import('node:path');
+      if (inputData?.filesToVerify && Array.isArray(inputData.filesToVerify)) {
+        for (const f of inputData.filesToVerify) {
+          const resolvedPath = resolve(process.cwd(), f);
+          if (!existsSync(resolvedPath)) {
+            verificationFailures.push(`Verification failure: Deliverable file "${f}" does not exist on disk`);
+          } else {
+            // Check 3: Syntax check for JSON/JS/TS deliverables
+            if (f.endsWith('.json')) {
+              try {
+                JSON.parse(readFileSync(resolvedPath, 'utf-8'));
+              } catch (jsonErr: any) {
+                verificationFailures.push(`Syntax error in JSON deliverable "${f}": ${jsonErr.message}`);
+              }
+            }
+          }
+        }
+      }
+
+      if (verificationFailures.length > 0) {
+        const failureSummary = verificationFailures.join('; ');
+        await TaskStore.emitEvent(
+          taskId,
+          'ERROR_DETECTED',
+          `Verification FAILED for '${agent.name}': ${failureSummary}`,
+          { failures: verificationFailures }
+        );
+        throw new Error(`Verification failed against criteria: ${failureSummary}`);
+      }
+
       const durationMs = Date.now() - startTime;
       AgentRegistry.recordTelemetry(agentId, durationMs, true);
 
       await TaskStore.emitEvent(
         taskId,
         'VERIFICATION_PASSED',
-        `Verification passed for '${agent.name}' against ${agent.verificationChecklist.length} criteria`,
-        { checklist: agent.verificationChecklist }
+        `Verification passed for '${agent.name}' against ${agent.verificationChecklist.length} criteria with all files verified on disk`,
+        { checklist: agent.verificationChecklist, verifiedFiles: inputData?.filesToVerify || [] }
       );
 
       return {

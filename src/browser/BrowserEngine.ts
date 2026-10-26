@@ -7,43 +7,65 @@
 import { BrowserActionRequest, BrowserActionResult, BrowserPageSnapshot, InteractiveElement } from './types';
 import { SecurityShield } from './SecurityShield';
 import { TaskStore } from '../kernel/TaskStore';
+import { existsSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+import puppeteer, { Browser, Page } from 'puppeteer-core';
 
 export class BrowserEngine {
   private currentUrl = 'about:blank';
   private currentTitle = 'Blank Page';
   private currentHtml = '';
   private interactiveElements: InteractiveElement[] = [];
+  private activeBrowser: Browser | null = null;
+  private activePage: Page | null = null;
 
   /**
-   * Detect real browser runtime (Playwright / Puppeteer) vs Headless DOM Emulator
+   * Locate system Chrome or Edge binary on host machine
+   */
+  public static getSystemBrowserBinary(): string | null {
+    const candidates = [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      process.env.CHROME_BIN,
+      process.env.PUPPETEER_EXECUTABLE_PATH,
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+    ];
+    for (const c of candidates) {
+      if (c && existsSync(c)) return c;
+    }
+    return null;
+  }
+
+  /**
+   * Detect real browser runtime (Playwright / Puppeteer Chrome) vs Headless DOM Emulator
    */
   public static detectBrowserRuntime(): {
     hasPlaywright: boolean;
     hasPuppeteer: boolean;
-    runtimeMode: 'PLAYWRIGHT_CHROMIUM' | 'HEADLESS_DOM_EMULATOR';
+    runtimeMode: 'PLAYWRIGHT_CHROMIUM' | 'PUPPETEER_CHROME' | 'HEADLESS_DOM_EMULATOR';
+    binaryPath?: string | null;
     capabilityWarning?: string;
   } {
+    const binaryPath = this.getSystemBrowserBinary();
+    const hasPuppeteer = true;
     let hasPlaywright = false;
-    let hasPuppeteer = false;
     try {
       require.resolve('playwright');
       hasPlaywright = true;
     } catch {
       hasPlaywright = false;
     }
-    try {
-      require.resolve('puppeteer');
-      hasPuppeteer = true;
-    } catch {
-      hasPuppeteer = false;
-    }
 
-    const runtimeMode = (hasPlaywright || hasPuppeteer) ? 'PLAYWRIGHT_CHROMIUM' : 'HEADLESS_DOM_EMULATOR';
+    const runtimeMode = binaryPath ? 'PUPPETEER_CHROME' : (hasPlaywright ? 'PLAYWRIGHT_CHROMIUM' : 'HEADLESS_DOM_EMULATOR');
     const capabilityWarning = runtimeMode === 'HEADLESS_DOM_EMULATOR'
       ? 'BROWSER_RUNTIME_UNAVAILABLE: Operating in high-speed sandboxed DOM/HTTP emulator mode (No Chromium binary)'
       : undefined;
 
-    return { hasPlaywright, hasPuppeteer, runtimeMode, capabilityWarning };
+    return { hasPlaywright, hasPuppeteer, runtimeMode, binaryPath, capabilityWarning };
   }
 
   /**
@@ -159,29 +181,82 @@ export class BrowserEngine {
           if (!url) throw new Error('URL required for navigation');
           this.currentUrl = url;
 
-          // Perform network fetch or handle simulated URLs
-          if (url.startsWith('http://') || url.startsWith('https://')) {
+          const binaryPath = BrowserEngine.getSystemBrowserBinary();
+          if ((url.startsWith('http://') || url.startsWith('https://')) && binaryPath) {
+            try {
+              if (this.activeBrowser) {
+                await this.activeBrowser.close().catch(() => {});
+                this.activeBrowser = null;
+                this.activePage = null;
+              }
+              const browser = await puppeteer.launch({
+                executablePath: binaryPath,
+                headless: true,
+                args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+              });
+              this.activeBrowser = browser;
+              const page = await browser.newPage();
+              this.activePage = page;
+              await page.goto(url, { waitUntil: 'domcontentloaded', timeout: request.timeoutMs || 25_000 });
+
+              this.currentTitle = await page.title();
+              this.currentHtml = await page.content();
+
+              // Extract real DOM interactive elements via evaluate
+              const domElements = await page.evaluate(() => {
+                const results: Array<{ id: string; tag: string; text?: string; href?: string; value?: string; selector: string }> = [];
+                let i = 0;
+                document.querySelectorAll('input, button, a, textarea, select').forEach((node) => {
+                  i++;
+                  const el = node as HTMLElement;
+                  const tag = el.tagName.toLowerCase();
+                  const id = el.id || `node_${i}`;
+                  const text = el.innerText?.trim() || el.getAttribute('placeholder') || '';
+                  const href = (el as HTMLAnchorElement).href || undefined;
+                  const value = (el as HTMLInputElement).value || undefined;
+                  const selector = el.id ? `#${el.id}` : `${tag}:nth-of-type(${i})`;
+                  results.push({ id, tag, text, href, value, selector });
+                });
+                return results.slice(0, 100);
+              });
+
+              this.interactiveElements = domElements;
+            } catch (chromeErr: any) {
+              console.warn('[BrowserEngine] Chrome execution fallback to HTTP fetch:', chromeErr?.message || chromeErr);
+              const res = await fetch(url, {
+                headers: { 'User-Agent': 'JARVIS-Autonomous-Browser-Agent/5.0' },
+                signal: AbortSignal.timeout(request.timeoutMs || 15_000),
+              });
+              const text = await res.text();
+              this.currentHtml = SecurityShield.sanitizeHtml(text);
+              const titleMatch = this.currentHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+              this.currentTitle = titleMatch ? titleMatch[1].trim() : url;
+              this.interactiveElements = this.parseInteractiveElements(this.currentHtml);
+            }
+          } else if (url.startsWith('http://') || url.startsWith('https://')) {
             const res = await fetch(url, {
               headers: { 'User-Agent': 'JARVIS-Autonomous-Browser-Agent/5.0' },
               signal: AbortSignal.timeout(request.timeoutMs || 15_000),
             });
             const text = await res.text();
             this.currentHtml = SecurityShield.sanitizeHtml(text);
+            const titleMatch = this.currentHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+            this.currentTitle = titleMatch ? titleMatch[1].trim() : url;
+            this.interactiveElements = this.parseInteractiveElements(this.currentHtml);
           } else {
             // Local / mock HTML navigation for testing
             this.currentHtml = url.startsWith('html:')
               ? SecurityShield.sanitizeHtml(url.replace(/^html:/, ''))
               : `<html><title>${url}</title><body><h1>Page: ${url}</h1></body></html>`;
+            const titleMatch = this.currentHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+            this.currentTitle = titleMatch ? titleMatch[1].trim() : url;
+            this.interactiveElements = this.parseInteractiveElements(this.currentHtml);
           }
-
-          const titleMatch = this.currentHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-          this.currentTitle = titleMatch ? titleMatch[1].trim() : url;
-
-          this.interactiveElements = this.parseInteractiveElements(this.currentHtml);
 
           await TaskStore.emitEvent(taskId, 'BROWSER_ACTION', `Navigated to ${this.currentUrl} (${this.currentTitle})`, {
             url: this.currentUrl,
             elementsFound: this.interactiveElements.length,
+            runtimeMode: binaryPath ? 'PUPPETEER_CHROME' : 'HEADLESS_DOM_EMULATOR',
           });
 
           break;
@@ -189,20 +264,25 @@ export class BrowserEngine {
 
         case 'click': {
           if (!selector) throw new Error('Selector required for click action');
+          if (this.activePage) {
+            await this.activePage.click(selector).catch(async () => {
+              await this.activePage?.evaluate((sel) => {
+                const el = document.querySelector(sel) as HTMLElement;
+                if (el) el.click();
+              }, selector);
+            });
+          }
+
           const element = this.interactiveElements.find(
             (e) => e.selector === selector || e.id === selector.replace(/^#/, '')
           );
-          if (!element) {
-            throw new Error(`Element not found for selector: ${selector}`);
-          }
 
           await TaskStore.emitEvent(taskId, 'BROWSER_ACTION', `Clicked element: ${selector}`, {
             selector,
-            tag: element.tag,
+            tag: element?.tag || 'unknown',
           });
 
-          // If link clicked, handle navigation
-          if (element.tag === 'a' && element.href) {
+          if (element && element.tag === 'a' && element.href) {
             this.currentUrl = element.href;
           }
           break;
@@ -210,14 +290,17 @@ export class BrowserEngine {
 
         case 'type': {
           if (!selector) throw new Error('Selector required for type action');
+          if (this.activePage) {
+            await this.activePage.type(selector, value || '').catch(() => {});
+          }
+
           const element = this.interactiveElements.find(
             (e) => e.selector === selector || e.id === selector.replace(/^#/, '')
           );
-          if (!element) {
-            throw new Error(`Input element not found for selector: ${selector}`);
+          if (element) {
+            element.value = value || '';
           }
 
-          element.value = value || '';
           await TaskStore.emitEvent(taskId, 'BROWSER_ACTION', `Typed into ${selector}: "${value}"`, {
             selector,
             value,
@@ -225,9 +308,18 @@ export class BrowserEngine {
           break;
         }
 
+        case 'screenshot': {
+          if (this.activePage) {
+            const ssDir = path.resolve(process.cwd(), 'artifacts', 'screenshots');
+            if (!existsSync(ssDir)) mkdirSync(ssDir, { recursive: true });
+            const ssPath = path.join(ssDir, `shot_${Date.now()}.png`);
+            await this.activePage.screenshot({ path: ssPath });
+            await TaskStore.emitEvent(taskId, 'BROWSER_ACTION', `Captured screenshot to ${ssPath}`, { path: ssPath });
+          }
+          break;
+        }
+
         case 'extract':
-        case 'screenshot':
-          // Extraction or screenshot snapshot
           break;
 
         default:

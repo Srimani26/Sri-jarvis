@@ -99,10 +99,20 @@ export class ProviderRegistry {
     for (const m of defaultModels) {
       this.models.set(m.id, m);
     }
+    if (this.models.has('groq-llama-3.3-70b')) {
+      this.models.set('groq-llama3-70b', this.models.get('groq-llama-3.3-70b')!);
+    }
   }
 
   public static getModel(id: string): ModelMetadata | undefined {
-    return this.models.get(id);
+    if (this.models.has(id)) return this.models.get(id);
+    const normalized = id.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const [key, model] of this.models.entries()) {
+      if (key.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized) {
+        return model;
+      }
+    }
+    return undefined;
   }
 
   public static listModels(): ModelMetadata[] {

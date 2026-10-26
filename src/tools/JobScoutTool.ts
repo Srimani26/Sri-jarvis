@@ -201,53 +201,45 @@ export class JobScoutTool {
       }
     }
 
-    // Curated high-yield Reddit technical opportunities if live direct network access was restricted
+    // Ingest WeWorkRemotely Live RSS feed if Reddit network access was rate-limited
     if (jobs.length === 0) {
-      const verifiedRedditHelpPosts: Array<{
-        sub: string;
-        title: string;
-        selftext: string;
-        budgetUSD: number;
-        keywords: string[];
-      }> = [
-        {
-          sub: 'shopify',
-          title: '[HIRING] Urgent: Fix Shopify Dawn header overlap & mobile cart drawer bug',
-          selftext: 'Looking for a Shopify Liquid / CSS dev to fix a header overlap issue on mobile screens and a cart drawer z-index problem where checkout is covered on iOS Safari. Budget: $35. Ready to hire right now.',
-          budgetUSD: 35,
-          keywords: ['shopify', 'hiring', 'fix css', 'cart issue', 'liquid'],
-        },
-        {
-          sub: 'forhire',
-          title: '[HIRING] Need Shopify Liquid Developer to Fix Variant Dropdown Glitch',
-          selftext: 'Our Dawn theme product page variant pills do not update price or image when selected on mobile Chrome. Need a clean Liquid patch without breaking app integrations. Budget: $25.',
-          budgetUSD: 25,
-          keywords: ['hiring', 'shopify', 'liquid', 'paid', 'need developer'],
-        },
-        {
-          sub: 'freelance_forhire',
-          title: '[PAID] Quick CSS Alignment Bug on Mobile Product Grid ($20)',
-          selftext: 'Have a 2-column grid breaking into uneven height boxes because of product title overflows. Need responsive flexbox or subgrid CSS fix. $20 for 30 min fix.',
-          budgetUSD: 20,
-          keywords: ['paid', 'fix css', 'budget', 'need developer'],
-        },
-      ];
-
-      for (const item of verifiedRedditHelpPosts) {
-        const classification = this.classifyTask(item.title, item.selftext, item.budgetUSD);
-        jobs.push({
-          id: `JOB-RD-${item.sub.toUpperCase()}-${Math.random().toString(36).slice(2, 7)}`,
-          title: item.title,
-          description: item.selftext,
-          category: classification.category,
-          tier: classification.tier,
-          payoutUSD: classification.payoutUSD,
-          payoutINR: classification.payoutINR,
-          matchedKeywords: item.keywords,
-          sourceUrl: `https://www.reddit.com/r/${item.sub}/comments/${Math.random().toString(36).slice(2, 8)}`,
-          publishedAt: new Date().toISOString(),
-          requirementsSnippet: item.selftext.slice(0, 180),
+      try {
+        const wwrRes = await fetch('https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss', {
+          signal: AbortSignal.timeout(6000),
         });
+        if (wwrRes.ok) {
+          const xml = await wwrRes.text();
+          const items = xml.split('<item>');
+          for (const item of items.slice(1, 15)) {
+            const titleMatch = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/);
+            const linkMatch = item.match(/<link>(.*?)<\/link>/);
+            const descMatch = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || item.match(/<description>(.*?)<\/description>/);
+            const dateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
+
+            const title = (titleMatch ? titleMatch[1] : '').replace(/<[^>]+>/g, '').trim();
+            const link = linkMatch ? linkMatch[1].trim() : 'https://weworkremotely.com';
+            const rawDesc = (descMatch ? descMatch[1] : '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+            if (title && rawDesc) {
+              const classification = this.classifyTask(title, rawDesc);
+              jobs.push({
+                id: `JOB-WWR-${Math.random().toString(36).slice(2, 8)}`,
+                title: title.slice(0, 120),
+                description: rawDesc.slice(0, 450),
+                category: classification.category,
+                tier: classification.tier,
+                payoutUSD: classification.payoutUSD,
+                payoutINR: classification.payoutINR,
+                matchedKeywords: ['remote', 'frontend', 'engineering'],
+                sourceUrl: link,
+                publishedAt: dateMatch ? new Date(dateMatch[1]).toISOString() : new Date().toISOString(),
+                requirementsSnippet: rawDesc.slice(0, 180),
+              });
+            }
+          }
+        }
+      } catch (feedErr: any) {
+        console.warn('[JobScoutTool] WWR fallback feed error:', feedErr?.message || feedErr);
       }
     }
 

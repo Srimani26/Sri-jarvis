@@ -78,6 +78,15 @@ function formatTime(date: Date) {
 
 function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const [copied, setCopied] = useState(false)
+  const isHtml = (
+    lang.toLowerCase() === 'html' ||
+    lang.toLowerCase() === 'markup' ||
+    code.includes('<!DOCTYPE') ||
+    code.includes('<html') ||
+    (code.includes('<div') && (code.includes('function ') || code.includes('class=') || code.includes('id='))) ||
+    code.includes('<script')
+  )
+  const [viewMode, setViewMode] = useState<'preview' | 'code'>(isHtml ? 'preview' : 'code')
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code)
@@ -85,21 +94,113 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // Generate self-contained, styled HTML document for iframe execution
+  const previewDoc = useMemo(() => {
+    if (!isHtml) return ''
+    if (code.includes('<!DOCTYPE html>') || code.includes('<html')) {
+      return code
+    }
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #02040a;
+      color: #f8fafc;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+  ${code}
+</body>
+</html>`
+  }, [code, isHtml])
+
+  const openInNewTab = () => {
+    const blob = new Blob([previewDoc || code], { type: 'text/html; charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+  }
+
   return (
-    <div className="my-3 rounded-2xl overflow-hidden border border-cyan-500/25 bg-slate-950/90 shadow-xl">
-      <div className="px-4 py-2 bg-slate-900/90 text-[10px] text-cyan-300 font-mono border-b border-slate-800/80 flex items-center justify-between">
-        <span className="font-bold tracking-wider">{lang ? lang.toUpperCase() : 'CODE'} // PRODUCTION READY</span>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors cursor-pointer text-[10px]"
-        >
-          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-          <span>{copied ? 'Copied' : 'Copy Code'}</span>
-        </button>
+    <div className="my-3 rounded-2xl overflow-hidden border border-cyan-500/30 bg-slate-950/90 shadow-2xl">
+      <div className="px-4 py-2.5 bg-slate-900/90 text-[10px] text-cyan-300 font-mono border-b border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          {isHtml && (
+            <div className="flex items-center bg-slate-950 rounded-lg p-0.5 border border-cyan-500/20">
+              <button
+                onClick={() => setViewMode('preview')}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[10px] font-bold transition-all flex items-center gap-1",
+                  viewMode === 'preview'
+                    ? "bg-cyan-500 text-slate-950 shadow-[0_0_10px_rgba(6,182,212,0.4)]"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <span>⚡ LIVE APP PREVIEW</span>
+              </button>
+              <button
+                onClick={() => setViewMode('code')}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[10px] font-bold transition-all flex items-center gap-1",
+                  viewMode === 'code'
+                    ? "bg-cyan-500 text-slate-950 shadow-[0_0_10px_rgba(6,182,212,0.4)]"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <span>💻 CODE</span>
+              </button>
+            </div>
+          )}
+          {!isHtml && (
+            <span className="font-bold tracking-wider">{lang ? lang.toUpperCase() : 'CODE'} // PRODUCTION READY</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isHtml && (
+            <button
+              onClick={openInNewTab}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500 hover:text-slate-950 transition-all cursor-pointer text-[10px] font-bold"
+              title="Open working app in a separate full-size tab"
+            >
+              <span>🚀 OPEN FULLSCREEN</span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          )}
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer text-[10px]"
+          >
+            {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+            <span>{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+        </div>
       </div>
-      <pre className="p-4 bg-slate-950/95 overflow-x-auto text-xs text-slate-200 font-mono whitespace-pre leading-relaxed">
-        <code>{code}</code>
-      </pre>
+
+      {isHtml && viewMode === 'preview' ? (
+        <div className="relative w-full h-[420px] bg-slate-950 overflow-hidden">
+          <iframe
+            srcDoc={previewDoc}
+            title="Interactive App Preview"
+            className="w-full h-full border-0 bg-transparent"
+            sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
+          />
+        </div>
+      ) : (
+        <pre className="p-4 bg-slate-950/95 overflow-x-auto text-xs text-slate-200 font-mono whitespace-pre leading-relaxed max-h-[460px]">
+          <code>{code}</code>
+        </pre>
+      )}
     </div>
   )
 }
@@ -1053,37 +1154,39 @@ ${chosenEnding}`,
 
                   {/* Live Workspace Sandbox Embedded Preview Card */}
                   {msg.content && msg.content.includes('/api/workspaces/preview/') && (
-                    <div className="mt-3 p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/40 shadow-xl space-y-3">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <div className="flex items-center gap-2 text-emerald-400">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                          <span className="font-bold text-xs font-mono">LIVE WORKSPACE COMPILED // SANDBOX HOSTED</span>
+                    <div className="mt-4 p-4 rounded-2xl bg-slate-950 border border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.15)] space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
+                        <div className="flex items-center gap-2.5 text-emerald-400">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_#10b981]" />
+                          <span className="font-bold text-xs font-mono tracking-wider">LIVE WORKSPACE COMPILED // SANDBOX HOSTED</span>
                         </div>
                         {(() => {
-                          const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
+                          const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_.-]+/);
                           const previewHref = match ? match[0] : '';
                           return previewHref ? (
-                            <a
-                              href={previewHref}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                            >
-                              <span>OPEN LIVE SITE</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={previewHref}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.5)]"
+                              >
+                                <span>🚀 OPEN LIVE APP</span>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
                           ) : null;
                         })()}
                       </div>
                       {(() => {
-                        const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_-]+/);
+                        const match = msg.content.match(/\/api\/workspaces\/preview\/[a-zA-Z0-9_.-]+/);
                         const previewHref = match ? match[0] : '';
                         return previewHref ? (
-                          <div className="relative w-full h-80 rounded-xl overflow-hidden border border-emerald-500/30 bg-white shadow-inner">
+                          <div className="relative w-full h-[450px] rounded-xl overflow-hidden border border-emerald-500/30 bg-slate-950 shadow-inner">
                             <iframe
                               src={previewHref}
                               title="Workspace Live Preview"
-                              className="w-full h-full border-0 bg-white"
+                              className="w-full h-full border-0 bg-slate-950"
                               sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
                             />
                           </div>

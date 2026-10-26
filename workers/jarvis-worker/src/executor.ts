@@ -64,10 +64,57 @@ export class WorkerExecutor {
         }
 
         case 'BROWSER_NAVIGATE': {
+          const targetUrl = payload.params.url;
+          if (!targetUrl) throw new Error('URL is required for BROWSER_NAVIGATE');
+
+          const exeCandidates = [
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+            process.env.CHROME_BIN,
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium-browser',
+          ];
+          const browserExe = exeCandidates.find((c) => c && fs.existsSync(c));
+
+          if (browserExe) {
+            try {
+              const puppeteer = (await import('puppeteer-core')).default;
+              const browser = await puppeteer.launch({
+                executablePath: browserExe,
+                headless: true,
+                args: ['--no-sandbox', '--disable-gpu'],
+              });
+              const page = await browser.newPage();
+              await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+              const title = await page.title();
+              const textSample = await page.evaluate(() => document.body?.innerText?.slice(0, 1000) || '');
+              await browser.close();
+
+              output = {
+                url: targetUrl,
+                title,
+                engine: 'PUPPETEER_CHROME',
+                browserExe,
+                preview: textSample,
+                status: 200,
+              };
+              break;
+            } catch (pErr: any) {
+              console.warn('[Worker] Puppeteer launch fallback:', pErr?.message);
+            }
+          }
+
+          // Fallback HTTP fetch
+          const res = await fetch(targetUrl, { signal: AbortSignal.timeout(10000) });
+          const html = await res.text();
+          const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
           output = {
-            url: payload.params.url,
-            title: 'Rendered Page Snapshot',
-            status: 200,
+            url: targetUrl,
+            title: titleMatch ? titleMatch[1].trim() : targetUrl,
+            engine: 'HTTP_FETCH_FALLBACK',
+            status: res.status,
           };
           break;
         }

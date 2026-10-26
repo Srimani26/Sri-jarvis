@@ -33,7 +33,10 @@
     "server.mjs",
     "scripts/**/*",
     "node_modules",
-    "dist"
+    "dist",
+    "external",
+    "workspaces",
+    "tests"
   ],
   "watchOptions": {
     "excludeDirectories": [

@@ -3,8 +3,6 @@
 import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tsConfigPaths from 'vite-tsconfig-paths'
-
 export default defineConfig({
   base: './',
   server: {
@@ -20,7 +18,7 @@ export default defineConfig({
       },
     },
     watch: {
-      ignored: ['**/.shogo/**'],
+      ignored: ['**/.shogo/**', '**/external/**', '**/workspaces/**', '**/dist/**'],
     },
   },
   resolve: {
