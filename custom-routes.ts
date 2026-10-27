@@ -7812,6 +7812,30 @@ app.get('/openjarvis/status', async (c) => {
   });
 });
 
+app.get('/openjarvis/templates', async (c) => {
+  const { OpenJarvisBridge } = await import('./src/lib/openjarvis-bridge');
+  const templates = OpenJarvisBridge.getTemplates();
+  return c.json({ ok: true, count: templates.length, templates });
+});
+
+app.get('/openjarvis/recipes', async (c) => {
+  const { OpenJarvisBridge } = await import('./src/lib/openjarvis-bridge');
+  const recipes = OpenJarvisBridge.getRecipes();
+  return c.json({ ok: true, count: recipes.length, recipes });
+});
+
+app.get('/openjarvis/tools', async (c) => {
+  const { OpenJarvisBridge } = await import('./src/lib/openjarvis-bridge');
+  const tools = OpenJarvisBridge.getTools();
+  return c.json({ ok: true, count: tools.length, tools });
+});
+
+app.get('/openjarvis/models', async (c) => {
+  const { OpenJarvisBridge } = await import('./src/lib/openjarvis-bridge');
+  const models = OpenJarvisBridge.getModelCatalog();
+  return c.json({ ok: true, count: models.length, models });
+});
+
 app.post('/voice/self-eval', async (c) => {
   const now = new Date();
   const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });

@@ -118,4 +118,37 @@ describe('Phase 33: OpenJarvis Multi-Agent High-IQ Voice & Thermal Self-Test Sui
     assert.ok(appContent.includes('matchedAgent = \'aegis\''), 'Untouched detector must support Aegis');
     assert.ok(appContent.includes('matchedAgent = \'jarvis\''), 'Untouched detector must support Jarvis');
   });
+
+  test('8. Full OpenJarvis Data & Files Bridge (Templates, Recipes, Tools, Models)', async () => {
+    const { OpenJarvisBridge } = await import('../src/lib/openjarvis-bridge');
+    assert.ok(OpenJarvisBridge.isAvailable(), 'OpenJarvis root must be available');
+
+    // 1. Verify 16 agent templates
+    const templates = OpenJarvisBridge.getTemplates();
+    assert.equal(templates.length, 16, 'Must load all 16 OpenJarvis agent templates');
+    const templateIds = templates.map(t => t.id);
+    assert.ok(templateIds.includes('architect'), 'Must contain architect template');
+    assert.ok(templateIds.includes('debugger'), 'Must contain debugger template');
+    assert.ok(templateIds.includes('security-auditor'), 'Must contain security-auditor template');
+    assert.ok(templateIds.includes('deep-researcher'), 'Must contain deep-researcher template');
+
+    // 2. Verify 8 workflow recipes
+    const recipes = OpenJarvisBridge.getRecipes();
+    assert.equal(recipes.length, 8, 'Must load all 8 OpenJarvis workflow recipes');
+    const recipeIds = recipes.map(r => r.id);
+    assert.ok(recipeIds.includes('coding_assistant'), 'Must contain coding_assistant recipe');
+    assert.ok(recipeIds.includes('swebench_openhands'), 'Must contain swebench_openhands recipe');
+
+    // 3. Verify 10 builtin tools
+    const tools = OpenJarvisBridge.getTools();
+    assert.equal(tools.length, 10, 'Must load all 10 OpenJarvis builtin tool templates');
+    const toolIds = tools.map(t => t.id);
+    assert.ok(toolIds.includes('json_transform'), 'Must contain json_transform tool');
+    assert.ok(toolIds.includes('regex_extract'), 'Must contain regex_extract tool');
+    assert.ok(toolIds.includes('unit_convert'), 'Must contain unit_convert tool');
+
+    // 4. Verify model catalog
+    const models = OpenJarvisBridge.getModelCatalog();
+    assert.ok(models.length >= 6, 'Must expose OpenJarvis model catalog');
+  });
 });
