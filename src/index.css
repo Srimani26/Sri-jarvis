@@ -494,5 +494,54 @@
   background-size: 32px 32px;
 }
 
+/* ============================================================================
+ * MOBILE THERMAL OPTIMIZATION & GPU SHADER THROTTLING
+ * Prevents mobile CPU/GPU thermal overload, battery drain, and heating
+ * ============================================================================ */
+@media (max-width: 768px) {
+  /* Reduce heavy multi-pass backdrop blur shaders on mobile GPUs */
+  .backdrop-blur-3xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-xl,
+  .glass-panel-quantum,
+  .quantum-omnibar,
+  .hud-panel {
+    -webkit-backdrop-filter: blur(4px) !important;
+    backdrop-filter: blur(4px) !important;
+  }
+
+  /* Disable expensive multi-pass Gaussian blur spheres on mobile */
+  .blur-3xl,
+  .blur-2xl {
+    filter: none !important;
+    opacity: 0.15 !important;
+  }
+
+  .blur-xl {
+    filter: blur(8px) !important;
+    opacity: 0.3 !important;
+  }
+
+  /* Throttle high-frequency infinite animations on mobile */
+  .arc-spin-cw,
+  .arc-spin-ccw,
+  .animate-spin-slow,
+  .animate-holographic-ripple {
+    animation-duration: 20s !important;
+  }
+
+  .quantum-glow,
+  .animate-pulse {
+    animation-duration: 6s !important;
+  }
+
+  /* GPU Layer promotion only for high-priority elements */
+  .mobile-hardware-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+}
+
+
 
 

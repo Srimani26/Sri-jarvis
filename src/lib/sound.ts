@@ -70,9 +70,28 @@ export function playJarvisChime(type: 'wake' | 'execute' | 'alert' = 'wake') {
 
 let activeAudio: HTMLAudioElement | null = null
 let activeSpeechSessionId = 0
+let speechKeepAliveInterval: any = null
+
+function startSpeechKeepAlive() {
+  if (speechKeepAliveInterval) clearInterval(speechKeepAliveInterval)
+  speechKeepAliveInterval = setInterval(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause()
+      window.speechSynthesis.resume()
+    }
+  }, 7000)
+}
+
+function stopSpeechKeepAlive() {
+  if (speechKeepAliveInterval) {
+    clearInterval(speechKeepAliveInterval)
+    speechKeepAliveInterval = null
+  }
+}
 
 export function stopNeuralSpeech() {
   activeSpeechSessionId++
+  stopSpeechKeepAlive()
   if (activeAudio) {
     try {
       activeAudio.pause()
@@ -206,6 +225,166 @@ export function playNeuralSpeech(
   }
 }
 
+/**
+ * Instant Local Zero-Latency Speech Synthesizer (< 100ms)
+ * Used for immediate greetings and ultra-fast responsive interactions.
+ * Completely immune to network latency and mobile background aborts.
+ */
+export function speakInstantNativeSpeech(
+  text: string,
+  lang: string = 'en-GB',
+  onStart?: () => void,
+  onEnd?: () => void,
+  onError?: () => void
+) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) {
+    if (onStart) onStart()
+    if (onEnd) onEnd()
+    return
+  }
+
+  stopNeuralSpeech()
+  const sessionId = ++activeSpeechSessionId
+
+  const clean = text
+    .replace(/```[\s\S]*?```/g, 'I have generated the code.')
+    .replace(/https?:\/\/[^\s]+/g, 'link on screen.')
+    .replace(/[*_#`~>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!clean) {
+    if (onEnd) onEnd()
+    return
+  }
+
+  try {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel()
+    }
+    if (typeof window.speechSynthesis.resume === 'function') {
+      window.speechSynthesis.resume()
+    }
+
+    startSpeechKeepAlive()
+
+    // Break text into clean sentences (< 160 chars) to prevent mobile browser truncation
+    const rawChunks = clean.match(/[^.!?]+[.!?]+|[^.!?]+/g)?.map(s => s.trim()).filter(Boolean) || [clean]
+    const sentences: string[] = []
+    for (const raw of rawChunks) {
+      if (raw.length <= 160) {
+        sentences.push(raw)
+      } else {
+        const words = raw.split(' ')
+        let current = ''
+        for (const w of words) {
+          if ((current + ' ' + w).trim().length <= 160) {
+            current = (current + ' ' + w).trim()
+          } else {
+            if (current) sentences.push(current)
+            current = w
+          }
+        }
+        if (current) sentences.push(current)
+      }
+    }
+
+    if (sentences.length === 0) {
+      stopSpeechKeepAlive()
+      if (onEnd) onEnd()
+      return
+    }
+
+    const voices = window.speechSynthesis.getVoices()
+    const voice =
+      voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2))) ||
+      voices.find(v => v.name.includes('Daniel') || v.name.includes('Oliver') || v.name.includes('Ryan') || v.name.includes('George')) ||
+      voices.find(v => v.lang.startsWith('en'))
+
+    let currentIndex = 0
+    let hasStarted = false
+    let watchdogTimer: any = null
+
+    const speakNext = () => {
+      if (sessionId !== activeSpeechSessionId) {
+        if (watchdogTimer) clearTimeout(watchdogTimer)
+        stopSpeechKeepAlive()
+        return
+      }
+
+      if (watchdogTimer) {
+        clearTimeout(watchdogTimer)
+        watchdogTimer = null
+      }
+
+      if (currentIndex >= sentences.length) {
+        (window as any).__activeUtterance = null
+        stopSpeechKeepAlive()
+        if (onEnd) onEnd()
+        return
+      }
+
+      const textChunk = sentences[currentIndex]
+      const utterance = new SpeechSynthesisUtterance(textChunk)
+      ;(window as any).__activeUtterance = utterance
+      utterance.lang = lang || 'en-GB'
+      if (voice) utterance.voice = voice
+      utterance.rate = 1.05
+      utterance.pitch = 0.98
+
+      const expectedDurationMs = Math.max(6000, (textChunk.length * 160) + 6000)
+      watchdogTimer = setTimeout(() => {
+        if (typeof window !== 'undefined' && window.speechSynthesis?.speaking && sessionId === activeSpeechSessionId) {
+          currentIndex++
+          speakNext()
+        }
+      }, expectedDurationMs)
+
+      utterance.onstart = () => {
+        if (!hasStarted) {
+          hasStarted = true
+          if (onStart) onStart()
+        }
+      }
+
+      utterance.onend = () => {
+        if (watchdogTimer) {
+          clearTimeout(watchdogTimer)
+          watchdogTimer = null
+        }
+        if (sessionId === activeSpeechSessionId) {
+          currentIndex++
+          speakNext()
+        }
+      }
+
+      utterance.onerror = (e) => {
+        if (watchdogTimer) {
+          clearTimeout(watchdogTimer)
+          watchdogTimer = null
+        }
+        console.warn('[InstantWebSpeech] Utterance note:', e)
+        if (sessionId === activeSpeechSessionId) {
+          currentIndex++
+          speakNext()
+        }
+      }
+
+      window.speechSynthesis.speak(utterance)
+      if (typeof window.speechSynthesis.resume === 'function') {
+        window.speechSynthesis.resume()
+      }
+    }
+
+    speakNext()
+  } catch (err) {
+    console.warn('Instant speech error:', err)
+    stopSpeechKeepAlive()
+    if (onError) onError()
+    if (onEnd) onEnd()
+  }
+}
+
 function fallbackWebSpeech(
   cleanText: string,
   lang: string,
@@ -226,6 +405,8 @@ function fallbackWebSpeech(
     if (typeof window.speechSynthesis.resume === 'function') {
       window.speechSynthesis.resume()
     }
+
+    startSpeechKeepAlive()
 
     // Break text into clean bite-sized sentences (< 160 chars) so Chromium/Safari never truncate
     const rawChunks = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+/g)?.map(s => s.trim()).filter(Boolean) || [cleanText]
@@ -249,6 +430,7 @@ function fallbackWebSpeech(
     }
 
     if (sentences.length === 0) {
+      stopSpeechKeepAlive()
       if (onEnd) onEnd()
       return
     }
@@ -271,6 +453,7 @@ function fallbackWebSpeech(
 
       if (currentIndex >= sentences.length) {
         (window as any).__activeUtterance = null
+        stopSpeechKeepAlive()
         if (onEnd) onEnd()
         return
       }
@@ -326,8 +509,10 @@ function fallbackWebSpeech(
 
     speakNext()
   } catch {
+    stopSpeechKeepAlive()
     if (onError) onError()
     if (onEnd) onEnd()
   }
 }
+
 

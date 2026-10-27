@@ -8,7 +8,7 @@ import {
   Clock, Rocket, TrendingUp, ShoppingBag
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech } from '@/lib/sound'
+import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech, speakInstantNativeSpeech } from '@/lib/sound'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { processOfflineCommand } from '@/lib/offline-core'
 import TaskProgressCard, { AgentTask, StepAction } from '@/components/TaskProgressCard'
@@ -546,13 +546,24 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       setIsSleeping(false)
       isSleepingRef.current = false
       playJarvisChime('wake')
-      speakVoice(greeting, currentAgent?.lang || 'en-GB', () => {
-        // Settle into resting standby sleep mode; mic stays awake listening for Master Sri's voice command
-        setIsSleeping(true)
-        isSleepingRef.current = true
-        setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Ear is active. Speak your directive or call any specialist agent (**"Friday"**, **"Aegis"**, **"OpenHands"**, **"Vortex"**) to command hands-free.*`)
-        startListening()
-      })
+      setIsSpeaking(true)
+      isSpeakingRef.current = true
+      speakInstantNativeSpeech(
+        greeting,
+        currentAgent?.lang || 'en-GB',
+        () => {
+          setIsSpeaking(true)
+          isSpeakingRef.current = true
+        },
+        () => {
+          setIsSpeaking(false)
+          isSpeakingRef.current = false
+          setIsSleeping(true)
+          isSleepingRef.current = true
+          setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Ear is active. Speak your directive or call any specialist agent (**"Friday"**, **"Aegis"**, **"OpenHands"**, **"Vortex"**) to command hands-free.*`)
+          startListening()
+        }
+      )
     }
     if (!isOpen) {
       isRollingCallRef.current = false
@@ -3191,69 +3202,19 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
 
-      let hasSpoken = false
-      let silenceStartTime: number | null = null
-      const SILENCE_THRESHOLD_RMS = 0.005 // Lowered so ordinary room voice triggers VAD
-      const SILENCE_DURATION_MS = 3000
-
-      let rmsInterval: any = null
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-        const audioCtx = new AudioCtx({ sampleRate: 16000 })
-        audioCtxRef.current = audioCtx
-        const source = audioCtx.createMediaStreamSource(stream)
-        const analyser = audioCtx.createAnalyser()
-        analyser.fftSize = 512
-        source.connect(analyser)
-        const timeDomainData = new Float32Array(analyser.fftSize)
-
-        const checkRMSGate = () => {
-          if (!isListeningRef.current || recorder.state !== 'recording') {
-            if (rmsInterval) clearInterval(rmsInterval)
-            return
-          }
-          analyser.getFloatTimeDomainData(timeDomainData)
-          let sumSquares = 0
-          for (let i = 0; i < timeDomainData.length; i++) {
-            sumSquares += timeDomainData[i] * timeDomainData[i]
-          }
-          const rms = Math.sqrt(sumSquares / timeDomainData.length)
-
-          if (rms > SILENCE_THRESHOLD_RMS) {
-            hasSpoken = true
-            silenceStartTime = null
-            setTranscript('Hearing Master Sri speak...')
-          } else if (hasSpoken) {
-            if (!silenceStartTime) {
-              silenceStartTime = Date.now()
-            } else if (Date.now() - silenceStartTime >= SILENCE_DURATION_MS) {
-              if (rmsInterval) clearInterval(rmsInterval)
-              if (recorder.state === 'recording') {
-                recorder.stop()
-              }
-              return
-            }
-          }
-        }
-        rmsInterval = setInterval(checkRMSGate, 120)
-      } catch (vadErr) {
-        console.warn('VAD setup skipped:', vadErr)
-      }
-
-      // Safety timeout: max 12 seconds per turn
+      // Lightweight VAD using silent stream stop without CPU-intensive float loops
       if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
       maxRecordingTimerRef.current = setTimeout(() => {
         if (recorder.state === 'recording') {
           recorder.stop()
         }
-      }, 12000)
+      }, 7000)
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
 
       recorder.onstop = async () => {
-        if (rmsInterval) clearInterval(rmsInterval)
         if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
         if (mediaStreamRef.current) {
           try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
@@ -3344,8 +3305,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           setIsListening(true)
           isListeningRef.current = true
           setEngineType('WebSpeech')
-          setTranscript('')
-          transcriptRef.current = ''
+          if (!silenceTimerRef.current) {
+            setTranscript('')
+            transcriptRef.current = ''
+          }
           lastActiveRef.current = Date.now()
         }
 
@@ -3368,22 +3331,19 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             lastActiveRef.current = Date.now()
           }
 
-          // Patient, natural conversational debounce (1800ms on final utterance, 2500ms on interim for zero premature cutoff)
-          const lastResult = event.results[event.results.length - 1]
-          const isFinal = lastResult && lastResult.isFinal
-
+          // Dynamic intelligent turn-taking: 2.2s conversational patience eliminates premature cutoff
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
           if (cleaned.length > 0) {
-            const timeoutDelay = 3000
             silenceTimerRef.current = setTimeout(() => {
               const captured = transcriptRef.current.trim()
+              silenceTimerRef.current = null
               if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
                 transcriptRef.current = ''
                 setTranscript('')
                 stopListening()
                 processCommand(captured)
               }
-            }, timeoutDelay)
+            }, 2200)
           }
         }
 
@@ -3393,10 +3353,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             isListeningRef.current = false
             if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
               setTimeout(() => {
-                if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current && typeof document !== 'undefined' && !document.hidden) {
                   startListening()
                 }
-              }, 400)
+              }, 800)
             }
             return
           }
@@ -3404,10 +3364,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
             setIsListening(false)
             isListeningRef.current = false
             setTimeout(() => {
-              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current && typeof document !== 'undefined' && !document.hidden) {
                 startListening()
               }
-            }, 600)
+            }, 1000)
             return
           }
           if (e.error === 'not-allowed') {
@@ -3420,19 +3380,21 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           setIsListening(false)
           isListeningRef.current = false
 
-          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-          const finalRecordedText = transcriptRef.current.trim()
-          transcriptRef.current = ''
-          setTranscript('')
-          if (finalRecordedText && !isSpeakingRef.current && !isProcessingRef.current) {
-            processCommand(finalRecordedText)
-          } else if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-            // Keep hands-free Standby listening alive continuous!
+          // Seamless breath pause recovery: If user is mid-sentence, restart without cutting them off!
+          if (silenceTimerRef.current && transcriptRef.current.trim() && isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            try {
+              recognition.start()
+              return
+            } catch {}
+          }
+
+          // Settle into power-efficient standby (800ms backoff stops mobile CPU overheating)
+          if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
             setTimeout(() => {
-              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current && typeof document !== 'undefined' && !document.hidden) {
                 startListening()
               }
-            }, 300)
+            }, 800)
           }
         }
 
@@ -3470,17 +3432,31 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     isListeningRef.current = false
   }
 
-  // Audio equalizer: real speech activity when listening/speaking, strictly flat when idle
+  // Audio equalizer: throttled to 400ms to eliminate mobile thermal heating & React re-render thrashing
   useEffect(() => {
     if (isListening || isSpeaking) {
       const interval = setInterval(() => {
         setVoiceVolume(Array.from({ length: 14 }, () => Math.floor(Math.random() * 60) + 20))
-      }, 100)
+      }, 400)
       return () => clearInterval(interval)
     } else {
       setVoiceVolume([8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8])
     }
   }, [isListening, isSpeaking])
+
+  // Mobile Thermal & Background Sleep Guard: freeze audio and timers when phone is locked / tab hidden
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopListening()
+        stopNeuralSpeech()
+      } else if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+        startListening()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
 
 
   if (!isOpen) return null
@@ -3513,9 +3489,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           : "border-cyan-500/30 bg-gradient-to-b from-slate-900/98 via-slate-950/98 to-slate-950"
       )}>
 
-        {/* Ambient Holographic Reactor Aura */}
+        {/* Ambient Holographic Reactor Aura — Hidden on mobile to prevent GPU thermal throttling */}
         <div className={cn(
-          "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-60",
+          "hidden sm:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-60",
           securityAlert ? "bg-rose-500/20" : isSleeping ? "bg-indigo-500/15" : isSpeaking ? "bg-amber-500/15" : isListening ? "bg-cyan-500/20" : "bg-cyan-500/10"
         )} />
 

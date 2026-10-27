@@ -5471,7 +5471,7 @@ You speak with the razor-sharp intellect, British composure, and subtle warmth o
       text: cleanOutput || rawText,
       reasoning,
       source: `DeepSeek Harness // ${aiResult.source}`,
-      spokenSummary: speechClean.slice(0, 300)
+      spokenSummary: speechClean.slice(0, 4000)
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
