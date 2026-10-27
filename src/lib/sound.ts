@@ -206,21 +206,21 @@ export function playNeuralSpeech(
       audio.onerror = () => {
         activeAudio = null
         URL.revokeObjectURL(blobUrl)
-        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError, agentId)
       }
       const p = audio.play()
       if (p !== undefined) {
         p.catch(() => {
-          if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+          if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError, agentId)
         })
       }
     })
     .catch(() => {
-      if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError)
+      if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError, agentId)
     })
     return null
   } catch {
-    fallbackWebSpeech(clean, lang, onStart, onEnd, onError)
+    fallbackWebSpeech(clean, lang, onStart, onEnd, onError, agentId)
     return null
   }
 }
@@ -235,7 +235,8 @@ export function speakInstantNativeSpeech(
   lang: string = 'en-GB',
   onStart?: () => void,
   onEnd?: () => void,
-  onError?: () => void
+  onError?: () => void,
+  agentId: string = 'jarvis'
 ) {
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     if (onStart) onStart()
@@ -295,11 +296,35 @@ export function speakInstantNativeSpeech(
       return
     }
 
+    const id = (agentId || 'jarvis').toLowerCase()
+    const isFemaleAgent = id === 'friday' || id === 'raphael' || id === 'sentinel' || id === 'cerebro' || id === 'smolagent' || id === 'smolagents' || id === 'langgraph'
+    const isIndianMidas = id === 'midas'
+
     const voices = window.speechSynthesis.getVoices()
-    const voice =
-      voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2))) ||
-      voices.find(v => v.name.includes('Daniel') || v.name.includes('Oliver') || v.name.includes('Ryan') || v.name.includes('George')) ||
-      voices.find(v => v.lang.startsWith('en'))
+    let voice: SpeechSynthesisVoice | undefined
+
+    if (isFemaleAgent) {
+      voice =
+        voices.find(v => (v.name.includes('Samantha') || v.name.includes('Victoria') || v.name.includes('Karen') || v.name.includes('Zira') || v.name.includes('Moira') || v.name.includes('Female') || v.name.includes('Natural')) && (v.lang.startsWith('en'))) ||
+        voices.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman')) ||
+        voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2)))
+    } else if (isIndianMidas) {
+      voice =
+        voices.find(v => v.lang.includes('en-IN') || v.lang.includes('hi-IN') || v.name.includes('Rishi') || v.name.includes('Veena')) ||
+        voices.find(v => v.name.includes('Oliver') || v.name.includes('Daniel') || v.name.includes('Ryan'))
+    } else if (id === 'aegis') {
+      voice =
+        voices.find(v => v.name.includes('George') || v.name.includes('Arthur') || v.name.includes('David')) ||
+        voices.find(v => v.lang.includes(lang) || v.lang.startsWith('en'))
+    } else {
+      voice =
+        voices.find(v => (v.name.includes('Daniel') || v.name.includes('Oliver') || v.name.includes('George')) && (v.lang.includes('GB') || v.lang.includes('en'))) ||
+        voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2))) ||
+        voices.find(v => v.lang.startsWith('en'))
+    }
+
+    const pitch = isFemaleAgent ? 1.15 : (id === 'midas' ? 0.95 : (id === 'aegis' ? 0.92 : 0.98))
+    const rate = isFemaleAgent ? 1.05 : (id === 'midas' ? 1.10 : 1.02)
 
     let currentIndex = 0
     let hasStarted = false
@@ -327,10 +352,10 @@ export function speakInstantNativeSpeech(
       const textChunk = sentences[currentIndex]
       const utterance = new SpeechSynthesisUtterance(textChunk)
       ;(window as any).__activeUtterance = utterance
-      utterance.lang = lang || 'en-GB'
+      utterance.lang = lang || (isFemaleAgent ? 'en-US' : (isIndianMidas ? 'en-IN' : 'en-GB'))
       if (voice) utterance.voice = voice
-      utterance.rate = 1.05
-      utterance.pitch = 0.98
+      utterance.rate = rate
+      utterance.pitch = pitch
 
       const expectedDurationMs = Math.max(6000, (textChunk.length * 160) + 6000)
       watchdogTimer = setTimeout(() => {
@@ -390,7 +415,8 @@ function fallbackWebSpeech(
   lang: string,
   onStart?: () => void,
   onEnd?: () => void,
-  onError?: () => void
+  onError?: () => void,
+  agentId: string = 'jarvis'
 ) {
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     if (onError) onError()
@@ -435,11 +461,35 @@ function fallbackWebSpeech(
       return
     }
 
+    const id = (agentId || 'jarvis').toLowerCase()
+    const isFemaleAgent = id === 'friday' || id === 'raphael' || id === 'sentinel' || id === 'cerebro' || id === 'smolagent' || id === 'smolagents' || id === 'langgraph'
+    const isIndianMidas = id === 'midas'
+
     const voices = window.speechSynthesis.getVoices()
-    const voice =
-      voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2))) ||
-      voices.find(v => v.name.includes('Daniel') || v.name.includes('Oliver') || v.name.includes('Ryan') || v.name.includes('George')) ||
-      voices.find(v => v.lang.startsWith('en'))
+    let voice: SpeechSynthesisVoice | undefined
+
+    if (isFemaleAgent) {
+      voice =
+        voices.find(v => (v.name.includes('Samantha') || v.name.includes('Victoria') || v.name.includes('Karen') || v.name.includes('Zira') || v.name.includes('Moira') || v.name.includes('Female') || v.name.includes('Natural')) && (v.lang.startsWith('en'))) ||
+        voices.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman')) ||
+        voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2)))
+    } else if (isIndianMidas) {
+      voice =
+        voices.find(v => v.lang.includes('en-IN') || v.lang.includes('hi-IN') || v.name.includes('Rishi') || v.name.includes('Veena')) ||
+        voices.find(v => v.name.includes('Oliver') || v.name.includes('Daniel') || v.name.includes('Ryan'))
+    } else if (id === 'aegis') {
+      voice =
+        voices.find(v => v.name.includes('George') || v.name.includes('Arthur') || v.name.includes('David')) ||
+        voices.find(v => v.lang.includes(lang) || v.lang.startsWith('en'))
+    } else {
+      voice =
+        voices.find(v => (v.name.includes('Daniel') || v.name.includes('Oliver') || v.name.includes('George')) && (v.lang.includes('GB') || v.lang.includes('en'))) ||
+        voices.find(v => v.lang.includes(lang) || v.lang.startsWith(lang.slice(0, 2))) ||
+        voices.find(v => v.lang.startsWith('en'))
+    }
+
+    const pitch = isFemaleAgent ? 1.15 : (id === 'midas' ? 0.95 : (id === 'aegis' ? 0.92 : 0.98))
+    const rate = isFemaleAgent ? 1.05 : (id === 'midas' ? 1.10 : 1.02)
 
     let currentIndex = 0
     let hasStarted = false
@@ -461,10 +511,10 @@ function fallbackWebSpeech(
       const textChunk = sentences[currentIndex]
       const utterance = new SpeechSynthesisUtterance(textChunk)
       ;(window as any).__activeUtterance = utterance
-      utterance.lang = lang || 'en-GB'
+      utterance.lang = lang || (isFemaleAgent ? 'en-US' : (isIndianMidas ? 'en-IN' : 'en-GB'))
       if (voice) utterance.voice = voice
-      utterance.rate = 1.05
-      utterance.pitch = 0.98
+      utterance.rate = rate
+      utterance.pitch = pitch
 
       // Watchdog: If browser onend fails to fire, advance automatically without cutting off natural pauses
       const expectedDurationMs = Math.max(6000, (textChunk.length * 160) + 6000)

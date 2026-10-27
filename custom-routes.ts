@@ -912,11 +912,16 @@ async function fetchLiveContext(): Promise<string> {
   const now = new Date()
   const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
   const dateStr = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const dayName = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' })
+  const yearNum = now.getFullYear()
+  const monthName = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'long' })
+  const dayNum = now.getDate()
   ctx += `\n\n## LIVE TEMPORAL ANCHOR & SYSTEM CLOCK (EXACT CURRENT TIME & DATE)
 - Today's Real-World Date: ${dateStr}
+- Day of Week: ${dayName}
 - Current Live Time: ${timeStr} (IST - Indian Standard Time, Asia/Kolkata)
-- Current Year: 2026 | Month: October | Day: 22
-- CRITICAL TEMPORAL TRUTH DIRECTIVE: The current real-world year is 2026. Today is ${dateStr}. NEVER state 2023, 2024, or 2025. When Master Sri asks for the date, day, month, year, or current time, you must report this exact live timestamp (${dateStr}, ${timeStr} IST). You are live and operating in 2026.`
+- Current Year: ${yearNum} | Month: ${monthName} | Day: ${dayNum}
+- CRITICAL TEMPORAL TRUTH DIRECTIVE: The current real-world year is ${yearNum}. Today is ${dateStr}. NEVER state 2023, 2024, or 2025. When Master Sri asks for the date, day, month, year, or current time, you must report this exact live timestamp (${dateStr}, ${timeStr} IST). You are live and operating in ${yearNum}.`
 
   try {
     const recentMemories = await (prisma as any).memory.findMany({
@@ -1833,6 +1838,7 @@ app.post('/ai/chat', requireAuth, async (c) => {
     if (!effectiveAgentId || effectiveAgentId === 'jarvis' || effectiveAgentId === 'all') {
       const agentTriggers: Array<{ id: string; pattern: RegExp }> = [
         { id: 'friday', pattern: /\b(friday|f\.r\.i\.d\.a\.y)\b/i },
+        { id: 'raphael', pattern: /\b(raphael|lord of wisdom|great sage|sage)\b/i },
         { id: 'midas', pattern: /\b(midas|m\.i\.d\.a\.s|revenue hunter)\b/i },
         { id: 'aegis', pattern: /\b(aegis|cyber defense|security core)\b/i },
         { id: 'daedalus', pattern: /\b(daedalus|system architect|architect)\b/i },
@@ -5433,6 +5439,40 @@ app.post('/ai/deepseek', requireAuth, async (c) => {
   try {
     const { prompt, messages } = await c.req.json()
     const userPrompt = prompt || (messages && messages[messages.length - 1]?.content) || 'Status report'
+    const lowerPrompt = userPrompt.toLowerCase().trim()
+
+    // 0. Direct Real-Time Date & Clock Intercept: 100% accurate, zero cutoff hallucination
+    const isDateTimeQuery = (
+      lowerPrompt.includes("today's date") ||
+      lowerPrompt.includes("today date") ||
+      lowerPrompt.includes("what is the date") ||
+      lowerPrompt.includes("what's the date") ||
+      lowerPrompt.includes("what date is it") ||
+      lowerPrompt.includes("current date") ||
+      lowerPrompt.includes("what day is today") ||
+      lowerPrompt.includes("what day is it") ||
+      lowerPrompt.includes("what time is it") ||
+      lowerPrompt.includes("what's the time") ||
+      lowerPrompt.includes("current time") ||
+      lowerPrompt.includes("tell me the time") ||
+      lowerPrompt.includes("tell me the date") ||
+      lowerPrompt.includes("date and time")
+    )
+
+    if (isDateTimeQuery) {
+      const now = new Date()
+      const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+      const dateStr = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      const dateTimeReport = `Master Sri, today is **${dateStr}**, and the current live time is **${timeStr} (IST - Indian Standard Time)**.\n\nAll J.A.R.V.I.S. neural cores, temporal anchors, and autonomous agent swarms are fully synchronized to the real-world clock.`
+      const spokenSummary = `Master Sri, today is ${dateStr}, and the current time is ${timeStr} Indian Standard Time. All systems are fully synchronized.`
+      return c.json({
+        success: true,
+        text: dateTimeReport,
+        reasoning: 'Direct atomic clock synchronization via Asia/Kolkata (IST).',
+        source: 'J.A.R.V.I.S. ChronoCore Atomic Clock (IST)',
+        spokenSummary
+      })
+    }
 
     const harnessSystemPrompt = `You are J.A.R.V.I.S., Sovereign Master Sri's supreme 2nd-in-Command, Chief of Staff, and trusted executive partner.
 You serve and obey ONLY Master Sri (Srimanikandan K).
@@ -5449,8 +5489,9 @@ You speak with the razor-sharp intellect, British composure, and subtle warmth o
       chatHistory.push({ role: 'user', content: userPrompt })
     }
 
+    const liveContext = await fetchLiveContext()
     const webGrounding = await fetchLiveWebGrounding(userPrompt)
-    const groundedHarnessPrompt = harnessSystemPrompt + webGrounding
+    const groundedHarnessPrompt = harnessSystemPrompt + liveContext + webGrounding
     const aiResult = await callAI(groundedHarnessPrompt, chatHistory)
     const rawText = aiResult.text
 

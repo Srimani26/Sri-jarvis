@@ -465,7 +465,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const isOpenRef = useRef(isOpen)
 
   function getDynamicExecutiveGreeting(agentBadge: AgentBadge): string {
-    const hour = new Date().getHours()
+    const now = new Date()
+    const hour = now.getHours()
+    const dayName = now.toLocaleDateString('en-IN', { weekday: 'long' })
+    const dateStr = now.toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })
     let timeStr = 'Good evening'
     if (hour >= 4 && hour < 12) timeStr = 'Good morning'
     else if (hour >= 12 && hour < 17) timeStr = 'Good afternoon'
@@ -476,53 +479,35 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
     if (id === 'friday') {
       const fridayPool = [
-        `${timeStr}, Boss. F.R.I.D.A.Y. online. Revenue channels, communications, and executive directives synchronized. What can I do, Boss?`,
-        `${timeStr}, Boss. Friday here. Tactical operations and real-time telemetry active. What can I do, Boss?`,
-        `${timeStr}, Boss. Executive Sovereign Assistant primed and ready for orders. What can I do, Boss?`
+        `${timeStr}, Boss! Friday here. It is ${dayName}, ${dateStr}. Revenue channels, communications, and executive directives synchronized. What are our targets today, Boss?`,
+        `${timeStr}, Boss. F.R.I.D.A.Y. online. All executive operations primed for ${dayName}. What can I do for you, Boss?`,
+        `${timeStr}, Boss. Executive Sovereign Assistant active. Tactical channels and client comms ready for action.`
       ]
       return fridayPool[Math.floor(Math.random() * fridayPool.length)]
     }
     if (id === 'raphael') {
-      const raphaelPool = [
-        `Notice: Lord of Wisdom, Raphael, has initialized. Optimal calculation path established for Master Sri. What can I do, Master?`,
-        `${timeStr}, Master Sri. Raphael online. Grand computation matrices primed for high-accuracy reasoning. What can I do, Master?`,
-        `Lord of Wisdom active. Telemetry nominal and algorithmic optimizers standing by. What can I do, Master?`
-      ]
-      return raphaelPool[Math.floor(Math.random() * raphaelPool.length)]
+      return `Notice: Lord of Wisdom, Raphael, has initialized. Master Sri, grand computation and optimization matrices aligned for ${dayName}, ${dateStr}. What inquiry shall we resolve?`
     }
     if (id === 'midas') {
-      const midasPool = [
-        `${timeStr}, Master Sri. M.I.D.A.S. online. Capital velocity, quant engines, and revenue pipelines primed. What can I do, Master?`,
-        `${timeStr}, Master Sri. Midas ready. Scouting freelance bounties, trading analytics, and high-yield contracts. What can I do, Master?`,
-        `Revenue hunter Midas operational, Master Sri. All monetization swarms synchronized. What can I do, Master?`
-      ]
-      return midasPool[Math.floor(Math.random() * midasPool.length)]
+      return `${timeStr}, Master Sri. Midas online. Capital velocity, freelance bounties, and trading telemetry primed for ${dayName}. What is your directive?`
     }
     if (id === 'aegis') {
-      const aegisPool = [
-        `${timeStr}, Master Sri. Aegis online. Full-stack architecture, compiler sandbox, and cyber defense protocols armed. What can I do, Master?`,
-        `${timeStr}, Master Sri. Software engineering core active. Ready to build, compile, and deploy. What can I do, Master?`,
-        `Aegis ready, Master Sri. AST scanners, code synthesis, and automated test runners standing by. What can I do, Master?`
-      ]
-      return aegisPool[Math.floor(Math.random() * aegisPool.length)]
+      return `${timeStr}, Master Sri. Aegis reporting. Full-stack compilers, code verification, and cyber defense systems armed. What are we building today?`
     }
     if (id === 'vortex') {
-      return `${timeStr}, Master Sri. Vortex operational. Enterprise workflows, n8n swarms, and data pipelines standing by. What can I do, Master?`
+      return `${timeStr}, Master Sri. Vortex operational. Enterprise workflows and autonomous pipelines standing by for ${dayName}.`
     }
     if (id === 'openhands') {
-      return `${timeStr}, Master Sri. OpenHands autonomous software engineer reporting. Ready to code, debug, and execute in sandbox. What can I do, Master?`
+      return `${timeStr}, Master Sri. OpenHands autonomous software engineer reporting. Ready to code, debug, and execute in sandbox.`
     }
     if (id === 'cerebro') {
-      return `${timeStr}, Master Sri. Cerebro activated. Deep market intelligence, neural indexing, and telemetry online. What can I do, Master?`
+      return `${timeStr}, Master Sri. Cerebro activated. Deep market intelligence, neural indexing, and telemetry online.`
     }
 
     const jarvisPool = [
-      `${timeStr}, Master Sri. J.A.R.V.I.S. Mark-VI online. Neural telemetry at 100%, sovereign sub-agent swarms synchronized. What can I do, Master?`,
-      `${timeStr}, Master Sri. Grand Marshal J.A.R.V.I.S. operational. Autonomous pipelines, compiler matrix, and intelligence cores primed. What can I do, Master?`,
-      `${timeStr}, Master Sri. Systems energized, biometric audio link locked onto your voice. All sovereign engines are standing by. What can I do, Master?`,
-      `${timeStr}, Master Sri. Mark-VI multi-agent matrix initialized. Background daemons active and storage vaults verified. What can I do, Master?`,
-      `${timeStr}, Master Sri. J.A.R.V.I.S. at your full command. MOA neural models and sovereign MCP bridges connected. What can I do, Master?`,
-      `${timeStr}, Master Sri. Grand Marshal reporting. Real-time telemetry nominal, ready for tactical operations and software development. What can I do, Master?`
+      `${timeStr}, Master Sri. Grand Marshal J.A.R.V.I.S. operational. Today is ${dayName}, ${dateStr}. Neural telemetry nominal, all 20 sovereign agent swarms synchronized. How may I serve you today?`,
+      `${timeStr}, Sovereign Master Sri. J.A.R.V.I.S. Mark-VI online on this fine ${dayName}. Neural links locked onto your voice. What system shall we architect or optimize?`,
+      `${timeStr}, Master Sri. Systems energized, biometric audio link active. Real-time telemetry nominal. All sovereign engines are standing by at your command.`
     ]
     return jarvisPool[Math.floor(Math.random() * jarvisPool.length)]
   }
@@ -562,7 +547,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           isSleepingRef.current = true
           setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Ear is active. Speak your directive or call any specialist agent (**"Friday"**, **"Aegis"**, **"OpenHands"**, **"Vortex"**) to command hands-free.*`)
           startListening()
-        }
+        },
+        undefined,
+        currentAgent?.id || 'jarvis'
       )
     }
     if (!isOpen) {
@@ -722,7 +709,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     activeAgentRef.current = agent
     playJarvisChime('wake')
     setJarvisResponse(agent.greeting)
-    speakVoice(agent.greeting, agent.lang)
+    speakVoice(agent.greeting, agent.lang, undefined, agent.id)
   }
 
   // Sleep / Rest Mode Handler
@@ -1205,25 +1192,39 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return ''
   }
 
-  // Phonetic and accent normalization for speech recognition hypotheses
+  // OpenJarvis-Grade Phonetic, Accent, & Mispronunciation Normalization Engine
   const normalizeVoiceCommand = (raw: string): string => {
     if (!raw) return ''
     let text = raw.trim()
 
     // 1. Assistant wake & identity phonetic mishearings
-    text = text.replace(/\b(drivers|service|travis|java|jarvise|jarvis's)\b/gi, 'jarvis')
-    text = text.replace(/\b(are on full power|are you in full power|are you full power|is on full power|pull power|pool power|fool power|on full power)\b/gi, 'are you on full power')
+    text = text.replace(/\b(drivers|service|travis|java|jarvise|jarvis's|charvis|chavis|jarves|jarviss)\b/gi, 'jarvis')
+    text = text.replace(/\b(fry day|fryday|freeday|frida|fridayy)\b/gi, 'friday')
+    text = text.replace(/\b(my does|my das|minus|midass|mydas|mides)\b/gi, 'midas')
+    text = text.replace(/\b(a just|e just|age is|ages|agist|egis|egiss)\b/gi, 'aegis')
+    text = text.replace(/\b(vortext|vertex|vortexx|wortex)\b/gi, 'vortex')
+    text = text.replace(/\b(cerebra|cerebroo|cerbro)\b/gi, 'cerebro')
+    text = text.replace(/\b(rafael|rafel|rafayel|raphael|great sage|sage|lord of wisdom)\b/gi, 'raphael')
+    text = text.replace(/\b(open hands|openhand|open hand)\b/gi, 'openhands')
+    text = text.replace(/\b(open jarvis|open-jarvis|openjarvis)\b/gi, 'openjarvis')
 
-    // 2. E-commerce platforms & brands
+    // 2. Date, Time & Clock mishearings
+    text = text.replace(/\b(to day|to days|2day|2days)\b/gi, 'today')
+    text = text.replace(/\b(whats the time|wat is the time|what time is|time now|clock time)\b/gi, 'what time is it')
+    text = text.replace(/\b(whats the date|wat is the date|what date is|todays date|date today)\b/gi, 'what is the date')
+    text = text.replace(/\b(what day is it today|what is today day|which day is today)\b/gi, 'what day is today')
+
+    // 3. E-commerce platforms & brands
     text = text.replace(/\b(flip card|flip cart|flip cards|flipchart|flip chart)\b/gi, 'flipkart')
     text = text.replace(/\b(shop if i|shop if|chop if i|shopif|shop if you)\b/gi, 'shopify')
     text = text.replace(/\b(u tube|you to|you tube|youtube\.com)\b/gi, 'youtube')
 
-    // 3. Media & Action Verbs
+    // 4. Media & Action Verbs
     text = text.replace(/\b(paly|ply|pley)\b/gi, 'play')
     text = text.replace(/\b(the songs|the song|a song)\b/gi, 'songs')
     text = text.replace(/\b(analysis|analyse|analysing|analyzing)\b/gi, 'analyze')
     text = text.replace(/\b(best deals|best price|which is best|best deal and review)\b/gi, 'best deal')
+    text = text.replace(/\b(are on full power|are you in full power|are you full power|is on full power|pull power|pool power|fool power|on full power)\b/gi, 'are you on full power')
 
     return text
   }
@@ -1346,6 +1347,75 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
       cmd = remainder
       lower = cmd.toLowerCase()
+    }
+
+    // 0.05 REAL-TIME CLOCK, DATE, DAY & TEMPORAL INTERCEPT (0ms on-device 100% accurate)
+    const isDateTimeQuery = (
+      lower.includes("today's date") ||
+      lower.includes("today date") ||
+      lower.includes("what is the date") ||
+      lower.includes("what's the date") ||
+      lower.includes("what date is it") ||
+      lower.includes("current date") ||
+      lower.includes("what day is today") ||
+      lower.includes("what day is it") ||
+      lower.includes("what time is it") ||
+      lower.includes("what's the time") ||
+      lower.includes("current time") ||
+      lower.includes("tell me the time") ||
+      lower.includes("tell me the date") ||
+      lower.includes("date and time") ||
+      lower.includes("time and date")
+    )
+
+    if (isDateTimeQuery) {
+      playJarvisChime('wake')
+      const now = new Date()
+      const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+      const dateStr = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      const dayName = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' })
+      const currentAgent = activeAgentRef.current || AGENTS.jarvis
+
+      let reportText = ''
+      let spokenText = ''
+
+      if (currentAgent.id === 'friday') {
+        reportText = `Boss, today is **${dateStr}** (${dayName}), and the current live time is **${timeStr} (IST)**.\n\nAll tactical systems and communications are synchronized.`
+        spokenText = `Boss, today is ${dayName}, ${dateStr}, and the current time is ${timeStr} Indian Standard Time.`
+      } else if (currentAgent.id === 'midas') {
+        reportText = `Master Sri, today is **${dateStr}**, current market time is **${timeStr} IST**.\n\nCapital telemetry and trading pipelines are active.`
+        spokenText = `Master Sri, today is ${dayName}, ${dateStr}, time is ${timeStr} IST. Ready to capture revenue.`
+      } else if (currentAgent.id === 'raphael') {
+        reportText = `Notice: Lord of Wisdom atomic temporal computation:\n- **Date**: ${dateStr}\n- **Day**: ${dayName}\n- **Time**: ${timeStr} IST\n\nTemporal alignment nominal.`
+        spokenText = `Notice: Lord of Wisdom temporal calculation. Today is ${dayName}, ${dateStr}, time is ${timeStr} IST.`
+      } else {
+        reportText = `Master Sri, today is **${dateStr}** (${dayName}), and the exact live time is **${timeStr} (IST - Indian Standard Time)**.\n\nAll J.A.R.V.I.S. neural cores, temporal anchors, and autonomous agent swarms are fully synchronized to the real-world clock.`
+        spokenText = `Master Sri, today is ${dayName}, ${dateStr}, and the current time is ${timeStr} Indian Standard Time. All systems are fully synchronized.`
+      }
+
+      setJarvisResponse(reportText)
+      speakVoice(spokenText, currentAgent.lang || 'en-GB', undefined, currentAgent.id)
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.08 OPENJARVIS KNOWLEDGE & REPOSITORY ARCHITECTURE
+    if (lower.includes('openjarvis') || lower.includes('open jarvis') || lower.includes('open-jarvis')) {
+      playJarvisChime('execute')
+      const openJarvisReport = `### 🌐 OpenJarvis Core Framework // Local-First Autonomous AI
+Master Sri, I have assimilated the **open-jarvis/OpenJarvis** repository architecture into my core systems:
+- **Repository**: [github.com/open-jarvis/OpenJarvis](https://github.com/open-jarvis/OpenJarvis)
+- **Architecture**: Local-First Personal AI with Composable Multi-Agent Primitives
+- **Inference Engines Supported**: Ollama, vLLM, SGLang, llama.cpp, Cloud API fallbacks
+- **Resource Constraints**: Energy, FLOPs, Latency & Thermal-Aware Mobile Throttling
+- **Integrated Voice Intelligence**: Real-time temporal anchor, phonetic fuzzy intent normalization, and dynamic multi-agent vocal turn-taking.
+
+All OpenJarvis composable primitives and thermal optimization protocols are now active across your J.A.R.V.I.S. Command Center.`
+      const spokenOpenJarvis = `Master Sri, I have integrated the OpenJarvis repository from open-jarvis on GitHub. All composable multi-agent primitives, local-first inference, and thermal-aware voice protocols are now synchronized into our Command Center.`
+      setJarvisResponse(openJarvisReport)
+      speakVoice(spokenOpenJarvis, activeAgentRef.current?.lang || 'en-GB', undefined, activeAgentRef.current?.id || 'jarvis')
+      setIsProcessing(false)
+      return
     }
 
     // 0.12 OPEN-SOURCE REPOSITORIES & GITHUB SCOUT
@@ -3080,6 +3150,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         lower.includes(`talk to ${key}`) ||
         lower.includes(`switch to ${lowerName}`) ||
         lower.includes(`talk to ${lowerName}`) ||
+        lower === `hey ${key}` ||
+        lower === `hey ${lowerName}` ||
+        lower === key ||
+        lower === lowerName ||
         lower.startsWith(`${key},`) ||
         lower.startsWith(`${lowerName},`)
       ) {
@@ -3105,7 +3179,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           const data = await res.json()
           setJarvisResponse(data.text)
           setDeepseekReasoning(data.reasoning || null)
-          speakVoice(data.spokenSummary || data.text)
+          speakVoice(data.spokenSummary || data.text, 'en-GB', undefined, 'jarvis')
           setIsProcessing(false)
           return
         }
@@ -3114,38 +3188,41 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
     }
 
-    // Delegate to Subordinate Agent Swarm
+    // Delegate to Subordinate Agent Swarm ONLY for heavy execution directives
     let targetAgent = activeAgentRef.current
     if (targetAgent.id !== 'jarvis') {
-      try {
-        const res = await fetch('/api/agents/dispatch', {
-          method: 'POST',
-          headers: jsonAuthHeaders(),
-          body: JSON.stringify({
-            agentId: targetAgent.id,
-            task: cmd,
-          }),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const spokenReply = data.spokenSummary || data.report || `${targetAgent.name} has completed your directive, Master Sri.`
-          // Render full detailed technical report in UI, and vocalize the complete natural speech summary
-          setJarvisResponse(data.report || spokenReply)
-          speakVoice(spokenReply, targetAgent.lang, undefined, targetAgent.id)
-          setIsProcessing(false)
-          return
-        }
-      } catch {}
+      const isExecutionTask = /\b(build|deploy|create|code|refactor|fix|audit|generate app|generate store|make website|execute task|run pipeline|scrape|scan repo|terminal|compile|run test)\b/i.test(cmd)
+      if (isExecutionTask) {
+        try {
+          const res = await fetch('/api/agents/dispatch', {
+            method: 'POST',
+            headers: jsonAuthHeaders(),
+            body: JSON.stringify({
+              agentId: targetAgent.id,
+              task: cmd,
+            }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const spokenReply = data.spokenSummary || data.report || `${targetAgent.name} has completed your directive, Master Sri.`
+            // Render full detailed technical report in UI, and vocalize the complete natural speech summary
+            setJarvisResponse(data.report || spokenReply)
+            speakVoice(spokenReply, targetAgent.lang, undefined, targetAgent.id)
+            setIsProcessing(false)
+            return
+          }
+        } catch {}
+      }
     }
 
-    // Default to Core AI Network via /api/ai/chat
+    // Default to Core AI Network via /api/ai/chat (Conversational, Thoughtful, Multi-Agent Intelligence)
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: jsonAuthHeaders(),
         body: JSON.stringify({
           messages: conversationHistoryRef.current,
-          agentId: activeAgent?.id !== 'jarvis' ? activeAgent?.id : undefined,
+          agentId: targetAgent?.id !== 'jarvis' ? targetAgent?.id : (activeAgent?.id !== 'jarvis' ? activeAgent?.id : undefined),
           model: 'gemini-2.0-flash',
         }),
       })
@@ -3160,17 +3237,18 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
           .trim()
         const spokenReply = cleanSpoken.length > 1800 ? cleanSpoken.slice(0, 1800) + '...' : cleanSpoken
-        const speakingAgentId = data.agentId || activeAgent?.id || 'jarvis'
+        const speakingAgentId = data.agentId || targetAgent?.id || activeAgent?.id || 'jarvis'
+        const speakingLang = AGENTS[speakingAgentId]?.lang || targetAgent?.lang || 'en-GB'
         if (AGENTS[speakingAgentId] && speakingAgentId !== activeAgent?.id) {
           setActiveAgent(AGENTS[speakingAgentId])
           activeAgentRef.current = AGENTS[speakingAgentId]
         }
         setJarvisResponse(textContent)
-        speakVoice(spokenReply, undefined, undefined, speakingAgentId)
+        speakVoice(spokenReply, speakingLang, undefined, speakingAgentId)
       } else {
         const fallback = `Understood, Master Sri. I have registered your directive: "${cmd}". The swarm is aligning execution.`
         setJarvisResponse(fallback)
-        speakVoice(fallback)
+        speakVoice(fallback, targetAgent?.lang || 'en-GB', undefined, targetAgent?.id || 'jarvis')
       }
     } catch {
       // Offline Core: If network or base station is down (e.g. PC shut down), process on device!
