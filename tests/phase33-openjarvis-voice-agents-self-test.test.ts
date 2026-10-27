@@ -109,4 +109,13 @@ describe('Phase 33: OpenJarvis Multi-Agent High-IQ Voice & Thermal Self-Test Sui
     const voiceModalContent = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'JarvisVoiceModal.tsx'), 'utf-8');
     assert.ok(voiceModalContent.includes('visibilitychange'), 'Must listen to visibilitychange to pause audio when tab is backgrounded');
   });
+
+  test('7. Untouched Ambient Hands-Free Wake-Word Command Listener in App.tsx', () => {
+    const appContent = fs.readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf-8');
+    assert.ok(appContent.includes('OpenJarvis Untouched Hands-Free Ambient Wake-Word Listener'), 'App.tsx must feature untouched ambient wake-word listener');
+    assert.ok(appContent.includes('matchedAgent = \'friday\''), 'Untouched detector must support Friday');
+    assert.ok(appContent.includes('matchedAgent = \'midas\''), 'Untouched detector must support Midas');
+    assert.ok(appContent.includes('matchedAgent = \'aegis\''), 'Untouched detector must support Aegis');
+    assert.ok(appContent.includes('matchedAgent = \'jarvis\''), 'Untouched detector must support Jarvis');
+  });
 });

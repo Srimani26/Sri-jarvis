@@ -261,8 +261,79 @@ export default function App() {
         playNeuralSpeech(greeting, 'en-GB', undefined, undefined, undefined, 'jarvis')
       }, 1000)
       return () => clearTimeout(timer)
-    }
   }, [token, hasGreeted, username])
+
+  // OpenJarvis Untouched Hands-Free Ambient Wake-Word Listener (Zero Touch Activation)
+  useEffect(() => {
+    if (!token || voiceModalOpen) return
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    let recognition: any = null
+    let isStopped = false
+
+    const initWakeRecognition = () => {
+      if (isStopped || voiceModalOpen || (typeof document !== 'undefined' && document.hidden)) return
+      try {
+        recognition = new SpeechRecognition()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = 'en-IN'
+
+        recognition.onresult = (event: any) => {
+          let phrase = ''
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            phrase += (event.results[i][0]?.transcript || '') + ' '
+          }
+          const lower = phrase.toLowerCase().trim()
+
+          // Detect agent triggers untouched
+          let matchedAgent: string | null = null
+          if (/\b(hey friday|friday|f\.r\.i\.d\.a\.y)\b/i.test(lower)) matchedAgent = 'friday'
+          else if (/\b(hey midas|midas|my does)\b/i.test(lower)) matchedAgent = 'midas'
+          else if (/\b(hey aegis|aegis|a just)\b/i.test(lower)) matchedAgent = 'aegis'
+          else if (/\b(hey raphael|raphael|lord of wisdom)\b/i.test(lower)) matchedAgent = 'raphael'
+          else if (/\b(hey vortex|vortex)\b/i.test(lower)) matchedAgent = 'vortex'
+          else if (/\b(hey jarvis|hello jarvis|jarvis|drivers|wake up)\b/i.test(lower)) matchedAgent = 'jarvis'
+
+          if (matchedAgent) {
+            try { recognition.abort() } catch {}
+            handleOpenVoiceComms(matchedAgent)
+          }
+        }
+
+        recognition.onerror = () => {
+          // Silent non-intrusive backoff
+        }
+
+        recognition.onend = () => {
+          if (!isStopped && !voiceModalOpen && typeof document !== 'undefined' && !document.hidden) {
+            setTimeout(initWakeRecognition, 1200)
+          }
+        }
+
+        recognition.start()
+      } catch {}
+    }
+
+    // Auto-pause when user locks phone or switches tabs (Zero heat / zero battery consumption)
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        try { recognition?.abort() } catch {}
+      } else if (!voiceModalOpen) {
+        setTimeout(initWakeRecognition, 1000)
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    initWakeRecognition()
+
+    return () => {
+      isStopped = true
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      try { recognition?.abort() } catch {}
+    }
+  }, [token, voiceModalOpen])
 
   // Global Hands-Free Voice Navigation & Task Dispatcher
   useEffect(() => {
