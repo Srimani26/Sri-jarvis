@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invi Creation | Luxury Handcrafted Ethnic Apparel & Couture</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <span>✨ INVI CREATION</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="active">Home</a>
+      <a href="/catalog">Collections</a>
+      <a href="/track">Track Order</a>
+      <a href="/admin">Merchant Portal</a>
+    </div>
+    <div class="nav-actions">
+      <a href="/cart" class="cart-badge-btn" title="View Shopping Bag">
+        <span>🛍️ BAG</span>
+        <span class="cart-count cart-badge-count">0</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header style="background: linear-gradient(180deg, rgba(17,22,34,0.4) 0%, rgba(10,13,20,1) 100%), url('https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1600&q=80') center/cover; padding: 6rem 2rem 5rem; text-align: center; border-bottom: 1px solid var(--border);">
+    <div style="max-width: 800px; margin: 0 auto;">
+      <span style="color: var(--gold); font-size: 0.85rem; letter-spacing: 0.25em; text-transform: uppercase; font-weight: 700;">Festive & Bridal Couture 2026</span>
+      <h1 class="hero-headline" style="font-size: 3.5rem; color: #fff; margin: 1rem 0 1.5rem; line-height: 1.15;">The Royal Heritage of Handloom Elegance</h1>
+      <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2.5rem;">Handwoven Mulberry Silks, Intricate Zardozi Velvet Anarkalis, and Imperial Bridal Lehengas crafted for modern royalty.</p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <a href="/catalog" class="btn-gold">Explore Collection</a>
+        <a href="/track" class="btn-outline">Track Existing Order</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="container">
+
+    <!-- Brand Value Pillars -->
+    <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin: 2rem 0 4rem; text-align: center;">
+      <div style="background: var(--bg-card); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">👑</div>
+        <h4 style="color: var(--gold); margin-bottom: 0.25rem;">Silk Mark Certified</h4>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">100% Authentic Handloom Silk verified by Central Silk Board.</p>
+      </div>
+      <div style="background: var(--bg-card); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🧵</div>
+        <h4 style="color: var(--gold); margin-bottom: 0.25rem;">Generational Weavers</h4>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Direct artisan-to-wardrobe handcrafting from Kanchipuram and Varanasi.</p>
+      </div>
+      <div style="background: var(--bg-card); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🚚</div>
+        <h4 style="color: var(--gold); margin-bottom: 0.25rem;">Complimentary Air Courier</h4>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Express tracked delivery across India via BlueDart Air Express.</p>
+      </div>
+    </section>
+
+    <!-- Bestselling Couture Grid -->
+    <section>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+          <span style="color: var(--gold); font-size: 0.8rem; letter-spacing: 0.15em; text-transform: uppercase;">Curated Bestsellers</span>
+          <h2 style="font-size: 2rem; color: #fff; margin-top: 0.25rem;">Iconic Royal Silks & Kurthis</h2>
+        </div>
+        <a href="/catalog" style="color: var(--gold); font-weight: 600; font-size: 0.9rem;">View All (6) ➔</a>
+      </div>
+
+      <div id="bestsellersGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2rem;">
+        <!-- Populated dynamically via fetch('/api/products') -->
+        <div style="color: var(--text-muted); text-align: center; grid-column: 1/-1; padding: 2rem;">Loading royal collection from SQLite...</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h4 class="brand-font">✨ INVI CREATION</h4>
+        <p>Luxury South Indian Handloom & Festive Couture. Headquarters: Erode, Tamil Nadu, India.</p>
+        <p style="margin-top: 1rem; color: var(--gold);">Founder: Master Sri (Srimanikandan K)</p>
+      </div>
+      <div class="footer-col">
+        <h4>Navigation</h4>
+        <a href="/">Home</a>
+        <a href="/catalog">All Collections</a>
+        <a href="/cart">Shopping Bag</a>
+        <a href="/track">Courier Tracking</a>
+      </div>
+      <div class="footer-col">
+        <h4>Customer Care</h4>
+        <p>Direct Concierge: +91 98421 54321</p>
+        <p>Email: support@invicreation.com</p>
+        <p>Complimentary Insured Shipping</p>
+      </div>
+      <div class="footer-col">
+        <h4>Merchant Admin</h4>
+        <p>Fullstack SQLite Management Console:</p>
+        <a href="/admin" class="btn-outline" style="margin-top: 0.5rem; font-size: 0.8rem; padding: 0.5rem 1rem;">Open Admin Dashboard</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      &copy; 2026 Invi Creation Couture. All Rights Reserved. Engineered autonomously by J.A.R.V.I.S. OS.
+    </div>
+  </footer>
+
+  <script src="/js/cart-utils.js"></script>
+  <script>
+    async function loadBestsellers() {
+      try {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        const grid = document.getElementById('bestsellersGrid');
+
+        if (!data.ok || !data.products.length) {
+          grid.innerHTML = '<p style="color: var(--text-muted);">No products found in SQLite database.</p>';
+          return;
+        }
+
+        grid.innerHTML = data.products.slice(0, 4).map(p => `
+          <div class="product-card">
+            <div class="card-img-wrap">
+              <span class="badge-tag">${p.badge || 'EXCLUSIVE'}</span>
+              <img src="${p.image_url}" alt="${p.name}" loading="lazy" />
+            </div>
+            <div class="card-body">
+              <div class="card-category">${p.category}</div>
+              <h3 class="card-title">${p.name}</h3>
+              <div class="card-fabric">✨ ${p.fabric}</div>
+              <div class="card-price-row">
+                <span class="current-price">₹${p.price.toLocaleString('en-IN')}</span>
+                ${p.compare_at_price ? `<span class="original-price">₹${p.compare_at_price.toLocaleString('en-IN')}</span>` : ''}
+              </div>
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <a href="/product/${p.id}" class="btn-outline" style="flex: 1; text-align: center; font-size: 0.8rem; padding: 0.5rem;">View Details</a>
+                <button onclick="InviCart.addItem({ id: ${p.id}, name: '${p.name.replace(/'/g, "\\'")}', category: '${p.category}', fabric: '${p.fabric}', price: ${p.price}, image_url: '${p.image_url}' }); alert('Added ${p.name.replace(/'/g, "\\'")} to your bag!');" class="btn-gold" style="padding: 0.5rem 0.8rem; font-size: 0.85rem;" title="Quick Add">🛍️</button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load products', err);
+      }
+    }
+    document.addEventListener('DOMContentLoaded', loadBestsellers);
+  </script>
+</body>
+</html>

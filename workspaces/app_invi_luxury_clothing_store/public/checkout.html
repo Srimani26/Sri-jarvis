@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Express Checkout | Invi Creation Couture</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <span>✨ INVI CREATION</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/catalog">Collections</a>
+      <a href="/track">Track Order</a>
+      <a href="/admin">Merchant Portal</a>
+    </div>
+    <div class="nav-actions">
+      <a href="/cart" class="cart-badge-btn" title="View Shopping Bag">
+        <span>🛍️ BAG</span>
+        <span class="cart-count cart-badge-count">0</span>
+      </a>
+    </div>
+  </nav>
+
+  <main class="container" style="padding-top: 2.5rem; max-width: 900px;">
+    <h1 style="font-size: 2.2rem; color: #fff; margin-bottom: 0.5rem;">Express Checkout</h1>
+    <p style="color: var(--text-muted); margin-bottom: 2rem;">Complete your order details. Your garment will be handcrafted and dispatched from our Erode atelier.</p>
+
+    <form id="checkoutForm" onsubmit="submitOrder(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2.5rem;">
+      
+      <!-- Shipping Details Column -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem;">
+        <h3 style="color: var(--gold); font-size: 1.15rem; margin-bottom: 1.5rem;">1. Shipping & Contact Details</h3>
+
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input type="text" id="custName" required placeholder="Master Sri" value="Master Sri (Srimanikandan K)" class="form-input" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">Email Address *</label>
+            <input type="email" id="custEmail" required placeholder="srimanikandanece2000@gmail.com" value="srimanikandanece2000@gmail.com" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone Number *</label>
+            <input type="tel" id="custPhone" required placeholder="+91 98421 54321" value="+91 98421 54321" class="form-input" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Delivery Address *</label>
+          <textarea id="custAddress" required rows="2" placeholder="Street address, landmark, building..." class="form-textarea">Sovereign Tower, Perundurai Road, Erode</textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">City *</label>
+            <input type="text" id="custCity" required value="Erode" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">State *</label>
+            <input type="text" id="custState" required value="Tamil Nadu" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">PIN Code *</label>
+            <input type="text" id="custPin" required value="638011" class="form-input" />
+          </div>
+        </div>
+
+        <!-- Payment Method -->
+        <h3 style="color: var(--gold); font-size: 1.15rem; margin: 1.5rem 0 1rem;">2. Payment Method</h3>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <label style="display: flex; align-items: center; gap: 0.75rem; background: #141b2a; border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="paymentMethod" value="UPI (GooglePay/PhonePe)" checked />
+            <span style="font-weight: 600;">⚡ Instant UPI (GooglePay / PhonePe / Paytm)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.75rem; background: #141b2a; border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="paymentMethod" value="Credit/Debit Card" />
+            <span style="font-weight: 600;">💳 Credit / Debit Card (Visa, Mastercard, RuPay)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.75rem; background: #141b2a; border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="paymentMethod" value="Cash On Delivery" />
+            <span style="font-weight: 600;">💵 Cash on Delivery (Verified Pin Codes)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Order Review Column -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem;">
+        <h3 style="color: var(--gold); font-size: 1.15rem; margin-bottom: 1.5rem;">Review & Place Order</h3>
+
+        <div id="checkoutSummaryItems" style="max-height: 250px; overflow-y: auto; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          <!-- Loaded from InviCart -->
+        </div>
+
+        <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-bottom: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: #94a3b8;">
+            <span>Subtotal</span>
+            <span id="coSubtotal">₹0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--emerald);">
+            <span>BlueDart Insured Air Shipping</span>
+            <span>FREE</span>
+          </div>
+          <div id="coDiscountRow" style="display: none; justify-content: space-between; margin-bottom: 0.5rem; color: var(--emerald);">
+            <span>Coupon Discount</span>
+            <span id="coDiscount">-₹0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 1.3rem; font-weight: 700; color: #fff; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border);">
+            <span>Total Payable</span>
+            <span id="coTotal" style="color: var(--gold); font-family: var(--font-serif);">₹0</span>
+          </div>
+        </div>
+
+        <button type="submit" id="placeOrderBtn" class="btn-gold" style="width: 100%; padding: 1rem; font-size: 1rem;">
+          Place Order & Pay ➔
+        </button>
+
+        <p style="color: #64748b; font-size: 0.75rem; text-align: center; margin-top: 1rem;">
+          Order will be recorded into SQLite database and issued a live tracking code.
+        </p>
+      </div>
+
+    </form>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-bottom">
+      &copy; 2026 Invi Creation Couture. All Rights Reserved. Engineered autonomously by J.A.R.V.I.S. OS.
+    </div>
+  </footer>
+
+  <script src="/js/cart-utils.js"></script>
+  <script>
+    function renderCheckoutSummary() {
+      const items = InviCart.getItems();
+      if (!items.length) {
+        alert('Your shopping bag is empty. Redirecting to collections...');
+        window.location.href = '/catalog';
+        return;
+      }
+
+      const list = document.getElementById('checkoutSummaryItems');
+      list.innerHTML = items.map(item => `
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <img src="${item.imageUrl}" style="width: 40px; height: 50px; object-fit: cover; border-radius: 4px;" />
+            <div>
+              <div style="color: #fff; font-weight: 600;">${item.productName}</div>
+              <div style="color: #64748b; font-size: 0.75rem;">Size: ${item.size} × ${item.quantity}</div>
+            </div>
+          </div>
+          <div style="color: var(--gold); font-weight: 700;">₹${(item.price * item.quantity).toLocaleString('en-IN')}</div>
+        </div>
+      `).join('');
+
+      const subtotal = InviCart.getSubtotal();
+      let total = subtotal;
+
+      const coupon = sessionStorage.getItem('invi_coupon_applied');
+      if (coupon === 'INVI10') {
+        const discount = Math.round(subtotal * 0.1);
+        total = subtotal - discount;
+        document.getElementById('coDiscountRow').style.display = 'flex';
+        document.getElementById('coDiscount').textContent = `-₹${discount.toLocaleString('en-IN')}`;
+      }
+
+      document.getElementById('coSubtotal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
+      document.getElementById('coTotal').textContent = `₹${total.toLocaleString('en-IN')}`;
+    }
+
+    async function submitOrder(e) {
+      e.preventDefault();
+      const btn = document.getElementById('placeOrderBtn');
+      btn.disabled = true;
+      btn.textContent = 'Processing & Writing to SQLite...';
+
+      const items = InviCart.getItems().map(i => ({
+        productId: i.productId,
+        productName: i.productName,
+        size: i.size,
+        quantity: i.quantity,
+        unitPrice: i.price
+      }));
+
+      const payload = {
+        customerName: document.getElementById('custName').value.trim(),
+        customerEmail: document.getElementById('custEmail').value.trim(),
+        customerPhone: document.getElementById('custPhone').value.trim(),
+        shippingAddress: document.getElementById('custAddress').value.trim(),
+        city: document.getElementById('custCity').value.trim(),
+        state: document.getElementById('custState').value.trim(),
+        postalCode: document.getElementById('custPin').value.trim(),
+        paymentMethod: document.querySelector('input[name="paymentMethod"]:checked')?.value || 'UPI',
+        couponCode: sessionStorage.getItem('invi_coupon_applied') || undefined,
+        items
+      };
+
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          InviCart.clearCart();
+          sessionStorage.removeItem('invi_coupon_applied');
+          alert(`Order Placed Successfully!\n\nTracking Code: ${data.trackingCode}\nTotal: ₹${data.totalAmount.toLocaleString('en-IN')}\n\nRedirecting to live courier tracker...`);
+          window.location.href = `/track?code=${data.trackingCode}`;
+        } else {
+          alert(`Failed to place order: ${data.error || 'Server Error'}`);
+          btn.disabled = false;
+          btn.textContent = 'Place Order & Pay ➔';
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Connection error. Please retry.');
+        btn.disabled = false;
+        btn.textContent = 'Place Order & Pay ➔';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', renderCheckoutSummary);
+  </script>
+</body>
+</html>

@@ -522,6 +522,12 @@ export class ToolRegistry {
             testJs = bundle.testJs;
             pkgJson = bundle.pkgJson;
             readmeMd = bundle.readmeMd;
+
+            if (bundle.files) {
+              for (const [relPath, content] of Object.entries(bundle.files)) {
+                WorkspaceManager.writeFile(projectName, relPath, content);
+              }
+            }
           } else {
             // 2. Generate comprehensive backend server.js (Zero external dependencies, pure Node.js HTTP REST API)
             serverJs = `/**

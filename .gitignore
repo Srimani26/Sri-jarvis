@@ -21,7 +21,12 @@ WORKSPACE.md
 # Local Worker build artifacts & workspaces
 workers/**/dist/
 /workspace/
-/workspaces/
+/workspaces/*
+!/workspaces/app_invi_luxury_clothing_store/
+!/workspaces/app_invi_luxury_clothing_store/**
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 !src/workspace/
 !src/workspace/**
 .tmp_*

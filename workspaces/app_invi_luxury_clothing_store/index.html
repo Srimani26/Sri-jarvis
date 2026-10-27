@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invi Creation // Luxury Ethnic Couture</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #050811;
+      color: #f8fafc;
+    }
+    .font-serif { font-family: 'Playfair Display', serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .gold-gradient {
+      background: linear-gradient(135deg, #fef08a 0%, #f59e0b 50%, #b45309 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .gold-border { border-color: rgba(245, 158, 11, 0.25); }
+    .luxury-blur {
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-amber-400 selection:text-slate-950">
+
+  <!-- 1. Fixed Luxury Announcement Bar -->
+  <div class="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 text-slate-950 py-1.5 px-4 text-center text-[11px] font-bold tracking-widest uppercase flex items-center justify-center gap-2 shadow-md">
+    <span>✨ HAUTE COUTURE 2026 // COMPLIMENTARY EXPRESS DELIVERY ON ORDERS OVER ₹1,999 ✨</span>
+  </div>
+
+  <!-- 2. Sovereign Header Navigation -->
+  <header class="sticky top-0 z-30 bg-slate-950/80 luxury-blur border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-700 flex items-center justify-center text-slate-950 font-black text-lg shadow-lg shadow-amber-400/20 font-serif">
+          IC
+        </div>
+        <div>
+          <span class="text-lg sm:text-xl font-bold tracking-tight text-white font-serif flex items-center gap-2">
+            INVI CREATION
+            <span class="text-[9px] px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/30 uppercase font-mono tracking-widest font-normal">LUXURY ATELIER</span>
+          </span>
+          <p class="text-[10px] text-slate-400 hidden sm:block">Handcrafted Ethnic Wear & Artisan Cotton Kurthis</p>
+        </div>
+      </div>
+
+      <!-- Live metrics pill & Cart trigger -->
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-3 px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-[11px] font-mono">
+          <span class="flex items-center gap-1.5 text-slate-300">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            STORE ACTIVE
+          </span>
+          <span class="text-slate-600">|</span>
+          <span class="text-amber-400">ORDERS: <span class="stat-orders text-white">0</span></span>
+        </div>
+
+        <button onclick="openCartDrawer()" class="relative flex items-center gap-2.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-400/20">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+          <span>BAG</span>
+          <span class="bag-count-badge px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300 text-[10px] font-mono font-bold">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 3. Haute Couture Hero Banner -->
+  <section class="relative overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 py-16 md:py-24">
+    <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:24px_24px]"></div>
+    <div class="max-w-5xl mx-auto px-4 text-center relative z-10">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs font-mono mb-4">
+        <span>✨ ERODE COTTON & CHANDERI ARTISANAL EDITION ✨</span>
+      </div>
+      <h1 class="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight font-serif text-white mb-6 leading-tight">
+        Timeless Indian Couture,<br />
+        <span class="gold-gradient">Handcrafted For Sovereignty</span>
+      </h1>
+      <p class="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto font-light leading-relaxed mb-8">
+        Pure breathable organic cotton kurthis, shimmering Chanderi zari sarees, and royal Mulberry silk gowns. Tailored precision with modern boutique finishes.
+      </p>
+
+      <div class="flex flex-wrap items-center justify-center gap-3">
+        <a href="#collections" class="px-6 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all shadow-xl shadow-amber-400/20">
+          Explore Couture
+        </a>
+        <button onclick="openCartDrawer()" class="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-semibold text-xs transition-all">
+          View Shopping Bag
+        </button>
+      </div>
+
+      <!-- Trust Badges -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-12 pt-8 border-t border-slate-800/80 text-left">
+        <div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800">
+          <p class="text-xs font-bold text-white">🌿 100% Pure Cotton</p>
+          <p class="text-[10px] text-slate-400">Authentic Erode Loom</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800">
+          <p class="text-xs font-bold text-white">🪡 Artisanal Zari</p>
+          <p class="text-[10px] text-slate-400">Handcrafted Needlework</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800">
+          <p class="text-xs font-bold text-white">🚚 Express Dispatch</p>
+          <p class="text-[10px] text-slate-400">Free India Delivery > ₹1,999</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800">
+          <p class="text-xs font-bold text-white">🔒 Sovereign Verified</p>
+          <p class="text-[10px] text-slate-400">UPI, Card & COD</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Interactive Collection Catalog -->
+  <main id="collections" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 w-full">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+      <div>
+        <h2 class="text-2xl font-bold font-serif text-white tracking-tight">Curated Seasonal Catalog</h2>
+        <p class="text-xs text-slate-400 mt-1">Select from our signature handblock kurthis, tissue sarees, and festive gowns</p>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div id="category-filters" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Product Grid -->
+    <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+  </main>
+
+  <!-- 5. Slide-Over Shopping Bag Drawer -->
+  <div id="cart-backdrop" onclick="closeCartDrawer()" class="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm hidden transition-opacity"></div>
+  <aside id="cart-drawer" class="fixed top-0 right-0 z-50 h-full w-full sm:w-[420px] bg-slate-950 border-l border-slate-800 shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300 ease-in-out">
+    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+        <h3 class="text-base font-bold font-serif text-white">Your Shopping Bag</h3>
+        <span class="bag-count-badge px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-400/20 text-amber-300">0</span>
+      </div>
+      <button onclick="closeCartDrawer()" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Free Shipping Progress -->
+    <div class="p-3.5 bg-slate-900/60 border-b border-slate-800/80">
+      <div id="free-shipping-text" class="text-xs text-slate-300 mb-1.5 font-medium">Checking delivery threshold...</div>
+      <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div id="free-shipping-bar" class="h-full bg-amber-400 w-0 transition-all duration-500"></div>
+      </div>
+    </div>
+
+    <!-- Items List -->
+    <div id="cart-items-list" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+
+    <!-- Summary Footer -->
+    <div class="p-4 bg-slate-950 border-t border-slate-800 space-y-3">
+      <div class="space-y-1.5 text-xs">
+        <div class="flex justify-between text-slate-400">
+          <span>Subtotal</span>
+          <span id="cart-subtotal" class="font-mono text-white">₹0</span>
+        </div>
+        <div class="flex justify-between text-slate-400">
+          <span>Express Delivery</span>
+          <span id="cart-shipping" class="font-mono text-emerald-400">COMPLIMENTARY</span>
+        </div>
+        <div class="flex justify-between text-sm font-bold text-white pt-2 border-t border-slate-800">
+          <span>Grand Total</span>
+          <span id="cart-total" class="font-mono text-amber-400 text-base">₹0</span>
+        </div>
+      </div>
+
+      <button id="checkout-btn" onclick="openCheckoutModal()" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all shadow-xl shadow-amber-400/20 disabled:opacity-40 disabled:cursor-not-allowed">
+        Proceed To Checkout
+      </button>
+    </div>
+  </aside>
+
+  <!-- 6. Instant Checkout Modal -->
+  <div id="checkout-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <div>
+          <h3 class="text-lg font-bold font-serif text-white">Sovereign Express Checkout</h3>
+          <p class="text-xs text-slate-400">Direct courier fulfillment across India</p>
+        </div>
+        <button onclick="closeCheckoutModal()" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form onsubmit="handleCheckout(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-mono text-slate-400 mb-1">Customer Full Name</label>
+          <input id="cust-name" type="text" required value="Master Sri" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+        </div>
+        <div>
+          <label class="block text-xs font-mono text-slate-400 mb-1">Mobile Contact (+91)</label>
+          <input id="cust-phone" type="text" required value="+91 98421 99999" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+        </div>
+        <div>
+          <label class="block text-xs font-mono text-slate-400 mb-1">Delivery Address & Pincode</label>
+          <textarea id="cust-address" required rows="2" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">Invi Creation Luxury Atelier, Perundurai Road, Erode 638011, Tamil Nadu</textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-mono text-slate-400 mb-1">Payment Method</label>
+          <select id="cust-payment" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+            <option value="UPI Instant Verified" selected>UPI (Google Pay / PhonePe / Paytm) - 0% Fee</option>
+            <option value="Cash on Delivery">Cash On Delivery (COD)</option>
+            <option value="Credit / Debit Card">Credit / Debit Card (Mastercard / Visa / RuPay)</option>
+          </select>
+        </div>
+
+        <button type="submit" class="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all shadow-xl shadow-amber-400/20">
+          Confirm Order & Generate Invoice
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. Order Confirmation Modal -->
+  <div id="order-confirmed-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-emerald-500/40 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl">
+      <div class="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto mb-4 text-2xl">
+        ✓
+      </div>
+      <h3 class="text-xl font-bold font-serif text-white">Order Confirmed!</h3>
+      <p class="text-xs text-slate-400 mt-1">Thank you for your order. We are packaging your handcrafted ethnic pieces.</p>
+
+      <div class="my-5 p-4 rounded-xl bg-slate-950 border border-slate-800 text-left space-y-2 text-xs font-mono">
+        <div class="flex justify-between">
+          <span class="text-slate-500">Order ID:</span>
+          <span id="order-confirmed-id" class="text-amber-400 font-bold">INVI-ORD-0000</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">Tracking Code:</span>
+          <span id="order-confirmed-tracking" class="text-cyan-400 font-bold">TRK-00000000</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">Amount Paid:</span>
+          <span id="order-confirmed-total" class="text-emerald-400 font-bold">₹0</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">Estimated Delivery:</span>
+          <span class="text-white">3-4 Business Days</span>
+        </div>
+      </div>
+
+      <button onclick="closeSuccessModal()" class="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all">
+        Continue Shopping
+      </button>
+    </div>
+  </div>
+
+  <!-- 8. Footer -->
+  <footer class="bg-slate-950 border-t border-slate-800/80 py-8 mt-16 text-slate-400 text-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="font-serif font-bold text-white text-sm">INVI CREATION</span>
+        <span class="text-slate-600">|</span>
+        <span class="text-[11px] font-mono">Engineered autonomously by J.A.R.V.I.S. 20-Agent Swarm</span>
+      </div>
+      <div class="text-[11px] font-mono text-slate-500">
+        E-Commerce REST API + Tailwind HTML5 + Automated Integration Suite
+      </div>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

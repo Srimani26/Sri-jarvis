@@ -1,0 +1,19 @@
+{
+  "name": "app_invi_luxury_clothing_store",
+  "version": "1.0.0",
+  "description": "Invi Creation - Luxury Cotton Kurthis & Ethnic Apparel E-Commerce Store - Invi Creation Autonomous Luxury Clothing E-Commerce Store",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "jarvis",
+    "invi-creation",
+    "clothing",
+    "e-commerce",
+    "ethnic-wear"
+  ],
+  "author": "Master Sri (Sovereign Engineering)",
+  "license": "Apache-2.0"
+}

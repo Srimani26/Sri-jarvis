@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Order Tracking | Invi Creation Couture</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <span>✨ INVI CREATION</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/catalog">Collections</a>
+      <a href="/track" class="active">Track Order</a>
+      <a href="/admin">Merchant Portal</a>
+    </div>
+    <div class="nav-actions">
+      <a href="/cart" class="cart-badge-btn" title="View Shopping Bag">
+        <span>🛍️ BAG</span>
+        <span class="cart-count cart-badge-count">0</span>
+      </a>
+    </div>
+  </nav>
+
+  <main class="container" style="padding-top: 3rem; max-width: 800px;">
+    <div style="text-align: center; margin-bottom: 2.5rem;">
+      <span style="color: var(--gold); font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase;">Real-Time Logistics</span>
+      <h1 style="font-size: 2.5rem; color: #fff; margin-top: 0.5rem;">Track Your Royal Garment</h1>
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.5rem;">Enter your Order Tracking ID (e.g., <strong>INVI-7821</strong>) to view live courier status.</p>
+    </div>
+
+    <!-- Tracking Input Bar -->
+    <div style="display: flex; gap: 0.75rem; margin-bottom: 3rem; background: var(--bg-card); padding: 0.75rem; border-radius: 12px; border: 1px solid var(--border);">
+      <input type="text" id="trackInput" placeholder="Enter Tracking Code (e.g. INVI-7821)" class="form-input" style="flex: 1; font-weight: 700; text-transform: uppercase;" />
+      <button onclick="fetchTracking()" class="btn-gold" style="padding: 0.75rem 1.75rem;">Track Now</button>
+    </div>
+
+    <!-- Tracking Result Display Container -->
+    <div id="trackingResult" style="display: none;">
+      <!-- Populated via fetch -->
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-bottom">
+      &copy; 2026 Invi Creation Couture. All Rights Reserved. Engineered autonomously by J.A.R.V.I.S. OS.
+    </div>
+  </footer>
+
+  <script src="/js/cart-utils.js"></script>
+  <script>
+    async function fetchTracking(codeFromUrl) {
+      const code = (codeFromUrl || document.getElementById('trackInput').value).trim().toUpperCase();
+      if (!code) {
+        alert('Please enter a valid tracking code.');
+        return;
+      }
+
+      document.getElementById('trackInput').value = code;
+      const resContainer = document.getElementById('trackingResult');
+      resContainer.style.display = 'block';
+      resContainer.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 2rem;">Querying SQLite logistics engine...</div>';
+
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(code)}`);
+        const data = await res.json();
+
+        if (!data.ok || !data.order) {
+          resContainer.innerHTML = `
+            <div style="background: var(--bg-card); border: 1px solid #ef4444; border-radius: 12px; padding: 2rem; text-align: center;">
+              <h3 style="color: #ef4444; margin-bottom: 0.5rem;">Tracking ID Not Found</h3>
+              <p style="color: var(--text-muted);">Could not find any order with code <strong>${code}</strong> in SQLite database. Please check your tracking number.</p>
+            </div>
+          `;
+          return;
+        }
+
+        const o = data.order;
+        const items = o.items || [];
+
+        // Milestone progression logic
+        const statuses = ['PROCESSING', 'CONFIRMED', 'HANDCRAFTED', 'SHIPPED', 'DELIVERED'];
+        const currentIdx = statuses.indexOf(o.fulfillment_status) !== -1 ? statuses.indexOf(o.fulfillment_status) : 2;
+
+        resContainer.innerHTML = `
+          <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; margin-bottom: 2rem;">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+              <div>
+                <span style="color: var(--gold); font-size: 0.8rem; font-weight: 700;">CONSIGNMENT TRACKING</span>
+                <h2 style="color: #fff; font-size: 1.8rem; margin-top: 0.25rem;">${o.tracking_code}</h2>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Order Date: ${new Date(o.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              </div>
+              <div style="text-align: right;">
+                <span style="background: rgba(5,150,105,0.2); color: var(--emerald); border: 1px solid var(--emerald); padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">
+                  ● ${o.fulfillment_status}
+                </span>
+                <p style="color: var(--gold); font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem;">Courier: ${o.courier_partner || 'BlueDart Air'}</p>
+              </div>
+            </div>
+
+            <!-- Milestone Tracker -->
+            <div style="margin-bottom: 2.5rem;">
+              <h4 style="color: var(--gold); margin-bottom: 1.5rem; font-size: 1rem;">Fulfillment Milestones</h4>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; text-align: center;">
+                <div style="padding: 1rem 0.5rem; border-radius: 8px; background: ${currentIdx >= 0 ? '#14251e' : '#141b2a'}; border: 1px solid ${currentIdx >= 0 ? 'var(--emerald)' : 'var(--border)'};">
+                  <div style="font-size: 1.25rem;">📝</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem; color: ${currentIdx >= 0 ? 'var(--emerald)' : '#64748b'};">Order Placed</div>
+                </div>
+                <div style="padding: 1rem 0.5rem; border-radius: 8px; background: ${currentIdx >= 1 ? '#14251e' : '#141b2a'}; border: 1px solid ${currentIdx >= 1 ? 'var(--emerald)' : 'var(--border)'};">
+                  <div style="font-size: 1.25rem;">✨</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem; color: ${currentIdx >= 1 ? 'var(--emerald)' : '#64748b'};">Payment Confirmed</div>
+                </div>
+                <div style="padding: 1rem 0.5rem; border-radius: 8px; background: ${currentIdx >= 2 ? '#14251e' : '#141b2a'}; border: 1px solid ${currentIdx >= 2 ? 'var(--emerald)' : 'var(--border)'};">
+                  <div style="font-size: 1.25rem;">🧵</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem; color: ${currentIdx >= 2 ? 'var(--emerald)' : '#64748b'};">Handcrafted & QC</div>
+                </div>
+                <div style="padding: 1rem 0.5rem; border-radius: 8px; background: ${currentIdx >= 3 ? '#14251e' : '#141b2a'}; border: 1px solid ${currentIdx >= 3 ? 'var(--emerald)' : 'var(--border)'};">
+                  <div style="font-size: 1.25rem;">✈️</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem; color: ${currentIdx >= 3 ? 'var(--emerald)' : '#64748b'};">Dispatched BlueDart</div>
+                </div>
+                <div style="padding: 1rem 0.5rem; border-radius: 8px; background: ${currentIdx >= 4 ? '#14251e' : '#141b2a'}; border: 1px solid ${currentIdx >= 4 ? 'var(--emerald)' : 'var(--border)'};">
+                  <div style="font-size: 1.25rem;">🏡</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem; color: ${currentIdx >= 4 ? 'var(--emerald)' : '#64748b'};">Delivered</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Destination & Items Details -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+              <div>
+                <h4 style="color: var(--gold); margin-bottom: 0.75rem; font-size: 0.95rem;">Delivery Destination</h4>
+                <p style="color: #fff; font-weight: 600;">${o.customer_name}</p>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">${o.shipping_address}, ${o.city}, ${o.state} - ${o.postal_code}</p>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Phone: ${o.customer_phone}</p>
+              </div>
+              <div>
+                <h4 style="color: var(--gold); margin-bottom: 0.75rem; font-size: 0.95rem;">Order Contents (${items.length} items)</h4>
+                ${items.map(it => `
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                    <span style="color: #fff;">${it.product_name} (${it.size}) × ${it.quantity}</span>
+                    <span style="color: var(--gold); font-weight: 600;">₹${Number(it.total_price).toLocaleString('en-IN')}</span>
+                  </div>
+                `).join('')}
+                <div style="display: flex; justify-content: space-between; font-size: 1rem; font-weight: 700; margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed var(--border); color: var(--gold);">
+                  <span>Total Paid (${o.payment_method})</span>
+                  <span>₹${Number(o.total_amount).toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        `;
+      } catch (err) {
+        console.error(err);
+        resContainer.innerHTML = '<div style="color: #ef4444; text-align: center; padding: 2rem;">Error connecting to logistics server.</div>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code') || 'INVI-7821';
+      fetchTracking(code);
+    });
+  </script>
+</body>
+</html>

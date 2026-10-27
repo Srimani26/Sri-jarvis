@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Details | Invi Creation Couture</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <span>✨ INVI CREATION</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/catalog">Collections</a>
+      <a href="/track">Track Order</a>
+      <a href="/admin">Merchant Portal</a>
+    </div>
+    <div class="nav-actions">
+      <a href="/cart" class="cart-badge-btn" title="View Shopping Bag">
+        <span>🛍️ BAG</span>
+        <span class="cart-count cart-badge-count">0</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Product Details Section -->
+  <main class="container" style="padding-top: 3rem;">
+    <div id="productContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 3.5rem; align-items: start;">
+      <div style="color: var(--text-muted); text-align: center; grid-column: 1/-1; padding: 4rem;">Loading garment from SQLite database...</div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-bottom">
+      &copy; 2026 Invi Creation Couture. All Rights Reserved. Engineered autonomously by J.A.R.V.I.S. OS.
+    </div>
+  </footer>
+
+  <script src="/js/cart-utils.js"></script>
+  <script>
+    let currentProduct = null;
+    let selectedSize = 'Standard';
+    let currentQty = 1;
+
+    async function loadProductDetails() {
+      const pathParts = window.location.pathname.split('/');
+      const productId = pathParts[pathParts.length - 1] || '1';
+      const container = document.getElementById('productContainer');
+
+      try {
+        const res = await fetch(`/api/products/${productId}`);
+        const data = await res.json();
+
+        if (!data.ok || !data.product) {
+          container.innerHTML = '<div style="color: var(--text-muted); text-align: center; grid-column: 1/-1;">Garment not found in SQLite database. <a href="/catalog" style="color: var(--gold);">Return to catalog</a></div>';
+          return;
+        }
+
+        currentProduct = data.product;
+        const variants = currentProduct.variants || [];
+        selectedSize = variants.length > 0 ? variants[0].size : 'Standard';
+
+        const totalStock = variants.reduce((sum, v) => sum + v.stock_quantity, 0);
+
+        container.innerHTML = `
+          <!-- Image Gallery Column -->
+          <div>
+            <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--bg-card); position: relative;">
+              <span class="badge-tag">${currentProduct.badge || 'ROYAL EDITION'}</span>
+              <img src="${currentProduct.image_url}" alt="${currentProduct.name}" style="width: 100%; height: auto; display: block; object-fit: cover;" />
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+              <div style="width: 80px; height: 100px; border-radius: 8px; overflow: hidden; border: 2px solid var(--gold); cursor: pointer;">
+                <img src="${currentProduct.image_url}" style="width: 100%; height: 100%; object-fit: cover;" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Product Info & Actions Column -->
+          <div>
+            <span style="color: var(--gold); font-size: 0.85rem; letter-spacing: 0.15em; text-transform: uppercase;">${currentProduct.category}</span>
+            <h1 style="font-size: 2.2rem; margin: 0.5rem 0 1rem; color: #fff; line-height: 1.25;">${currentProduct.name}</h1>
+            
+            <div style="display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.5rem;">
+              <span style="font-size: 2rem; font-weight: 700; color: var(--gold); font-family: var(--font-serif);">₹${currentProduct.price.toLocaleString('en-IN')}</span>
+              ${currentProduct.compare_at_price ? `<span style="font-size: 1.1rem; text-decoration: line-through; color: #64748b;">₹${currentProduct.compare_at_price.toLocaleString('en-IN')}</span>` : ''}
+              <span style="color: var(--emerald); font-size: 0.85rem; font-weight: 700;">★ ${currentProduct.rating || 4.9} (${currentProduct.reviews_count || 128} verified reviews)</span>
+            </div>
+
+            <p style="color: var(--text-muted); font-size: 1rem; line-height: 1.6; margin-bottom: 2rem;">
+              ${currentProduct.description}
+            </p>
+
+            <!-- Fabric Specification Box -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 2rem;">
+              <h4 style="color: var(--gold); font-size: 0.9rem; margin-bottom: 0.5rem;">Artisanal Weave & Fabric</h4>
+              <p style="color: #cbd5e1; font-size: 0.9rem; margin-bottom: 0.25rem;">✨ <strong>Composition</strong>: ${currentProduct.fabric}</p>
+              <p style="color: #94a3b8; font-size: 0.85rem;">🛡️ <strong>Authentication</strong>: Silk Mark Certified / Generational Handloom</p>
+              <p style="color: #94a3b8; font-size: 0.85rem;">🧼 <strong>Care</strong>: Premium Dry Clean Only</p>
+            </div>
+
+            <!-- Size Selector -->
+            <div style="margin-bottom: 2rem;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <label style="font-size: 0.85rem; font-weight: 600; color: var(--gold-light);">SELECT SIZE / VARIANT:</label>
+                <span style="font-size: 0.8rem; color: var(--emerald); font-weight: 600;">✓ In Stock (${totalStock} pieces in SQLite)</span>
+              </div>
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;" id="sizeBtns">
+                ${variants.map(v => `
+                  <button type="button" onclick="selectSize('${v.size}')" class="size-btn btn-outline" data-size="${v.size}" style="padding: 0.5rem 1rem; font-size: 0.85rem; ${v.size === selectedSize ? 'background: var(--gold); color: #000;' : ''}">
+                    ${v.size}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Quantity & Actions -->
+            <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: #141b2a;">
+                <button type="button" onclick="changeQty(-1)" style="background: none; border: none; color: #fff; padding: 0.75rem 1rem; cursor: pointer; font-size: 1.1rem;">-</button>
+                <span id="qtyDisplay" style="padding: 0 0.75rem; font-weight: 700;">1</span>
+                <button type="button" onclick="changeQty(1)" style="background: none; border: none; color: #fff; padding: 0.75rem 1rem; cursor: pointer; font-size: 1.1rem;">+</button>
+              </div>
+
+              <button type="button" onclick="handleAddToCart()" class="btn-gold" style="flex: 1; padding: 0.85rem 1.5rem;">
+                Add To Bag
+              </button>
+              <button type="button" onclick="handleBuyNow()" class="btn-outline" style="padding: 0.85rem 1.5rem;">
+                Instant Checkout
+              </button>
+            </div>
+
+            <!-- Delivery Guarantees -->
+            <div style="border-top: 1px solid var(--border); padding-top: 1.5rem; display: flex; gap: 2rem; font-size: 0.85rem; color: #94a3b8;">
+              <div>✈️ Free Insured BlueDart Shipping</div>
+              <div>✨ 7-Day Royal Exchange Guarantee</div>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error('Failed to load product details', err);
+      }
+    }
+
+    function selectSize(size) {
+      selectedSize = size;
+      document.querySelectorAll('.size-btn').forEach(b => {
+        const isMatch = b.getAttribute('data-size') === size;
+        b.style.background = isMatch ? 'var(--gold)' : 'transparent';
+        b.style.color = isMatch ? '#000' : 'var(--gold)';
+      });
+    }
+
+    function changeQty(delta) {
+      currentQty = Math.max(1, currentQty + delta);
+      document.getElementById('qtyDisplay').textContent = currentQty;
+    }
+
+    function handleAddToCart() {
+      if (!currentProduct) return;
+      InviCart.addItem(currentProduct, selectedSize, currentQty);
+      alert(`Added ${currentQty}x ${currentProduct.name} (${selectedSize}) to your bag!`);
+    }
+
+    function handleBuyNow() {
+      handleAddToCart();
+      window.location.href = '/checkout';
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProductDetails);
+  </script>
+</body>
+</html>

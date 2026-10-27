@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Merchant Portal & Revenue Console | Invi Creation</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <span>👑 INVI CREATION // MERCHANT ADMIN</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Storefront</a>
+      <a href="/catalog">Catalog</a>
+      <a href="/track">Courier Tracking</a>
+      <a href="/admin" class="active">Admin Console</a>
+    </div>
+    <div class="nav-actions">
+      <span style="color: var(--emerald); font-size: 0.8rem; font-weight: 700; background: rgba(5,150,105,0.15); border: 1px solid var(--emerald); padding: 0.35rem 0.75rem; border-radius: 9999px;">
+        ● SQLite LIVE
+      </span>
+    </div>
+  </nav>
+
+  <main class="container" style="padding-top: 2.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <span style="color: var(--gold); font-size: 0.8rem; letter-spacing: 0.15em; text-transform: uppercase;">Enterprise Management</span>
+        <h1 style="font-size: 2.2rem; color: #fff; margin-top: 0.25rem;">Merchant Operations & Inventory Dashboard</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Store Owner: Master Sri (Srimanikandan K) // Headquarters: Erode, Tamil Nadu</p>
+      </div>
+      <div>
+        <button onclick="openAddProductModal()" class="btn-gold" style="font-size: 0.85rem; padding: 0.6rem 1.25rem;">+ Add New Garment</button>
+      </div>
+    </div>
+
+    <!-- Metrics Cards Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+        <span style="color: var(--gold); font-size: 0.75rem; text-transform: uppercase; font-weight: 700;">Total GMV Revenue</span>
+        <h2 id="gmvDisplay" style="font-size: 2rem; color: var(--gold); margin: 0.5rem 0; font-family: var(--font-serif);">₹0</h2>
+        <span style="color: var(--emerald); font-size: 0.8rem; font-weight: 600;">✓ Synced with SQLite</span>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+        <span style="color: var(--gold); font-size: 0.75rem; text-transform: uppercase; font-weight: 700;">Orders Processed</span>
+        <h2 id="ordersCountDisplay" style="font-size: 2rem; color: #fff; margin: 0.5rem 0;">0</h2>
+        <span style="color: var(--text-muted); font-size: 0.8rem;">Across Tamil Nadu & India</span>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+        <span style="color: var(--gold); font-size: 0.75rem; text-transform: uppercase; font-weight: 700;">Average Order Value (AOV)</span>
+        <h2 id="aovDisplay" style="font-size: 2rem; color: #fff; margin: 0.5rem 0;">₹0</h2>
+        <span style="color: var(--emerald); font-size: 0.8rem; font-weight: 600;">Premium Luxury Basket</span>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+        <span style="color: var(--gold); font-size: 0.75rem; text-transform: uppercase; font-weight: 700;">Active Catalog Items</span>
+        <h2 id="prodsCountDisplay" style="font-size: 2rem; color: #fff; margin: 0.5rem 0;">0</h2>
+        <span style="color: var(--text-muted); font-size: 0.8rem;">Multi-Variant Silks & Couture</span>
+      </div>
+    </div>
+
+    <!-- Orders Management Section -->
+    <section style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin-bottom: 3rem;">
+      <h3 style="color: var(--gold); font-size: 1.25rem; margin-bottom: 1.5rem;">Live Customer Orders & Fulfillment</h3>
+      
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); color: var(--gold);">
+              <th style="padding: 0.75rem 1rem;">Tracking ID</th>
+              <th style="padding: 0.75rem 1rem;">Customer Name</th>
+              <th style="padding: 0.75rem 1rem;">Destination</th>
+              <th style="padding: 0.75rem 1rem;">Items</th>
+              <th style="padding: 0.75rem 1rem;">Total Amount</th>
+              <th style="padding: 0.75rem 1rem;">Status</th>
+              <th style="padding: 0.75rem 1rem;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody">
+            <tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading orders from SQLite...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Catalog Management Section -->
+    <section style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem;">
+      <h3 style="color: var(--gold); font-size: 1.25rem; margin-bottom: 1.5rem;">Active Inventory Catalog</h3>
+      
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); color: var(--gold);">
+              <th style="padding: 0.75rem 1rem;">ID</th>
+              <th style="padding: 0.75rem 1rem;">Garment Name</th>
+              <th style="padding: 0.75rem 1rem;">Category</th>
+              <th style="padding: 0.75rem 1rem;">Fabric</th>
+              <th style="padding: 0.75rem 1rem;">Price</th>
+              <th style="padding: 0.75rem 1rem;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="productsTableBody">
+            <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading products from SQLite...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Add Product Modal Dialog -->
+  <div id="addProductModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; padding: 1.5rem;">
+    <div style="background: #111622; border: 1px solid var(--gold); border-radius: 12px; padding: 2rem; max-width: 550px; width: 100%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="color: var(--gold); font-size: 1.2rem;">Add New Garment to SQLite</h3>
+        <button onclick="closeAddProductModal()" style="background: none; border: none; color: #fff; font-size: 1.25rem; cursor: pointer;">✕</button>
+      </div>
+
+      <form onsubmit="handleCreateProduct(event)">
+        <div class="form-group">
+          <label class="form-label">Garment Name *</label>
+          <input type="text" id="newProdName" required placeholder="e.g. Pure Dharmavaram Tissue Silk Saree" class="form-input" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <select id="newProdCategory" class="form-select">
+              <option value="Sarees">Sarees</option>
+              <option value="Kurthis">Kurthis & Sets</option>
+              <option value="Lehengas">Bridal Lehengas</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price (INR) *</label>
+            <input type="number" id="newProdPrice" required placeholder="12500" class="form-input" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Fabric Composition *</label>
+          <input type="text" id="newProdFabric" required placeholder="e.g. Pure Tissue Silk with Resham Border" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Image URL *</label>
+          <input type="url" id="newProdImage" required value="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Initial Inventory Stock *</label>
+          <input type="number" id="newProdStock" required value="25" class="form-input" />
+        </div>
+
+        <button type="submit" class="btn-gold" style="width: 100%; margin-top: 1rem; padding: 0.8rem;">
+          Persist into SQLite Database
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-bottom">
+      &copy; 2026 Invi Creation Couture. All Rights Reserved. Engineered autonomously by J.A.R.V.I.S. OS.
+    </div>
+  </footer>
+
+  <script src="/js/cart-utils.js"></script>
+  <script>
+    async function loadAdminData() {
+      try {
+        // Load Metrics
+        const mRes = await fetch('/api/admin/metrics');
+        const mData = await mRes.json();
+        if (mData.ok) {
+          const m = mData.metrics;
+          document.getElementById('gmvDisplay').textContent = `₹${m.totalGmv.toLocaleString('en-IN')}`;
+          document.getElementById('ordersCountDisplay').textContent = m.totalOrders;
+          document.getElementById('aovDisplay').textContent = `₹${m.averageOrderValue.toLocaleString('en-IN')}`;
+          document.getElementById('prodsCountDisplay').textContent = m.totalProducts;
+        }
+
+        // Load Orders
+        const oRes = await fetch('/api/admin/orders');
+        const oData = await oRes.json();
+        const oTbody = document.getElementById('ordersTableBody');
+        if (oData.ok && oData.orders.length) {
+          oTbody.innerHTML = oData.orders.map(o => `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 0.75rem 1rem; font-weight: 700; color: var(--gold);"><a href="/track?code=${o.tracking_code}">${o.tracking_code}</a></td>
+              <td style="padding: 0.75rem 1rem; color: #fff;">${o.customer_name}</td>
+              <td style="padding: 0.75rem 1rem; color: #94a3b8;">${o.city}, ${o.state}</td>
+              <td style="padding: 0.75rem 1rem; color: #cbd5e1;">${(o.items || []).map(i => `${i.product_name} (${i.size}) × ${i.quantity}`).join(', ') || '1 Garment'}</td>
+              <td style="padding: 0.75rem 1rem; font-weight: 700; color: var(--gold);">₹${Number(o.total_amount).toLocaleString('en-IN')}</td>
+              <td style="padding: 0.75rem 1rem;">
+                <span style="color: var(--emerald); font-weight: 700; background: rgba(5,150,105,0.15); padding: 0.2rem 0.5rem; border-radius: 4px;">${o.fulfillment_status}</span>
+              </td>
+              <td style="padding: 0.75rem 1rem;">
+                <select onchange="updateOrderStatus(${o.id}, this.value)" class="form-select" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; width: 130px;">
+                  <option value="">Update...</option>
+                  <option value="CONFIRMED">CONFIRMED</option>
+                  <option value="HANDCRAFTED">HANDCRAFTED</option>
+                  <option value="SHIPPED">SHIPPED</option>
+                  <option value="DELIVERED">DELIVERED</option>
+                </select>
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          oTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No orders in SQLite yet.</td></tr>';
+        }
+
+        // Load Products
+        const pRes = await fetch('/api/products');
+        const pData = await pRes.json();
+        const pTbody = document.getElementById('productsTableBody');
+        if (pData.ok && pData.products.length) {
+          pTbody.innerHTML = pData.products.map(p => `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 0.75rem 1rem; color: #64748b;">#${p.id}</td>
+              <td style="padding: 0.75rem 1rem; color: #fff; font-weight: 600;"><a href="/product/${p.id}">${p.name}</a></td>
+              <td style="padding: 0.75rem 1rem; color: var(--gold);">${p.category}</td>
+              <td style="padding: 0.75rem 1rem; color: #94a3b8;">${p.fabric}</td>
+              <td style="padding: 0.75rem 1rem; font-weight: 700; color: var(--gold);">₹${p.price.toLocaleString('en-IN')}</td>
+              <td style="padding: 0.75rem 1rem;">
+                <button onclick="handleDeleteProduct(${p.id})" style="background: none; border: 1px solid #ef4444; color: #ef4444; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Delete</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Failed to load admin data', err);
+      }
+    }
+
+    async function updateOrderStatus(orderId, status) {
+      if (!status) return;
+      try {
+        const res = await fetch(`/api/admin/orders/${orderId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert(`Order #${orderId} status updated to "${status}" in SQLite!`);
+          loadAdminData();
+        }
+      } catch (err) {
+        alert('Failed to update order status');
+      }
+    }
+
+    function openAddProductModal() {
+      document.getElementById('addProductModal').style.display = 'flex';
+    }
+
+    function closeAddProductModal() {
+      document.getElementById('addProductModal').style.display = 'none';
+    }
+
+    async function handleCreateProduct(e) {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById('newProdName').value.trim(),
+        category: document.getElementById('newProdCategory').value,
+        fabric: document.getElementById('newProdFabric').value.trim(),
+        price: Number(document.getElementById('newProdPrice').value),
+        imageUrl: document.getElementById('newProdImage').value.trim(),
+        initialStock: Number(document.getElementById('newProdStock').value)
+      };
+
+      try {
+        const res = await fetch('/api/admin/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert('Product inserted into SQLite database successfully!');
+          closeAddProductModal();
+          loadAdminData();
+        } else {
+          alert(`Error: ${data.error}`);
+        }
+      } catch (err) {
+        alert('Error creating product');
+      }
+    }
+
+    async function handleDeleteProduct(id) {
+      if (!confirm(`Are you sure you want to remove Product #${id} from SQLite?`)) return;
+      try {
+        const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.ok) {
+          alert(`Product #${id} removed from SQLite.`);
+          loadAdminData();
+        }
+      } catch (err) {
+        alert('Failed to delete product');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadAdminData);
+  </script>
+</body>
+</html>

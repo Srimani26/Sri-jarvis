@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopping Bag | Invi Creation Couture</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <span>✨ INVI CREATION</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/catalog">Collections</a>
+      <a href="/track">Track Order</a>
+      <a href="/admin">Merchant Portal</a>
+    </div>
+    <div class="nav-actions">
+      <a href="/cart" class="cart-badge-btn active" title="View Shopping Bag">
+        <span>🛍️ BAG</span>
+        <span class="cart-count cart-badge-count">0</span>
+      </a>
+    </div>
+  </nav>
+
+  <main class="container" style="padding-top: 3rem;">
+    <h1 style="font-size: 2.2rem; color: #fff; margin-bottom: 2rem;">Your Shopping Bag</h1>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 3rem; align-items: start;">
+      
+      <!-- Items List Column -->
+      <div id="cartItemsList" style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div style="color: var(--text-muted); padding: 3rem; text-align: center; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border);">
+          Your shopping bag is currently empty.
+          <div style="margin-top: 1.5rem;">
+            <a href="/catalog" class="btn-gold">Explore Collections</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order Summary Column -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem;">
+        <h3 style="color: var(--gold); font-size: 1.25rem; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">Order Summary</h3>
+
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; color: #cbd5e1;">
+          <span>Subtotal</span>
+          <span id="subtotalDisplay">₹0</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; color: #cbd5e1;">
+          <span>Insured Express Shipping</span>
+          <span style="color: var(--emerald); font-weight: 700;">FREE (BlueDart Air)</span>
+        </div>
+
+        <div id="discountRow" style="display: none; justify-content: space-between; margin-bottom: 1rem; color: var(--emerald);">
+          <span>Promo Code (INVI10)</span>
+          <span id="discountDisplay">-₹0</span>
+        </div>
+
+        <!-- Coupon Input -->
+        <div style="margin: 1.5rem 0; display: flex; gap: 0.5rem;">
+          <input type="text" id="couponInput" placeholder="Coupon Code (e.g. INVI10)" class="form-input" style="padding: 0.5rem 0.75rem; font-size: 0.85rem;" />
+          <button onclick="applyCoupon()" class="btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Apply</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin: 1.5rem 0; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 1.3rem; font-weight: 700; color: #fff;">
+          <span>Total</span>
+          <span id="totalDisplay" style="color: var(--gold); font-family: var(--font-serif);">₹0</span>
+        </div>
+
+        <button onclick="proceedToCheckout()" id="checkoutBtn" class="btn-gold" style="width: 100%; padding: 0.9rem; font-size: 1rem;">
+          Proceed To Checkout ➔
+        </button>
+
+        <p style="color: #64748b; font-size: 0.75rem; text-align: center; margin-top: 1rem;">
+          🔒 256-Bit SSL Encrypted & Direct SQLite Persistence
+        </p>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-bottom">
+      &copy; 2026 Invi Creation Couture. All Rights Reserved. Engineered autonomously by J.A.R.V.I.S. OS.
+    </div>
+  </footer>
+
+  <script src="/js/cart-utils.js"></script>
+  <script>
+    let isCouponApplied = false;
+
+    function renderCart() {
+      const items = InviCart.getItems();
+      const list = document.getElementById('cartItemsList');
+      const checkoutBtn = document.getElementById('checkoutBtn');
+
+      if (!items.length) {
+        list.innerHTML = `
+          <div style="color: var(--text-muted); padding: 3rem; text-align: center; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border);">
+            Your shopping bag is currently empty.
+            <div style="margin-top: 1.5rem;">
+              <a href="/catalog" class="btn-gold">Explore Collections</a>
+            </div>
+          </div>
+        `;
+        document.getElementById('subtotalDisplay').textContent = '₹0';
+        document.getElementById('totalDisplay').textContent = '₹0';
+        checkoutBtn.disabled = true;
+        checkoutBtn.style.opacity = '0.5';
+        checkoutBtn.style.cursor = 'not-allowed';
+        return;
+      }
+
+      checkoutBtn.disabled = false;
+      checkoutBtn.style.opacity = '1';
+      checkoutBtn.style.cursor = 'pointer';
+
+      list.innerHTML = items.map(item => `
+        <div style="display: flex; gap: 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; align-items: center;">
+          <img src="${item.imageUrl}" alt="${item.productName}" style="width: 90px; height: 110px; object-fit: cover; border-radius: 8px;" />
+          <div style="flex: 1;">
+            <span style="color: var(--gold); font-size: 0.75rem; text-transform: uppercase;">${item.category}</span>
+            <h4 style="font-size: 1.05rem; color: #fff; margin: 0.25rem 0;">${item.productName}</h4>
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Size: <strong>${item.size}</strong></p>
+            <div style="color: var(--gold); font-weight: 700; margin-top: 0.5rem;">₹${(item.price * item.quantity).toLocaleString('en-IN')}</div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; border: 1px solid var(--border); border-radius: 6px; background: #141b2a;">
+              <button onclick="updateQty(${item.productId}, '${item.size}', -1)" style="background: none; border: none; color: #fff; padding: 0.3rem 0.6rem; cursor: pointer;">-</button>
+              <span style="padding: 0 0.5rem; font-size: 0.9rem; font-weight: 600;">${item.quantity}</span>
+              <button onclick="updateQty(${item.productId}, '${item.size}', 1)" style="background: none; border: none; color: #fff; padding: 0.3rem 0.6rem; cursor: pointer;">+</button>
+            </div>
+            <button onclick="removeItem(${item.productId}, '${item.size}')" style="background: none; border: none; color: #ef4444; font-size: 0.8rem; cursor: pointer;">Remove</button>
+          </div>
+        </div>
+      `).join('');
+
+      const subtotal = InviCart.getSubtotal();
+      let total = subtotal;
+
+      if (isCouponApplied) {
+        const discount = Math.round(subtotal * 0.1);
+        total = subtotal - discount;
+        document.getElementById('discountRow').style.display = 'flex';
+        document.getElementById('discountDisplay').textContent = `-₹${discount.toLocaleString('en-IN')}`;
+      } else {
+        document.getElementById('discountRow').style.display = 'none';
+      }
+
+      document.getElementById('subtotalDisplay').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
+      document.getElementById('totalDisplay').textContent = `₹${total.toLocaleString('en-IN')}`;
+    }
+
+    function updateQty(id, size, delta) {
+      const items = InviCart.getItems();
+      const item = items.find(i => i.productId === id && i.size === size);
+      if (item) {
+        InviCart.updateQuantity(id, size, item.quantity + delta);
+        renderCart();
+      }
+    }
+
+    function removeItem(id, size) {
+      InviCart.removeItem(id, size);
+      renderCart();
+    }
+
+    function applyCoupon() {
+      const code = document.getElementById('couponInput').value.trim().toUpperCase();
+      if (code === 'INVI10') {
+        isCouponApplied = true;
+        alert('Coupon INVI10 Applied! 10% Royal Privilege Discount granted.');
+        renderCart();
+      } else {
+        alert('Invalid Coupon Code. Try "INVI10" for 10% off.');
+      }
+    }
+
+    function proceedToCheckout() {
+      if (isCouponApplied) {
+        sessionStorage.setItem('invi_coupon_applied', 'INVI10');
+      } else {
+        sessionStorage.removeItem('invi_coupon_applied');
+      }
+      window.location.href = '/checkout';
+    }
+
+    document.addEventListener('DOMContentLoaded', renderCart);
+  </script>
+</body>
+</html>
