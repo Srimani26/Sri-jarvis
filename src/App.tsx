@@ -261,6 +261,7 @@ export default function App() {
         playNeuralSpeech(greeting, 'en-GB', undefined, undefined, undefined, 'jarvis')
       }, 1000)
       return () => clearTimeout(timer)
+    }
   }, [token, hasGreeted, username])
 
   // OpenJarvis Untouched Hands-Free Ambient Wake-Word Listener (Zero Touch Activation)
