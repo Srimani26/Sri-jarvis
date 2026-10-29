@@ -3213,7 +3213,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
     }
 
     // Delegate to Subordinate Agent Swarm ONLY for heavy execution directives
-    let targetAgent = activeAgentRef.current
+    targetAgent = activeAgentRef.current || targetAgent
     if (targetAgent.id !== 'jarvis') {
       const isExecutionTask = /\b(build|deploy|create|code|refactor|fix|audit|generate app|generate store|make website|execute task|run pipeline|scrape|scan repo|terminal|compile|run test)\b/i.test(cmd)
       if (isExecutionTask) {
@@ -3489,7 +3489,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
       recorder.start(100)
       setIsListening(true)
       isListeningRef.current = true
-      setEngineType('Deepgram Nova-2')
+      setEngineType('Deepgram')
     } catch (err) {
       console.error('[Voice] MediaRecorder error:', err)
       setJarvisResponse('Microphone permission required, Master Sri. Please allow access.')
