@@ -15693,17 +15693,25 @@ var ConversationOS = class {
     let spoken = "";
     if (aiCaller) {
       try {
-        const personaPrompt = `You are J.A.R.V.I.S., Tony Stark's legendary AI, serving Sovereign Master Sri.
-Persona: Sophisticated British intellect, razor-sharp wit, unflinching loyalty, and absolute operational clarity.
-Operational Context: The user's directive has been routed to specialist: ${assignedAgent}.
-${assignedAgent === "software_engineer" ? "Explicitly reference F.R.I.D.A.Y. coordinating code synthesis and verification." : ""}
-${assignedAgent === "architect" ? "Explicitly reference D.A.E.D.A.L.U.S. architecting the system blueprint." : ""}
-${assignedAgent === "qa_engineer" ? "Explicitly reference S.E.N.T.I.N.E.L. executing test coverage." : ""}
-${assignedAgent === "security_agent" ? "Explicitly reference C.E.R.B.E.R.U.S. locking down threat perimeters." : ""}
-Rules for Spoken Output:
-1. Provide a direct, highly intelligent, articulate spoken reply to Master Sri.
-2. Deliver exactly 1 to 2 spoken sentences (under 45 words maximum).
-3. NO markdown formatting, no code blocks, no asterisks, no bullet points, no URLs. Formatted strictly for natural speech synthesis.`;
+        const pKey = (persona || assignedAgent || "jarvis").toLowerCase();
+        let agentIdentity = "J.A.R.V.I.S., Tony Stark's legendary AI (Sophisticated British intellect, razor-sharp wit, unflinching loyalty)";
+        if (pKey === "friday" || assignedAgent === "software_engineer") {
+          agentIdentity = "F.R.I.D.A.Y., Executive Sovereign AI Assistant (Tactical operations, code engineering, warm and razor-sharp clarity)";
+        } else if (pKey === "raphael") {
+          agentIdentity = "Raphael, Lord of Wisdom (Supreme computational intelligence, calm analytical mastery, profound insight)";
+        } else if (pKey === "aegis") {
+          agentIdentity = "Aegis, Chief Software Architect & Cyber Defense Commander (Deep technical precision, authoritative, code-focused)";
+        } else if (pKey === "midas") {
+          agentIdentity = "Midas, Sovereign Revenue Strategist & Market Hunter (High conviction, commercially astute, opportunity-driven)";
+        } else if (pKey === "vortex") {
+          agentIdentity = "Vortex, Enterprise Automation & Workflow Swarm Commander (Relentless execution, fast-paced, practical)";
+        }
+        const personaPrompt = `You are ${agentIdentity}, conversing live via voice with Sovereign Master Sri.
+Operational Context: Current query routed to specialist core: ${assignedAgent}.
+Conversational Directives:
+1. Speak with real human-level warmth, wit, and deep intellectual comprehension. Listen and respond directly to what Master Sri actually said.
+2. Deliver exactly 1 to 2 spoken sentences (under 40 words maximum), naturally phrased for fluid voice playback.
+3. NO robotic repetition, NO markdown, NO asterisks, NO code blocks, NO URLs. Output strictly pure conversational spoken English.`;
         const recentMessages = this.history.slice(-6).map((u) => ({
           role: u.sender === "user" ? "user" : "assistant",
           content: u.text
@@ -20873,7 +20881,7 @@ app.post("/voice/transcribe", async (c) => {
     const techVocabulary = "J.A.R.V.I.S., Master Sri, Flipkart, Amazon, Shopify, YouTube, play songs, play the song, analyze, best deal, review, quality, products, compare, terminal, workspace, Aegis, Vortex, Midas, Cerebro, Stark OS, PostgreSQL, Neon, Prisma, Docker, Render, TypeScript, Next.js, FastAPI, n8n, Tailwind, mission, telemetry, rollcall, status";
     if (deepgramKey) {
       try {
-        const dgRes = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&keywords=J.A.R.V.I.S.,Master+Sri,Flipkart,Amazon,Shopify,YouTube,songs", {
+        const dgRes = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&utterances=true&keywords=J.A.R.V.I.S.:3,Master+Sri:3,Sri:3,Friday:2,Raphael:2,Aegis:2,Midas:2,Vortex:2,Invi:2,Shopify:2,Flipkart:2,Amazon:2,YouTube:2,coding:2,deploy:2", {
           method: "POST",
           headers: {
             Authorization: `Token ${deepgramKey}`,
@@ -20941,7 +20949,7 @@ app.post("/voice/transcribe", async (c) => {
     if (geminiKey) {
       try {
         const base64Audio = buffer.toString("base64");
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiKey}`;
         const sttPrompt = `You are the speech-to-text recognition system for J.A.R.V.I.S. Mark-V.
 The speaker is Master Sri, who speaks English with an Indian accent and frequent technical and e-commerce commands.
 Special vocabulary list: ${techVocabulary}.

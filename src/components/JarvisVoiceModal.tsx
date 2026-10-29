@@ -526,31 +526,12 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
       // Instant dynamic intelligent greeting on modal open, then settle into hands-free standby
       const currentAgent = activeAgentRef.current || AGENTS.jarvis
-      const greeting = getDynamicExecutiveGreeting(currentAgent)
-      setJarvisResponse(greeting)
+      setJarvisResponse(`### ? ${currentAgent.name} Online // Neural Ear Active\n*Listening for Master Sri... Speak naturally. Voice recognition powered by Deepgram Nova-2 and Gemini.*`)
       setIsSleeping(false)
       isSleepingRef.current = false
-      playJarvisChime('wake')
-      setIsSpeaking(true)
-      isSpeakingRef.current = true
-      speakInstantNativeSpeech(
-        greeting,
-        currentAgent?.lang || 'en-GB',
-        () => {
-          setIsSpeaking(true)
-          isSpeakingRef.current = true
-        },
-        () => {
-          setIsSpeaking(false)
-          isSpeakingRef.current = false
-          setIsSleeping(true)
-          isSleepingRef.current = true
-          setJarvisResponse(`### 🌙 Sovereign Standby Mode Active\n${greeting}\n\n*Resting in low-power standby. Ear is active. Speak your directive or call any specialist agent (**"Friday"**, **"Aegis"**, **"OpenHands"**, **"Vortex"**) to command hands-free.*`)
-          startListening()
-        },
-        undefined,
-        currentAgent?.id || 'jarvis'
-      )
+      setIsSpeaking(false)
+      isSpeakingRef.current = false
+      startListening()
     }
     if (!isOpen) {
       isRollingCallRef.current = false
@@ -1276,6 +1257,49 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       setIsProcessing(false)
       return
     }
+
+    // Dynamic Multi-Agent Address: Switch persona if user addresses an agent by name
+    let targetAgent = activeAgentRef.current || AGENTS.jarvis
+    if (/\b(friday|f\.r\.i\.d\.a\.y)\b/i.test(lower) && AGENTS.friday) targetAgent = AGENTS.friday
+    else if (/\b(raphael|lord of wisdom)\b/i.test(lower) && AGENTS.raphael) targetAgent = AGENTS.raphael
+    else if (/\b(aegis)\b/i.test(lower) && AGENTS.aegis) targetAgent = AGENTS.aegis
+    else if (/\b(midas)\b/i.test(lower) && AGENTS.midas) targetAgent = AGENTS.midas
+    else if (/\b(vortex)\b/i.test(lower) && AGENTS.vortex) targetAgent = AGENTS.vortex
+    else if (/\b(jarvis)\b/i.test(lower) && AGENTS.jarvis) targetAgent = AGENTS.jarvis
+
+    if (targetAgent.id !== activeAgentRef.current?.id) {
+      setActiveAgent(targetAgent)
+      activeAgentRef.current = targetAgent
+    }
+
+    // Direct Conversational Voice Turn: Real Human-Level Gemini Thinking
+    const isSpecialistAction = /\b(build|deploy|create|code|refactor|fix bug|audit|generate app|generate store|make website|execute task|run pipeline|scan repo|terminal|compile|run test|scan threat|lockdown)\b/i.test(cmd)
+    if (!isSpecialistAction) {
+      try {
+        const res = await fetch('/api/voice/conversation', {
+          method: 'POST',
+          headers: jsonAuthHeaders(),
+          body: JSON.stringify({
+            transcript: cmd,
+            persona: targetAgent.id,
+          })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const spokenReply = data?.response?.spokenText || data?.response?.reply
+          if (spokenReply && spokenReply.trim()) {
+            const technicalDetails = data?.response?.technicalDetails || ''
+            setJarvisResponse(technicalDetails ? `${spokenReply}\n\n*${technicalDetails}*` : spokenReply)
+            speakVoice(spokenReply, targetAgent.lang || 'en-GB', undefined, targetAgent.id)
+            setIsProcessing(false)
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('[Voice] /api/voice/conversation error, falling through:', err)
+      }
+    }
+
 
     // 0.1 WAKE UP & SPECIALIST AGENT ROUTING (STANDBY OR AWAKE)
     if (isSleepingRef.current) {
@@ -3223,7 +3247,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         body: JSON.stringify({
           messages: conversationHistoryRef.current,
           agentId: targetAgent?.id !== 'jarvis' ? targetAgent?.id : (activeAgent?.id !== 'jarvis' ? activeAgent?.id : undefined),
-          model: 'gemini-2.0-flash',
+          model: 'gemini-3.5-flash-lite',
         }),
       })
 
@@ -3261,7 +3285,35 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
     }
   }
 
-  // Universal Fallback: Server-side Gemini STT with 16kHz Web Audio VAD
+  // =========================================================================
+  // AUTONOMOUS NEURAL VOICE TRANSCEIVER (Deepgram Nova-2 + Gemini 3.5 Flash VAD)
+  // Single persistent MediaStream, real-time energy VAD, zero clicking/beeping
+  // =========================================================================
+  const vadIntervalRef = useRef<any>(null)
+
+  const stopListening = () => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+    if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current)
+      vadIntervalRef.current = null
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try { mediaRecorderRef.current.stop() } catch {}
+    }
+    if (mediaStreamRef.current) {
+      try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
+      mediaStreamRef.current = null
+    }
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close().catch(() => {}) } catch {}
+      audioCtxRef.current = null
+    }
+    audioChunksRef.current = []
+    setIsListening(false)
+    isListeningRef.current = false
+  }
+
   const startWhisperRecording = async () => {
     if (isSpeakingRef.current || isProcessingRef.current) return
     try {
@@ -3276,23 +3328,103 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
       }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       mediaStreamRef.current = stream
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      const audioCtx = new AudioCtx()
+      audioCtxRef.current = audioCtx
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {})
+      }
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.4
+      source.connect(analyser)
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4')
+
+      const recorder = new MediaRecorder(stream, { mimeType })
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
 
-      // Lightweight VAD using silent stream stop without CPU-intensive float loops
+      let speechDetected = false
+      let speechStartTime = 0
+      let lastSpeechTimestamp = Date.now()
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+      if (vadIntervalRef.current) clearInterval(vadIntervalRef.current)
+      vadIntervalRef.current = setInterval(() => {
+        if (!recorder || recorder.state !== 'recording') {
+          if (vadIntervalRef.current) clearInterval(vadIntervalRef.current)
+          return
+        }
+
+        analyser.getByteFrequencyData(dataArray)
+        let sum = 0
+        const bands: number[] = []
+        const step = Math.floor(dataArray.length / 14) || 1
+        for (let b = 0; b < 14; b++) {
+          let bSum = 0
+          for (let k = b * step; k < (b + 1) * step; k++) {
+            bSum += dataArray[k] || 0
+          }
+          bands.push(Math.min(100, Math.max(8, Math.floor(bSum / step))))
+          sum += bSum
+        }
+        const avgEnergy = sum / dataArray.length
+
+        // Animate visual equalizer with real audio energy
+        if (bands.length === 14) {
+          setVoiceVolume(bands)
+        }
+
+        // Voice Activity Detection Threshold
+        if (avgEnergy > 14) {
+          if (!speechDetected) {
+            speechDetected = true
+            speechStartTime = Date.now()
+          }
+          lastSpeechTimestamp = Date.now()
+          setIsListening(true)
+          isListeningRef.current = true
+        } else if (speechDetected) {
+          const silenceDuration = Date.now() - lastSpeechTimestamp
+          const spokenDuration = lastSpeechTimestamp - speechStartTime
+          // Turn completes 750ms after speech ends
+          if (silenceDuration > 750 && spokenDuration > 300) {
+            if (vadIntervalRef.current) {
+              clearInterval(vadIntervalRef.current)
+              vadIntervalRef.current = null
+            }
+            if (recorder.state === 'recording') {
+              recorder.stop()
+            }
+          }
+        }
+      }, 50)
+
       if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
       maxRecordingTimerRef.current = setTimeout(() => {
+        if (vadIntervalRef.current) {
+          clearInterval(vadIntervalRef.current)
+          vadIntervalRef.current = null
+        }
         if (recorder.state === 'recording') {
           recorder.stop()
         }
-      }, 7000)
+      }, 15000)
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
 
       recorder.onstop = async () => {
+        if (vadIntervalRef.current) {
+          clearInterval(vadIntervalRef.current)
+          vadIntervalRef.current = null
+        }
         if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
         if (mediaStreamRef.current) {
           try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
@@ -3302,18 +3434,20 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
           try { audioCtxRef.current.close().catch(() => {}) } catch {}
           audioCtxRef.current = null
         }
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
         audioChunksRef.current = []
         setIsListening(false)
         isListeningRef.current = false
+        setVoiceVolume([8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8])
 
-        // Mobile Thermal & Battery Guard: Enter standby on silence without looping CPU audio DSP
-        if (audioBlob.size < 400) {
-          setIsProcessing(false)
-          isProcessingRef.current = false
-          setIsSleeping(true)
-          isSleepingRef.current = true
-          setTranscript('Standing by on low-power sentinel. Tap Arc Reactor to speak.')
+        if (audioBlob.size < 600 || !speechDetected) {
+          if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            setTimeout(() => {
+              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                startWhisperRecording()
+              }
+            }, 300)
+          }
           return
         }
 
@@ -3330,184 +3464,40 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
           if (res.ok) {
             const data = await res.json()
             if (data.text?.trim()) {
-              setTranscript(data.text.trim())
-              transcriptRef.current = data.text.trim()
-              processCommand(data.text.trim())
+              const transcribed = data.text.trim()
+              setTranscript(transcribed)
+              transcriptRef.current = transcribed
+              await processCommand(transcribed)
               return
             }
           }
         } catch (e) {
-          console.error('STT error', e)
+          console.error('[Voice] Transcribe error:', e)
         } finally {
           setIsProcessing(false)
           isProcessingRef.current = false
-          if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+          if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
             setTimeout(() => {
-              if (isOpenRef.current && isSleepingRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-                startListening()
+              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                startWhisperRecording()
               }
-            }, 400)
+            }, 300)
           }
         }
       }
 
-      recorder.start(250)
+      recorder.start(100)
       setIsListening(true)
       isListeningRef.current = true
-      setEngineType('Deepgram')
+      setEngineType('Deepgram Nova-2')
     } catch (err) {
-      console.error('MediaRecorder error', err)
+      console.error('[Voice] MediaRecorder error:', err)
       setJarvisResponse('Microphone permission required, Master Sri. Please allow access.')
     }
   }
 
-  // Primary Speech Recognition (Native WebSpeech or Deepgram Nova-2 Fallback)
   const startListening = () => {
-    if (isSpeakingRef.current || isProcessingRef.current) return
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-
-    // Prefer native browser WebSpeech for instant zero-latency speech recognition
-    if (SpeechRecognition && engineType !== 'Deepgram') {
-      try {
-        if (recognitionRef.current) {
-          try { recognitionRef.current.abort() } catch {}
-        }
-
-        const recognition = new SpeechRecognition()
-        recognition.continuous = true
-        recognition.interimResults = true
-        recognition.lang = activeAgentRef.current?.lang || 'en-IN'
-
-        recognition.onstart = () => {
-          setIsListening(true)
-          isListeningRef.current = true
-          setEngineType('WebSpeech')
-          if (!silenceTimerRef.current) {
-            setTranscript('')
-            transcriptRef.current = ''
-          }
-          lastActiveRef.current = Date.now()
-        }
-
-        recognition.onresult = (event: any) => {
-          let fullTranscript = ''
-          for (let i = 0; i < event.results.length; i++) {
-            const res = event.results[i]
-            if (res && res[0]?.transcript) {
-              fullTranscript += res[0].transcript + ' '
-            }
-          }
-          if (!fullTranscript && event.results.length > 0) {
-            fullTranscript = event.results[event.results.length - 1]?.[0]?.transcript || ''
-          }
-
-          const cleaned = cleanAndDeduplicateTranscript(fullTranscript.trim())
-          if (cleaned) {
-            setTranscript(cleaned)
-            transcriptRef.current = cleaned
-            lastActiveRef.current = Date.now()
-          }
-
-          // Dynamic intelligent turn-taking: 2.2s conversational patience eliminates premature cutoff
-          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-          if (cleaned.length > 0) {
-            silenceTimerRef.current = setTimeout(() => {
-              const captured = transcriptRef.current.trim()
-              silenceTimerRef.current = null
-              if (captured && !isSpeakingRef.current && !isProcessingRef.current) {
-                transcriptRef.current = ''
-                setTranscript('')
-                stopListening()
-                processCommand(captured)
-              }
-            }, 2200)
-          }
-        }
-
-        recognition.onerror = (e: any) => {
-          if (e.error === 'no-speech' || e.error === 'aborted') {
-            setIsListening(false)
-            isListeningRef.current = false
-            if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-              setTimeout(() => {
-                if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current && typeof document !== 'undefined' && !document.hidden) {
-                  startListening()
-                }
-              }, 800)
-            }
-            return
-          }
-          if (e.error === 'network') {
-            setIsListening(false)
-            isListeningRef.current = false
-            setTimeout(() => {
-              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current && typeof document !== 'undefined' && !document.hidden) {
-                startListening()
-              }
-            }, 1000)
-            return
-          }
-          if (e.error === 'not-allowed') {
-            setEngineType('Deepgram')
-            startWhisperRecording()
-          }
-        }
-
-        recognition.onend = () => {
-          setIsListening(false)
-          isListeningRef.current = false
-
-          // Seamless breath pause recovery: If user is mid-sentence, restart without cutting them off!
-          if (silenceTimerRef.current && transcriptRef.current.trim() && isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-            try {
-              recognition.start()
-              return
-            } catch {}
-          }
-
-          // Settle into power-efficient standby (800ms backoff stops mobile CPU overheating)
-          if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-            setTimeout(() => {
-              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current && typeof document !== 'undefined' && !document.hidden) {
-                startListening()
-              }
-            }, 800)
-          }
-        }
-
-        recognitionRef.current = recognition
-        recognition.start()
-        return
-      } catch (e) {
-        startWhisperRecording()
-        return
-      }
-    }
-
     startWhisperRecording()
-  }
-
-  const stopListening = () => {
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-    if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      try { mediaRecorderRef.current.stop() } catch {}
-    }
-    if (mediaStreamRef.current) {
-      try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
-      mediaStreamRef.current = null
-    }
-    if (audioCtxRef.current) {
-      try { audioCtxRef.current.close().catch(() => {}) } catch {}
-      audioCtxRef.current = null
-    }
-    audioChunksRef.current = []
-    setIsListening(false)
-    isListeningRef.current = false
   }
 
   // Audio equalizer: throttled to 400ms to eliminate mobile thermal heating & React re-render thrashing

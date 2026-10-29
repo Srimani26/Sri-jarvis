@@ -3996,7 +3996,7 @@ app.post('/voice/transcribe', async (c) => {
     // 0. Ultra-Low Latency Engine: Deepgram Nova-2 (~100ms, multi-accent, intelligent punctuation)
     if (deepgramKey) {
       try {
-        const dgRes = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&keywords=J.A.R.V.I.S.,Master+Sri,Flipkart,Amazon,Shopify,YouTube,songs', {
+        const dgRes = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&utterances=true&keywords=J.A.R.V.I.S.:3,Master+Sri:3,Sri:3,Friday:2,Raphael:2,Aegis:2,Midas:2,Vortex:2,Invi:2,Shopify:2,Flipkart:2,Amazon:2,YouTube:2,coding:2,deploy:2', {
           method: 'POST',
           headers: {
             Authorization: `Token ${deepgramKey}`,
@@ -4070,7 +4070,7 @@ app.post('/voice/transcribe', async (c) => {
     if (geminiKey) {
       try {
         const base64Audio = buffer.toString('base64')
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiKey}`
 
         const sttPrompt = `You are the speech-to-text recognition system for J.A.R.V.I.S. Mark-V.
 The speaker is Master Sri, who speaks English with an Indian accent and frequent technical and e-commerce commands.

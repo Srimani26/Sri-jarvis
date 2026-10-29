@@ -266,7 +266,9 @@ export default function App() {
 
   // OpenJarvis Untouched Hands-Free Ambient Wake-Word Listener (Zero Touch Activation)
   useEffect(() => {
-    if (!token || voiceModalOpen) return
+    // Dormant on dashboard to prevent OS microphone beeps and device thrashing; wakes via Voice HUD
+    const ambientEnabled = false
+    if (!ambientEnabled || !token || voiceModalOpen) return
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
 
@@ -303,21 +305,16 @@ export default function App() {
           }
         }
 
-        recognition.onerror = () => {
-          // Silent non-intrusive backoff
-        }
-
+        recognition.onerror = () => {}
         recognition.onend = () => {
           if (!isStopped && !voiceModalOpen && typeof document !== 'undefined' && !document.hidden) {
             setTimeout(initWakeRecognition, 1200)
           }
         }
-
         recognition.start()
       } catch {}
     }
 
-    // Auto-pause when user locks phone or switches tabs (Zero heat / zero battery consumption)
     const onVisibilityChange = () => {
       if (document.hidden) {
         try { recognition?.abort() } catch {}
