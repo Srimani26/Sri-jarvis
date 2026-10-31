@@ -1,4 +1,6 @@
 // Cybernetic Arc Reactor Chime Synthesizer via Web Audio API
+import { webAudioPlayer } from '@/voice/WebAudioPlayer'
+
 export function playJarvisChime(type: 'wake' | 'execute' | 'alert' = 'wake') {
   if (typeof window === 'undefined') return
   try {
@@ -92,6 +94,9 @@ function stopSpeechKeepAlive() {
 export function stopNeuralSpeech() {
   activeSpeechSessionId++
   stopSpeechKeepAlive()
+  try {
+    webAudioPlayer.stop()
+  } catch {}
   if (activeAudio) {
     try {
       activeAudio.pause()
@@ -108,16 +113,22 @@ export function stopNeuralSpeech() {
 }
 
 export function isNeuralSpeechActive(): boolean {
-  return Boolean(activeAudio || (typeof window !== 'undefined' && window.speechSynthesis?.speaking))
+  return Boolean(
+    webAudioPlayer.isSpeaking() ||
+    activeAudio ||
+    (typeof window !== 'undefined' && window.speechSynthesis?.speaking)
+  )
 }
 
 /**
  * Primes browser audio subsystem in direct user gesture context.
- * Unlocks HTML5 audio playback and Web Speech synthesis without browser policy blocking.
+ * Unlocks Web Audio permanently for mobile devices (iOS Safari & Android Chrome)
+ * so subsequent async TTS audio buffers play with zero autoplay blocking.
  */
 export function primeAudioPlayback() {
   if (typeof window === 'undefined') return
   try {
+    webAudioPlayer.prime().catch(() => {})
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
     if (AudioCtx) {
       const ctx = new AudioCtx()
@@ -144,8 +155,8 @@ export function primeAudioPlayback() {
 
 /**
  * Bulletproof Neural Voice Synthesizer
- * Uses backend Google Neural Audio stream (/api/voice/speak) for true human audio
- * Gracefully falls back to browser SpeechSynthesis if offline.
+ * Uses backend Deepgram Aura / ElevenLabs Neural stream (/api/voice/speak) played through
+ * persistent Web Audio pipeline (immune to mobile gesture timeouts & zero robot degradation).
  */
 export function playNeuralSpeech(
   text: string,
@@ -174,45 +185,58 @@ export function playNeuralSpeech(
     return null
   }
 
-  // All greetings and executive intelligence are 100% dynamic!
-  // Pre-rendered audio is strictly restricted to static demo previews.
-  let staticAudioPath: string | null = null
-
-
   try {
     const spokenSlice = clean.slice(0, 30000)
 
-    // Primary High-Fidelity Path: Direct Stream from Backend /api/voice/speak (ElevenLabs + Google Neural Stream)
+    // Primary High-Fidelity Path: Direct Stream from Backend /api/voice/speak (Deepgram Aura + ElevenLabs)
     fetch('/api/voice/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: spokenSlice, lang, agentId })
     })
-    .then(res => {
+    .then(async res => {
       if (!res.ok) throw new Error(`POST TTS failed with status ${res.status}`)
-      return res.blob()
-    })
-    .then(blob => {
+      const arrayBuffer = await res.arrayBuffer()
       if (sessionId !== activeSpeechSessionId) return
-      const blobUrl = URL.createObjectURL(blob)
-      const audio = new Audio(blobUrl)
-      activeAudio = audio
-      audio.onplay = () => { if (sessionId === activeSpeechSessionId && onStart) onStart() }
-      audio.onended = () => {
-        activeAudio = null
-        URL.revokeObjectURL(blobUrl)
-        if (sessionId === activeSpeechSessionId && onEnd) onEnd()
-      }
-      audio.onerror = () => {
-        activeAudio = null
-        URL.revokeObjectURL(blobUrl)
-        if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError, agentId)
-      }
-      const p = audio.play()
-      if (p !== undefined) {
-        p.catch(() => {
+
+      // Use persistent WebAudioPlayer (works asynchronously without mobile user-activation expiry)
+      const played = await webAudioPlayer.playBuffer(
+        arrayBuffer,
+        () => {
+          if (sessionId === activeSpeechSessionId && onStart) onStart()
+        },
+        () => {
+          if (sessionId === activeSpeechSessionId && onEnd) onEnd()
+        }
+      )
+
+      if (!played && sessionId === activeSpeechSessionId) {
+        // Fallback to HTML5 audio if Web Audio buffer decode is unavailable
+        try {
+          const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' })
+          const blobUrl = URL.createObjectURL(blob)
+          const audio = new Audio(blobUrl)
+          activeAudio = audio
+          audio.onplay = () => { if (sessionId === activeSpeechSessionId && onStart) onStart() }
+          audio.onended = () => {
+            activeAudio = null
+            URL.revokeObjectURL(blobUrl)
+            if (sessionId === activeSpeechSessionId && onEnd) onEnd()
+          }
+          audio.onerror = () => {
+            activeAudio = null
+            URL.revokeObjectURL(blobUrl)
+            if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError, agentId)
+          }
+          const p = audio.play()
+          if (p !== undefined) {
+            p.catch(() => {
+              if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError, agentId)
+            })
+          }
+        } catch {
           if (sessionId === activeSpeechSessionId) fallbackWebSpeech(spokenSlice, lang, onStart, onEnd, onError, agentId)
-        })
+        }
       }
     })
     .catch(() => {

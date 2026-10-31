@@ -19052,6 +19052,7 @@ function getModelStatus() {
     lastError: m.lastError
   }));
 }
+var DEEPGRAM_DEFAULT_KEY = "34070f5f5deec2580a70abf0d8b94f6884a43a5d";
 var ELEVENLABS_DEFAULT_KEY = "sk_da60f0e4de182e85118e7fca5b676a224a95d9ab5d814b8f";
 var AGENT_VOICE_MAP = {
   jarvis: { voiceId: "pNInz6obpgDQGcFmaJgB", gender: "male", name: "Adam (Grand Commander)" },
@@ -19074,6 +19075,28 @@ var AGENT_VOICE_MAP = {
   camel: { voiceId: "N2lVS1w4EtoT3dr4eOWO", gender: "male", name: "Callum (Inception Partner)" },
   langgraph: { voiceId: "EXAVITQu4vr4xnSDxMaL", gender: "female", name: "Sarah (Graph Supervisor)" },
   foundry: { voiceId: "ErXwobaYiN019PkySvjV", gender: "male", name: "Antoni (Agent Architect)" }
+};
+var DEEPGRAM_AURA_VOICE_MAP = {
+  jarvis: "aura-orion-en",
+  friday: "aura-luna-en",
+  raphael: "aura-athena-en",
+  aegis: "aura-arcas-en",
+  sentinel: "aura-asteria-en",
+  daedalus: "aura-perseus-en",
+  vortex: "aura-zeus-en",
+  midas: "aura-angus-en",
+  cerebro: "aura-stella-en",
+  stark_os: "aura-helios-en",
+  deepseek: "aura-arcas-en",
+  autogen: "aura-perseus-en",
+  crewai: "aura-zeus-en",
+  browser_use: "aura-luna-en",
+  metagpt: "aura-orion-en",
+  openhands: "aura-arcas-en",
+  smolagent: "aura-asteria-en",
+  camel: "aura-perseus-en",
+  langgraph: "aura-athena-en",
+  foundry: "aura-angus-en"
 };
 app.get("/ai/sessions", async (c) => {
   try {
@@ -20563,7 +20586,7 @@ app.all("/voice/speak", async (c) => {
     const voiceConfig = AGENT_VOICE_MAP[agentId.toLowerCase()] || AGENT_VOICE_MAP.jarvis;
     const voiceId = requestedVoiceId || voiceConfig.voiceId;
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY || ELEVENLABS_DEFAULT_KEY;
-    const deepgramKey = process.env.DEEPGRAM_API_KEY;
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || DEEPGRAM_DEFAULT_KEY;
     try {
       if (elevenLabsKey) {
         const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
@@ -20595,7 +20618,7 @@ app.all("/voice/speak", async (c) => {
     }
     try {
       if (deepgramKey) {
-        const dgVoice = gender === "female" || agentId === "friday" ? "aura-luna-en" : "aura-orion-en";
+        const dgVoice = DEEPGRAM_AURA_VOICE_MAP[agentId.toLowerCase()] || (gender === "female" || agentId === "friday" ? "aura-luna-en" : "aura-orion-en");
         const dgRes = await fetch(`https://api.deepgram.com/v1/speak?model=${dgVoice}`, {
           method: "POST",
           headers: {
@@ -20874,7 +20897,7 @@ app.post("/voice/transcribe", async (c) => {
       return c.json({ ok: false, error: "Audio file is empty", text: "" }, 400);
     }
     const keys = loadKeys();
-    const deepgramKey = process.env.DEEPGRAM_API_KEY || keys.deepgram;
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || keys.deepgram || DEEPGRAM_DEFAULT_KEY;
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || keys.gemini || keys.geminiKeys && keys.geminiKeys[0];
     const groqKey = process.env.GROQ_API_KEY || keys.groq;
     const mimeType = (file.type || "audio/webm").split(";")[0];

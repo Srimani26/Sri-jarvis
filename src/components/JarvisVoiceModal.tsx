@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech, speakInstantNativeSpeech } from '@/lib/sound'
+import { webAudioPlayer } from '@/voice/WebAudioPlayer'
+import { AdaptiveVAD } from '@/voice/AdaptiveVAD'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { processOfflineCommand } from '@/lib/offline-core'
 import TaskProgressCard, { AgentTask, StepAction } from '@/components/TaskProgressCard'
@@ -457,6 +459,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const activeAgentRef = useRef<AgentBadge>(AGENTS.jarvis)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const conversationHistoryRef = useRef<Array<{ role: string; content: string }>>([])
+  const vadRef = useRef<AdaptiveVAD>(new AdaptiveVAD())
+  const visualizerAnimRef = useRef<any>(null)
 
   // Mobile Thermal & Battery Saver: Direct GPU compositor equalizer (0 React re-renders)
   const updateEqualizerBars = (bands: number[]) => {
@@ -558,8 +562,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
     if (!isOpen) {
       isRollingCallRef.current = false
-      stopListening()
+      stopListening(true)
       stopNeuralSpeech()
+      webAudioPlayer.stop()
       setIsSleeping(false)
       isSleepingRef.current = false
       setIsSpeaking(false)
@@ -629,23 +634,21 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
-  // Real vocal speech player using backend Google Neural stream with hard microphone isolation
+  // Real vocal speech player using Deepgram Aura / ElevenLabs with Web Audio pipeline & duplex acoustic isolation
   const speakVoice = (text: string, lang?: string, onDone?: () => void, customAgentId?: string) => {
-    // Before TTS audio plays, immediately call mediaStream.getTracks().forEach(t => t.stop()) and reset audio recorder buffers
-    if (mediaStreamRef.current) {
-      try {
-        mediaStreamRef.current.getTracks().forEach(t => t.stop())
-      } catch {}
-      mediaStreamRef.current = null
+    // 1. Pause microphone recording & clear VAD timers during TTS to prevent acoustic feedback
+    // Keep MediaStream and AudioContext alive so mobile permissions are never re-requested!
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current)
+      vadIntervalRef.current = null
     }
-    if (audioCtxRef.current) {
-      try {
-        audioCtxRef.current.close().catch(() => {})
-      } catch {}
-      audioCtxRef.current = null
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+    if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try { mediaRecorderRef.current.stop() } catch {}
     }
     audioChunksRef.current = []
-    stopListening()
     stopNeuralSpeech()
 
     const chosenLang = lang || activeAgentRef.current.lang || 'en-GB'
@@ -655,6 +658,33 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     isSpeakingRef.current = true
     lastActiveRef.current = Date.now()
 
+    // Animate visualizer bars with live frequency during speech output
+    if (visualizerAnimRef.current) clearInterval(visualizerAnimRef.current)
+    visualizerAnimRef.current = setInterval(() => {
+      if (webAudioPlayer.isSpeaking()) {
+        const bands = webAudioPlayer.getFrequencyBands(14)
+        updateEqualizerBars(bands)
+      }
+    }, 60)
+
+    const handleSpeechFinish = () => {
+      if (visualizerAnimRef.current) {
+        clearInterval(visualizerAnimRef.current)
+        visualizerAnimRef.current = null
+      }
+      resetEqualizerBars()
+      setIsSpeaking(false)
+      isSpeakingRef.current = false
+      lastActiveRef.current = Date.now()
+      if (onDone) {
+        onDone()
+      } else if (isOpenRef.current) {
+        setIsSleeping(true)
+        isSleepingRef.current = true
+        startListening()
+      }
+    }
+
     playNeuralSpeech(
       text,
       chosenLang,
@@ -662,37 +692,21 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         setIsSpeaking(true)
         isSpeakingRef.current = true
       },
-      () => {
-        // Deterministic speech completion: return to standby mode and keep listening
-        setIsSpeaking(false)
-        isSpeakingRef.current = false
-        lastActiveRef.current = Date.now()
-        if (onDone) {
-          onDone()
-        } else if (isOpenRef.current) {
-          setIsSleeping(true)
-          isSleepingRef.current = true
-          startListening()
-        }
-      },
-      () => {
-        setIsSpeaking(false)
-        isSpeakingRef.current = false
-        if (onDone) {
-          onDone()
-        } else if (isOpenRef.current) {
-          setIsSleeping(true)
-          isSleepingRef.current = true
-          startListening()
-        }
-      },
+      handleSpeechFinish,
+      handleSpeechFinish,
       targetAgentId
     )
   }
 
-  // Interruption / Barge-in handler: immediately halts TTS and opens microphone
+  // Interruption / Barge-in handler: immediately halts TTS and resumes listening in < 10ms
   const handleInterrupt = () => {
+    webAudioPlayer.stop()
     stopNeuralSpeech()
+    if (visualizerAnimRef.current) {
+      clearInterval(visualizerAnimRef.current)
+      visualizerAnimRef.current = null
+    }
+    resetEqualizerBars()
     setIsSpeaking(false)
     isSpeakingRef.current = false
     lastActiveRef.current = Date.now()
@@ -3307,7 +3321,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
   // =========================================================================
   const vadIntervalRef = useRef<any>(null)
 
-  const stopListening = () => {
+  const stopListening = (hardTeardown = false) => {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
     if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
     if (vadIntervalRef.current) {
@@ -3317,15 +3331,17 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop() } catch {}
     }
-    if (mediaStreamRef.current) {
-      try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
-      mediaStreamRef.current = null
+    if (hardTeardown) {
+      if (mediaStreamRef.current) {
+        try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
+        mediaStreamRef.current = null
+      }
+      if (audioCtxRef.current) {
+        try { audioCtxRef.current.close().catch(() => {}) } catch {}
+        audioCtxRef.current = null
+      }
+      analyserRef.current = null
     }
-    if (audioCtxRef.current) {
-      try { audioCtxRef.current.close().catch(() => {}) } catch {}
-      audioCtxRef.current = null
-    }
-    analyserRef.current = null
     audioChunksRef.current = []
     resetEqualizerBars()
     setIsListening(false)
@@ -3351,7 +3367,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         mediaStreamRef.current = stream
 
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-        const audioCtx = new AudioCtx()
+        const audioCtx = new AudioCtx({ latencyHint: 'interactive' })
         audioCtxRef.current = audioCtx
         const source = audioCtx.createMediaStreamSource(stream)
         const analyser = audioCtx.createAnalyser()
@@ -3375,9 +3391,9 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
 
-      let speechDetected = false
-      let speechStartTime = 0
-      let lastSpeechTimestamp = Date.now()
+      const vad = vadRef.current
+      vad.reset()
+
       const dataArray = analyser ? new Uint8Array(analyser.frequencyBinCount) : new Uint8Array(128)
 
       if (vadIntervalRef.current) clearInterval(vadIntervalRef.current)
@@ -3389,49 +3405,30 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
 
         if (analyser) {
           analyser.getByteFrequencyData(dataArray)
-          let sum = 0
-          const bands: number[] = []
-          const step = Math.floor(dataArray.length / 14) || 1
-          for (let b = 0; b < 14; b++) {
-            let bSum = 0
-            for (let k = b * step; k < (b + 1) * step; k++) {
-              bSum += dataArray[k] || 0
-            }
-            bands.push(Math.min(100, Math.max(8, Math.floor(bSum / step))))
-            sum += bSum
-          }
-          const avgEnergy = sum / dataArray.length
+          const frame = vad.processFrequencyData(dataArray, 14)
 
           // Direct hardware compositor update (0 React virtual DOM diffing, 0 CPU thrash)
-          updateEqualizerBars(bands)
+          updateEqualizerBars(frame.bands)
 
-          // Voice Activity Detection Threshold
-          if (avgEnergy > 14) {
-            if (!speechDetected) {
-              speechDetected = true
-              speechStartTime = Date.now()
-            }
-            lastSpeechTimestamp = Date.now()
+          // Adaptive Voice Activity Detection
+          if (frame.isSpeaking) {
             if (!isListeningRef.current) {
               setIsListening(true)
               isListeningRef.current = true
             }
-          } else if (speechDetected) {
-            const silenceDuration = Date.now() - lastSpeechTimestamp
-            const spokenDuration = lastSpeechTimestamp - speechStartTime
-            // Turn completes 750ms after speech ends
-            if (silenceDuration > 750 && spokenDuration > 300) {
-              if (vadIntervalRef.current) {
-                clearInterval(vadIntervalRef.current)
-                vadIntervalRef.current = null
-              }
-              if (recorder.state === 'recording') {
-                recorder.stop()
-              }
+          }
+
+          if (frame.turnCompleted) {
+            if (vadIntervalRef.current) {
+              clearInterval(vadIntervalRef.current)
+              vadIntervalRef.current = null
+            }
+            if (recorder.state === 'recording') {
+              recorder.stop()
             }
           }
         }
-      }, 75)
+      }, 60)
 
       if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
       maxRecordingTimerRef.current = setTimeout(() => {
@@ -3445,7 +3442,10 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
       }, 15000)
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data)
+          vad.pushChunk(e.data)
+        }
       }
 
       recorder.onstop = async () => {
@@ -3456,18 +3456,20 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
         resetEqualizerBars()
 
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+        const preSpeech = vad.getPreSpeechChunks()
+        const fullChunks = [...preSpeech, ...audioChunksRef.current]
+        const audioBlob = new Blob(fullChunks, { type: mimeType })
         audioChunksRef.current = []
         setIsListening(false)
         isListeningRef.current = false
 
-        if (audioBlob.size < 600 || !speechDetected) {
+        if (audioBlob.size < 400 || !vad.isSpeechActive) {
           if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
             setTimeout(() => {
               if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
                 startWhisperRecording()
               }
-            }, 300)
+            }, 250)
           }
           return
         }
@@ -3502,13 +3504,13 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
               if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
                 startWhisperRecording()
               }
-            }, 300)
+            }, 250)
           }
         }
       }
 
       // Start recording full utterance without 100ms chunking thrash
-      recorder.start()
+      recorder.start(100)
       setIsListening(true)
       isListeningRef.current = true
       setEngineType('Deepgram')

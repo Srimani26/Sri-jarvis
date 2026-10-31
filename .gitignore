@@ -35,3 +35,6 @@ workers/**/dist/
 artifacts/
 .superpowers/
 
+
+external/
+scripts/clone-voice-arsenal.mjs
