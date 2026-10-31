@@ -139,6 +139,44 @@ describe('J.A.R.V.I.S. High-IQ Gemini Voice System — Complete End-to-End Test 
       const wordCount = res.spokenText.split(/\s+/).length;
       assert.ok(wordCount <= 35, `Spoken output must be concise for voice playback (got ${wordCount} words)`);
     });
+
+    test('3.7 Mispronunciation Tolerance Engine: Normalizes speech accents & STT errors', async () => {
+      // Mispronounced "jervis" and "reveue"
+      const res1 = await ConversationOS.processUserSpeechAsync('jervis, take me to reveue');
+      assert.equal(res1.action?.type, 'navigate');
+      assert.equal(res1.action?.targetTab, 'revenue');
+
+      // Mispronounced "egis" and "syber sheeld"
+      const res2 = await ConversationOS.processUserSpeechAsync('egis, check syber sheeld');
+      assert.equal(res2.action?.type, 'cyber_scan');
+      assert.equal(res2.action?.targetTab, 'cyber');
+      assert.equal(res2.targetAgent, 'aegis');
+
+      // Mispronounced "fiday" and "invy store"
+      const res3 = await ConversationOS.processUserSpeechAsync('fiday, open invy store');
+      assert.equal(res3.action?.type, 'navigate');
+      assert.equal(res3.action?.targetTab, 'projects');
+      assert.equal(res3.targetAgent, 'friday');
+    });
+
+    test('3.8 Sovereign Well-Wisher, Teacher & Master Sri Priority Philosophy', async () => {
+      let capturedSystemPrompt = '';
+      const mockAi = async (prompt: string, msgs: any[]) => {
+        capturedSystemPrompt = prompt;
+        return {
+          text: 'I am entirely dedicated to your prosperity and learning, Master Sri.'
+        };
+      };
+      await ConversationOS.processUserSpeechAsync(
+        'Jarvis, what is the best strategy for my growth today?',
+        mockAi,
+        'jarvis'
+      );
+
+      assert.ok(capturedSystemPrompt.includes('Master Sri is your supreme high priority'));
+      assert.ok(capturedSystemPrompt.includes('devoted well-wisher'));
+      assert.ok(capturedSystemPrompt.includes('master teacher'));
+    });
   });
 
   // 4. MULTI-AGENT VOICE PERSONALITY & NEURAL ENGINE VERIFICATION

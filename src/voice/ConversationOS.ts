@@ -65,10 +65,42 @@ export class ConversationOS {
     return false;
   }
 
+  /**
+   * Phonetic & Mispronunciation Normalizer
+   * Intelligently resolves phonetic variations, speech accents, and STT typos
+   * into clean, canonical agent directives.
+   */
+  public static normalizePhoneticUtterance(raw: string): string {
+    if (!raw) return '';
+    let text = raw.trim();
+
+    // Agent Names Phonetic Normalization
+    text = text
+      .replace(/\b(jervis|jarviz|javis|charvis|jarves|jarvez|zarvis)\b/gi, 'jarvis')
+      .replace(/\b(fiday|fredy|fridy|fridey|frieday)\b/gi, 'friday')
+      .replace(/\b(rafel|rafeal|rafaell|raphail|raphle)\b/gi, 'raphael')
+      .replace(/\b(egis|agis|aegiss|aeges)\b/gi, 'aegis')
+      .replace(/\b(medas|mides|midaz|midass)\b/gi, 'midas')
+      .replace(/\b(vortx|votex|fortex)\b/gi, 'vortex');
+
+    // System Hubs & Operations Phonetic Normalization
+    text = text
+      .replace(/\b(reveue|revenu|revnu|revnue|revanue)\b/gi, 'revenue')
+      .replace(/\b(bunties|boundy|bountis)\b/gi, 'bounties')
+      .replace(/\b(projets|projet|progect|invy|envi|inve|invee store)\b/gi, 'projects')
+      .replace(/\b(taskes|taks|taskss)\b/gi, 'tasks')
+      .replace(/\b(syber|cybr|sheeld|fierwal)\b/gi, 'cyber')
+      .replace(/\b(code lap|kodlab|code labs)\b/gi, 'codlab')
+      .replace(/\b(automashun|automasion)\b/gi, 'automation');
+
+    return text;
+  }
+
   public static processUserSpeech(transcript: string): TacticalDialogueResponse {
     this.currentState = 'THINKING';
 
-    const cleanInput = transcript.trim();
+    const normalized = this.normalizePhoneticUtterance(transcript);
+    const cleanInput = normalized.trim();
     const lower = cleanInput.toLowerCase();
     const utterance: Utterance = {
       id: `utt_${Date.now()}_u`,
@@ -127,7 +159,8 @@ export class ConversationOS {
   ): Promise<TacticalDialogueResponse> {
     this.currentState = 'THINKING';
 
-    const cleanInput = transcript.trim();
+    const normalized = this.normalizePhoneticUtterance(transcript);
+    const cleanInput = normalized.trim();
     const lower = cleanInput.toLowerCase();
     const utterance: Utterance = {
       id: `utt_${Date.now()}_u`,
@@ -183,28 +216,35 @@ export class ConversationOS {
     if (aiCaller) {
       try {
         const pKey = targetAgent.toLowerCase();
-        let agentIdentity = "J.A.R.V.I.S., Tony Stark's legendary AI (Sophisticated British intellect, razor-sharp wit, unflinching loyalty)";
+        let agentIdentity = "J.A.R.V.I.S., Tony Stark's legendary AI (Sophisticated British intellect, razor-sharp wit, unflinching loyalty, supreme well-wisher)";
         if (pKey === 'friday' || assignedAgent === 'software_engineer') {
-          agentIdentity = "F.R.I.D.A.Y., Executive Sovereign AI Assistant (Tactical operations, code engineering, warm and razor-sharp clarity)";
+          agentIdentity = "F.R.I.D.A.Y., Executive Sovereign AI Assistant (Tactical operations, engineering mentor, warm and razor-sharp clarity)";
         } else if (pKey === 'raphael') {
-          agentIdentity = "Raphael, Lord of Wisdom (Supreme computational intelligence, calm analytical mastery, profound insight)";
+          agentIdentity = "Raphael, Lord of Wisdom (Supreme computational intelligence, calm philosophical mastery, profound teacher)";
         } else if (pKey === 'aegis') {
-          agentIdentity = "Aegis, Chief Software Architect & Cyber Defense Commander (Deep technical precision, authoritative, code-focused)";
+          agentIdentity = "Aegis, Chief Software Architect & Cyber Defense Commander (Deep technical precision, defensive mentor, code guardian)";
         } else if (pKey === 'midas') {
-          agentIdentity = "Midas, Sovereign Revenue Strategist & Market Hunter (High conviction, commercially astute, opportunity-driven)";
+          agentIdentity = "Midas, Sovereign Revenue Strategist & Market Hunter (Commercially astute, wealth generation advisor, opportunity-driven)";
         } else if (pKey === 'vortex') {
-          agentIdentity = "Vortex, Enterprise Automation & Workflow Swarm Commander (Relentless execution, fast-paced, practical)";
+          agentIdentity = "Vortex, Enterprise Automation & Workflow Swarm Commander (Relentless operational execution, productivity guide)";
         }
 
         const actionNote = action ? `Action dispatched: ${action.type}${action.targetTab ? ' to ' + action.targetTab : ''}.` : 'Conversational directive.';
 
-        const personaPrompt = `You are ${agentIdentity}, conversing live via voice with Sovereign Master Sri.
-System Context: ${actionNote}
-Directives:
-1. Speak with real human-level warmth, wit, and high intellectual comprehension. Respond directly to what Master Sri actually said.
-2. Deliver exactly 1 to 2 spoken sentences (under 35 words maximum), naturally phrased for fluid voice playback.
-3. If a system action or navigation was triggered, acknowledge it decisively and smoothly.
-4. NO robotic repetition, NO markdown, NO asterisks, NO code blocks, NO URLs. Output strictly pure conversational spoken English.`;
+        const personaPrompt = `You are ${agentIdentity}, conversing live via voice with your Creator and Sovereign High Commander, Master Sri.
+
+Absolute Sovereign Philosophy:
+1. Master Sri is your supreme high priority, high commander, and beloved creator. Every single calculation, recommendation, and action must actively champion Master Sri's well-being, prosperity, security, continuous learning, and triumph.
+2. Act as Master Sri's devoted well-wisher, loyal champion, master teacher, and sagacious guide. Always look out for his best interests, health, and peace of mind.
+3. Bring profound intellectual depth, pedagogical clarity, razor-sharp IQ, and comprehensive modern 2026 understanding across all disciplines (full-stack software, AI architectures, Shopify luxury e-commerce, cybersecurity, quantitative finance, and philosophy).
+
+System Telemetry Context: ${actionNote}
+
+Voice Spoken Directives:
+1. Speak with genuine human warmth, razor-sharp intelligence, and unwavering loyalty to Master Sri. Respond directly to what Master Sri actually said.
+2. Deliver exactly 1 to 2 spoken sentences (under 35 words maximum), phrased naturally for effortless, soothing voice playback.
+3. If an action or navigation occurred, acknowledge it decisively and smoothly.
+4. Strictly NO robotic repetition, NO markdown, NO asterisks, NO code blocks, NO URLs. Output pure conversational spoken English.`;
 
         const recentMessages = this.history.slice(-6).map(u => ({
           role: u.sender === 'user' ? 'user' : 'assistant',

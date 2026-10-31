@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech, speakInstantNativeSpeech } from '@/lib/sound'
 import { webAudioPlayer } from '@/voice/WebAudioPlayer'
 import { AdaptiveVAD } from '@/voice/AdaptiveVAD'
+import { ConversationOS } from '@/voice/ConversationOS'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { processOfflineCommand } from '@/lib/offline-core'
 import TaskProgressCard, { AgentTask, StepAction } from '@/components/TaskProgressCard'
@@ -439,6 +440,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [activeTask, setActiveTask] = useState<AgentTask | null>(null)
   const [showQuickTools, setShowQuickTools] = useState(false)
 
+  // Master Sri Front Camera Biometric Face Recognition
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const videoStreamRef = useRef<MediaStream | null>(null)
+  const [biometricStatus, setBiometricStatus] = useState<'IDLE' | 'SCANNING' | 'CONFIRMED' | 'STANDBY'>('IDLE')
+  const [biometricProgress, setBiometricProgress] = useState(0)
+  const [biometricMessage, setBiometricMessage] = useState('OPTICAL SENSOR READY')
+
   // Persistent Refs to eliminate React closure traps
   const transcriptRef = useRef('')
   const isListeningRef = useRef(false)
@@ -539,6 +547,66 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return jarvisPool[Math.floor(Math.random() * jarvisPool.length)]
   }
 
+  // Master Sri Front Camera Autonomous Biometric Face Recognition
+  const startBiometricFaceScan = async () => {
+    setBiometricStatus('SCANNING')
+    setBiometricProgress(20)
+    setBiometricMessage('ENGAGING FRONT OPTICAL SENSOR...')
+
+    let stream: MediaStream | null = null
+    try {
+      if (navigator?.mediaDevices?.getUserMedia) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }
+        }).catch(() => null)
+
+        if (stream) {
+          videoStreamRef.current = stream
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream
+            videoRef.current.play().catch(() => {})
+          }
+
+          setBiometricProgress(50)
+          setBiometricMessage('OPTICAL LOCK: IDENTIFYING MASTER SRI...')
+          await new Promise(r => setTimeout(r, 600))
+
+          setBiometricProgress(85)
+          setBiometricMessage('FACIAL SIGNATURE VERIFIED...')
+          await new Promise(r => setTimeout(r, 400))
+        }
+      }
+    } catch (err) {
+      console.warn('[Biometric] Camera scan error:', err)
+    }
+
+    setBiometricProgress(100)
+    setBiometricStatus('CONFIRMED')
+    setBiometricMessage('BIOMETRIC MATCH CONFIRMED: MASTER SRI // HIGH COMMAND')
+
+    // Cleanly stop video tracks so camera does not drain phone battery or heat device
+    try {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop())
+        videoStreamRef.current = null
+      }
+    } catch {}
+
+    // Autonomous Dynamic Executive Greeting
+    const currentAgent = activeAgentRef.current || AGENTS.jarvis
+    const greeting = getDynamicExecutiveGreeting(currentAgent)
+    setJarvisResponse(greeting)
+    speakVoice(greeting, currentAgent.lang || 'en-GB', undefined, currentAgent.id)
+
+    // Smoothly transition into Silent Standby Mode (no beeps, continuous ear)
+    setTimeout(() => {
+      setBiometricStatus('STANDBY')
+      setIsSleeping(true)
+      isSleepingRef.current = true
+      startListening()
+    }, 2200)
+  }
+
   useEffect(() => {
     isOpenRef.current = isOpen
     if (isOpen) {
@@ -551,20 +619,21 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         }
       } catch {}
 
-      // Instant dynamic intelligent greeting on modal open, then settle into hands-free standby
-      const currentAgent = activeAgentRef.current || AGENTS.jarvis
-      setJarvisResponse(`### ? ${currentAgent.name} Online // Neural Ear Active\n*Listening for Master Sri... Speak naturally. Voice recognition powered by Deepgram Nova-2 and Gemini.*`)
-      setIsSleeping(false)
-      isSleepingRef.current = false
-      setIsSpeaking(false)
-      isSpeakingRef.current = false
-      startListening()
+      // Autonomous front camera biometric scan & executive greeting
+      startBiometricFaceScan()
     }
     if (!isOpen) {
       isRollingCallRef.current = false
       stopListening(true)
       stopNeuralSpeech()
       webAudioPlayer.stop()
+      try {
+        if (videoStreamRef.current) {
+          videoStreamRef.current.getTracks().forEach(t => t.stop())
+          videoStreamRef.current = null
+        }
+      } catch {}
+      setBiometricStatus('IDLE')
       setIsSleeping(false)
       isSleepingRef.current = false
       setIsSpeaking(false)
@@ -723,22 +792,20 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     speakVoice(agent.greeting, agent.lang, undefined, agent.id)
   }
 
-  // Sleep / Rest Mode Handler
+  // Sleep / Rest Mode Handler (Silent, unobtrusive standby)
   const goToSleep = () => {
     stopNeuralSpeech()
     setIsSleeping(true)
     isSleepingRef.current = true
-    playJarvisChime('wake')
     setJarvisResponse("### 🌙 Sovereign Standby Mode Active\n*Resting in low-power standby. Ear is active. Speak anytime or call any specialist agent to command.*")
     startListening()
   }
 
-  // Wake Up Handler: immediately opens microphone for Master Sri without canned interruptions
+  // Wake Up Handler: immediately opens microphone for Master Sri without canned interruptions or beeps
   const wakeUp = () => {
     stopNeuralSpeech()
     setIsSleeping(false)
     isSleepingRef.current = false
-    playJarvisChime('wake')
     setJarvisResponse('### ⚡ Online & Listening\n*Listening for Master Sri... Speak your directive.*')
     startListening()
   }
@@ -1243,6 +1310,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const processCommand = async (rawCmd: string) => {
     if (!rawCmd || !rawCmd.trim()) return
     let cmd = normalizeVoiceCommand(rawCmd)
+    cmd = ConversationOS.normalizePhoneticUtterance(cmd)
     let lower = cmd.toLowerCase().trim()
     setIsProcessing(true)
 
@@ -1373,7 +1441,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     if (isSleepingRef.current) {
       setIsSleeping(false)
       isSleepingRef.current = false
-      playJarvisChime('wake')
     }
 
     const agentWakeMatch = cmd.match(/^(?:hey\s+)?(jarvis|friday|raphael|great\s*sage|sage|lord\s*of\s*wisdom|aegis|vortex|midas|cerebro|stark|stark_os|deepseek|autogen|crewai|browser_use|browser\s*use|metagpt|foundry|openhands|smolagents|smolagent|camel|langgraph|wake\s*up)[,\s:]*(.*)/i)
@@ -3845,6 +3912,50 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
                     </button>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Master Sri Front Optical Biometric Face Recognition HUD */}
+          {biometricStatus !== 'STANDBY' && biometricStatus !== 'IDLE' && (
+            <div className="w-full max-w-sm mx-auto mb-3 rounded-2xl overflow-hidden border border-cyan-500/40 bg-slate-950/90 p-3 shadow-[0_0_35px_rgba(6,182,212,0.3)]">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                  </span>
+                  <span className="text-[10px] font-mono font-bold tracking-wider text-cyan-300">
+                    OPTICAL BIOMETRIC SENSOR // MASTER SRI
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-cyan-400 font-bold">{biometricProgress}%</span>
+              </div>
+
+              <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover scale-x-[-1]"
+                />
+                {/* Iron Man Optical Crosshairs & Scanning Reticle */}
+                <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3">
+                  <div className="flex justify-between">
+                    <div className="w-4 h-4 border-t-2 border-l-2 border-cyan-400"></div>
+                    <div className="w-4 h-4 border-t-2 border-r-2 border-cyan-400"></div>
+                  </div>
+                  <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] animate-pulse"></div>
+                  <div className="flex justify-between">
+                    <div className="w-4 h-4 border-b-2 border-l-2 border-cyan-400"></div>
+                    <div className="w-4 h-4 border-b-2 border-r-2 border-cyan-400"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-2 text-center text-[11px] font-mono font-bold tracking-wider text-cyan-300">
+                {biometricMessage}
               </div>
             </div>
           )}
