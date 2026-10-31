@@ -249,3 +249,4 @@ export class WebAudioPlayer {
 }
 
 export const webAudioPlayer = WebAudioPlayer.getInstance()
+

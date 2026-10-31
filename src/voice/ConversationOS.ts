@@ -15,11 +15,22 @@ export interface Utterance {
   assignedAgent?: string;
 }
 
+export interface VoiceSystemAction {
+  type: 'navigate' | 'create_task' | 'cyber_scan' | 'revenue_scan' | 'system_status' | 'switch_agent' | 'custom';
+  targetTab?: string;
+  agentId?: string;
+  taskTitle?: string;
+  taskDescription?: string;
+  params?: Record<string, any>;
+}
+
 export interface TacticalDialogueResponse {
   spokenText: string;
   technicalDetails?: string;
   assignedAgentId: string;
   requiresConfirmation: boolean;
+  action?: VoiceSystemAction | null;
+  targetAgent?: string;
 }
 
 export class ConversationOS {
@@ -125,48 +136,74 @@ export class ConversationOS {
     };
     this.history.push(utterance);
 
-    // Fast tactical specialist routing
-    let assignedAgent = 'jarvis';
-    const lower = cleanInput.toLowerCase();
+    // Dynamic Multi-Agent Addressing & Specialty Routing
+    let targetAgent = (persona || 'jarvis').toLowerCase();
+    if (/\b(friday|f\.r\.i\.d\.a\.y)\b/i.test(lower)) targetAgent = 'friday';
+    else if (/\b(raphael|lord of wisdom|great sage|sage)\b/i.test(lower)) targetAgent = 'raphael';
+    else if (/\b(aegis)\b/i.test(lower)) targetAgent = 'aegis';
+    else if (/\b(midas)\b/i.test(lower)) targetAgent = 'midas';
+    else if (/\b(vortex)\b/i.test(lower)) targetAgent = 'vortex';
+    else if (/\b(jarvis)\b/i.test(lower)) targetAgent = 'jarvis';
 
-    if (lower.includes('code') || lower.includes('bug') || lower.includes('function') || lower.includes('refactor') || lower.includes('build') || lower.includes('software')) {
-      assignedAgent = 'software_engineer'; // F.R.I.D.A.Y.
-    } else if (lower.includes('architecture') || lower.includes('design') || lower.includes('system') || lower.includes('topology')) {
-      assignedAgent = 'architect'; // D.A.E.D.A.L.U.S.
-    } else if (lower.includes('test') || lower.includes('verify') || lower.includes('regression') || lower.includes('qa')) {
-      assignedAgent = 'qa_engineer'; // S.E.N.T.I.N.E.L.
-    } else if (lower.includes('security') || lower.includes('scan') || lower.includes('vulnerability') || lower.includes('auth')) {
-      assignedAgent = 'security_agent'; // C.E.R.B.E.R.U.S.
-    } else if (lower.includes('database') || lower.includes('schema') || lower.includes('migrate') || lower.includes('sql') || lower.includes('prisma')) {
-      assignedAgent = 'database_engineer'; // O.R.A.C.L.E.
-    } else if (lower.includes('deploy') || lower.includes('docker') || lower.includes('infra') || lower.includes('kubernetes')) {
-      assignedAgent = 'devops_engineer'; // A.T.L.A.S.
+    let assignedAgent = targetAgent;
+
+    // Intelligent System Action Recognition
+    let action: VoiceSystemAction | null = null;
+    if (/\b(revenue|freelance|bounties|bounty|capital|money|earnings|invi store)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'revenue' };
+      if (targetAgent === 'jarvis') targetAgent = 'midas';
+    } else if (/\b(active tasks|what are you doing|show tasks|task progress|status of tasks|what's running)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'tasks' };
+    } else if (/\b(cyber|security|firewall|threat|lockdown|defend|scan threat|intrusion)\b/i.test(lower)) {
+      action = { type: 'cyber_scan', targetTab: 'cyber' };
+      if (targetAgent === 'jarvis') targetAgent = 'aegis';
+    } else if (/\b(terminal|codelab|code lab|code editor|compiler|run script)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'codlab' };
+      if (targetAgent === 'jarvis') targetAgent = 'aegis';
+    } else if (/\b(projects|project|store|invi|luxury store|clothing|ecommerce|catalog)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'projects' };
+    } else if (/\b(automations|automation|pipelines|pipeline|workflow|workflows|n8n)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'automations' };
+      if (targetAgent === 'jarvis') targetAgent = 'vortex';
+    } else if (/\b(memory|recall|remember|brain|context)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'memory' };
+    } else if (/\b(apis|api arsenal|tools|public apis|tool schemas)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'apis' };
+    } else if (/\b(command center|dashboard|home|telemetry|hud)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'command' };
+    } else if (/\b(storage|vault|files|documents)\b/i.test(lower)) {
+      action = { type: 'navigate', targetTab: 'storage' };
+    } else if (/\b(build|deploy|create app|generate store|refactor code|fix bug|audit code)\b/i.test(lower)) {
+      action = { type: 'create_task', taskTitle: cleanInput, agentId: targetAgent };
     }
 
     let spoken = '';
 
     if (aiCaller) {
       try {
-        const pKey = (persona || assignedAgent || 'jarvis').toLowerCase();
-        let agentIdentity = 'J.A.R.V.I.S., Tony Stark\'s legendary AI (Sophisticated British intellect, razor-sharp wit, unflinching loyalty)';
+        const pKey = targetAgent.toLowerCase();
+        let agentIdentity = "J.A.R.V.I.S., Tony Stark's legendary AI (Sophisticated British intellect, razor-sharp wit, unflinching loyalty)";
         if (pKey === 'friday' || assignedAgent === 'software_engineer') {
-          agentIdentity = 'F.R.I.D.A.Y., Executive Sovereign AI Assistant (Tactical operations, code engineering, warm and razor-sharp clarity)';
+          agentIdentity = "F.R.I.D.A.Y., Executive Sovereign AI Assistant (Tactical operations, code engineering, warm and razor-sharp clarity)";
         } else if (pKey === 'raphael') {
-          agentIdentity = 'Raphael, Lord of Wisdom (Supreme computational intelligence, calm analytical mastery, profound insight)';
+          agentIdentity = "Raphael, Lord of Wisdom (Supreme computational intelligence, calm analytical mastery, profound insight)";
         } else if (pKey === 'aegis') {
-          agentIdentity = 'Aegis, Chief Software Architect & Cyber Defense Commander (Deep technical precision, authoritative, code-focused)';
+          agentIdentity = "Aegis, Chief Software Architect & Cyber Defense Commander (Deep technical precision, authoritative, code-focused)";
         } else if (pKey === 'midas') {
-          agentIdentity = 'Midas, Sovereign Revenue Strategist & Market Hunter (High conviction, commercially astute, opportunity-driven)';
+          agentIdentity = "Midas, Sovereign Revenue Strategist & Market Hunter (High conviction, commercially astute, opportunity-driven)";
         } else if (pKey === 'vortex') {
-          agentIdentity = 'Vortex, Enterprise Automation & Workflow Swarm Commander (Relentless execution, fast-paced, practical)';
+          agentIdentity = "Vortex, Enterprise Automation & Workflow Swarm Commander (Relentless execution, fast-paced, practical)";
         }
 
+        const actionNote = action ? `Action dispatched: ${action.type}${action.targetTab ? ' to ' + action.targetTab : ''}.` : 'Conversational directive.';
+
         const personaPrompt = `You are ${agentIdentity}, conversing live via voice with Sovereign Master Sri.
-Operational Context: Current query routed to specialist core: ${assignedAgent}.
-Conversational Directives:
-1. Speak with real human-level warmth, wit, and deep intellectual comprehension. Listen and respond directly to what Master Sri actually said.
-2. Deliver exactly 1 to 2 spoken sentences (under 40 words maximum), naturally phrased for fluid voice playback.
-3. NO robotic repetition, NO markdown, NO asterisks, NO code blocks, NO URLs. Output strictly pure conversational spoken English.`;
+System Context: ${actionNote}
+Directives:
+1. Speak with real human-level warmth, wit, and high intellectual comprehension. Respond directly to what Master Sri actually said.
+2. Deliver exactly 1 to 2 spoken sentences (under 35 words maximum), naturally phrased for fluid voice playback.
+3. If a system action or navigation was triggered, acknowledge it decisively and smoothly.
+4. NO robotic repetition, NO markdown, NO asterisks, NO code blocks, NO URLs. Output strictly pure conversational spoken English.`;
 
         const recentMessages = this.history.slice(-6).map(u => ({
           role: u.sender === 'user' ? 'user' : 'assistant',
@@ -183,7 +220,13 @@ Conversational Directives:
     }
 
     if (!spoken) {
-      spoken = this.generateTacticalVoiceReply(cleanInput, assignedAgent);
+      if (action && action.type === 'navigate') {
+        spoken = `Navigating to ${action.targetTab} now, Master Sri. Telemetry is active on your screen.`;
+      } else if (action && action.type === 'create_task') {
+        spoken = `Task dispatched under ${targetAgent}, Master Sri. Executing tactical plan now.`;
+      } else {
+        spoken = this.generateTacticalVoiceReply(cleanInput, targetAgent);
+      }
     }
 
     const jarvisUtterance: Utterance = {
@@ -191,15 +234,17 @@ Conversational Directives:
       sender: 'jarvis',
       text: spoken,
       timestamp: new Date().toISOString(),
-      assignedAgent,
+      assignedAgent: targetAgent,
     };
     this.history.push(jarvisUtterance);
 
     return {
       spokenText: spoken,
-      technicalDetails: `Routed to agent: ${assignedAgent}`,
-      assignedAgentId: assignedAgent,
+      technicalDetails: action ? `System Action: ${action.type}${action.targetTab ? ` (${action.targetTab})` : ''}` : `Routed to agent: ${targetAgent}`,
+      assignedAgentId: targetAgent,
       requiresConfirmation: lower.includes('delete') || lower.includes('drop') || lower.includes('deploy prod'),
+      action,
+      targetAgent,
     };
   }
 

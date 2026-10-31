@@ -1316,11 +1316,49 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         })
         if (res.ok) {
           const data = await res.json()
-          const spokenReply = data?.response?.spokenText || data?.response?.reply
+          const resp = data?.response
+          const spokenReply = resp?.spokenText || resp?.reply
           if (spokenReply && spokenReply.trim()) {
-            const technicalDetails = data?.response?.technicalDetails || ''
+            // 1. Switch persona if targetAgent returned
+            if (resp.targetAgent && AGENTS[resp.targetAgent] && resp.targetAgent !== activeAgentRef.current?.id) {
+              setActiveAgent(AGENTS[resp.targetAgent])
+              activeAgentRef.current = AGENTS[resp.targetAgent]
+            }
+
+            // 2. Dynamically execute system actions
+            if (resp.action) {
+              if (resp.action.type === 'navigate' && resp.action.targetTab) {
+                onNavigate(resp.action.targetTab)
+              } else if (resp.action.type === 'create_task') {
+                const liveTask: AgentTask = {
+                  id: `task_${Date.now()}`,
+                  taskNumber: `TASK-${Math.floor(1000 + Math.random() * 9000)}`,
+                  agentId: resp.action.agentId || targetAgent.id,
+                  agentName: targetAgent.name,
+                  title: resp.action.taskTitle || cmd,
+                  status: 'IN_PROGRESS',
+                  progress: 25,
+                  totalSteps: 4,
+                  completedSteps: 1,
+                  currentOperation: 'Executing autonomous directive in workspace sandbox...',
+                  startedAt: new Date().toISOString()
+                }
+                setActiveTask(liveTask)
+              } else if (resp.action.type === 'cyber_scan') {
+                setSecurityAlert({
+                  level: 'HIGH',
+                  sourceIp: '127.0.0.1 (Localhost Protected)',
+                  timestamp: new Date().toLocaleTimeString(),
+                  threatType: 'Perimeter Scan Active',
+                  actionTaken: 'Zero-Trust Shield Active (0 threats detected)'
+                })
+              }
+            }
+
+            const technicalDetails = resp?.technicalDetails || ''
             setJarvisResponse(technicalDetails ? `${spokenReply}\n\n*${technicalDetails}*` : spokenReply)
-            speakVoice(spokenReply, targetAgent.lang || 'en-GB', undefined, targetAgent.id)
+            const chosenAgent = (resp.targetAgent && AGENTS[resp.targetAgent]) || targetAgent
+            speakVoice(spokenReply, chosenAgent.lang || 'en-GB', undefined, chosenAgent.id)
             setIsProcessing(false)
             return
           }
