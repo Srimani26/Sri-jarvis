@@ -64,6 +64,9 @@ import { RevenueHunterEngine } from './src/agents/RevenueHunterEngine'
 import { DailyBriefingEngine } from './src/agents/DailyBriefingEngine'
 import { SkillCreationEngine } from './src/agents/SkillCreationEngine'
 import { OPEN_SOURCE_PROJECTS_VAULT } from './src/data/openSourceProjectsData'
+import { AdvisorEngine } from './src/kernel/AdvisorEngine'
+import { LinkedInMcpTool } from './src/tools/LinkedInMcpTool'
+import { ReplicaPrototypeEngine } from './src/tools/ReplicaPrototypeEngine'
 
 function loadJwtSecret(): string {
   return SovereignGate.getJwtSecret()
@@ -1707,6 +1710,7 @@ All sovereign neural processors and specialist swarms are online. Tell me how yo
 // Wire default AI caller into Persistent Background Task Queue and ECommerce Recon Engine
 PersistentTaskQueue.setAiCaller((sys, msgs) => callAI(sys, msgs))
 ECommerceReconEngine.setDefaultAiCaller((sys, msgs) => callAI(sys, msgs))
+AdvisorEngine.setAdvisorAiCaller((sys, msgs) => callAI(sys, msgs))
 
 function getModelStatus() {
   return MODEL_CHAIN.map(m => ({
@@ -7636,6 +7640,58 @@ app.post('/security/audit', async (c) => {
     const content = body?.content || '';
     const audit = CyberDefenseLayer.auditContent(content);
     return c.json({ ok: true, audit });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/advisor/consult — Anthropic Executor-Advisor Pattern
+app.post('/advisor/consult', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const guidance = await AdvisorEngine.consultAdvisor(body);
+    return c.json({ ok: guidance.ok, guidance });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/tools/linkedin/jobs — LinkedIn MCP Scout
+app.post('/tools/linkedin/jobs', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const query = body?.query || 'Shopify Architect';
+    const location = body?.location || 'Worldwide';
+    const remoteOnly = Boolean(body?.remoteOnly);
+    const result = await LinkedInMcpTool.searchJobs(query, location, remoteOnly);
+    return c.json({ ok: true, result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/tools/linkedin/pitch — LinkedIn MCP Executive Pitch Generator
+app.post('/tools/linkedin/pitch', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const jobTitle = body?.jobTitle || 'Lead AI Systems Architect';
+    const company = body?.company || 'Enterprise Partner';
+    const candidateName = body?.candidateName || 'Master Sri';
+    const pitch = LinkedInMcpTool.generateExecutivePitch(jobTitle, company, candidateName);
+    return c.json({ ok: true, pitch });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/tools/replica/prototype — GitHub Replica Interactive UI Prototyping Engine
+app.post('/tools/replica/prototype', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const prompt = body?.prompt || 'Invi luxury checkout showcase with glassmorphism';
+    const category = body?.category || 'shopify_section';
+    const prototype = ReplicaPrototypeEngine.prototypeComponent(prompt, category);
+    return c.json({ ok: true, prototype });
   } catch (err: any) {
     return c.json({ ok: false, error: err?.message || err }, 500);
   }

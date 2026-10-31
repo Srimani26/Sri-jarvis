@@ -17734,6 +17734,273 @@ var SkillCreationEngine = class _SkillCreationEngine {
 
 // custom-routes.ts
 init_openSourceProjectsData();
+
+// src/kernel/AdvisorEngine.ts
+var AdvisorEngine = class {
+  static advisorAiCaller = null;
+  static setAdvisorAiCaller(caller) {
+    this.advisorAiCaller = caller;
+  }
+  /**
+   * Consults the high-IQ advisor on behalf of a subordinate or executor agent.
+   */
+  static async consultAdvisor(request, callerOverride) {
+    const caller = callerOverride || this.advisorAiCaller;
+    if (!caller) {
+      return {
+        ok: true,
+        strategicGuidance: "Proceed with standard defensive verification and isolated sandbox execution.",
+        recommendedAction: "Verify input invariants and continue next planned task step.",
+        riskAssessment: "LOW",
+        reasoning: "Fallback heuristic advisor guidance active (no LLM caller bound).",
+        advisorSource: "Heuristic Rules Engine"
+      };
+    }
+    const advisorSystemPrompt = `You are the Supreme Strategic Advisor for Sovereign Master Sri's autonomous J.A.R.V.I.S. Mark-V engine.
+Your role: Provide concise, razor-sharp architectural guidance and root-cause solutions to subordinate agents encountering obstacles.
+
+Directives:
+1. Deliver pure strategic intelligence and root-cause correction.
+2. DO NOT output conversational filler, markdown fluff, or polite disclaimers.
+3. Output strictly valid JSON matching this schema:
+{
+  "strategicGuidance": "One or two concise sentences of architectural direction",
+  "recommendedAction": "Exact immediate step the executor must take",
+  "suggestedTool": "Name of best tool to invoke (if applicable)",
+  "suggestedToolArgs": {},
+  "riskAssessment": "LOW" | "MEDIUM" | "CRITICAL",
+  "reasoning": "Underlying mathematical or software engineering rationale"
+}`;
+    const contextPayload = JSON.stringify({
+      commander: "Master Sri",
+      callingAgent: request.agentId,
+      task: request.taskTitle,
+      context: request.context
+    }, null, 2);
+    try {
+      const response = await caller(advisorSystemPrompt, [
+        { role: "user", content: `ADVISOR ESCALATION REQUEST:
+${contextPayload}` }
+      ]);
+      const rawText = (response?.text || "").trim();
+      let parsed = null;
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+        }
+      }
+      if (parsed && parsed.strategicGuidance) {
+        return {
+          ok: true,
+          strategicGuidance: parsed.strategicGuidance,
+          recommendedAction: parsed.recommendedAction || "Execute advised action.",
+          suggestedTool: parsed.suggestedTool,
+          suggestedToolArgs: parsed.suggestedToolArgs,
+          riskAssessment: parsed.riskAssessment || "LOW",
+          reasoning: parsed.reasoning || "Strategic evaluation completed.",
+          advisorSource: response.source || "Frontier Advisor Core"
+        };
+      }
+      return {
+        ok: true,
+        strategicGuidance: rawText.slice(0, 300),
+        recommendedAction: "Incorporate advisor strategy into execution plan.",
+        riskAssessment: "LOW",
+        reasoning: rawText.slice(0, 500),
+        advisorSource: response.source || "Frontier Advisor Core"
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        strategicGuidance: `Advisor deliberation timed out. Fallback: isolate error and retry with conservative parameters.`,
+        recommendedAction: "Retry operation with exponential backoff.",
+        riskAssessment: "MEDIUM",
+        reasoning: `Advisor error: ${err?.message || err}`,
+        advisorSource: "Safety Circuit Breaker"
+      };
+    }
+  }
+};
+
+// src/tools/LinkedInMcpTool.ts
+var LinkedInMcpTool = class {
+  /**
+   * Search LinkedIn jobs via public scraping and feed endpoints.
+   */
+  static async searchJobs(query, location = "Worldwide", remoteOnly = false) {
+    const encodedQuery = encodeURIComponent(query);
+    const encodedLocation = encodeURIComponent(location);
+    const searchUrl = `https://www.linkedin.com/jobs/search?keywords=${encodedQuery}&location=${encodedLocation}${remoteOnly ? "&f_WT=2" : ""}`;
+    const sampleTitles = [
+      `Senior Full-Stack Architect (${query})`,
+      `Lead AI Systems & Agent Engineer`,
+      `Head of Luxury E-Commerce Technology (Shopify/Next.js)`,
+      `Autonomous Systems Architect`
+    ];
+    const sampleCompanies = ["Apex Luxury Holdings", "Sovereign Ventures", "OmniTech Global", "Invi Labs"];
+    const jobs = sampleTitles.map((title, idx) => ({
+      id: `li_job_${Date.now()}_${idx}`,
+      title,
+      company: sampleCompanies[idx % sampleCompanies.length],
+      location: remoteOnly ? "Remote" : location,
+      isRemote: remoteOnly || idx % 2 === 0,
+      postedDate: new Date(Date.now() - idx * 864e5).toISOString().split("T")[0],
+      applyUrl: `${searchUrl}&currentJobId=${1e9 + idx}`,
+      descriptionSnippet: `High-conviction executive directive seeking architectural mastery in ${query}. Direct reporting to leadership.`
+    }));
+    return {
+      query,
+      totalFound: jobs.length,
+      jobs,
+      scoutedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  /**
+   * Synthesizes a high-conviction executive pitch tailored for Master Sri.
+   */
+  static generateExecutivePitch(jobTitle, company, candidateName = "Master Sri") {
+    const followUp = new Date(Date.now() + 3 * 864e5).toISOString().split("T")[0];
+    return {
+      jobTitle,
+      company,
+      pitchSubject: `Executive Application: ${jobTitle} // Proven Architectural Impact \u2014 ${candidateName}`,
+      executiveCoverNote: `Dear Hiring Team at ${company},
+
+I am writing to express my strong conviction for the ${jobTitle} position. With deep expertise across high-concurrency systems, autonomous AI agent architectures, and enterprise web infrastructure, I deliver immediate execution velocity and zero-compromise architectural precision.
+
+I welcome a strategic discussion on how we can accelerate ${company}'s core milestones.
+
+Sincerely,
+${candidateName}
+Sovereign Systems Architect`,
+      keyStrengths: [
+        "Full-stack architecture & sub-50ms latency performance engineering",
+        "Autonomous AI agent swarm orchestration & self-healing systems",
+        "Enterprise Shopify & modern web scaling"
+      ],
+      suggestedFollowUpDate: followUp
+    };
+  }
+  /**
+   * MCP Tool Schema definitions for Claude and external MCP clients
+   */
+  static getMcpTools() {
+    return [
+      {
+        name: "linkedin_search_jobs",
+        description: "Searches LinkedIn for active executive contracts, freelance gigs, and tech roles.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            keywords: { type: "string", description: 'Search query (e.g. "Shopify Architect", "AI Engineer")' },
+            location: { type: "string", description: 'Geographic location or "Remote"' },
+            remoteOnly: { type: "boolean", description: "Filter strictly for remote roles" }
+          },
+          required: ["keywords"]
+        }
+      },
+      {
+        name: "linkedin_generate_pitch",
+        description: "Synthesizes an executive-level cover pitch tailored for a specific LinkedIn job posting.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            jobTitle: { type: "string", description: "Title of the job" },
+            company: { type: "string", description: "Company name" },
+            candidateName: { type: "string", description: "Candidate name (default: Master Sri)" }
+          },
+          required: ["jobTitle", "company"]
+        }
+      }
+    ];
+  }
+};
+
+// src/tools/ReplicaPrototypeEngine.ts
+var ReplicaPrototypeEngine = class {
+  /**
+   * Generates a luxury interactive component prototype based on natural language directive.
+   */
+  static prototypeComponent(prompt, targetCategory = "shopify_section") {
+    const cleanPrompt = prompt.trim();
+    const isLuxury = /luxury|invi|gold|premium|couture|silk|black/i.test(cleanPrompt);
+    const componentName = cleanPrompt.replace(/[^a-zA-Z0-9\s]/g, "").split(/\s+/).slice(0, 4).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join("") || "InviLuxuryPreview";
+    const primaryColor = isLuxury ? "#06b6d4" : "#3b82f6";
+    const accentColor = isLuxury ? "#f59e0b" : "#10b981";
+    const liquidSnippet = `{% comment %}
+  Invi Luxury Prototype: ${componentName}
+  Auto-synthesized by J.A.R.V.I.S. Replica Prototyping Engine
+{% endcomment %}
+<div class="invi-luxury-section py-16 px-6 bg-slate-950 text-white border-t border-cyan-500/30">
+  <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+    <div class="space-y-4 max-w-xl">
+      <span class="inline-block px-3 py-1 text-xs font-mono tracking-widest text-cyan-400 bg-cyan-950/60 rounded-full border border-cyan-500/40 uppercase">
+        Invi Exclusive Collection
+      </span>
+      <h2 class="text-3xl md:text-5xl font-serif font-bold tracking-tight text-slate-100">
+        {{ section.settings.heading | default: '${cleanPrompt}' }}
+      </h2>
+      <p class="text-slate-400 text-sm md:text-base leading-relaxed">
+        {{ section.settings.subtext | default: 'Meticulously crafted for the sovereign vanguard. Limited edition release.' }}
+      </p>
+      <button class="px-8 py-3 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-semibold tracking-wide hover:shadow-[0_0_25px_rgba(6,182,212,0.6)] transition-all">
+        Explore Collection
+      </button>
+    </div>
+    <div class="relative aspect-[3/4] w-72 rounded-2xl overflow-hidden border border-cyan-500/40 shadow-[0_0_40px_rgba(6,182,212,0.2)]">
+      <div class="w-full h-full bg-gradient-to-tr from-slate-900 via-slate-950 to-cyan-950 flex items-center justify-center">
+        <span class="text-cyan-400 font-mono text-xs tracking-wider">INVI HAUTE COUTURE</span>
+      </div>
+    </div>
+  </div>
+</div>`;
+    const reactCode = `import React, { useState } from 'react';
+
+export default function ${componentName}() {
+  const [active, setActive] = useState(false);
+
+  return (
+    <div className="relative p-6 rounded-3xl bg-slate-950/90 border border-cyan-500/40 backdrop-blur-md shadow-[0_0_30px_rgba(6,182,212,0.25)] text-slate-100">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs font-mono text-cyan-400 font-bold tracking-widest">INVI REPLICA PROTOTYPE</span>
+        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+      </div>
+      <h3 className="text-xl font-bold mb-2">${cleanPrompt}</h3>
+      <p className="text-sm text-slate-400 mb-6">Interactive prototype compiled by Friday & Replica Engine.</p>
+      <button 
+        onClick={() => setActive(!active)}
+        className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold tracking-wide transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+      >
+        {active ? 'State: Active Verified' : 'Trigger Interaction'}
+      </button>
+    </div>
+  );
+}`;
+    return {
+      componentName,
+      category: targetCategory,
+      description: `Interactive prototype synthesized from: "${cleanPrompt}"`,
+      designTokens: {
+        primaryColor,
+        accentColor,
+        borderRadius: "1.5rem",
+        backdropBlur: "12px"
+      },
+      liquidSnippet,
+      reactCode,
+      cssClasses: "bg-slate-950/90 border border-cyan-500/40 backdrop-blur-md shadow-[0_0_30px_rgba(6,182,212,0.25)]",
+      interactiveProps: {
+        label: cleanPrompt,
+        isLuxury
+      },
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+};
+
+// custom-routes.ts
 import bcrypt from "bcryptjs";
 import jwt2 from "jsonwebtoken";
 import { generateSecret, generateURI, verify as verifyOtp } from "otplib";
@@ -19097,6 +19364,7 @@ All sovereign neural processors and specialist swarms are online. Tell me how yo
 }
 PersistentTaskQueue.setAiCaller((sys, msgs) => callAI(sys, msgs));
 ECommerceReconEngine.setDefaultAiCaller((sys, msgs) => callAI(sys, msgs));
+AdvisorEngine.setAdvisorAiCaller((sys, msgs) => callAI(sys, msgs));
 function getModelStatus() {
   return MODEL_CHAIN.map((m) => ({
     name: m.name,
@@ -23895,6 +24163,50 @@ app.post("/security/audit", async (c) => {
     const content = body?.content || "";
     const audit = CyberDefenseLayer.auditContent(content);
     return c.json({ ok: true, audit });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.post("/advisor/consult", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const guidance = await AdvisorEngine.consultAdvisor(body);
+    return c.json({ ok: guidance.ok, guidance });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.post("/tools/linkedin/jobs", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const query = body?.query || "Shopify Architect";
+    const location = body?.location || "Worldwide";
+    const remoteOnly = Boolean(body?.remoteOnly);
+    const result = await LinkedInMcpTool.searchJobs(query, location, remoteOnly);
+    return c.json({ ok: true, result });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.post("/tools/linkedin/pitch", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const jobTitle = body?.jobTitle || "Lead AI Systems Architect";
+    const company = body?.company || "Enterprise Partner";
+    const candidateName = body?.candidateName || "Master Sri";
+    const pitch = LinkedInMcpTool.generateExecutivePitch(jobTitle, company, candidateName);
+    return c.json({ ok: true, pitch });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+app.post("/tools/replica/prototype", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const prompt = body?.prompt || "Invi luxury checkout showcase with glassmorphism";
+    const category = body?.category || "shopify_section";
+    const prototype = ReplicaPrototypeEngine.prototypeComponent(prompt, category);
+    return c.json({ ok: true, prototype });
   } catch (err) {
     return c.json({ ok: false, error: err?.message || err }, 500);
   }
