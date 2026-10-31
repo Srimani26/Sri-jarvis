@@ -470,14 +470,22 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const vadRef = useRef<AdaptiveVAD>(new AdaptiveVAD())
   const visualizerAnimRef = useRef<any>(null)
 
-  // Mobile Thermal & Battery Saver: Direct GPU compositor equalizer (0 React re-renders)
+  // Mobile Thermal & Battery Saver: Direct GPU compositor equalizer with zero-CPU silence sleep
+  const lastWasQuietRef = useRef(false)
   const updateEqualizerBars = (bands: number[]) => {
     if (!equalizerRef.current) return
+    const isQuiet = bands.every(b => b < 6)
+    if (isQuiet) {
+      if (lastWasQuietRef.current) return // Already at resting position: zero CPU execution!
+      lastWasQuietRef.current = true
+    } else {
+      lastWasQuietRef.current = false
+    }
     const children = equalizerRef.current.children
     for (let i = 0; i < children.length && i < bands.length; i++) {
       const el = children[i] as HTMLElement
       if (el) {
-        const scale = Math.min(1, Math.max(0.12, bands[i] / 100))
+        const scale = isQuiet ? 0.12 : Math.min(1, Math.max(0.12, bands[i] / 100))
         el.style.transform = `scaleY(${scale})`
       }
     }
@@ -727,14 +735,14 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     isSpeakingRef.current = true
     lastActiveRef.current = Date.now()
 
-    // Animate visualizer bars with live frequency during speech output
+    // Animate visualizer bars with live frequency during speech output (Mobile Thermal Optimized)
     if (visualizerAnimRef.current) clearInterval(visualizerAnimRef.current)
     visualizerAnimRef.current = setInterval(() => {
       if (webAudioPlayer.isSpeaking()) {
         const bands = webAudioPlayer.getFrequencyBands(14)
         updateEqualizerBars(bands)
       }
-    }, 60)
+    }, 80)
 
     const handleSpeechFinish = () => {
       if (visualizerAnimRef.current) {
@@ -3533,7 +3541,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
             }
           }
         }
-      }, 60)
+      }, 90)
 
       if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
       maxRecordingTimerRef.current = setTimeout(() => {
@@ -3965,41 +3973,41 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
             className="relative flex items-center justify-center cursor-pointer my-3 group select-none"
             onClick={isSleeping ? wakeUp : (isSpeaking ? handleInterrupt : (isListening ? stopListening : startListening))}
           >
-            {/* Concentric Audio Reactive Fluid Halo */}
+            {/* Concentric Audio Reactive Fluid Halo (Hardware-Accelerated Mobile Shield) */}
             <div className={cn(
-              "absolute w-44 h-44 rounded-full transition-all duration-700 blur-xl opacity-60",
+              "absolute w-44 h-44 rounded-full transition-all duration-700 blur-lg opacity-50 transform-gpu pointer-events-none",
               securityAlert
                 ? "bg-rose-500 animate-pulse"
                 : isSleeping
-                ? "bg-cyan-500/30 animate-pulse"
+                ? "bg-cyan-500/25 animate-pulse"
                 : isSpeaking
-                ? "bg-gradient-to-r from-amber-400 via-cyan-400 to-emerald-400 animate-pulse scale-110"
+                ? "bg-gradient-to-r from-amber-400 via-cyan-400 to-emerald-400 animate-pulse scale-105"
                 : isListening
                 ? "bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 animate-pulse scale-105"
                 : isProcessing
                 ? "bg-gradient-to-r from-fuchsia-500 to-cyan-500 animate-spin"
-                : "bg-cyan-500/20 group-hover:bg-cyan-500/40 scale-95"
+                : "bg-cyan-500/15 group-hover:bg-cyan-500/30 scale-95"
             )} />
 
             {/* Dynamic Rotating Fluid Ring */}
             <div className={cn(
-              "w-36 h-36 rounded-full p-[2px] transition-all duration-500 flex items-center justify-center",
+              "w-36 h-36 rounded-full p-[2px] transition-all duration-500 flex items-center justify-center transform-gpu",
               securityAlert
-                ? "bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_40px_rgba(244,63,94,0.6)]"
+                ? "bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_30px_rgba(244,63,94,0.5)]"
                 : isSleeping
-                ? "bg-gradient-to-r from-cyan-500 via-indigo-600 to-blue-500 shadow-[0_0_35px_rgba(6,182,212,0.45)] animate-pulse"
+                ? "bg-gradient-to-r from-cyan-500 via-indigo-600 to-blue-500 shadow-[0_0_25px_rgba(6,182,212,0.35)] animate-pulse"
                 : isSpeaking
-                ? "bg-gradient-to-tr from-amber-400 via-emerald-400 to-cyan-400 shadow-[0_0_50px_rgba(6,182,212,0.6)] animate-spin"
+                ? "bg-gradient-to-tr from-amber-400 via-emerald-400 to-cyan-400 shadow-[0_0_35px_rgba(6,182,212,0.5)] animate-spin"
                 : isListening
-                ? "bg-gradient-to-tr from-cyan-400 via-blue-400 to-violet-500 shadow-[0_0_55px_rgba(6,182,212,0.7)] animate-pulse"
+                ? "bg-gradient-to-tr from-cyan-400 via-blue-400 to-violet-500 shadow-[0_0_40px_rgba(6,182,212,0.6)] animate-pulse"
                 : isProcessing
-                ? "bg-gradient-to-r from-purple-500 via-cyan-400 to-amber-400 shadow-[0_0_40px_rgba(168,85,247,0.5)] animate-spin"
-                : "bg-gradient-to-tr from-cyan-500/40 via-slate-700 to-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.25)] group-hover:shadow-[0_0_35px_rgba(6,182,212,0.4)]"
+                ? "bg-gradient-to-r from-purple-500 via-cyan-400 to-amber-400 shadow-[0_0_30px_rgba(168,85,247,0.4)] animate-spin"
+                : "bg-gradient-to-tr from-cyan-500/40 via-slate-700 to-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.2)] group-hover:shadow-[0_0_30px_rgba(6,182,212,0.35)]"
             )} style={{ animationDuration: isProcessing ? '3s' : isSpeaking ? '6s' : '4s' }}>
               
               {/* Inner Glossy Siri Orb Core */}
               <div className={cn(
-                "w-full h-full rounded-full flex flex-col items-center justify-center transition-all duration-300 backdrop-blur-xl relative overflow-hidden",
+                "w-full h-full rounded-full flex flex-col items-center justify-center transition-all duration-300 backdrop-blur-md relative overflow-hidden transform-gpu",
                 securityAlert
                   ? "bg-rose-950/90 text-rose-200"
                   : isSleeping
