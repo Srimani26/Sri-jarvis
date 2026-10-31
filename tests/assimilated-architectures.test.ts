@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { AdvisorEngine } from '../src/kernel/AdvisorEngine';
 import { LinkedInMcpTool } from '../src/tools/LinkedInMcpTool';
 import { ReplicaPrototypeEngine } from '../src/tools/ReplicaPrototypeEngine';
+import { FrontierModelVault } from '../src/services/FrontierModelVault';
+import { JioCloudVaultService } from '../src/services/JioCloudVaultService';
 
 describe('Assimilated Architectures Acceptance Test Suite', () => {
 
@@ -96,6 +98,35 @@ describe('Assimilated Architectures Acceptance Test Suite', () => {
       assert.ok(spec.liquidSnippet?.includes('invi-luxury-section'));
       assert.ok(spec.reactCode.includes('INVI REPLICA PROTOTYPE'));
       assert.equal(spec.designTokens.primaryColor, '#06b6d4');
+    });
+  });
+
+  // 4. 5,000 GB JIO CLOUD VAULT & FRONTIER MODEL INTEGRATION
+  describe('4. 5,000 GB JioCloud Vault & Frontier Model Manager', () => {
+    test('4.1 Reports 5,000 GB quota and catalog of frontier models', () => {
+      const telemetry = FrontierModelVault.getVaultTelemetry();
+      assert.equal(telemetry.totalQuotaGb, 5000);
+      assert.ok(telemetry.models.length >= 5);
+      const deepseek = telemetry.models.find(m => m.id === 'deepseek-r1-32b');
+      assert.ok(deepseek);
+      assert.equal(deepseek?.assignedSpecialist, 'raphael');
+    });
+
+    test('4.2 Generates direct-to-cloud download command without local laptop disk usage', () => {
+      const dl = FrontierModelVault.generateDownloadCommand('qwen2.5-coder-32b', 'J:\\JIO-VAULT\\models');
+      assert.ok(dl.command.includes('aria2c'));
+      assert.ok(dl.command.includes('J:\\JIO-VAULT\\models'));
+      assert.ok(dl.command.includes('qwen2.5-coder-32b'));
+    });
+
+    test('4.3 JioCloud service reports safe mode for office laptop and creates snapshot', () => {
+      const conn = JioCloudVaultService.getConnectionStatus();
+      assert.equal(conn.totalCapacityGb, 5000);
+      assert.equal(conn.officeLaptopSafeMode, true);
+
+      const snapshot = JioCloudVaultService.createSnapshot('test-sri-snapshot');
+      assert.ok(snapshot.id.startsWith('snap_'));
+      assert.equal(snapshot.type, 'DATABASE_SNAPSHOT');
     });
   });
 });

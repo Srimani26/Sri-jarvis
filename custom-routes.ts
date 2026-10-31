@@ -67,6 +67,8 @@ import { OPEN_SOURCE_PROJECTS_VAULT } from './src/data/openSourceProjectsData'
 import { AdvisorEngine } from './src/kernel/AdvisorEngine'
 import { LinkedInMcpTool } from './src/tools/LinkedInMcpTool'
 import { ReplicaPrototypeEngine } from './src/tools/ReplicaPrototypeEngine'
+import { FrontierModelVault } from './src/services/FrontierModelVault'
+import { JioCloudVaultService } from './src/services/JioCloudVaultService'
 
 function loadJwtSecret(): string {
   return SovereignGate.getJwtSecret()
@@ -7692,6 +7694,52 @@ app.post('/tools/replica/prototype', async (c) => {
     const category = body?.category || 'shopify_section';
     const prototype = ReplicaPrototypeEngine.prototypeComponent(prompt, category);
     return c.json({ ok: true, prototype });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/vault/telemetry — 5,000 GB JioCloud Storage & Model Vault Telemetry
+app.get('/vault/telemetry', (c) => {
+  try {
+    const modelTelemetry = FrontierModelVault.getVaultTelemetry();
+    const connectionStatus = JioCloudVaultService.getConnectionStatus();
+    return c.json({ ok: true, connection: connectionStatus, vault: modelTelemetry });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/vault/download-command — Direct-to-Cloud Model Download Command
+app.post('/vault/download-command', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const modelId = body?.modelId || 'deepseek-r1-32b';
+    const customPath = body?.customPath;
+    const downloadInfo = FrontierModelVault.generateDownloadCommand(modelId, customPath);
+    return c.json({ ok: Boolean(downloadInfo.model), downloadInfo });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// POST /api/vault/backup — Automated Snapshot directly to 5 TB Cloud Storage
+app.post('/vault/backup', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const snapshotName = body?.name || 'master-sri-sovereign-snapshot';
+    const snapshot = JioCloudVaultService.createSnapshot(snapshotName);
+    return c.json({ ok: true, snapshot });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || err }, 500);
+  }
+});
+
+// GET /api/vault/mount-script — Option B Rclone Mount Script for Office Laptop Safety
+app.get('/vault/mount-script', (c) => {
+  try {
+    const script = JioCloudVaultService.getRcloneMountScript();
+    return c.json({ ok: true, script });
   } catch (err: any) {
     return c.json({ ok: false, error: err?.message || err }, 500);
   }
