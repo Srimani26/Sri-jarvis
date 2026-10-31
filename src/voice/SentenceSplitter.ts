@@ -31,7 +31,7 @@ export class SentenceSplitter {
   private readonly firstChunkMax: number
   private readonly firstChunkMin: number
 
-  constructor(firstChunkMax: number = 140, firstChunkMin: number = 35) {
+  constructor(firstChunkMax: number = 140, firstChunkMin: number = 18) {
     this.firstChunkMax = firstChunkMax
     this.firstChunkMin = firstChunkMin
   }
@@ -86,9 +86,10 @@ export class SentenceSplitter {
 
   private findFirstStrongBreak(text: string, minPos: number): number | null {
     let best: number | null = null
+    const effectiveMin = Math.min(minPos, 18)
     for (const sep of STRONG_BREAKS) {
-      const pos = text.indexOf(sep, minPos)
-      if (pos >= minPos) {
+      const pos = text.indexOf(sep)
+      if (pos >= effectiveMin) {
         const end = pos + sep.trimEnd().length
         if (best === null || end < best) {
           best = end

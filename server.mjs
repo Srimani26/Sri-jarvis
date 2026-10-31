@@ -13457,29 +13457,29 @@ var ModelRouter = class {
    * Classify upstream provider failure into deterministic failure types
    */
   static classifyFailure(msg) {
-    const lower2 = msg.toLowerCase();
-    if (lower2.includes("quota") || lower2.includes("insufficient_quota") || lower2.includes("credit exhausted")) {
+    const lower = msg.toLowerCase();
+    if (lower.includes("quota") || lower.includes("insufficient_quota") || lower.includes("credit exhausted")) {
       return "QUOTA_EXHAUSTED";
     }
-    if (lower2.includes("429") || lower2.includes("rate limit")) {
+    if (lower.includes("429") || lower.includes("rate limit")) {
       return "HTTP_429_RATE_LIMIT";
     }
-    if (lower2.includes("auth") || lower2.includes("unauthorized") || lower2.includes("invalid_api_key") || lower2.includes("forbidden") || lower2.includes("401") || lower2.includes("403")) {
+    if (lower.includes("auth") || lower.includes("unauthorized") || lower.includes("invalid_api_key") || lower.includes("forbidden") || lower.includes("401") || lower.includes("403")) {
       return "AUTH_FAILED";
     }
-    if (lower2.includes("timeout") || lower2.includes("timed out") || lower2.includes("abort")) {
+    if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("abort")) {
       return "TIMEOUT";
     }
-    if (lower2.includes("econnrefused") || lower2.includes("enotfound") || lower2.includes("network") || lower2.includes("fetch failed")) {
+    if (lower.includes("econnrefused") || lower.includes("enotfound") || lower.includes("network") || lower.includes("fetch failed")) {
       return "NETWORK_ERROR";
     }
-    if (lower2.includes("malformed") || lower2.includes("invalid json") || lower2.includes("unexpected token") || lower2.includes("empty response")) {
+    if (lower.includes("malformed") || lower.includes("invalid json") || lower.includes("unexpected token") || lower.includes("empty response")) {
       return "MALFORMED_RESPONSE";
     }
-    if (lower2.includes("invalid model") || lower2.includes("model_not_found") || lower2.includes("model") && (lower2.includes("not found") || lower2.includes("does not exist"))) {
+    if (lower.includes("invalid model") || lower.includes("model_not_found") || lower.includes("model") && (lower.includes("not found") || lower.includes("does not exist"))) {
       return "INVALID_MODEL";
     }
-    if (lower2.includes("502") || lower2.includes("503") || lower2.includes("504") || lower2.includes("unavailable") || lower2.includes("bad gateway")) {
+    if (lower.includes("502") || lower.includes("503") || lower.includes("504") || lower.includes("unavailable") || lower.includes("bad gateway")) {
       return "PROVIDER_UNAVAILABLE";
     }
     return "PROVIDER_OUTAGE";
@@ -15622,6 +15622,7 @@ var ConversationOS = class {
   static processUserSpeech(transcript) {
     this.currentState = "THINKING";
     const cleanInput = transcript.trim();
+    const lower = cleanInput.toLowerCase();
     const utterance = {
       id: `utt_${Date.now()}_u`,
       sender: "user",
@@ -15630,18 +15631,17 @@ var ConversationOS = class {
     };
     this.history.push(utterance);
     let assignedAgent = "jarvis";
-    const lower2 = cleanInput.toLowerCase();
-    if (lower2.includes("code") || lower2.includes("bug") || lower2.includes("function") || lower2.includes("refactor")) {
+    if (lower.includes("code") || lower.includes("bug") || lower.includes("function") || lower.includes("refactor")) {
       assignedAgent = "software_engineer";
-    } else if (lower2.includes("architecture") || lower2.includes("design") || lower2.includes("system")) {
+    } else if (lower.includes("architecture") || lower.includes("design") || lower.includes("system")) {
       assignedAgent = "architect";
-    } else if (lower2.includes("test") || lower2.includes("verify") || lower2.includes("regression")) {
+    } else if (lower.includes("test") || lower.includes("verify") || lower.includes("regression")) {
       assignedAgent = "qa_engineer";
-    } else if (lower2.includes("security") || lower2.includes("scan") || lower2.includes("vulnerability")) {
+    } else if (lower.includes("security") || lower.includes("scan") || lower.includes("vulnerability")) {
       assignedAgent = "security_agent";
-    } else if (lower2.includes("database") || lower2.includes("schema") || lower2.includes("migrate")) {
+    } else if (lower.includes("database") || lower.includes("schema") || lower.includes("migrate")) {
       assignedAgent = "database_engineer";
-    } else if (lower2.includes("deploy") || lower2.includes("docker") || lower2.includes("infra")) {
+    } else if (lower.includes("deploy") || lower.includes("docker") || lower.includes("infra")) {
       assignedAgent = "devops_engineer";
     }
     const spoken = this.generateTacticalVoiceReply(cleanInput, assignedAgent);
@@ -15657,7 +15657,7 @@ var ConversationOS = class {
       spokenText: spoken,
       technicalDetails: `Routed to agent: ${assignedAgent}`,
       assignedAgentId: assignedAgent,
-      requiresConfirmation: lower2.includes("delete") || lower2.includes("drop") || lower2.includes("deploy prod")
+      requiresConfirmation: lower.includes("delete") || lower.includes("drop") || lower.includes("deploy prod")
     };
   }
   /**
@@ -15668,6 +15668,7 @@ var ConversationOS = class {
   static async processUserSpeechAsync(transcript, aiCaller, persona = "jarvis") {
     this.currentState = "THINKING";
     const cleanInput = transcript.trim();
+    const lower = cleanInput.toLowerCase();
     const utterance = {
       id: `utt_${Date.now()}_u`,
       sender: "user",
@@ -15684,10 +15685,12 @@ var ConversationOS = class {
     else if (/\b(jarvis)\b/i.test(lower)) targetAgent = "jarvis";
     let assignedAgent = targetAgent;
     let action = null;
-    if (/\b(revenue|freelance|bounties|bounty|capital|money|earnings|invi store)\b/i.test(lower)) {
+    if (/\b(build|deploy|create|generate|refactor|fix bug|audit code)\b/i.test(lower)) {
+      action = { type: "create_task", taskTitle: cleanInput, agentId: targetAgent };
+    } else if (/\b(revenue|freelance|bounties|bounty|capital|money|earnings)\b/i.test(lower)) {
       action = { type: "navigate", targetTab: "revenue" };
       if (targetAgent === "jarvis") targetAgent = "midas";
-    } else if (/\b(active tasks|what are you doing|show tasks|task progress|status of tasks|what's running)\b/i.test(lower)) {
+    } else if (/\b(active tasks|what are you doing|working on|show tasks|task progress|status of tasks|what's running)\b/i.test(lower)) {
       action = { type: "navigate", targetTab: "tasks" };
     } else if (/\b(cyber|security|firewall|threat|lockdown|defend|scan threat|intrusion)\b/i.test(lower)) {
       action = { type: "cyber_scan", targetTab: "cyber" };
@@ -15708,8 +15711,6 @@ var ConversationOS = class {
       action = { type: "navigate", targetTab: "command" };
     } else if (/\b(storage|vault|files|documents)\b/i.test(lower)) {
       action = { type: "navigate", targetTab: "storage" };
-    } else if (/\b(build|deploy|create app|generate store|refactor code|fix bug|audit code)\b/i.test(lower)) {
-      action = { type: "create_task", taskTitle: cleanInput, agentId: targetAgent };
     }
     let spoken = "";
     if (aiCaller) {
@@ -16691,55 +16692,55 @@ var MissionOrchestrator = class {
     if (preferredId && AgentRegistry.getAgent(preferredId)) {
       return preferredId;
     }
-    const lower2 = objective.toLowerCase();
-    if (/\baegis\b/i.test(lower2)) return "aegis";
-    if (/\bvortex\b/i.test(lower2)) return "vortex";
-    if (/\bmidas\b/i.test(lower2)) return "midas";
-    if (/\bcerebro\b/i.test(lower2)) return "cerebro";
-    if (/\bstark[\s_-]?os\b/i.test(lower2)) return "stark_os";
-    if (/code analysis|repository|unit test|test execution|diff patch|compiler|typescript|refactor/i.test(lower2)) {
+    const lower = objective.toLowerCase();
+    if (/\baegis\b/i.test(lower)) return "aegis";
+    if (/\bvortex\b/i.test(lower)) return "vortex";
+    if (/\bmidas\b/i.test(lower)) return "midas";
+    if (/\bcerebro\b/i.test(lower)) return "cerebro";
+    if (/\bstark[\s_-]?os\b/i.test(lower)) return "stark_os";
+    if (/code analysis|repository|unit test|test execution|diff patch|compiler|typescript|refactor/i.test(lower)) {
       return "aegis";
     }
-    if (/automation|webhook|api pipeline|n8n|pipeline swarm|cron|scraper|event flow/i.test(lower2)) {
+    if (/automation|webhook|api pipeline|n8n|pipeline swarm|cron|scraper|event flow/i.test(lower)) {
       return "vortex";
     }
-    if (/business metric|saas|financial model|unit economic|revenue|monetiz|pricing|deal/i.test(lower2)) {
+    if (/business metric|saas|financial model|unit economic|revenue|monetiz|pricing|deal/i.test(lower)) {
       return "midas";
     }
-    if (/technical doc|deep research|multi-vector|rag|market intel|reconnaissance/i.test(lower2)) {
+    if (/technical doc|deep research|multi-vector|rag|market intel|reconnaissance/i.test(lower)) {
       return "cerebro";
     }
-    if (/system diagnostic|neon|postgresql telemetry|memory usage|device telemetry|hardware status/i.test(lower2)) {
+    if (/system diagnostic|neon|postgresql telemetry|memory usage|device telemetry|hardware status/i.test(lower)) {
       return "stark_os";
     }
-    if (lower2.includes("architect") || lower2.includes("system design") || lower2.includes("blueprint")) {
+    if (lower.includes("architect") || lower.includes("system design") || lower.includes("blueprint")) {
       return "architect";
     }
-    if (lower2.includes("browser") || lower2.includes("scrape") || lower2.includes("webpage") || lower2.includes("navigate")) {
+    if (lower.includes("browser") || lower.includes("scrape") || lower.includes("webpage") || lower.includes("navigate")) {
       return "browser_agent";
     }
-    if (lower2.includes("debug") || lower2.includes("root cause") || lower2.includes("diagnose")) {
+    if (lower.includes("debug") || lower.includes("root cause") || lower.includes("diagnose")) {
       return "debugger";
     }
-    if (lower2.includes("test") || lower2.includes("verify") || lower2.includes("qa") || lower2.includes("regression")) {
+    if (lower.includes("test") || lower.includes("verify") || lower.includes("qa") || lower.includes("regression")) {
       return "qa_engineer";
     }
-    if (lower2.includes("security") || lower2.includes("threat") || lower2.includes("vulnerability") || lower2.includes("audit")) {
+    if (lower.includes("security") || lower.includes("threat") || lower.includes("vulnerability") || lower.includes("audit")) {
       return "security";
     }
-    if (lower2.includes("research") || lower2.includes("search") || lower2.includes("compare")) {
+    if (lower.includes("research") || lower.includes("search") || lower.includes("compare")) {
       return "researcher";
     }
-    if (lower2.includes("database") || lower2.includes("sql") || lower2.includes("schema") || lower2.includes("migration")) {
+    if (lower.includes("database") || lower.includes("sql") || lower.includes("schema") || lower.includes("migration")) {
       return "database_engineer";
     }
-    if (lower2.includes("frontend") || lower2.includes("ui") || lower2.includes("css") || lower2.includes("component")) {
+    if (lower.includes("frontend") || lower.includes("ui") || lower.includes("css") || lower.includes("component")) {
       return "frontend_engineer";
     }
-    if (lower2.includes("backend") || lower2.includes("api") || lower2.includes("endpoint") || lower2.includes("server")) {
+    if (lower.includes("backend") || lower.includes("api") || lower.includes("endpoint") || lower.includes("server")) {
       return "backend_engineer";
     }
-    if (lower2.includes("code") || lower2.includes("typescript") || lower2.includes("file") || lower2.includes("implement")) {
+    if (lower.includes("code") || lower.includes("typescript") || lower.includes("file") || lower.includes("implement")) {
       return "software_engineer";
     }
     return "jarvis";
@@ -18680,8 +18681,8 @@ async function callDirectMistral(key, system, messages) {
   return text;
 }
 async function fetchLiveWebGrounding(query) {
-  const lower2 = query.toLowerCase();
-  const needsSearch = lower2.includes("rate") || lower2.includes("cost") || lower2.includes("price") || lower2.includes("s26") || lower2.includes("mobile") || lower2.includes("phone") || lower2.includes("laptop") || lower2.includes("specs") || lower2.includes("news") || lower2.includes("today") || lower2.includes("latest") || lower2.includes("current") || lower2.includes("how much") || lower2.includes("market") || lower2.includes("who is") || lower2.includes("flight") || lower2.includes("weather") || lower2.includes("search") || lower2.includes("flipkart") || lower2.includes("amazon") || lower2.includes("2026");
+  const lower = query.toLowerCase();
+  const needsSearch = lower.includes("rate") || lower.includes("cost") || lower.includes("price") || lower.includes("s26") || lower.includes("mobile") || lower.includes("phone") || lower.includes("laptop") || lower.includes("specs") || lower.includes("news") || lower.includes("today") || lower.includes("latest") || lower.includes("current") || lower.includes("how much") || lower.includes("market") || lower.includes("who is") || lower.includes("flight") || lower.includes("weather") || lower.includes("search") || lower.includes("flipkart") || lower.includes("amazon") || lower.includes("2026");
   if (!needsSearch) return "";
   try {
     const searchRes = await BrowserUseScraper.searchWeb(query);
@@ -18703,11 +18704,11 @@ CRITICAL GROUNDING DIRECTIVE: Ground your answer strictly in these live facts an
   return "";
 }
 function retrieveOpenSourceIntelligence(query) {
-  const lower2 = query.toLowerCase();
+  const lower = query.toLowerCase();
   const matchedProjects = OPEN_SOURCE_PROJECTS_VAULT.filter((p) => {
-    const nameMatch = p.name.toLowerCase().includes(lower2) || p.id.toLowerCase().includes(lower2);
-    const catMatch = p.category.toLowerCase().includes(lower2);
-    const words = lower2.split(/\s+/).filter((w) => w.length > 3);
+    const nameMatch = p.name.toLowerCase().includes(lower) || p.id.toLowerCase().includes(lower);
+    const catMatch = p.category.toLowerCase().includes(lower);
+    const words = lower.split(/\s+/).filter((w) => w.length > 3);
     const descMatch = words.some((w) => p.description.toLowerCase().includes(w));
     const archMatch = p.keyArchitecture.some((a) => words.some((w) => a.toLowerCase().includes(w)));
     return nameMatch || catMatch || descMatch || archMatch;
@@ -18740,10 +18741,10 @@ POWERHOUSE DIRECTIVE (GPT-5.0 / GEMINI 4 ARGON TIER):
 3. Provide rigorous, complete, type-safe, production-ready solutions with zero placeholders.`;
 }
 async function retrieveWorkspaceOrThemeContext(query) {
-  const lower2 = query.toLowerCase();
+  const lower = query.toLowerCase();
   let context = "";
-  if (lower2.includes("shopify") || lower2.includes("theme") || lower2.includes("drawer") || lower2.includes("invi-theme")) {
-    if (lower2.includes("audit") || lower2.includes("check") || lower2.includes("inspect") || lower2.includes("health")) {
+  if (lower.includes("shopify") || lower.includes("theme") || lower.includes("drawer") || lower.includes("invi-theme")) {
+    if (lower.includes("audit") || lower.includes("check") || lower.includes("inspect") || lower.includes("health")) {
       try {
         const { ToolRegistry: ToolRegistry2 } = await Promise.resolve().then(() => (init_ToolRegistry(), ToolRegistry_exports));
         const audit = await ToolRegistry2.executeTool("shopify_theme_audit", {});
@@ -20770,33 +20771,33 @@ app.post("/cyber-shield/scan-threat", requireAuth, async (c) => {
     if (!target || typeof target !== "string") {
       return c.json({ error: "Target URL or text required" }, 400);
     }
-    const lower2 = target.toLowerCase();
+    const lower = target.toLowerCase();
     const suspiciousTlds = [".xyz", ".top", ".zip", ".mov", ".buzz", ".cc", ".ru", ".work", ".click"];
     const suspiciousKeywords = ["verify-account", "banking-login", "urgent-action", "otp", "claim-prize", "free-crypto", "metamask-restore", "password-reset-alert", "kyc-suspended"];
     let threatScore = 0;
     const matchedRisks = [];
-    if (lower2.startsWith("http://")) {
+    if (lower.startsWith("http://")) {
       threatScore += 35;
       matchedRisks.push("Unencrypted Plaintext HTTP - susceptible to credential interception");
     }
     suspiciousTlds.forEach((tld) => {
-      if (lower2.includes(tld)) {
+      if (lower.includes(tld)) {
         threatScore += 30;
         matchedRisks.push("High-Risk Domain Extension (" + tld + ") frequently used in malware/phishing campaigns");
       }
     });
     suspiciousKeywords.forEach((kw) => {
-      if (lower2.includes(kw)) {
+      if (lower.includes(kw)) {
         threatScore += 25;
         matchedRisks.push('Phishing Bait Trigger keyword: "' + kw + '"');
       }
     });
-    if (lower2.includes("@") && lower2.includes("http")) {
+    if (lower.includes("@") && lower.includes("http")) {
       threatScore += 40;
       matchedRisks.push("URL Obfuscation with embedded credentials / spoofing syntax");
     }
-    const isIpHost = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(lower2);
-    if (isIpHost && !lower2.includes("192.168.") && !lower2.includes("127.0.0.1")) {
+    const isIpHost = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(lower);
+    if (isIpHost && !lower.includes("192.168.") && !lower.includes("127.0.0.1")) {
       threatScore += 45;
       matchedRisks.push("Direct Public IP Access (no SSL certificate or domain reputation)");
     }
@@ -21527,18 +21528,18 @@ app.post("/agents/dispatch", requireAuth, async (c) => {
     if (Array.isArray(parameters.toolsToRun) && parameters.toolsToRun.length > 0) {
       toolsToRun.push(...parameters.toolsToRun);
     } else {
-      const lower2 = taskObjective.toLowerCase();
+      const lower = taskObjective.toLowerCase();
       const aid = agentSpec.id.toLowerCase();
       if (aid === "jarvis" || aid === "commander") {
-        if (lower2.includes("build") || lower2.includes("project") || lower2.includes("app") || lower2.includes("system")) {
+        if (lower.includes("build") || lower.includes("project") || lower.includes("app") || lower.includes("system")) {
           toolsToRun.push({ name: "swarm_dispatch", args: { objective: taskObjective } });
-        } else if (lower2.includes("deal") || lower2.includes("shop") || lower2.includes("price")) {
+        } else if (lower.includes("deal") || lower.includes("shop") || lower.includes("price")) {
           toolsToRun.push({ name: "ecommerce_recon", args: { query: taskObjective } });
         } else {
           toolsToRun.push({ name: "system_health", args: {} });
         }
       } else if (aid === "software_engineer" || aid === "aegis" || aid === "coder") {
-        if (lower2.includes("build") || lower2.includes("app") || lower2.includes("website") || lower2.includes("portal") || lower2.includes("scaffold")) {
+        if (lower.includes("build") || lower.includes("app") || lower.includes("website") || lower.includes("portal") || lower.includes("scaffold")) {
           toolsToRun.push({ name: "build_fullstack_app", args: { topic: taskObjective } });
         } else {
           toolsToRun.push({ name: "execute_code", args: { code: 'console.log("Verified software engineer execution on node " + process.version);' } });
@@ -21546,13 +21547,13 @@ app.post("/agents/dispatch", requireAuth, async (c) => {
       } else if (aid === "architect" || aid === "daedalus") {
         toolsToRun.push({ name: "rea_reverse_engineer", args: { target: "src/tools/ToolRegistry.ts", mode: "ast" } });
       } else if (aid === "frontend_engineer" || aid === "prism") {
-        if (lower2.includes("build") || lower2.includes("app") || lower2.includes("ui") || lower2.includes("surface")) {
+        if (lower.includes("build") || lower.includes("app") || lower.includes("ui") || lower.includes("surface")) {
           toolsToRun.push({ name: "build_fullstack_app", args: { topic: taskObjective, features: ["Tailwind CSS UI", "Reactive HUD", "Responsive Grid"] } });
         } else {
           toolsToRun.push({ name: "workspace_list_files", args: { projectName: "app_enterprise_ai_customer_s" } });
         }
       } else if (aid === "backend_engineer" || aid === "vulcan") {
-        if (lower2.includes("api") || lower2.includes("server") || lower2.includes("route") || lower2.includes("build")) {
+        if (lower.includes("api") || lower.includes("server") || lower.includes("route") || lower.includes("build")) {
           toolsToRun.push({ name: "build_fullstack_app", args: { topic: taskObjective, features: ["Node HTTP REST API", "Health Heartbeat", "CRUD Endpoints"] } });
         } else {
           toolsToRun.push({ name: "system_health", args: {} });
@@ -21577,7 +21578,7 @@ app.post("/agents/dispatch", requireAuth, async (c) => {
       } else if (aid === "browser_agent" || aid === "navis") {
         if (parameters.url) {
           toolsToRun.push({ name: "scrape_web", args: { url: parameters.url } });
-        } else if (lower2.includes("deal") || lower2.includes("product") || lower2.includes("price")) {
+        } else if (lower.includes("deal") || lower.includes("product") || lower.includes("price")) {
           toolsToRun.push({ name: "ecommerce_recon", args: { query: taskObjective } });
         } else {
           toolsToRun.push({ name: "scrape_web", args: { url: "https://news.ycombinator.com" } });
@@ -21749,8 +21750,8 @@ app.post("/tasks/dispatch", requireAuth, async (c) => {
         let projectDeliverables = null;
         let testLog = "Automated syntax & structure validation clean.";
         let filesChanged = [];
-        const lower2 = taskTitle.toLowerCase();
-        const isAppTask = lower2.includes("build") || lower2.includes("app") || lower2.includes("project") || lower2.includes("site") || lower2.includes("portal") || lower2.includes("system");
+        const lower = taskTitle.toLowerCase();
+        const isAppTask = lower.includes("build") || lower.includes("app") || lower.includes("project") || lower.includes("site") || lower.includes("portal") || lower.includes("system");
         if (isAppTask) {
           const { ToolRegistry: ToolRegistry2 } = await Promise.resolve().then(() => (init_ToolRegistry(), ToolRegistry_exports));
           const appRes = await ToolRegistry2.executeTool("build_fullstack_app", {

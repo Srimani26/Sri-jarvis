@@ -69,6 +69,7 @@ export class ConversationOS {
     this.currentState = 'THINKING';
 
     const cleanInput = transcript.trim();
+    const lower = cleanInput.toLowerCase();
     const utterance: Utterance = {
       id: `utt_${Date.now()}_u`,
       sender: 'user',
@@ -79,7 +80,6 @@ export class ConversationOS {
 
     // Fast tactical routing to specialists
     let assignedAgent = 'jarvis';
-    const lower = cleanInput.toLowerCase();
 
     if (lower.includes('code') || lower.includes('bug') || lower.includes('function') || lower.includes('refactor')) {
       assignedAgent = 'software_engineer'; // F.R.I.D.A.Y.
@@ -128,6 +128,7 @@ export class ConversationOS {
     this.currentState = 'THINKING';
 
     const cleanInput = transcript.trim();
+    const lower = cleanInput.toLowerCase();
     const utterance: Utterance = {
       id: `utt_${Date.now()}_u`,
       sender: 'user',
@@ -149,10 +150,12 @@ export class ConversationOS {
 
     // Intelligent System Action Recognition
     let action: VoiceSystemAction | null = null;
-    if (/\b(revenue|freelance|bounties|bounty|capital|money|earnings|invi store)\b/i.test(lower)) {
+    if (/\b(build|deploy|create|generate|refactor|fix bug|audit code)\b/i.test(lower)) {
+      action = { type: 'create_task', taskTitle: cleanInput, agentId: targetAgent };
+    } else if (/\b(revenue|freelance|bounties|bounty|capital|money|earnings)\b/i.test(lower)) {
       action = { type: 'navigate', targetTab: 'revenue' };
       if (targetAgent === 'jarvis') targetAgent = 'midas';
-    } else if (/\b(active tasks|what are you doing|show tasks|task progress|status of tasks|what's running)\b/i.test(lower)) {
+    } else if (/\b(active tasks|what are you doing|working on|show tasks|task progress|status of tasks|what's running)\b/i.test(lower)) {
       action = { type: 'navigate', targetTab: 'tasks' };
     } else if (/\b(cyber|security|firewall|threat|lockdown|defend|scan threat|intrusion)\b/i.test(lower)) {
       action = { type: 'cyber_scan', targetTab: 'cyber' };
@@ -173,8 +176,6 @@ export class ConversationOS {
       action = { type: 'navigate', targetTab: 'command' };
     } else if (/\b(storage|vault|files|documents)\b/i.test(lower)) {
       action = { type: 'navigate', targetTab: 'storage' };
-    } else if (/\b(build|deploy|create app|generate store|refactor code|fix bug|audit code)\b/i.test(lower)) {
-      action = { type: 'create_task', taskTitle: cleanInput, agentId: targetAgent };
     }
 
     let spoken = '';
