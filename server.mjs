@@ -11858,6 +11858,57 @@ var init_ModelRouter = __esm({
           }]
         };
       }
+      /**
+       * Startup Handshake: Test discovered keys against endpoints
+       */
+      async runStartupHandshake() {
+        const report = {};
+        const groqKey = virtualKeyVault.getActiveKey("groq") || process.env.GROQ_API_KEY;
+        if (groqKey) {
+          const start = Date.now();
+          try {
+            const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+              signal: AbortSignal.timeout(4e3)
+            });
+            report.groq = { status: res.ok ? "ONLINE" : res.status === 429 ? "THROTTLED" : "UNAVAILABLE", latencyMs: Date.now() - start };
+          } catch {
+            report.groq = { status: "UNAVAILABLE" };
+          }
+        } else {
+          report.groq = { status: "UNAVAILABLE" };
+        }
+        const geminiKey = virtualKeyVault.getActiveKey("gemini") || process.env.GEMINI_API_KEY;
+        if (geminiKey) {
+          const start = Date.now();
+          try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`, { signal: AbortSignal.timeout(4e3) });
+            report.gemini = { status: res.ok ? "ONLINE" : res.status === 429 ? "THROTTLED" : "UNAVAILABLE", latencyMs: Date.now() - start };
+          } catch {
+            report.gemini = { status: "UNAVAILABLE" };
+          }
+        } else {
+          report.gemini = { status: "UNAVAILABLE" };
+        }
+        const githubToken = virtualKeyVault.getActiveKey("github") || process.env.GITHUB_TOKEN;
+        if (githubToken) {
+          const start = Date.now();
+          try {
+            const res = await fetch("https://api.github.com/user", {
+              headers: { "Authorization": `Bearer ${githubToken}`, "User-Agent": "JARVIS-ModelRouter" },
+              signal: AbortSignal.timeout(4e3)
+            });
+            report.github = { status: res.ok ? "ONLINE" : "UNAVAILABLE", latencyMs: Date.now() - start };
+          } catch {
+            report.github = { status: "UNAVAILABLE" };
+          }
+        } else {
+          report.github = { status: "UNAVAILABLE" };
+        }
+        return report;
+      }
     };
     swarmModelRouter = SwarmModelRouter.getInstance();
   }
@@ -12243,6 +12294,23 @@ async function executeAutonomousTask(directive, specialist = "jarvis", maxSteps 
     success = true;
   }
   await taskAuditService.completeTask(taskId, success ? "COMPLETED" : "FAILED", finalResponse);
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (botToken && chatId) {
+    const text = `\u{1F916} *[J.A.R.V.I.S. Task Complete]*
+*Specialist:* ${specialist.toUpperCase()}
+*Status:* ${success ? "\u2705 SUCCESS" : "\u274C FAILED"}
+*Directive:* ${cleanDirective.substring(0, 100)}
+
+*Summary:* ${finalResponse.substring(0, 500)}`;
+    fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }),
+      signal: AbortSignal.timeout(3e3)
+    }).catch(() => {
+    });
+  }
   return {
     taskId,
     success,

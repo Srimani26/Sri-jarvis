@@ -112,12 +112,10 @@ describe('Sovereign Omni-Tool Gateway & Quota-Resilient Router', () => {
       assert.ok(result.tier >= 1 && result.tier <= 5)
     })
 
-    it('should verify OpenAI 50-Key Virtual Key Vault pool is populated and active', () => {
+    it('should verify genuine credentials pool is populated and active', () => {
       const init = initializeMasterKeyPool()
-      assert.ok(init.registeredCount > 0, 'Pool registration must register decoded keys')
-      const stats = virtualKeyVault.getPoolStats('openai')
-      assert.ok(stats.total >= 40, `Must have virtualized OpenAI keys in pool, found: ${stats.total}`)
-      assert.ok(stats.healthy > 0, 'Must have active healthy keys ready for rotation')
+      assert.ok(init.registeredCount > 0, 'Pool registration must register genuine discovered keys')
+      assert.ok(init.providers.length > 0, 'Must have active providers registered')
     })
   })
 

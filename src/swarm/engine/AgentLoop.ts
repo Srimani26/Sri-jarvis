@@ -253,6 +253,19 @@ export async function executeAutonomousTask(
 
   await taskAuditService.completeTask(taskId, success ? 'COMPLETED' : 'FAILED', finalResponse)
 
+  // Proactive Telegram reporting on completion
+  const botToken = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_CHAT_ID
+  if (botToken && chatId) {
+    const text = `🤖 *[J.A.R.V.I.S. Task Complete]*\n*Specialist:* ${specialist.toUpperCase()}\n*Status:* ${success ? '✅ SUCCESS' : '❌ FAILED'}\n*Directive:* ${cleanDirective.substring(0, 100)}\n\n*Summary:* ${finalResponse.substring(0, 500)}`
+    fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
+      signal: AbortSignal.timeout(3000)
+    }).catch(() => {})
+  }
+
   return {
     taskId,
     success,
