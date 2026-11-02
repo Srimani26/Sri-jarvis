@@ -32,6 +32,7 @@ export interface ModelCompletionResult {
 
 export class SwarmModelRouter {
   private static instance: SwarmModelRouter
+  private activeProviders: Record<string, { tier: number; models: string[]; status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }> = {}
   private reverseProxyEndpoints: string[] = [
     'https://free.churchless.tech/v1/chat/completions',
     'https://api.deepseek.free/v1/chat/completions',
@@ -43,6 +44,10 @@ export class SwarmModelRouter {
       SwarmModelRouter.instance = new SwarmModelRouter()
     }
     return SwarmModelRouter.instance
+  }
+
+  public getActiveProviders(): Record<string, { tier: number; models: string[]; status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }> {
+    return { ...this.activeProviders }
   }
 
   /**
@@ -357,12 +362,12 @@ export class SwarmModelRouter {
   }
 
   /**
-   * Startup Handshake: Test discovered keys against endpoints
+   * Startup Handshake: Test discovered keys against endpoints and register active provider tiers
    */
-  public async runStartupHandshake(): Promise<Record<string, { status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }>> {
-    const report: Record<string, { status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }> = {}
+  public async runStartupHandshake(): Promise<Record<string, { tier: number; models: string[]; status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }>> {
+    const report: Record<string, { tier: number; models: string[]; status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }> = {}
 
-    // Groq test
+    // 1. Tier 1: Groq High-Speed Engine
     const groqKey = virtualKeyVault.getActiveKey('groq') || process.env.GROQ_API_KEY
     if (groqKey) {
       const start = Date.now()
@@ -373,29 +378,85 @@ export class SwarmModelRouter {
           body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
           signal: AbortSignal.timeout(4000)
         })
-        report.groq = { status: res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE'), latencyMs: Date.now() - start }
+        const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
+        report.groq = {
+          tier: 1,
+          models: ['groq/llama-3.3-70b-versatile', 'groq/deepseek-r1-distill-llama-70b'],
+          status,
+          latencyMs: Date.now() - start
+        }
       } catch {
-        report.groq = { status: 'UNAVAILABLE' }
+        report.groq = { tier: 1, models: ['groq/llama-3.3-70b-versatile', 'groq/deepseek-r1-distill-llama-70b'], status: 'UNAVAILABLE' }
       }
     } else {
-      report.groq = { status: 'UNAVAILABLE' }
+      report.groq = { tier: 1, models: ['groq/llama-3.3-70b-versatile', 'groq/deepseek-r1-distill-llama-70b'], status: 'UNAVAILABLE' }
     }
 
-    // Gemini test
+    // 2. Tier 2: OpenAI Virtual Vault (if key present)
+    const openaiKey = virtualKeyVault.getActiveKey('openai') || process.env.OPENAI_API_KEY
+    if (openaiKey) {
+      const start = Date.now()
+      try {
+        const res = await fetch('https://api.openai.com/v1/models', {
+          headers: { 'Authorization': `Bearer ${openaiKey}` },
+          signal: AbortSignal.timeout(4000)
+        })
+        const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
+        report.openai = {
+          tier: 2,
+          models: ['openai/gpt-4o', 'openai/gpt-4o-mini'],
+          status,
+          latencyMs: Date.now() - start
+        }
+      } catch {
+        report.openai = { tier: 2, models: ['openai/gpt-4o', 'openai/gpt-4o-mini'], status: 'UNAVAILABLE' }
+      }
+    }
+
+    // 3. Tier 2: OpenRouter Free Coding & Logic Pool
+    const openrouterKey = virtualKeyVault.getActiveKey('openrouter') || process.env.OPENROUTER_API_KEY
+    if (openrouterKey) {
+      const start = Date.now()
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+          headers: { 'Authorization': `Bearer ${openrouterKey}` },
+          signal: AbortSignal.timeout(4000)
+        })
+        const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
+        report.openrouter = {
+          tier: 2,
+          models: ['openrouter/qwen/qwen-2.5-coder-32b-instruct:free', 'openrouter/deepseek/deepseek-r1:free'],
+          status,
+          latencyMs: Date.now() - start
+        }
+      } catch {
+        report.openrouter = { tier: 2, models: ['openrouter/qwen/qwen-2.5-coder-32b-instruct:free', 'openrouter/deepseek/deepseek-r1:free'], status: 'UNAVAILABLE' }
+      }
+    } else {
+      report.openrouter = { tier: 2, models: ['openrouter/qwen/qwen-2.5-coder-32b-instruct:free', 'openrouter/deepseek/deepseek-r1:free'], status: 'UNAVAILABLE' }
+    }
+
+    // 4. Tier 3: Google Gemini Flash Multimodal Fallback
     const geminiKey = virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY
     if (geminiKey) {
       const start = Date.now()
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`, { signal: AbortSignal.timeout(4000) })
-        report.gemini = { status: res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE'), latencyMs: Date.now() - start }
+        const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
+        report.gemini = {
+          tier: 3,
+          models: ['gemini-flash-lite-latest'],
+          status,
+          latencyMs: Date.now() - start
+        }
       } catch {
-        report.gemini = { status: 'UNAVAILABLE' }
+        report.gemini = { tier: 3, models: ['gemini-flash-lite-latest'], status: 'UNAVAILABLE' }
       }
     } else {
-      report.gemini = { status: 'UNAVAILABLE' }
+      report.gemini = { tier: 3, models: ['gemini-flash-lite-latest'], status: 'UNAVAILABLE' }
     }
 
-    // GitHub token test
+    // 5. DevOps: GitHub PAT
     const githubToken = virtualKeyVault.getActiveKey('github') || process.env.GITHUB_TOKEN
     if (githubToken) {
       const start = Date.now()
@@ -404,14 +465,15 @@ export class SwarmModelRouter {
           headers: { 'Authorization': `Bearer ${githubToken}`, 'User-Agent': 'JARVIS-ModelRouter' },
           signal: AbortSignal.timeout(4000)
         })
-        report.github = { status: res.ok ? 'ONLINE' : 'UNAVAILABLE', latencyMs: Date.now() - start }
+        report.github = { tier: 0, models: ['github/git-automation'], status: res.ok ? 'ONLINE' : 'UNAVAILABLE', latencyMs: Date.now() - start }
       } catch {
-        report.github = { status: 'UNAVAILABLE' }
+        report.github = { tier: 0, models: ['github/git-automation'], status: 'UNAVAILABLE' }
       }
     } else {
-      report.github = { status: 'UNAVAILABLE' }
+      report.github = { tier: 0, models: ['github/git-automation'], status: 'UNAVAILABLE' }
     }
 
+    this.activeProviders = report
     return report
   }
 }

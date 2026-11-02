@@ -27,6 +27,9 @@ import { validateDatabaseConnectivity } from './src/lib/db'
 import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
 import { TelegramBotListener, startTelegramBotListener, stopTelegramBotListener } from './src/notifications/TelegramBotListener'
 import { voiceGateway } from './src/services/voiceGateway'
+import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
+import { swarmAutonomousScheduler } from './src/swarm/engine/AutonomousScheduler'
+import { telegramNotifier } from './src/services/telegramNotifier'
 
 const app = new Hono()
 
@@ -116,7 +119,19 @@ AutonomousScheduler.scheduleJob({
   toolArgs: {},
 })
 
-// 24/7 Interactive Mobile Control: Mount TelegramBotListener for Master Sri
+// 24/7 Swarm Autonomous Scheduler & Provider Handshake
+swarmAutonomousScheduler.start()
+swarmModelRouter.runStartupHandshake().then((report) => {
+  console.log('🤖 [ModelRouter] Startup handshake report:', JSON.stringify(report))
+}).catch((err) => {
+  console.warn('⚠️ [ModelRouter] Handshake warning:', err?.message || err)
+})
+
+// 24/7 Interactive Mobile Control: Mount TelegramBotListener for Master Sri & Swarm Poller
+try {
+  telegramNotifier.startPolling()
+} catch {}
+
 try {
   startTelegramBotListener()
 } catch (botErr: any) {
@@ -127,6 +142,8 @@ try {
 const shutdown = async (signal: string) => {
   console.log(`\n🛑 [Server] Received ${signal}. Initiating graceful shutdown...`)
   autonomousScheduler.stop()
+  swarmAutonomousScheduler.stop()
+  telegramNotifier.stopPolling()
   stopTelegramBotListener()
   try {
     const { prisma } = await import('./src/lib/db')

@@ -19,6 +19,9 @@ import {
   LangGraphSupervisor
 } from './src/lib/open-agents'
 
+import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
+import { telegramNotifier } from './src/services/telegramNotifier'
+
 import { stream, streamSSE } from 'hono/streaming'
 import { TaskStore } from './src/kernel/TaskStore'
 import { EventStream } from './src/kernel/EventStream'
@@ -2800,9 +2803,25 @@ app.get('/health', (c) => {
     version: '5.0.0-mark-v',
     phase: 17,
     ai: { moa: MODEL_CHAIN.filter(m => m.healthy || isModelReady(m)).length + '/' + MODEL_CHAIN.length + ' models active' },
+    activeProviders: swarmModelRouter.getActiveProviders(),
     security: { rateLimit: RATE_LIMIT + '/min', bcrypt: BCRYPT_ROUNDS + ' rounds', jwt: 'enabled' },
     uptime: process.uptime(),
   })
+})
+
+// POST /api/telegram/webhook — Inbound bi-directional command interface for Master Sri
+app.post('/telegram/webhook', async (c) => {
+  try {
+    const update = await c.req.json()
+    const result = await telegramNotifier.handleInboundUpdate(update)
+    return c.json({ ok: true, handled: result.handled, command: result.command })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500)
+  }
+})
+
+app.get('/telegram/webhook', (c) => {
+  return c.json({ ok: true, message: 'J.A.R.V.I.S. Telegram Webhook endpoint online.' })
 })
 
 // GET /api/health/providers — Live provider availability, circuit breaker status, and models
@@ -7453,10 +7472,11 @@ app.get('/health', async (c) => {
     ok: true,
     status: 'operational',
     system: 'J.A.R.V.I.S. (Just A Rather Very Intelligent System)',
-    version: '2.5.0-mark5',
+    version: '5.0.0-mark-v',
     commit: '195a40c',
     phase: 'Phase 18 Production Foundation',
     environment: getEnvironmentClassification(),
+    activeProviders: swarmModelRouter.getActiveProviders(),
     timestamp: new Date().toISOString(),
   });
 });
