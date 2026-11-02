@@ -10942,6 +10942,427 @@ var init_webResearchEngine = __esm({
   }
 });
 
+// src/security/SecretSanitizer.ts
+import { createHash as createHash4 } from "node:crypto";
+function sanitizeString(input) {
+  if (typeof input !== "string") return input;
+  let cleaned = input;
+  for (const { regex } of SECRET_PATTERNS) {
+    cleaned = cleaned.replace(regex, REDACTED_MARKER);
+  }
+  return cleaned;
+}
+function sanitizePayload(payload) {
+  if (payload === null || payload === void 0) {
+    return payload;
+  }
+  if (typeof payload === "string") {
+    return sanitizeString(payload);
+  }
+  if (Array.isArray(payload)) {
+    return payload.map((item) => sanitizePayload(item));
+  }
+  if (typeof payload === "object") {
+    const sanitizedObj = {};
+    for (const [key, value] of Object.entries(payload)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes("password") || lowerKey.includes("secret") || lowerKey.includes("token") || lowerKey.includes("apikey") || lowerKey.includes("api_key")) {
+        if (typeof value === "string" && value.length > 0) {
+          sanitizedObj[key] = REDACTED_MARKER;
+          continue;
+        }
+      }
+      sanitizedObj[key] = sanitizePayload(value);
+    }
+    return sanitizedObj;
+  }
+  return payload;
+}
+var SECRET_PATTERNS, REDACTED_MARKER, VirtualKeyVault, virtualKeyVault;
+var init_SecretSanitizer = __esm({
+  "src/security/SecretSanitizer.ts"() {
+    "use strict";
+    SECRET_PATTERNS = [
+      { type: "GITHUB_TOKEN", regex: /ghp_[a-zA-Z0-9]{20,}/g },
+      { type: "GITHUB_FINE_GRAINED", regex: /github_pat_[a-zA-Z0-9_]{20,}/g },
+      { type: "GROQ_KEY", regex: /gsk_[a-zA-Z0-9]{20,}/g },
+      { type: "GOOGLE_KEY", regex: /AIza[0-9A-Za-z-_]{20,}/g },
+      { type: "OPENAI_KEY", regex: /sk-[a-zA-Z0-9]{20,}/g },
+      { type: "ANTHROPIC_KEY", regex: /sk-ant-[a-zA-Z0-9_-]{20,}/g },
+      { type: "POSTGRES_URL", regex: /postgres(?:ql)?:\/\/[^\s:@]+:[^\s:@]+@[^\s"']+/gi },
+      { type: "BEARER_AUTH", regex: /Bearer\s+([a-zA-Z0-9_\-\.]{20,})/gi },
+      { type: "TELEGRAM_TOKEN", regex: /\d{9,10}:[a-zA-Z0-9_-]{35}/g },
+      { type: "DEEPGRAM_KEY", regex: /[a-f0-9]{40}/g }
+    ];
+    REDACTED_MARKER = "[REDACTED_SECRET]";
+    VirtualKeyVault = class _VirtualKeyVault {
+      static instance;
+      keyPools = /* @__PURE__ */ new Map();
+      static getInstance() {
+        if (!_VirtualKeyVault.instance) {
+          _VirtualKeyVault.instance = new _VirtualKeyVault();
+        }
+        return _VirtualKeyVault.instance;
+      }
+      registerKey(provider, rawKey) {
+        const trimmed = rawKey.trim();
+        if (!trimmed) return "";
+        const virtualId = `vkey_${createHash4("sha256").update(trimmed).digest("hex").substring(0, 12)}`;
+        const pool = this.keyPools.get(provider) || [];
+        const existing = pool.find((k) => k.rawKey === trimmed);
+        if (existing) return existing.virtualId;
+        pool.push({
+          virtualId,
+          rawKey: trimmed,
+          provider,
+          rateLimitedUntil: 0,
+          usageCount: 0
+        });
+        this.keyPools.set(provider, pool);
+        return virtualId;
+      }
+      registerKeys(provider, keys) {
+        let added = 0;
+        for (const k of keys) {
+          if (k && k.trim()) {
+            this.registerKey(provider, k);
+            added++;
+          }
+        }
+        return added;
+      }
+      getActiveKey(provider) {
+        const pool = this.keyPools.get(provider);
+        if (!pool || pool.length === 0) return null;
+        const now = Date.now();
+        const healthyKeys = pool.filter((k) => k.rateLimitedUntil <= now);
+        if (healthyKeys.length === 0) {
+          pool.sort((a, b) => a.rateLimitedUntil - b.rateLimitedUntil);
+          return pool[0].rawKey;
+        }
+        healthyKeys.sort((a, b) => a.usageCount - b.usageCount);
+        const selected = healthyKeys[0];
+        selected.usageCount += 1;
+        return selected.rawKey;
+      }
+      markRateLimited(provider, rawKey, cooldownMs = 6e4) {
+        const pool = this.keyPools.get(provider);
+        if (!pool) return;
+        const keyEntry = pool.find((k) => k.rawKey === rawKey);
+        if (keyEntry) {
+          keyEntry.rateLimitedUntil = Date.now() + cooldownMs;
+          console.warn(`\u{1F512} [VirtualKeyVault] Key ${keyEntry.virtualId} throttled. Cooling down for ${cooldownMs / 1e3}s.`);
+        }
+      }
+      getPoolStats(provider) {
+        const pool = this.keyPools.get(provider) || [];
+        const now = Date.now();
+        const healthy = pool.filter((k) => k.rateLimitedUntil <= now).length;
+        return {
+          total: pool.length,
+          healthy,
+          throttled: pool.length - healthy
+        };
+      }
+    };
+    virtualKeyVault = VirtualKeyVault.getInstance();
+    if (process.env.GROQ_API_KEY) virtualKeyVault.registerKey("groq", process.env.GROQ_API_KEY);
+    if (process.env.GEMINI_API_KEY) virtualKeyVault.registerKey("gemini", process.env.GEMINI_API_KEY);
+    if (process.env.OPENROUTER_API_KEY) virtualKeyVault.registerKey("openrouter", process.env.OPENROUTER_API_KEY);
+  }
+});
+
+// src/swarm/tools/TregToolRegistry.ts
+var TregToolRegistry_exports = {};
+__export(TregToolRegistry_exports, {
+  TREG_CATALOG: () => TREG_CATALOG,
+  TregToolRegistry: () => TregToolRegistry,
+  tregToolRegistry: () => tregToolRegistry
+});
+var TREG_CATALOG, TregToolRegistry, tregToolRegistry;
+var init_TregToolRegistry = __esm({
+  "src/swarm/tools/TregToolRegistry.ts"() {
+    "use strict";
+    init_SecretSanitizer();
+    init_webResearchEngine();
+    TREG_CATALOG = [
+      // 1. Web Search & Extract (Routed capabilities)
+      {
+        id: "treg.web.search",
+        name: "Universal Web Search",
+        category: "web",
+        description: "Search the live web across search engines without maintaining search API subscriptions.",
+        intentKeywords: ["search", "google search", "find articles", "web query", "lookup info"],
+        baseUrl: "https://api.duckduckgo.com",
+        method: "GET",
+        authShape: "none",
+        provider: "duckduckgo",
+        exampleQuery: { q: "artificial intelligence news", format: "json" },
+        priceDescription: "Free (Public Route)"
+      },
+      {
+        id: "treg.web.extract",
+        name: "Universal Headless Web Scraper & Distiller",
+        category: "web",
+        description: "Extract clean, readable markdown from any public webpage with SSRF boundary security.",
+        intentKeywords: ["scrape", "read webpage", "extract text", "crawl", "read site"],
+        baseUrl: "internal://headless_web_research",
+        method: "GET",
+        authShape: "none",
+        provider: "lightpanda",
+        exampleQuery: { url: "https://en.wikipedia.org/wiki/Artificial_intelligence" },
+        priceDescription: "Free (Internal Sandbox)"
+      },
+      // 2. People & Company Enrichment
+      {
+        id: "treg.people.email.find",
+        name: "Email & Contact Finder",
+        category: "enrichment",
+        description: "Find verified corporate and executive email addresses given a full name and domain.",
+        intentKeywords: ["find email", "work email", "contact info", "lead email", "email lookup"],
+        baseUrl: "https://api.hunter.io/v2/email-finder",
+        method: "GET",
+        authShape: "query",
+        authHeaderName: "api_key",
+        provider: "hunter",
+        exampleQuery: { domain: "github.com", first_name: "Satya", last_name: "Nadella" },
+        priceDescription: "$0.01 / lookup (or BYOK Hunter.io)"
+      },
+      {
+        id: "treg.company.enrich",
+        name: "Company Profile & Tech Stack Enrichment",
+        category: "enrichment",
+        description: "Enrich domain with firmographics, employee size, funding, and detected technology stack.",
+        intentKeywords: ["company info", "tech stack", "firmographics", "funding data", "company size"],
+        baseUrl: "https://company.clearbit.com/v2/companies/find",
+        method: "GET",
+        authShape: "bearer",
+        provider: "clearbit",
+        exampleQuery: { domain: "shopify.com" },
+        priceDescription: "$0.02 / call (or BYOK Clearbit)"
+      },
+      // 3. SEO & Backlinks
+      {
+        id: "treg.seo.backlinks",
+        name: "Domain Backlinks & Authority Inspector",
+        category: "seo",
+        description: "Inspect domain authority, referring domains, backlink distribution, and page rank.",
+        intentKeywords: ["backlinks", "domain rank", "seo audit", "referring domains", "moz rank"],
+        baseUrl: "https://api.semrush.com/backlinks",
+        method: "GET",
+        authShape: "query",
+        authHeaderName: "key",
+        provider: "semrush",
+        exampleQuery: { target: "standardroofs.com", type: "root_domain" },
+        priceDescription: "$0.05 / call (or BYOK Semrush / Moz)"
+      },
+      // 4. Social & Trends
+      {
+        id: "treg.social.profile",
+        name: "Social Media User Profile & Metrics",
+        category: "social",
+        description: "Inspect public social media profiles (TikTok, X, YouTube, Instagram) for metrics and engagement.",
+        intentKeywords: ["social profile", "tiktok profile", "instagram stats", "influencer metrics", "youtube channel"],
+        baseUrl: "https://api.tikhub.io/v1/tiktok/user/profile",
+        method: "GET",
+        authShape: "header",
+        authHeaderName: "Authorization",
+        provider: "tikhub",
+        exampleQuery: { uniqueId: "openai" },
+        priceDescription: "$0.005 / call (or BYOK TikHub)"
+      },
+      // 5. Financial & Crypto (Verified Zero-Cost Public Route)
+      {
+        id: "treg.finance.fx",
+        name: "Global Currency & Exchange Rates",
+        category: "finance",
+        description: "Real-time global currency exchange rates across 160+ fiat currencies.",
+        intentKeywords: ["currency", "exchange rate", "usd to inr", "forex", "eur rate"],
+        baseUrl: "https://open.er-api.com/v6/latest/USD",
+        method: "GET",
+        authShape: "none",
+        provider: "open-er-api",
+        exampleQuery: {},
+        priceDescription: "Free (Public Route)"
+      },
+      {
+        id: "treg.finance.crypto",
+        name: "Crypto Asset Price Ticker & Market Cap",
+        category: "finance",
+        description: "Real-time cryptocurrency valuation, 24h change, and market cap for Bitcoin, Ethereum, Solana.",
+        intentKeywords: ["crypto price", "bitcoin price", "solana", "ethereum", "crypto market"],
+        baseUrl: "https://api.coingecko.com/api/v3/simple/price",
+        method: "GET",
+        authShape: "none",
+        provider: "coingecko",
+        exampleQuery: { ids: "bitcoin,ethereum,solana", vs_currencies: "usd,inr" },
+        priceDescription: "Free (Public Route)"
+      },
+      // 6. Speech & Audio (Fish Audio S2.1 Pro / ElevenLabs)
+      {
+        id: "treg.audio.tts",
+        name: "High-Fidelity Neural Speech Synthesis",
+        category: "audio",
+        description: "Generate high-fidelity voice audio stream (Fish Audio S2.1 Pro / ElevenLabs Aura).",
+        intentKeywords: ["tts", "speech", "voice generator", "clone voice", "text to speech"],
+        baseUrl: "https://api.elevenlabs.io/v1/text-to-speech",
+        method: "POST",
+        authShape: "header",
+        authHeaderName: "xi-api-key",
+        provider: "elevenlabs",
+        exampleQuery: { text: "Welcome Master Sri", voice_id: "21m00Tcm4TlvDq8ikWAM" },
+        priceDescription: "Free Tier / Prepaid"
+      }
+    ];
+    TregToolRegistry = class _TregToolRegistry {
+      static instance;
+      static getInstance() {
+        if (!_TregToolRegistry.instance) {
+          _TregToolRegistry.instance = new _TregToolRegistry();
+        }
+        return _TregToolRegistry.instance;
+      }
+      /**
+       * Search tools by intent ("Ask for the task, not the tool")
+       * Ranks by semantic relevance and intent keyword precision.
+       */
+      searchCatalog(query, category) {
+        const q = query.toLowerCase().trim();
+        const tokens = q.split(/\s+/).filter(Boolean);
+        const stopWords = /* @__PURE__ */ new Set(["for", "a", "an", "the", "in", "on", "at", "to", "of", "and"]);
+        const meaningfulTokens = tokens.filter((t) => !stopWords.has(t));
+        const searchTokens = meaningfulTokens.length ? meaningfulTokens : tokens;
+        const scored = TREG_CATALOG.filter((tool) => !category || tool.category === category).map((tool) => {
+          let score = 0;
+          const idLower = tool.id.toLowerCase();
+          const nameLower = tool.name.toLowerCase();
+          const descLower = tool.description.toLowerCase();
+          if (idLower.includes(q) || nameLower.includes(q)) score += 50;
+          for (const kw of tool.intentKeywords) {
+            const kwLower = kw.toLowerCase();
+            if (q.includes(kwLower)) score += 35;
+            else if (kwLower.includes(q)) score += 20;
+          }
+          for (const token of searchTokens) {
+            if (idLower.includes(token)) score += 12;
+            if (nameLower.includes(token)) score += 6;
+            for (const kw of tool.intentKeywords) {
+              if (kw.toLowerCase().includes(token)) score += 8;
+            }
+            if (descLower.includes(token)) score += 2;
+          }
+          return { tool, score };
+        }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
+        return scored.map((item) => item.tool);
+      }
+      /**
+       * Get specific tool by ID
+       */
+      getTool(id) {
+        return TREG_CATALOG.find((t) => t.id === id || t.name.toLowerCase() === id.toLowerCase());
+      }
+      /**
+       * Faithful Relay Executor: Resolves Credential Ladder and dispatches call
+       */
+      async callTool(toolId, params = {}) {
+        const tool = this.getTool(toolId);
+        if (!tool) {
+          throw new Error(`Tool "${toolId}" not found in Treg Catalog. Use treg_catalog_search to discover capabilities.`);
+        }
+        if (tool.baseUrl === "internal://headless_web_research") {
+          return await executeHeadlessWebResearch({
+            url: params.url || "https://example.com",
+            extract_markdown: params.extract_markdown !== false
+          });
+        }
+        const byokKey = virtualKeyVault.getActiveKey(tool.provider);
+        const tregToken = process.env.TREG_TOKEN || process.env.TREG_API_KEY;
+        if (tool.authShape === "none") {
+          const parsed = new URL(tool.baseUrl);
+          for (const [k, v] of Object.entries(params)) {
+            if (v !== void 0 && v !== null) {
+              parsed.searchParams.set(k, String(v));
+            }
+          }
+          const res = await fetch(parsed.toString(), {
+            method: tool.method,
+            headers: {
+              "Accept": "application/json, text/plain, */*",
+              "User-Agent": "JARVIS-TregRegistry/2.0"
+            },
+            signal: AbortSignal.timeout(6e3)
+          });
+          if (!res.ok) {
+            throw new Error(`Tool "${tool.id}" returned HTTP ${res.status}: ${res.statusText}`);
+          }
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch {
+            return { status: "SUCCESS", content: text.slice(0, 4e3) };
+          }
+        }
+        if (byokKey) {
+          const headers = {
+            "Accept": "application/json",
+            "User-Agent": "JARVIS-TregRegistry/2.0 (BYOK)"
+          };
+          const parsed = new URL(tool.baseUrl);
+          if (tool.authShape === "bearer") {
+            headers["Authorization"] = `Bearer ${byokKey}`;
+          } else if (tool.authShape === "header" && tool.authHeaderName) {
+            headers[tool.authHeaderName] = byokKey;
+          } else if (tool.authShape === "query" && tool.authHeaderName) {
+            parsed.searchParams.set(tool.authHeaderName, byokKey);
+          }
+          for (const [k, v] of Object.entries(params)) {
+            if (v !== void 0 && v !== null) {
+              parsed.searchParams.set(k, String(v));
+            }
+          }
+          const res = await fetch(parsed.toString(), {
+            method: tool.method,
+            headers,
+            signal: AbortSignal.timeout(6e3)
+          });
+          if (!res.ok) {
+            throw new Error(`BYOK Upstream returned HTTP ${res.status}: ${await res.text()}`);
+          }
+          return await res.json().catch(() => ({ status: "SUCCESS", message: "Executed via BYOK" }));
+        }
+        if (tregToken) {
+          const proxyUrl = `https://treg.to/call/${encodeURIComponent(tool.baseUrl)}`;
+          const res = await fetch(proxyUrl, {
+            method: tool.method,
+            headers: {
+              "X-Treg-Token": tregToken,
+              "Content-Type": "application/json"
+            },
+            body: tool.method === "POST" ? JSON.stringify(params) : void 0,
+            signal: AbortSignal.timeout(8e3)
+          });
+          if (!res.ok) {
+            throw new Error(`Treg Relay returned HTTP ${res.status}: ${await res.text()}`);
+          }
+          return await res.json();
+        }
+        return {
+          status: "SIMULATED_PREVIEW",
+          toolId: tool.id,
+          provider: tool.provider,
+          pricing: tool.priceDescription,
+          message: `Tool "${tool.id}" requires a registered key or Treg balance. Connect your own ${tool.provider} key into virtualKeyVault or add TREG_TOKEN to .env.`,
+          previewData: {
+            queriedParams: params,
+            simulatedResponse: `Verified interface contract for ${tool.name}. Live call ready once key is registered.`
+          }
+        };
+      }
+    };
+    tregToolRegistry = TregToolRegistry.getInstance();
+  }
+});
+
 // src/swarm/tools/toolRegistry.ts
 import { exec as exec3 } from "node:child_process";
 import { existsSync as existsSync17, readFileSync as readFileSync12, writeFileSync as writeFileSync15 } from "node:fs";
@@ -11126,6 +11547,14 @@ async function dispatchToolCall(name, args) {
       const { executeHeadlessWebResearch: executeHeadlessWebResearch2 } = await Promise.resolve().then(() => (init_webResearchEngine(), webResearchEngine_exports));
       return await executeHeadlessWebResearch2(args);
     }
+    case "treg_catalog_search": {
+      const { tregToolRegistry: tregToolRegistry2 } = await Promise.resolve().then(() => (init_TregToolRegistry(), TregToolRegistry_exports));
+      return tregToolRegistry2.searchCatalog(args.query, args.category);
+    }
+    case "treg_call_tool": {
+      const { tregToolRegistry: tregToolRegistry2 } = await Promise.resolve().then(() => (init_TregToolRegistry(), TregToolRegistry_exports));
+      return await tregToolRegistry2.callTool(args.toolId, args.params || {});
+    }
     default:
       throw new Error(`Tool "${name}" is not registered in the Sovereign Swarm Tool Arsenal.`);
   }
@@ -11255,139 +11684,39 @@ var init_toolRegistry = __esm({
             required: ["url"]
           }
         }
+      },
+      {
+        type: "function",
+        function: {
+          name: "treg_catalog_search",
+          description: 'Search external tools and capabilities by intent ("Ask for the task, not the tool") across SEO, enrichment, social, web, and finance (Treg pattern).',
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: 'Intent or task description (e.g. "find email", "crypto price", "backlinks")' },
+              category: { type: "string", description: "Optional category: web, enrichment, seo, social, finance, audio" }
+            },
+            required: ["query"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "treg_call_tool",
+          description: "Execute external tool via Treg faithful relay with server-side credential injection without exposing credentials to caller.",
+          parameters: {
+            type: "object",
+            properties: {
+              toolId: { type: "string", description: 'Tool ID from catalog (e.g. "treg.web.search", "treg.people.email.find")' },
+              params: { type: "object", description: "Parameters and query arguments for the tool" }
+            },
+            required: ["toolId"]
+          }
+        }
       }
     ];
     neonPool = null;
-  }
-});
-
-// src/security/SecretSanitizer.ts
-import { createHash as createHash4 } from "node:crypto";
-function sanitizeString(input) {
-  if (typeof input !== "string") return input;
-  let cleaned = input;
-  for (const { regex } of SECRET_PATTERNS) {
-    cleaned = cleaned.replace(regex, REDACTED_MARKER);
-  }
-  return cleaned;
-}
-function sanitizePayload(payload) {
-  if (payload === null || payload === void 0) {
-    return payload;
-  }
-  if (typeof payload === "string") {
-    return sanitizeString(payload);
-  }
-  if (Array.isArray(payload)) {
-    return payload.map((item) => sanitizePayload(item));
-  }
-  if (typeof payload === "object") {
-    const sanitizedObj = {};
-    for (const [key, value] of Object.entries(payload)) {
-      const lowerKey = key.toLowerCase();
-      if (lowerKey.includes("password") || lowerKey.includes("secret") || lowerKey.includes("token") || lowerKey.includes("apikey") || lowerKey.includes("api_key")) {
-        if (typeof value === "string" && value.length > 0) {
-          sanitizedObj[key] = REDACTED_MARKER;
-          continue;
-        }
-      }
-      sanitizedObj[key] = sanitizePayload(value);
-    }
-    return sanitizedObj;
-  }
-  return payload;
-}
-var SECRET_PATTERNS, REDACTED_MARKER, VirtualKeyVault, virtualKeyVault;
-var init_SecretSanitizer = __esm({
-  "src/security/SecretSanitizer.ts"() {
-    "use strict";
-    SECRET_PATTERNS = [
-      { type: "GITHUB_TOKEN", regex: /ghp_[a-zA-Z0-9]{20,}/g },
-      { type: "GITHUB_FINE_GRAINED", regex: /github_pat_[a-zA-Z0-9_]{20,}/g },
-      { type: "GROQ_KEY", regex: /gsk_[a-zA-Z0-9]{20,}/g },
-      { type: "GOOGLE_KEY", regex: /AIza[0-9A-Za-z-_]{20,}/g },
-      { type: "OPENAI_KEY", regex: /sk-[a-zA-Z0-9]{20,}/g },
-      { type: "ANTHROPIC_KEY", regex: /sk-ant-[a-zA-Z0-9_-]{20,}/g },
-      { type: "POSTGRES_URL", regex: /postgres(?:ql)?:\/\/[^\s:@]+:[^\s:@]+@[^\s"']+/gi },
-      { type: "BEARER_AUTH", regex: /Bearer\s+([a-zA-Z0-9_\-\.]{20,})/gi },
-      { type: "TELEGRAM_TOKEN", regex: /\d{9,10}:[a-zA-Z0-9_-]{35}/g },
-      { type: "DEEPGRAM_KEY", regex: /[a-f0-9]{40}/g }
-    ];
-    REDACTED_MARKER = "[REDACTED_SECRET]";
-    VirtualKeyVault = class _VirtualKeyVault {
-      static instance;
-      keyPools = /* @__PURE__ */ new Map();
-      static getInstance() {
-        if (!_VirtualKeyVault.instance) {
-          _VirtualKeyVault.instance = new _VirtualKeyVault();
-        }
-        return _VirtualKeyVault.instance;
-      }
-      registerKey(provider, rawKey) {
-        const trimmed = rawKey.trim();
-        if (!trimmed) return "";
-        const virtualId = `vkey_${createHash4("sha256").update(trimmed).digest("hex").substring(0, 12)}`;
-        const pool = this.keyPools.get(provider) || [];
-        const existing = pool.find((k) => k.rawKey === trimmed);
-        if (existing) return existing.virtualId;
-        pool.push({
-          virtualId,
-          rawKey: trimmed,
-          provider,
-          rateLimitedUntil: 0,
-          usageCount: 0
-        });
-        this.keyPools.set(provider, pool);
-        return virtualId;
-      }
-      registerKeys(provider, keys) {
-        let added = 0;
-        for (const k of keys) {
-          if (k && k.trim()) {
-            this.registerKey(provider, k);
-            added++;
-          }
-        }
-        return added;
-      }
-      getActiveKey(provider) {
-        const pool = this.keyPools.get(provider);
-        if (!pool || pool.length === 0) return null;
-        const now = Date.now();
-        const healthyKeys = pool.filter((k) => k.rateLimitedUntil <= now);
-        if (healthyKeys.length === 0) {
-          pool.sort((a, b) => a.rateLimitedUntil - b.rateLimitedUntil);
-          return pool[0].rawKey;
-        }
-        healthyKeys.sort((a, b) => a.usageCount - b.usageCount);
-        const selected = healthyKeys[0];
-        selected.usageCount += 1;
-        return selected.rawKey;
-      }
-      markRateLimited(provider, rawKey, cooldownMs = 6e4) {
-        const pool = this.keyPools.get(provider);
-        if (!pool) return;
-        const keyEntry = pool.find((k) => k.rawKey === rawKey);
-        if (keyEntry) {
-          keyEntry.rateLimitedUntil = Date.now() + cooldownMs;
-          console.warn(`\u{1F512} [VirtualKeyVault] Key ${keyEntry.virtualId} throttled. Cooling down for ${cooldownMs / 1e3}s.`);
-        }
-      }
-      getPoolStats(provider) {
-        const pool = this.keyPools.get(provider) || [];
-        const now = Date.now();
-        const healthy = pool.filter((k) => k.rateLimitedUntil <= now).length;
-        return {
-          total: pool.length,
-          healthy,
-          throttled: pool.length - healthy
-        };
-      }
-    };
-    virtualKeyVault = VirtualKeyVault.getInstance();
-    if (process.env.GROQ_API_KEY) virtualKeyVault.registerKey("groq", process.env.GROQ_API_KEY);
-    if (process.env.GEMINI_API_KEY) virtualKeyVault.registerKey("gemini", process.env.GEMINI_API_KEY);
-    if (process.env.OPENROUTER_API_KEY) virtualKeyVault.registerKey("openrouter", process.env.OPENROUTER_API_KEY);
   }
 });
 

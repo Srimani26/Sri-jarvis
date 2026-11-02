@@ -64,6 +64,8 @@ export const DEPARTMENT_REGISTRY: Record<SwarmDepartment, DepartmentConfig> = {
     allowedTools: [
       'query_public_service',
       'neon_sql_query',
+      'treg_catalog_search',
+      'treg_call_tool',
       'finish_task'
     ],
     maxPermission: 'SAFE_LOCAL'
@@ -75,6 +77,8 @@ export const DEPARTMENT_REGISTRY: Record<SwarmDepartment, DepartmentConfig> = {
     allowedTools: [
       'headless_web_research',
       'query_public_service',
+      'treg_catalog_search',
+      'treg_call_tool',
       'finish_task'
     ],
     maxPermission: 'SAFE_LOCAL'

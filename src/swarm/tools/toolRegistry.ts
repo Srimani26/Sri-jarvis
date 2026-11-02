@@ -139,6 +139,36 @@ export const SWARM_TOOL_SCHEMAS = [
         required: ['url']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'treg_catalog_search',
+      description: 'Search external tools and capabilities by intent ("Ask for the task, not the tool") across SEO, enrichment, social, web, and finance (Treg pattern).',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Intent or task description (e.g. "find email", "crypto price", "backlinks")' },
+          category: { type: 'string', description: 'Optional category: web, enrichment, seo, social, finance, audio' }
+        },
+        required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'treg_call_tool',
+      description: 'Execute external tool via Treg faithful relay with server-side credential injection without exposing credentials to caller.',
+      parameters: {
+        type: 'object',
+        properties: {
+          toolId: { type: 'string', description: 'Tool ID from catalog (e.g. "treg.web.search", "treg.people.email.find")' },
+          params: { type: 'object', description: 'Parameters and query arguments for the tool' }
+        },
+        required: ['toolId']
+      }
+    }
   }
 ]
 
@@ -366,6 +396,16 @@ export async function dispatchToolCall(name: string, args: Record<string, any>):
     case 'headless_web_research': {
       const { executeHeadlessWebResearch } = await import('./webResearchEngine')
       return await executeHeadlessWebResearch(args as any)
+    }
+
+    case 'treg_catalog_search': {
+      const { tregToolRegistry } = await import('./TregToolRegistry')
+      return tregToolRegistry.searchCatalog(args.query, args.category)
+    }
+
+    case 'treg_call_tool': {
+      const { tregToolRegistry } = await import('./TregToolRegistry')
+      return await tregToolRegistry.callTool(args.toolId, args.params || {})
     }
 
     default:
