@@ -184,3 +184,4 @@ export class ObsidianVaultManager {
 }
 
 export const obsidianVaultManager = ObsidianVaultManager.getInstance()
+
