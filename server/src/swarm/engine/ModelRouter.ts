@@ -11,7 +11,16 @@
 import { virtualKeyVault } from '../../security/SecretSanitizer'
 import { SWARM_TOOL_SCHEMAS } from '../tools/toolRegistry'
 
-export type SwarmSpecialist = 'aegis' | 'raphael' | 'friday'
+export type SwarmSpecialist =
+  | 'jarvis'
+  | 'aegis'
+  | 'raphael'
+  | 'friday'
+  | 'midas'
+  | 'cerebro'
+  | 'vortex'
+  | 'stark_os'
+  | string
 
 export interface ModelCompletionResult {
   content?: string
@@ -39,8 +48,9 @@ export class SwarmModelRouter {
   /**
    * Dispatch prompt across resilient Provider Waterfall:
    * Tier 1: Groq High-Speed (LLaMA 3.3 70B / DeepSeek-R1 Distill)
-   * Tier 2: Free Reverse Proxy Pool & Virtual Key Rotation
-   * Tier 3: Google Gemini 2.5 Flash Free Tier
+   * Tier 2: OpenAI 50-Key Virtual Vault (Rotating Pool with ZeroKey / Unkey pattern)
+   * Tier 3: Free Cloud Reverse Proxy Pool & OpenRouter
+   * Tier 4: Google Gemini 2.5 Flash Free Tier
    * Emergency: Sovereign Deterministic Sandbox
    */
   public async dispatch(
@@ -98,7 +108,57 @@ export class SwarmModelRouter {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // TIER 2: Free Cloud Reverse Proxy Pool & OpenRouter Key Pool
+    // TIER 2: OpenAI 50-Key Virtual Vault (Rotating Pool with ZeroKey / Unkey pattern)
+    // ──────────────────────────────────────────────────────────────────────────
+    const openaiKey = virtualKeyVault.getActiveKey('openai') || process.env.OPENAI_API_KEY
+    if (openaiKey) {
+      try {
+        const model = (specialist === 'jarvis' || specialist === 'raphael') ? 'gpt-4o' : 'gpt-4o-mini'
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            tools: tools && tools.length > 0 ? tools : undefined,
+            tool_choice: tools && tools.length > 0 ? 'auto' : undefined,
+            temperature: 0.2
+          }),
+          signal: AbortSignal.timeout(8000)
+        })
+
+        if (res.status === 429 || res.status === 503) {
+          virtualKeyVault.markRateLimited('openai', openaiKey, 30000)
+          console.warn(`🔄 [ModelRouter] Tier 2 OpenAI key throttled (${res.status}). Rotating to next key in pool...`)
+          failedTiers.push(2)
+        } else if (res.ok) {
+          const json = await res.json() as any
+          const choice = json.choices?.[0]?.message
+          if (choice) {
+            return {
+              content: choice.content,
+              tool_calls: choice.tool_calls,
+              provider: 'openai-virtual-vault',
+              tier: 2,
+              failedTiers
+            }
+          }
+        } else {
+          failedTiers.push(2)
+        }
+      } catch (err: any) {
+        console.warn('🔄 [ModelRouter] Tier 2 OpenAI fetch error:', err?.message || err)
+        failedTiers.push(2)
+      }
+    } else {
+      failedTiers.push(2)
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // TIER 3: Free Cloud Reverse Proxy Pool & OpenRouter Key Pool
     // ──────────────────────────────────────────────────────────────────────────
     const openrouterKey = virtualKeyVault.getActiveKey('openrouter') || process.env.OPENROUTER_API_KEY
     const tier2Candidates = [
@@ -125,7 +185,7 @@ export class SwarmModelRouter {
         })
 
         if (res.status === 429 || res.status === 503) {
-          console.warn(`🔄 [ModelRouter] Tier 2 Proxy returned ${res.status}. Trying next tier...`)
+          console.warn(`🔄 [ModelRouter] Tier 3 Proxy returned ${res.status}. Trying next tier...`)
           continue
         }
 
@@ -137,7 +197,7 @@ export class SwarmModelRouter {
               content: choice.content,
               tool_calls: choice.tool_calls,
               provider: 'free-proxy-pool',
-              tier: 2,
+              tier: 3,
               failedTiers
             }
           }
@@ -146,10 +206,10 @@ export class SwarmModelRouter {
         // Continue down waterfall
       }
     }
-    failedTiers.push(2)
+    failedTiers.push(3)
 
     // ──────────────────────────────────────────────────────────────────────────
-    // TIER 3: Emergency Fallback — Google Gemini 2.5 Flash Free Tier
+    // TIER 4: Emergency Fallback — Google Gemini 2.5 Flash Free Tier
     // ──────────────────────────────────────────────────────────────────────────
     const geminiKey = virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY
     if (geminiKey) {
@@ -204,7 +264,7 @@ export class SwarmModelRouter {
               content: textContent || undefined,
               tool_calls: toolCalls,
               provider: 'google-gemini-free',
-              tier: 3,
+              tier: 4,
               failedTiers
             }
           }
@@ -213,28 +273,28 @@ export class SwarmModelRouter {
             return {
               content: textContent,
               provider: 'google-gemini-free',
-              tier: 3,
+              tier: 4,
               failedTiers
             }
           }
         }
       } catch (geminiErr: any) {
-        console.warn('🔄 [ModelRouter] Tier 3 Gemini fetch note:', geminiErr?.message || geminiErr)
-        failedTiers.push(3)
+        console.warn('🔄 [ModelRouter] Tier 4 Gemini fetch note:', geminiErr?.message || geminiErr)
+        failedTiers.push(4)
       }
     } else {
-      failedTiers.push(3)
+      failedTiers.push(4)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // EMERGENCY TIER: Sovereign Deterministic Step Synthesizer
+    // EMERGENCY TIER 5: Sovereign Deterministic Step Synthesizer
     // ──────────────────────────────────────────────────────────────────────────
     const fallback = this.synthesizeDeterministicFallback(messages)
     return {
       content: fallback.content,
       tool_calls: fallback.tool_calls,
       provider: 'sovereign-deterministic-sandbox',
-      tier: 4,
+      tier: 5,
       failedTiers
     }
   }
@@ -274,6 +334,16 @@ export class SwarmModelRouter {
       }
     }
 
+    if (historyText.includes('weather') || historyText.includes('currency') || historyText.includes('market') || historyText.includes('crypto')) {
+      return {
+        tool_calls: [{
+          id: `call_${Date.now()}_pub`,
+          name: 'query_public_service',
+          arguments: { category: 'currency', endpoint: 'fx_rates' }
+        }]
+      }
+    }
+
     return {
       tool_calls: [{
         id: `call_finish_${Date.now()}`,
@@ -288,3 +358,4 @@ export class SwarmModelRouter {
 }
 
 export const swarmModelRouter = SwarmModelRouter.getInstance()
+

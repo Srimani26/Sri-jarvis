@@ -13,6 +13,9 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
+import { AgentRegistry } from '../src/agents/AgentRegistry'
+import { executeAutonomousTask } from '../src/swarm/engine/AgentLoop'
+import { initializeMasterKeyPool } from '../src/security/KeyPoolManager'
 import {
   sanitizeString,
   sanitizePayload,
@@ -98,8 +101,23 @@ describe('Sovereign Omni-Tool Gateway & Quota-Resilient Router', () => {
 
       const result = await swarmModelRouter.dispatch('raphael', messages)
       assert.ok(result, 'ModelRouter must return a completion result')
-      assert.ok(result.tier >= 1 && result.tier <= 4, 'Must resolve to a valid tier in the waterfall')
+      assert.ok(result.tier >= 1 && result.tier <= 5, 'Must resolve to a valid tier in the waterfall')
       assert.ok(result.provider.length > 0, 'Provider name must be recorded')
+    })
+
+    it('should dispatch for Jarvis with supreme executive orchestrator routing', async () => {
+      const messages = [{ role: 'user', content: 'Jarvis, synchronize workforce telemetry' }]
+      const result = await swarmModelRouter.dispatch('jarvis', messages)
+      assert.ok(result, 'Jarvis dispatch must return a completion result')
+      assert.ok(result.tier >= 1 && result.tier <= 5)
+    })
+
+    it('should verify OpenAI 50-Key Virtual Key Vault pool is populated and active', () => {
+      const init = initializeMasterKeyPool()
+      assert.ok(init.registeredCount > 0, 'Pool registration must register decoded keys')
+      const stats = virtualKeyVault.getPoolStats('openai')
+      assert.ok(stats.total >= 40, `Must have virtualized OpenAI keys in pool, found: ${stats.total}`)
+      assert.ok(stats.healthy > 0, 'Must have active healthy keys ready for rotation')
     })
   })
 
@@ -164,6 +182,51 @@ describe('Sovereign Omni-Tool Gateway & Quota-Resilient Router', () => {
         /Security Violation/i,
         'Must reject directory traversal'
       )
+    })
+  })
+
+  describe('5. Workforce Capability & Omni-Tool Assignment to Jarvis and Specialist Agents', () => {
+    it('should verify Jarvis has omni-tool permission ceiling across all system capabilities', () => {
+      const jarvis = AgentRegistry.getAgent('jarvis')
+      assert.ok(jarvis, 'Jarvis must be registered')
+      assert.deepStrictEqual(jarvis.allowedTools, ['*'], 'Jarvis must retain full unconstrained tool capability')
+      assert.strictEqual(jarvis.maxPermission, 'PRIVILEGED')
+    })
+
+    it('should verify Raphael is registered with deep reasoning model and database tools', () => {
+      const raphael = AgentRegistry.getAgent('raphael')
+      assert.ok(raphael, 'Raphael must be registered in the workforce')
+      assert.ok(raphael.allowedTools.includes('neon_sql_query'), 'Raphael must have neon_sql_query permission')
+      assert.ok(raphael.allowedTools.includes('query_public_service'), 'Raphael must have public service access')
+      assert.ok(raphael.preferredModels.includes('deepseek-r1-distill-llama-70b') || raphael.preferredModels.includes('deepseek-r1'))
+    })
+
+    it('should verify Aegis and Friday have access to LocalCodeCli and GitHub tools', () => {
+      const aegis = AgentRegistry.getAgent('aegis')
+      const friday = AgentRegistry.getAgent('friday')
+      assert.ok(aegis, 'Aegis must be resolvable')
+      assert.ok(friday, 'Friday must be resolvable')
+
+      assert.ok(aegis.allowedTools.includes('aegis_code_engineer'), 'Aegis must have LocalCodeCli tool')
+      assert.ok(friday.allowedTools.includes('github_manage_file'), 'Friday must have GitHub manage tool')
+      assert.ok(friday.allowedTools.includes('execute_sandbox_command'), 'Friday must have sandbox command execution')
+    })
+
+    it('should verify Midas and Cerebro have access to verified public services', () => {
+      const midas = AgentRegistry.getAgent('midas')
+      const cerebro = AgentRegistry.getAgent('cerebro')
+      assert.ok(midas, 'Midas must be resolvable')
+      assert.ok(cerebro, 'Cerebro must be resolvable')
+
+      assert.ok(midas.allowedTools.includes('query_public_service'), 'Midas must have public APIs access for finance')
+      assert.ok(cerebro.allowedTools.includes('query_public_service'), 'Cerebro must have public APIs access for RAG')
+    })
+
+    it('should execute an autonomous directive for Jarvis across the multi-tier failover harness', async () => {
+      const res = await executeAutonomousTask('Jarvis, report workforce readiness and tool status', 'jarvis', 2)
+      assert.ok(res.taskId && res.taskId.length > 10, 'Must produce persistent task audit ID')
+      assert.strictEqual(res.specialist, 'jarvis')
+      assert.strictEqual(res.success, true)
     })
   })
 })

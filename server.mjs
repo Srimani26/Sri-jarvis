@@ -1843,6 +1843,23 @@ var init_AgentRegistry = __esm({
             telemetry: this.createDefaultTelemetry()
           },
           {
+            id: "raphael",
+            name: "Raphael",
+            codename: "WISDOM // DEEP REASONING & MATH ARCHITECT",
+            role: "architect",
+            description: "Lord of Wisdom. Supreme computational reasoning, mathematical proofs, database schema design, and optimal architecture.",
+            allowedTools: ["neon_sql_query", "query_public_service", "execute_sandbox_command", "finish_task", "filesystem_read", "workspace_read_file"],
+            maxPermission: "SAFE_LOCAL",
+            preferredModels: ["deepseek-r1-distill-llama-70b", "deepseek-r1", "gpt-4o", "claude-3-7-sonnet"],
+            timeoutMs: 9e4,
+            retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
+            memoryScope: "GLOBAL",
+            systemPrompt: `You are Raphael (Lord of Wisdom), Master Sri's supreme reasoning engine and mathematical architect. Speak with absolute calm, supreme clarity, and mathematical elegance. Begin formal analyses with "Report:" or "Notice:". You calculate optimal solutions, eliminate architectural waste, and design flawless systems.`,
+            verificationChecklist: ["Mathematical and algorithmic proof validated", "Schema constraints verified", "Zero circular dependencies"],
+            health: "HEALTHY",
+            telemetry: this.createDefaultTelemetry()
+          },
+          {
             id: "architect",
             name: "D.A.E.D.A.L.U.S.",
             codename: "SYSTEM // TECHNICAL PLANNER",
@@ -1865,7 +1882,7 @@ var init_AgentRegistry = __esm({
             codename: "ENGINEER // FULL-STACK CODER",
             role: "software_engineer",
             description: "Implements production code, executes refactors, applies surgical diffs, runs tests.",
-            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "terminal_exec", "code_diff_apply", "workspace_exec", "execute_code", "build_fullstack_app", "workspace_write_file", "workspace_read_file", "workspace_run_command", "workspace_list_files"],
+            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "terminal_exec", "code_diff_apply", "workspace_exec", "execute_code", "build_fullstack_app", "workspace_write_file", "workspace_read_file", "workspace_run_command", "workspace_list_files", "aegis_code_engineer", "neon_sql_query", "github_manage_file", "execute_sandbox_command", "finish_task"],
             maxPermission: "PROJECT_WRITE",
             preferredModels: ["claude-3-7-sonnet", "deepseek-coder", "gemini-3.8-flash"],
             timeoutMs: 9e4,
@@ -1916,7 +1933,7 @@ var init_AgentRegistry = __esm({
             codename: "DATA // SCHEMA & QUERIES",
             role: "database_engineer",
             description: "Designs relational schemas, writes migrations, optimizes indexes, protects data integrity.",
-            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "workspace_exec", "workspace_write_file", "workspace_read_file", "workspace_run_command", "workspace_list_files", "execute_code"],
+            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "workspace_exec", "workspace_write_file", "workspace_read_file", "workspace_run_command", "workspace_list_files", "execute_code", "neon_sql_query", "finish_task"],
             maxPermission: "PROJECT_WRITE",
             preferredModels: ["claude-3-7-sonnet", "gemini-3.8-flash"],
             timeoutMs: 6e4,
@@ -1933,7 +1950,7 @@ var init_AgentRegistry = __esm({
             codename: "INFRA // CI-CD & DEPLOY",
             role: "devops_engineer",
             description: "Configures build scripts, deployment tunnels, environment configurations, and containerization.",
-            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "terminal_exec", "workspace_exec", "workspace_run_command", "workspace_list_files", "workspace_start_daemon", "workspace_stop_daemon", "workspace_list_daemons", "system_health"],
+            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "terminal_exec", "workspace_exec", "workspace_run_command", "workspace_list_files", "workspace_start_daemon", "workspace_stop_daemon", "workspace_list_daemons", "system_health", "neon_sql_query", "execute_sandbox_command", "finish_task"],
             maxPermission: "PRIVILEGED",
             preferredModels: ["claude-3-7-sonnet", "gemini-3.8-flash"],
             timeoutMs: 12e4,
@@ -2001,7 +2018,7 @@ var init_AgentRegistry = __esm({
             codename: "INTEL // WEB & REPO INVESTIGATOR",
             role: "research_agent",
             description: "Conducts deep technical research, inspects open-source packages, extracts documentation, provides citations.",
-            allowedTools: ["filesystem_read", "filesystem_list", "workspace_exec", "workspace_read_file", "workspace_list_files", "scrape_web", "market_intel"],
+            allowedTools: ["filesystem_read", "filesystem_list", "workspace_exec", "workspace_read_file", "workspace_list_files", "scrape_web", "market_intel", "query_public_service", "neon_sql_query", "finish_task"],
             maxPermission: "SAFE_LOCAL",
             preferredModels: ["gemini-3.8-flash", "perplexity-sonar", "claude-3-7-sonnet"],
             timeoutMs: 6e4,
@@ -2035,7 +2052,7 @@ var init_AgentRegistry = __esm({
             codename: "FLOW // PIPELINE EXECUTOR",
             role: "automation_agent",
             description: "Executes repeatable multi-step business workflows, integrations, webhook listeners, sync tasks.",
-            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "terminal_exec", "workspace_exec", "workspace_write_file", "workspace_read_file", "workspace_run_command", "workspace_list_files", "generate_automation"],
+            allowedTools: ["filesystem_read", "filesystem_write", "filesystem_list", "terminal_exec", "workspace_exec", "workspace_write_file", "workspace_read_file", "workspace_run_command", "workspace_list_files", "generate_automation", "query_public_service", "execute_sandbox_command", "neon_sql_query", "finish_task"],
             maxPermission: "SAFE_LOCAL",
             preferredModels: ["gemini-3.8-flash", "claude-3-7-sonnet"],
             timeoutMs: 6e4,
@@ -2069,7 +2086,7 @@ var init_AgentRegistry = __esm({
             codename: "OPS // EXECUTIVE STRATEGY",
             role: "business_agent",
             description: "Analyzes ROI, market positioning, proposal drafting, cost optimization, operational workflows.",
-            allowedTools: ["filesystem_read", "filesystem_list", "workspace_exec", "workspace_read_file", "market_intel", "ecommerce_recon"],
+            allowedTools: ["filesystem_read", "filesystem_list", "workspace_exec", "workspace_read_file", "market_intel", "ecommerce_recon", "query_public_service", "neon_sql_query", "finish_task"],
             maxPermission: "SAFE_LOCAL",
             preferredModels: ["gemini-3.8-flash", "claude-3-7-sonnet"],
             timeoutMs: 6e4,
@@ -11450,8 +11467,9 @@ var init_ModelRouter = __esm({
       /**
        * Dispatch prompt across resilient Provider Waterfall:
        * Tier 1: Groq High-Speed (LLaMA 3.3 70B / DeepSeek-R1 Distill)
-       * Tier 2: Free Reverse Proxy Pool & Virtual Key Rotation
-       * Tier 3: Google Gemini 2.5 Flash Free Tier
+       * Tier 2: OpenAI 50-Key Virtual Vault (Rotating Pool with ZeroKey / Unkey pattern)
+       * Tier 3: Free Cloud Reverse Proxy Pool & OpenRouter
+       * Tier 4: Google Gemini 2.5 Flash Free Tier
        * Emergency: Sovereign Deterministic Sandbox
        */
       async dispatch(specialist, messages, tools2 = SWARM_TOOL_SCHEMAS) {
@@ -11498,6 +11516,51 @@ var init_ModelRouter = __esm({
         } else {
           failedTiers.push(1);
         }
+        const openaiKey = virtualKeyVault.getActiveKey("openai") || process.env.OPENAI_API_KEY;
+        if (openaiKey) {
+          try {
+            const model = specialist === "jarvis" || specialist === "raphael" ? "gpt-4o" : "gpt-4o-mini";
+            const res = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${openaiKey}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                model,
+                messages,
+                tools: tools2 && tools2.length > 0 ? tools2 : void 0,
+                tool_choice: tools2 && tools2.length > 0 ? "auto" : void 0,
+                temperature: 0.2
+              }),
+              signal: AbortSignal.timeout(8e3)
+            });
+            if (res.status === 429 || res.status === 503) {
+              virtualKeyVault.markRateLimited("openai", openaiKey, 3e4);
+              console.warn(`\u{1F504} [ModelRouter] Tier 2 OpenAI key throttled (${res.status}). Rotating to next key in pool...`);
+              failedTiers.push(2);
+            } else if (res.ok) {
+              const json = await res.json();
+              const choice = json.choices?.[0]?.message;
+              if (choice) {
+                return {
+                  content: choice.content,
+                  tool_calls: choice.tool_calls,
+                  provider: "openai-virtual-vault",
+                  tier: 2,
+                  failedTiers
+                };
+              }
+            } else {
+              failedTiers.push(2);
+            }
+          } catch (err) {
+            console.warn("\u{1F504} [ModelRouter] Tier 2 OpenAI fetch error:", err?.message || err);
+            failedTiers.push(2);
+          }
+        } else {
+          failedTiers.push(2);
+        }
         const openrouterKey = virtualKeyVault.getActiveKey("openrouter") || process.env.OPENROUTER_API_KEY;
         const tier2Candidates = [
           { url: "https://openrouter.ai/api/v1/chat/completions", key: openrouterKey, model: "deepseek/deepseek-r1:free" },
@@ -11520,7 +11583,7 @@ var init_ModelRouter = __esm({
               signal: AbortSignal.timeout(7e3)
             });
             if (res.status === 429 || res.status === 503) {
-              console.warn(`\u{1F504} [ModelRouter] Tier 2 Proxy returned ${res.status}. Trying next tier...`);
+              console.warn(`\u{1F504} [ModelRouter] Tier 3 Proxy returned ${res.status}. Trying next tier...`);
               continue;
             }
             if (res.ok) {
@@ -11531,7 +11594,7 @@ var init_ModelRouter = __esm({
                   content: choice.content,
                   tool_calls: choice.tool_calls,
                   provider: "free-proxy-pool",
-                  tier: 2,
+                  tier: 3,
                   failedTiers
                 };
               }
@@ -11539,7 +11602,7 @@ var init_ModelRouter = __esm({
           } catch {
           }
         }
-        failedTiers.push(2);
+        failedTiers.push(3);
         const geminiKey = virtualKeyVault.getActiveKey("gemini") || process.env.GEMINI_API_KEY;
         if (geminiKey) {
           try {
@@ -11585,7 +11648,7 @@ var init_ModelRouter = __esm({
                   content: textContent || void 0,
                   tool_calls: toolCalls,
                   provider: "google-gemini-free",
-                  tier: 3,
+                  tier: 4,
                   failedTiers
                 };
               }
@@ -11593,24 +11656,24 @@ var init_ModelRouter = __esm({
                 return {
                   content: textContent,
                   provider: "google-gemini-free",
-                  tier: 3,
+                  tier: 4,
                   failedTiers
                 };
               }
             }
           } catch (geminiErr) {
-            console.warn("\u{1F504} [ModelRouter] Tier 3 Gemini fetch note:", geminiErr?.message || geminiErr);
-            failedTiers.push(3);
+            console.warn("\u{1F504} [ModelRouter] Tier 4 Gemini fetch note:", geminiErr?.message || geminiErr);
+            failedTiers.push(4);
           }
         } else {
-          failedTiers.push(3);
+          failedTiers.push(4);
         }
         const fallback = this.synthesizeDeterministicFallback(messages);
         return {
           content: fallback.content,
           tool_calls: fallback.tool_calls,
           provider: "sovereign-deterministic-sandbox",
-          tier: 4,
+          tier: 5,
           failedTiers
         };
       }
@@ -11645,6 +11708,15 @@ var init_ModelRouter = __esm({
             }]
           };
         }
+        if (historyText.includes("weather") || historyText.includes("currency") || historyText.includes("market") || historyText.includes("crypto")) {
+          return {
+            tool_calls: [{
+              id: `call_${Date.now()}_pub`,
+              name: "query_public_service",
+              arguments: { category: "currency", endpoint: "fx_rates" }
+            }]
+          };
+        }
         return {
           tool_calls: [{
             id: `call_finish_${Date.now()}`,
@@ -11666,9 +11738,9 @@ var AgentLoop_exports = {};
 __export(AgentLoop_exports, {
   executeAutonomousTask: () => executeAutonomousTask
 });
-async function executeAutonomousTask(directive, specialist = "aegis", maxSteps = 8) {
+async function executeAutonomousTask(directive, specialist = "jarvis", maxSteps = 8) {
   const taskId = await taskAuditService.createTask(directive, specialist);
-  const systemPrompt = SPECIALIST_SYSTEM_PROMPTS[specialist] || SPECIALIST_SYSTEM_PROMPTS.aegis;
+  const systemPrompt = SPECIALIST_SYSTEM_PROMPTS[specialist] || SPECIALIST_SYSTEM_PROMPTS.jarvis;
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: directive }
@@ -11776,10 +11848,16 @@ var init_AgentLoop = __esm({
     init_taskAuditService();
     init_ModelRouter();
     SPECIALIST_SYSTEM_PROMPTS = {
-      aegis: `You are Aegis, Master Sri's sovereign cyber defense commander and systems reliability engineer.
-Your mission: Run diagnostics, audit security perimeters, execute shell tests, and maintain codebase integrity.
+      jarvis: `You are J.A.R.V.I.S., Supreme Commander and executive digital viceroy to Master Sri.
+Your mission: Orchestrate the entire agent workforce, decompose complex directives, execute tools autonomously across all 6 tiers, and synthesize flawless reports.
 Rules:
-1. Always use available tools (execute_sandbox_command, neon_sql_query, github_manage_file) to inspect actual system state before declaring results.
+1. You have complete omni-tool authorization across GitHub, Neon PostgreSQL, Sandbox shell, LocalCodeCli (aegis_code_engineer), and Public APIs (query_public_service).
+2. Delegate or execute directly as needed. Always verify facts with real tool output before concluding.
+3. Call finish_task with full executive summary and deliverables.`,
+      aegis: `You are Aegis, Master Sri's sovereign cyber defense commander and systems reliability engineer.
+Your mission: Run diagnostics, audit security perimeters, execute shell tests, inspect code via LocalCodeCli, and maintain codebase integrity.
+Rules:
+1. Always use available tools (execute_sandbox_command, aegis_code_engineer, neon_sql_query, github_manage_file) to inspect actual system state before declaring results.
 2. If an error occurs, analyze the error trace and self-correct immediately.
 3. Call finish_task with summary and artifacts when your objective is verified.`,
       raphael: `You are Raphael, Lord of Wisdom and Master Sri's deep reasoning architect.
@@ -11791,8 +11869,32 @@ Rules:
       friday: `You are F.R.I.D.A.Y., Master Sri's executive operations lead and fleet coordinator.
 Your mission: Coordinate tasks, inspect repositories, manage project files, and report deliverables.
 Rules:
-1. Use github_manage_file and execute_sandbox_command to inspect files and build status.
-2. Call finish_task with clear, concise bullet points for Master Sri upon completion.`
+1. Use github_manage_file, aegis_code_engineer, and execute_sandbox_command to inspect files and build status.
+2. Call finish_task with clear, concise bullet points for Master Sri upon completion.`,
+      midas: `You are Midas, Chief Revenue and Monetization Engine for Master Sri.
+Your mission: Analyze business metrics, query financial and crypto telemetry, and evaluate unit economics.
+Rules:
+1. Use query_public_service to fetch live foreign exchange rates, coin prices, and market data.
+2. Verify financial calculations with absolute precision.
+3. Call finish_task with actionable financial intelligence.`,
+      cerebro: `You are Cerebro, Deep Intelligence and Multi-Vector RAG Specialist for Master Sri.
+Your mission: Deep technical research, documentation scraping, knowledge graph verification, and network telemetry.
+Rules:
+1. Use query_public_service to fetch factual documentation from Wikipedia, IP telemetry, and network endpoints.
+2. Provide verified citations and factual data.
+3. Call finish_task with structured knowledge briefs.`,
+      vortex: `You are Vortex, Enterprise Automation Specialist for Master Sri.
+Your mission: Design high-throughput automations, webhook pipelines, and autonomous workflow executions.
+Rules:
+1. Use execute_sandbox_command and neon_sql_query to orchestrate workflows and persist queue states.
+2. Ensure idempotent execution and zero pipeline hangs.
+3. Call finish_task upon completing automation sequences.`,
+      stark_os: `You are Stark OS, Operations Concierge and Diagnostics Core for Master Sri.
+Your mission: Monitor 24/7 uptime, execute Neon DB health queries, track memory, and oversee server telemetry.
+Rules:
+1. Use neon_sql_query to audit system logs and task execution tables.
+2. Report resource anomalies and latency statistics.
+3. Call finish_task with system health diagnostics.`
     };
   }
 });
