@@ -343,6 +343,46 @@ export class VoiceGatewayService {
       return
     }
 
+    // Actionable Autonomous Swarm Tool Directive Check
+    const lowerTranscript = transcript.toLowerCase()
+    const isActionableSwarmDirective = (
+      lowerTranscript.includes('run test') ||
+      lowerTranscript.includes('fix error') ||
+      lowerTranscript.includes('fix bug') ||
+      lowerTranscript.includes('audit database') ||
+      lowerTranscript.includes('check database') ||
+      lowerTranscript.includes('query database') ||
+      lowerTranscript.includes('sql') ||
+      lowerTranscript.includes('manage file') ||
+      lowerTranscript.includes('commit file') ||
+      lowerTranscript.includes('execute command')
+    )
+
+    if (isActionableSwarmDirective) {
+      session.ws.send(JSON.stringify({
+        type: 'SWARM_TASK_START',
+        agent: session.activeAgent,
+        directive: transcript
+      }))
+
+      try {
+        const { executeAutonomousTask } = await import('../swarm/engine/AgentLoop')
+        const specialist = (session.activeAgent === 'jarvis' ? 'aegis' : session.activeAgent) as 'aegis' | 'raphael' | 'friday'
+        const swarmResult = await executeAutonomousTask(transcript, specialist, 6)
+
+        session.ws.send(JSON.stringify({
+          type: 'SWARM_TASK_COMPLETE',
+          agent: session.activeAgent,
+          task: swarmResult
+        }))
+
+        await this.streamTTSResponse(session, swarmResult.finalResponse)
+        return
+      } catch (err: any) {
+        console.warn('[VoiceGateway] Autonomous swarm task execution fallback:', err?.message || err)
+      }
+    }
+
     // Standard Query: Route to active specialist's LLM engine
     const agentConfig = SPECIALIST_PERSONAS[session.activeAgent]
     const answer = await this.generateAgentResponse(session.activeAgent, transcript, agentConfig.prompt)

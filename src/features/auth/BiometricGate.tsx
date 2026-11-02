@@ -259,3 +259,4 @@ export const BiometricGate: React.FC<BiometricGateProps> = ({
 }
 
 export default BiometricGate
+

@@ -3578,6 +3578,26 @@ app.get('/swarm/status/:taskId', requireAuth, async (c) => {
   return c.json({ ok: true, data: swarm })
 })
 
+// POST /api/swarm/execute — Autonomous Swarm Tool Execution Engine (Neon DB / Git / Sandbox)
+app.post('/swarm/execute', async (c) => {
+  try {
+    const { executeAutonomousTask } = await import('./src/swarm/engine/AgentLoop');
+    const body = await c.req.json();
+    const directive = String(body?.directive || '').trim();
+    const specialist = (body?.specialist || 'aegis') as 'aegis' | 'raphael' | 'friday';
+    const maxSteps = Number(body?.maxSteps) || 8;
+
+    if (!directive) {
+      return c.json({ ok: false, error: 'directive string is required' }, 400);
+    }
+
+    const result = await executeAutonomousTask(directive, specialist, maxSteps);
+    return c.json({ ok: true, task: result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Swarm tool execution failed' }, 500);
+  }
+})
+
 // ============================================================================
 // HIGH-FIDELITY NEURAL VOICE ENGINE (DEEPGRAM NOVA-2 STT & ELEVENLABS TTS)
 // Distinct Male & Female voices for all 20 agents with zero stuttering
