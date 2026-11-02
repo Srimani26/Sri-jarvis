@@ -21,6 +21,8 @@ import {
 
 import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
 import { telegramNotifier } from './src/services/telegramNotifier'
+import { pipelineManager } from './src/swarm/engine/PipelineManager'
+import { appBuilderEngine } from './src/swarm/tools/appBuilderEngine'
 
 import { stream, streamSSE } from 'hono/streaming'
 import { TaskStore } from './src/kernel/TaskStore'
@@ -2822,6 +2824,100 @@ app.post('/telegram/webhook', async (c) => {
 
 app.get('/telegram/webhook', (c) => {
   return c.json({ ok: true, message: 'J.A.R.V.I.S. Telegram Webhook endpoint online.' })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTONOMOUS PIPELINE & LIVE PREVIEW ENGINE (Mark V Swarm HUD)
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/pipelines — List all autonomous DAG pipelines
+app.get('/pipelines', (c) => {
+  const pipelines = pipelineManager.listPipelines()
+  return c.json({ ok: true, pipelines })
+})
+
+// POST /api/pipelines — Decompose high-level goal into autonomous pipeline
+app.post('/pipelines', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { goal, title, autoExecute } = body
+    if (!goal) return c.json({ ok: false, error: 'goal parameter is required' }, 400)
+
+    const pipeline = pipelineManager.createPipeline(goal, title)
+
+    if (autoExecute) {
+      pipelineManager.executePipeline(pipeline.id).catch(() => {})
+    }
+
+    return c.json({ ok: true, pipeline })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500)
+  }
+})
+
+// GET /api/pipelines/:id — Get details of a specific pipeline
+app.get('/pipelines/:id', (c) => {
+  const id = c.req.param('id')
+  const pipeline = pipelineManager.getPipeline(id)
+  if (!pipeline) return c.json({ ok: false, error: 'Pipeline not found' }, 404)
+  return c.json({ ok: true, pipeline })
+})
+
+// POST /api/pipelines/:id/execute — Execute all stages of a pipeline
+app.post('/pipelines/:id/execute', async (c) => {
+  const id = c.req.param('id')
+  try {
+    const pipeline = await pipelineManager.executePipeline(id)
+    return c.json({ ok: true, pipeline })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500)
+  }
+})
+
+// GET /api/preview/:slug — Live Web Preview endpoint
+app.get('/preview/:slug', (c) => {
+  const slug = c.req.param('slug')
+  const file = appBuilderEngine.getBuildFile(slug, 'index.html')
+  if (!file) {
+    return c.html(`<h1>404 Not Found</h1><p>Sandbox preview for [${slug}] has not been scaffolded yet.</p>`, 404)
+  }
+  return c.body(file.content as any, 200, { 'Content-Type': file.contentType })
+})
+
+app.get('/preview/:slug/:file', (c) => {
+  const slug = c.req.param('slug')
+  const fileName = c.req.param('file')
+  const file = appBuilderEngine.getBuildFile(slug, fileName)
+  if (!file) {
+    return c.text('Not found', 404)
+  }
+  return c.body(file.content as any, 200, { 'Content-Type': file.contentType })
+})
+
+// GET /api/artifacts/download — Download generated office documents
+app.get('/artifacts/download', (c) => {
+  const fileParam = c.req.query('file')
+  if (!fileParam) return c.text('Missing file parameter', 400)
+
+  const { existsSync, readFileSync } = require('node:fs')
+  const { join } = require('node:path')
+  const safeName = fileParam.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const filePath = join(process.cwd(), 'artifacts', 'documents', safeName)
+
+  if (!existsSync(filePath)) {
+    return c.text('File not found', 404)
+  }
+
+  const content = readFileSync(filePath)
+  let contentType = 'application/octet-stream'
+  if (safeName.endsWith('.pdf')) contentType = 'application/pdf'
+  else if (safeName.endsWith('.xlsx')) contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  else if (safeName.endsWith('.docx')) contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+  return c.body(content, 200, {
+    'Content-Type': contentType,
+    'Content-Disposition': `attachment; filename="${safeName}"`
+  })
 })
 
 // GET /api/health/providers — Live provider availability, circuit breaker status, and models

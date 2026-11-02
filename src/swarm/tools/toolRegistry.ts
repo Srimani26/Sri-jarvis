@@ -169,6 +169,54 @@ export const SWARM_TOOL_SCHEMAS = [
         required: ['toolId']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'google_workspace_action',
+      description: 'Interact with Google Workspace MCP tools (Gmail drafts/emails, Google Calendar events, Google Drive folders).',
+      parameters: {
+        type: 'object',
+        properties: {
+          service: { type: 'string', enum: ['gmail', 'calendar', 'drive'], description: 'Target Google Workspace service' },
+          action: { type: 'string', enum: ['draft_email', 'send_email', 'schedule_meeting', 'create_folder'], description: 'Action to perform' },
+          payload: { type: 'object', description: 'Action parameters and body payload' }
+        },
+        required: ['service', 'action', 'payload']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_office_document',
+      description: 'Generate styled executive office documents (PDF reports, Excel workbooks, Word docs) and return download links.',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileType: { type: 'string', enum: ['pdf', 'excel', 'docx'], description: 'Document format to generate' },
+          fileName: { type: 'string', description: 'Output document filename' },
+          contentStructure: { type: 'object', description: 'Document title, sections, headers, and sheet data' }
+        },
+        required: ['fileType', 'fileName', 'contentStructure']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'aegis_scaffold_and_deploy_web',
+      description: 'Aegis autonomous web builder: scaffolds responsive React/HTML/Tailwind applications and mounts live browser preview.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectSlug: { type: 'string', description: 'Unique slug for project workspace (e.g. "client-portfolio")' },
+          appType: { type: 'string', enum: ['react_spa', 'landing_page', 'fullstack'], description: 'Architecture type' },
+          specification: { type: 'object', description: 'Components, features, title, styling and theme specifications' }
+        },
+        required: ['projectSlug', 'specification']
+      }
+    }
   }
 ]
 
@@ -406,6 +454,21 @@ export async function dispatchToolCall(name: string, args: Record<string, any>):
     case 'treg_call_tool': {
       const { tregToolRegistry } = await import('./TregToolRegistry')
       return await tregToolRegistry.callTool(args.toolId, args.params || {})
+    }
+
+    case 'google_workspace_action': {
+      const { executeGoogleWorkspaceAction } = await import('./officeMcpTools')
+      return await executeGoogleWorkspaceAction(args as any)
+    }
+
+    case 'generate_office_document': {
+      const { executeGenerateOfficeDocument } = await import('./officeMcpTools')
+      return await executeGenerateOfficeDocument(args as any)
+    }
+
+    case 'aegis_scaffold_and_deploy_web': {
+      const { appBuilderEngine } = await import('./appBuilderEngine')
+      return await appBuilderEngine.scaffoldAndDeployWeb(args as any)
     }
 
     default:

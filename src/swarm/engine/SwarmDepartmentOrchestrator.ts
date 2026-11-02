@@ -40,6 +40,7 @@ export const DEPARTMENT_REGISTRY: Record<SwarmDepartment, DepartmentConfig> = {
     description: 'Autonomous AST refactoring, unit test execution, and Git repository management (T3Code pattern).',
     allowedTools: [
       'aegis_code_engineer',
+      'aegis_scaffold_and_deploy_web',
       'github_manage_file',
       'execute_sandbox_command',
       'finish_task'

@@ -73,6 +73,18 @@ app.get('/health/:sub', async (c) => {
 // Custom API routes (always mounted under /api)
 app.route('/api', customRoutes)
 
+// Top-level /preview route forwarding to sandbox builder
+app.get('/preview/:slug', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/preview/' + c.req.param('slug')
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+app.get('/preview/:slug/:file', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/preview/' + c.req.param('slug') + '/' + c.req.param('file')
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+
 // Installed-integration tools proxy
 const tools = createToolsHandlers({})
 app.post('/api/tools/execute', (c) => tools.execute(c.req.raw))
