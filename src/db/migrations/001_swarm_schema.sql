@@ -24,3 +24,4 @@ CREATE TABLE IF NOT EXISTS swarm_tool_executions (
 
 CREATE INDEX IF NOT EXISTS idx_swarm_tasks_status ON swarm_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_swarm_tool_executions_task ON swarm_tool_executions(task_id);
+
