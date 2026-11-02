@@ -320,7 +320,7 @@ async function callSpecialistLLM(specialist: SwarmSpecialist, messages: any[]): 
   // 2. Try Google Gemini with native functionDeclarations
   if (geminiKey) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`
       const functionDeclarations = SWARM_TOOL_SCHEMAS.map(s => s.function)
 
       const contents = messages

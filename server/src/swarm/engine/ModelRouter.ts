@@ -209,12 +209,12 @@ export class SwarmModelRouter {
     failedTiers.push(3)
 
     // ──────────────────────────────────────────────────────────────────────────
-    // TIER 4: Emergency Fallback — Google Gemini 2.5 Flash Free Tier
+    // TIER 4: Emergency Fallback — Google Gemini Flash Free Tier
     // ──────────────────────────────────────────────────────────────────────────
     const geminiKey = virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY
     if (geminiKey) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`
         const functionDeclarations = tools ? tools.map(s => s.function || s) : []
 
         const contents = messages

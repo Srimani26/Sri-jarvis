@@ -12065,7 +12065,7 @@ var init_ModelRouter = __esm({
         const geminiKey = virtualKeyVault.getActiveKey("gemini") || process.env.GEMINI_API_KEY;
         if (geminiKey) {
           try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`;
             const functionDeclarations = tools2 ? tools2.map((s) => s.function || s) : [];
             const contents = messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({
               role: m.role === "assistant" ? "model" : "user",
@@ -13195,7 +13195,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
         }
         if (geminiKey) {
           try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`;
             const res = await fetch(url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
