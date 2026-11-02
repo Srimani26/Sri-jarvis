@@ -1,84 +1,110 @@
-# J.A.R.V.I.S. MARK-V
-### Autonomous AI Operating System — Cloud & Distributed PC Worker Architecture
+# J.A.R.V.I.S. MARK-V: Autonomous AI Operating System
+### Sovereign Multi-Agent Swarm, 24/7 Autonomous Daemon & Distributed PC Worker Architecture
 
-J.A.R.V.I.S. Mark-V is an autonomous personal AI operating system engineered around real deterministic execution, distributed worker compute, multi-provider resource routing, and continuous self-healing.
+[![Build & Tests](https://img.shields.io/badge/tests-109%2B%20passed-brightgreen.svg)](tests/)
+[![Architecture](https://img.shields.io/badge/architecture-Sovereign%20Multi--Agent%20Swarm-blue.svg)](server.tsx)
+[![Live Server](https://img.shields.io/badge/production-operational-success.svg)](https://sri-jarvis.onrender.com/api/health)
+[![License](https://img.shields.io/badge/license-Apache--2.0-lightgrey.svg)](LICENSE)
 
-Unlike prompt wrappers or mock agent dashboards, every module in J.A.R.V.I.S. executes factual operations: persistent state machines, surgical diff patching, sandbox-checked bash execution, verified RAG retrieval, real-time voice with VAD, and distributed worker execution across cloud and workstation hardware.
+J.A.R.V.I.S. Mark-V is a production-grade, 24/7 autonomous operating system engineered around real deterministic multi-agent execution, persistent task DAG pipelines, distributed worker compute, multi-tier quota-resilient AI routing, and sovereign local memory synchronization.
+
+Unlike basic conversational prompt wrappers, every module in J.A.R.V.I.S. executes factual, sandboxed operations: persistent DAG state machines, surgical AST diff patching, live shell/terminal execution, verified RAG retrieval, real-time duplex neural voice with VAD, and headless scheduled routines that run continuously without human intervention.
 
 ---
 
 ## 🏛️ System Architecture
 
 ```
-                                  USER (Voice / Web / API)
-                                            │
-                                            ▼
-                          ┌───────────────────────────────────┐
-                          │    J.A.R.V.I.S. CLOUD RUNTIME     │
-                          │   (sri-jarvis.onrender.com: 24/7) │
-                          └─────────────────┬─────────────────┘
-                                            │
-               ┌────────────────────────────┼────────────────────────────┐
-               ▼                            ▼                            ▼
-      [MissionOrchestrator]         [ResourceRegistry]           [AutonomousScheduler]
-               │                            │                            │
-               ▼                            ▼                            ▼
-      [ExecutionKernel]             [ModelRouter V2]            [CrashRecovery]
-               │                            │
-               ├─ TaskStore (SQLite)        ├─ Free-First / Local-First
-               ├─ EventStream (SSE)         ├─ Quota & Circuit Breakers
-               └─ AgentRuntime              └─ ProviderLearner
-                       │
-        ┌──────────────┴──────────────┐
-        ▼                             ▼
-   [20 Specialist Agents]      [ToolRegistry + MCP]
-        │                             │
-        └──────────────┬──────────────┘
-                       │ WebSocket / HTTP Protocol
-                       ▼
-        ┌─────────────────────────────────────────────────────────────┐
-        │                 DISTRIBUTED PC WORKER                       │
-        │                  (Sri's Workstation)                        │
-        ├─────────────────────────────┬───────────────────────────────┤
-        │  • Local Ollama (Llama 3)   │  • Scoped Workspace Files     │
-        │  • Playwright Chromium      │  • Whisper Local STT          │
-        │  • Capability Security Gating│ • Piper Neural TTS           │
-        └─────────────────────────────┴───────────────────────────────┘
+                             MASTER SRI (Voice / Web / Telegram / Open WebUI)
+                                                    │
+                                                    ▼
+                     ┌─────────────────────────────────────────────────────────────┐
+                     │            J.A.R.V.I.S. SOVEREIGN CLOUD RUNTIME             │
+                     │          (https://sri-jarvis.onrender.com — 24/7 Live)      │
+                     └──────────────────────────────┬──────────────────────────────┘
+                                                    │
+     ┌──────────────────────┬───────────────────────┼───────────────────────┬──────────────────────┐
+     ▼                      ▼                       ▼                       ▼                      ▼
+[Autonomous Daemon]    [DAG Pipeline]      [Virtual Key Vault]     [Obsidian Vault]       [Omni-Tool Gateway]
+ (24x7 Cron Engine)   (Multi-Agent DAG)    (429 Key Rotation)     (Markdown Memory)      (Treg / MCP Tools)
+     │                      │                       │                       │                      │
+     ▼                      ▼                       ▼                       ▼                      ▼
+ Nightly Scans        Jarvis: Strategist      Tier 0: Ollama Local     vault/Pipelines/       Web Research
+ Morning Briefs       Aegis: Cyber/Dev        Tier 1: Groq LLaMA 3.3   vault/DailyBriefs/     Docx / XLSX / PDF
+ System Heartbeats    Raphael: Architecture   Tier 2: OpenRouter Free  vault/Specialists/     GitHub Automation
+ Telegram Inbound     Friday: Coordinator     Tier 3: Gemini Flash     vault/Memory/          Terminal Sandboxing
+     │                      │                       │                       │                      │
+     └──────────────────────┴───────────────────────┼───────────────────────┴──────────────────────┘
+                                                    │ Duplex WebSocket & SSE Protocol
+                                                    ▼
+                     ┌─────────────────────────────────────────────────────────────┐
+                     │                 DISTRIBUTED WORKSTATION WORKER              │
+                     │                      (Local PC Runtime)                     │
+                     ├──────────────────────────────┬──────────────────────────────┤
+                     │ • Ollama (Qwen 3 & DeepSeek) │ • Scoped Workspace Sandbox   │
+                     │ • Open WebUI Bridge (/v1)    │ • Faster-Whisper Local STT   │
+                     │ • Goose CLI Agent Bridge     │ • Kokoro-ONNX Neural TTS     │
+                     └──────────────────────────────┴──────────────────────────────┘
 ```
 
 ---
 
-## ⚡ Core Capabilities
+## ⚡ What Makes J.A.R.V.I.S. Fully Autonomous?
 
-- **Unified Resource Registry**: Aggregates models, providers, tools, workers, browsers, STT, TTS, and embeddings into a single pane of glass.
-- **Legitimate Free Tier Maximization**: Integrates official free developer tiers (Google Gemini 2.5 Flash, Groq Cloud, OpenRouter `:free`) alongside local Ollama inference ($0.00 cost).
-- **Intelligent Model Router V2**: Classifies tasks dynamically (`simple`, `coding`, `architecture`, `vision`, `research`), prioritizes local and free options, and learns empirical performance without weight retraining.
-- **Quota Governance & Circuit Breakers**: Automatically tracks requests, tokens, and 429 rate limits, failing over seamlessly to secondary providers with exponential backoff.
-- **Distributed PC Worker (`workers/jarvis-worker/`)**: Lightweight CLI daemon running on your PC that offloads heavy compute, local models, Playwright browser automation, and sandboxed filesystem access from cloud memory constraints.
-- **20 Specialist Workforce Agents**: Dedicated specialist agents (`software_engineer`, `architect`, `qa_engineer`, `debugger`, `devops_engineer`, etc.) with strict capability ceilings and tool allowlists.
-- **Surgical Coding Execution Loop**: Search/replace diff patcher that applies edits with AST precision, validates changes against the test suite, and auto-repairs regressions.
-- **Voice Engine with VAD & Barge-In**: Real-time voice interaction with a 2-second silence cutoff and immediate playback cancellation on barge-in.
-- **24/7 Autonomous Scheduler**: Background worker executing maintenance, health audits, and periodic syncs deterministically without burning LLM tokens.
-- **Crash Recovery & Self-Healing**: Recovers interrupted tasks from SQLite on reboot and self-heals database schemas without downtime.
+1. **24/7 Unbounded Operations Daemon (`AutonomousScheduler.ts`)**:
+   Runs continuously in the background without needing human prompts:
+   - **02:00 IST**: `NIGHTLY_REPO_INTEGRITY_SCAN` via **Aegis** (audits git tree, runs unit tests, compiles status report).
+   - **08:00 IST**: `MORNING_EXECUTIVE_BRIEF` via **Friday** (aggregates market data, server uptime, and sends proactive briefing).
+   - **Every 6 Hours**: `SYSTEM_HEALTH_HEARTBEAT` via **Raphael** (prunes expired caches, audits key health and SessionMemoryManager).
+2. **Autonomous Multi-Agent Task DAG Engine (`AutonomousPipelineBuilder.ts`)**:
+   Decomposes high-level natural language directives into dependent multi-step DAGs. Distributes work across specialized agents, compiles code in sandboxes, and verifies execution.
+3. **Bi-Directional Telegram Autonomous Command Interface (`TelegramBotService.ts`)**:
+   Enables mobile remote control from anywhere in the world. Securely execute `/run <agent> <directive>` or check `/status` with instant interactive push notifications.
+4. **Resilient AI Waterfall & 429 Virtual Key Vault (`ModelRouter.ts`)**:
+   Zero-downtime multi-tiered provider failover:
+   - **Tier 0**: Local Air-Gapped Ollama (`qwen3:4b`, `deepseek-r1`)
+   - **Tier 1**: Groq Ultra-Fast LLaMA 3.3 70B & DeepSeek-R1 Distill
+   - **Tier 2**: OpenRouter Free Coding Models (`qwen-2.5-coder-32b-instruct:free`)
+   - **Tier 3**: Google Gemini Flash Lite
+   *Automatically rotates keys and cools down rate-limited tokens upon receiving HTTP 429 signals.*
+5. **Continuous Markdown Memory Graph (`ObsidianVaultManager.ts`)**:
+   Synchronizes all agent memories, daily briefs, and execution pipelines directly into `vault/` in plain-text markdown with YAML frontmatter and `[[wikilinks]]`. Point any Obsidian client to `vault/` for visual graph exploration.
+6. **Inbound OpenAI Protocol Bridge (`GET /v1/models` & `POST /v1/chat/completions`)**:
+   Compatible with third-party developer tools including **Open WebUI** and **Goose CLI**.
+7. **Neural Voice & Multi-Agent Duplex Audio (`voiceGateway.ts`)**:
+   High-IQ speech recognition, dynamic VAD (Voice Activity Detection), instant conversational barge-in interruption, and distinct neural voices for all specialist agents.
 
 ---
 
-## 🛠️ Quickstart & Installation
+## 🤖 The Specialist Agent Roster
+
+| Agent | Call Sign | Domain & Primary Specialty | Neural Voice Engine |
+| :--- | :--- | :--- | :--- |
+| **J.A.R.V.I.S.** | Grand Commander | Strategic Planning, Task Decomposition, System Coordination | Adam / Orion (`en-GB`) |
+| **Aegis** | Cyber Shield | Security Auditing, Sandboxed Shell, Code Compilation, Git | George (`en-US`) |
+| **Raphael** | Lord of Wisdom | Deep Logic Reasoning, Architecture Blueprints, Database Ops | Sarah (`en-US`) |
+| **Friday** | Executive Recon | Real-Time Intelligence, Telegram Alerts, Document Delivery | Rachel (`en-US`) |
+| **Midas** | Revenue Hunter | Quant Analysis, Financial Modeling, Invoice Generation | Antoni (`en-IN`) |
+| **Cerebro** | Master Mind | Persistent RAG Retrieval, Research Synthesis, Web Scraping | Sarah (`en-US`) |
+
+---
+
+## 🛠️ Quickstart & Local Setup
 
 ### 1. Central Server Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/Srimani26/standardroofs-jarvis.git
-cd standardroofs-jarvis
+git clone https://github.com/Srimani26/Sri-jarvis.git
+cd Sri-jarvis
 
-# Install dependencies
+# Install production dependencies
 npm install
 
-# Run database setup & Prisma generation
+# Run database synchronization
 npm run db:push
 
-# Run full automated test suite (80/80 passing)
+# Run full automated test suite (109+ passing tests across all modules)
 npm test
 
 # Build client and server bundles
@@ -89,101 +115,56 @@ npm run build:server
 node server.mjs
 ```
 
-### 2. Distributed PC Worker Setup
+### 2. Connect Obsidian Vault
 
-The worker runs on your local workstation to execute local Ollama models, Playwright browser workflows, and local tasks:
+Open Obsidian, click **Open folder as vault**, and select `E:\standardroofs-jarvis\vault`. Your system knowledge graph, agent notes, and execution pipelines will appear in real time.
+
+### 3. Connect Open WebUI or Goose CLI
+
+Point any OpenAI-compatible client to J.A.R.V.I.S.:
+- **Base URL**: `http://localhost:3005/v1` (or `https://sri-jarvis.onrender.com/v1`)
+- **API Key**: `jarvis-sovereign-master`
+
+---
+
+## 🩺 Operational Health & Observability
+
+- `GET /api/health` — Provider health, active models, uptime, and system status.
+- `POST /api/voice/self-eval` — Full multi-agent voice, temporal grounding, and thermal self-test.
+- `GET /api/voice/speak?text=...&agentId=jarvis` — Direct neural audio synthesis endpoint.
+- `POST /api/voice/intent` — Semantic intent and specialist handoff parser.
+- `GET /v1/models` — OpenAI-compatible model catalog.
+
+---
+
+## 🧪 Verification & Test Suite
+
+The system includes 109+ passing tests across 24 test suites:
 
 ```bash
-# Navigate to worker directory
-cd workers/jarvis-worker
-
-# Run local hardware & software diagnostic check
-npm run doctor
-
-# Inspect detected capability tokens
-npm run status
-
-# Launch the worker daemon (connects to cloud server)
-npm run start
+# Run the complete test suite
+npx tsx --test tests/**/*.test.ts
 ```
 
----
-
-## 🔑 Environment Configuration
-
-Configure the following variables in `.env` (or in the Render Dashboard):
-
-```env
-# Server Runtime
-PORT=3005
-NODE_ENV=production
-JWT_SECRET=your-random-64-char-secret
-
-# Legitimate AI Provider Keys (Server-Side Only)
-GEMINI_API_KEY=your-gemini-api-key       # Official Google AI Studio free tier
-GROQ_API_KEY=your-groq-api-key           # Official Groq developer free tier
-OPENROUTER_API_KEY=your-openrouter-key   # (Optional) OpenRouter community free models
-ANTHROPIC_API_KEY=your-anthropic-key     # (Optional) User-authorized premium models
-
-# Local Worker Configuration
-OLLAMA_BASE_URL=http://localhost:11434   # Local Ollama daemon endpoint
-JARVIS_SERVER_URL=https://sri-jarvis.onrender.com # Target cloud orchestrator
-JARVIS_WORKER_WORKSPACE=E:\JARVIS\workspace       # Sandboxed workstation workspace
-```
-
-*Note: All API keys reside strictly server-side and are never sent to client browsers or exposed in git commits.*
-
----
-
-## 🩺 System Health & Observability Endpoints
-
-All endpoints return safe, sanitized operational data without exposing credentials or internal paths:
-
-- `GET /health` — Overall server heartbeat and cloud availability status.
-- `GET /health/providers` — Active providers, quota states, and circuit breaker status.
-- `GET /health/database` — SQLite / PostgreSQL connection health and persistence status.
-- `GET /health/workers` — Connected distributed worker nodes and active capability tokens.
-- `GET /health/scheduler` — Active autonomous background jobs and execution counters.
-- `GET /health/resources` — Comprehensive summary of the Unified Resource Registry and economics.
-- `GET /health/version` — Release version, runtime stats, and process uptime.
-
----
-
-## 🧪 Automated Test Verification
-
-J.A.R.V.I.S. Mark-V maintains a comprehensive automated test suite with **80 passing tests** across 19 test suites:
-
-```bash
-npm test
-```
-
-Test suites cover:
-- **Phase 1**: Execution Kernel & Deterministic State Machine
-- **Phase 2**: Persistent SQLite TaskStore, SSE Event Streams & Crash Recovery
-- **Phase 3**: 20 Specialist Agents, Capability Boundaries & Handoffs
-- **Phase 4**: Unified Tool Registry, Permission Gating & MCP Protocols
-- **Phase 5**: Coding Execution Loop, Surgical Diff Patcher & Rollback
-- **Phase 6**: Browser Automation & Prompt-Injection Security Shield
-- **Phase 7**: Model Router, Cost Tiers & Circuit Breaker Failover
-- **Phase 8**: Scoped Memory Planes & Grounded RAG Pipeline
-- **Phase 9**: Voice Engine, VAD 2s Cutoff & Barge-In Interruption
-- **Phase 10**: Autonomous 24/7 Scheduler & Delayed/Recurring Jobs
-- **Phase 11-12**: Self-Repair Engine & Deterministic Diagnostic Loop
-- **Phase 13-15**: Sandboxed Self-Evolution, TelemetryHub & Mission Reporting
-- **Phase 17**: ResourceRegistry, QuotaManager, Legitimate Adapters & PC Worker
+Key verified test suites:
+- `tests/voice-system-e2e-acceptance.test.ts` (Adaptive VAD, Barge-In, Neural TTS)
+- `tests/phase33-openjarvis-voice-agents-self-test.test.ts` (Temporal Truth, Persona Verification)
+- `tests/autonomous-daemon-scheduler.test.ts` (24x7 Cron Loops, Lock Mechanisms, Telegram Ops)
+- `tests/autonomous-pipeline-builder.test.ts` (Multi-Agent DAG Task Execution)
+- `tests/syedmudassir-jarvis-suite.test.ts` (Obsidian, Ollama, Open WebUI, Goose, Whisper)
+- `tests/treg-tool-registry.test.ts` (External Tool Registry & Faithful Relay)
+- `tests/omni-gateway-integration.test.ts` (Quota Resilience, Zero-Trust Sanitization)
 
 ---
 
 ## 🔒 Security Principles
 
-1. **Zero Fake Execution**: No mock responses or simulated agent loops.
-2. **Capability Token Gating**: Every tool and worker requires explicit capability authorization.
-3. **Strict Filesystem Sandboxing**: All file writes and reads are restricted to designated workspace roots. Directory traversal attacks are caught and blocked immediately.
-4. **Adversarial Content Isolation**: Untrusted web pages and external files are permanently tagged as untrusted context and stripped of executable payloads.
-5. **Zero Credential Exfiltration**: Credentials never touch client bundles, logs, or git commits.
+1. **Zero-Trust Hygiene**: All keys, postgres credentials, and auth tokens are sanitized before logging or disk persistence.
+2. **Fail-Closed Execution**: Tools and departments have strict permission ceilings; unauthorized commands are blocked immediately.
+3. **Thermal & Resource Protections**: Dynamic AudioWorklet downsampling and standby sleep when idle.
 
 ---
 
 ## 📄 License
 
-Licensed under the Apache-2.0 License. Third-party open-source components and their respective licenses are cataloged in `docs/OPEN_SOURCE_LICENSE_REGISTRY.md`.
+Licensed under the Apache-2.0 License.
