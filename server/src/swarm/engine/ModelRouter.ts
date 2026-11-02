@@ -10,6 +10,7 @@
 
 import { virtualKeyVault } from '../../security/SecretSanitizer'
 import { SWARM_TOOL_SCHEMAS } from '../tools/toolRegistry'
+import { ollamaLocalProvider } from './OllamaLocalProvider'
 
 export type SwarmSpecialist =
   | 'jarvis'
@@ -366,6 +367,15 @@ export class SwarmModelRouter {
    */
   public async runStartupHandshake(): Promise<Record<string, { tier: number; models: string[]; status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }>> {
     const report: Record<string, { tier: number; models: string[]; status: 'ONLINE' | 'THROTTLED' | 'UNAVAILABLE'; latencyMs?: number }> = {}
+
+    // 0. Tier 0: Ollama Local Air-Gapped Engine (Qwen3 / DeepSeek-R1 local)
+    const ollamaProbe = await ollamaLocalProvider.probeHealth()
+    report.ollama = {
+      tier: 0,
+      models: ollamaProbe.models.length > 0 ? ollamaProbe.models : ['ollama/qwen3:4b', 'ollama/deepseek-r1:latest'],
+      status: ollamaProbe.online ? 'ONLINE' : 'UNAVAILABLE',
+      latencyMs: ollamaProbe.latencyMs
+    }
 
     // 1. Tier 1: Groq High-Speed Engine
     const groqKey = virtualKeyVault.getActiveKey('groq') || process.env.GROQ_API_KEY

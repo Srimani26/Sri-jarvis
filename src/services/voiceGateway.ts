@@ -246,37 +246,76 @@ export class VoiceGatewayService {
   }
 
   /**
-   * Transcribe PCM audio buffer with Groq Whisper Large-v3 (<200ms turnaround)
+   * Transcribe PCM audio buffer with Faster-Whisper, Groq Whisper Large-v3, or Deepgram Nova-2
    */
   public async transcribeAudio(wavBuffer: Buffer): Promise<string> {
-    const groqKey = process.env.GROQ_API_KEY
-    if (!groqKey) {
-      // Fallback: Gemini or local transcription if Groq key isn't populated
-      return ''
+    // 1. Try Local Faster-Whisper endpoint if configured (offline air-gap)
+    const fasterWhisperUrl = process.env.FASTER_WHISPER_URL
+    if (fasterWhisperUrl) {
+      try {
+        const formData = new FormData()
+        const blob = new Blob([wavBuffer], { type: 'audio/wav' })
+        formData.append('file', blob, 'audio.wav')
+        const res = await fetch(fasterWhisperUrl, {
+          method: 'POST',
+          body: formData,
+          signal: AbortSignal.timeout(3000)
+        })
+        if (res.ok) {
+          const json = await res.json() as any
+          if (json.text) return json.text.trim()
+        }
+      } catch {}
     }
 
-    try {
-      const formData = new FormData()
-      const blob = new Blob([wavBuffer], { type: 'audio/wav' })
-      formData.append('file', blob, 'audio.wav')
-      formData.append('model', 'whisper-large-v3')
-      formData.append('prompt', 'Master Sri, Jarvis, Friday, Aegis, Raphael, command, telemetry, dashboard, vault')
-      formData.append('temperature', '0.0')
+    // 2. Try Groq Whisper Large-v3 (<200ms turnaround)
+    const groqKey = process.env.GROQ_API_KEY
+    if (groqKey) {
+      try {
+        const formData = new FormData()
+        const blob = new Blob([wavBuffer], { type: 'audio/wav' })
+        formData.append('file', blob, 'audio.wav')
+        formData.append('model', 'whisper-large-v3')
+        formData.append('prompt', 'Master Sri, Jarvis, Friday, Aegis, Raphael, command, telemetry, dashboard, vault')
+        formData.append('temperature', '0.0')
 
-      const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${groqKey}`
-        },
-        body: formData
-      })
+        const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${groqKey}` },
+          body: formData,
+          signal: AbortSignal.timeout(4000)
+        })
 
-      if (res.ok) {
-        const json = await res.json() as any
-        return json.text || ''
+        if (res.ok) {
+          const json = await res.json() as any
+          if (json.text) return json.text.trim()
+        }
+      } catch (err: any) {
+        console.warn('[VoiceGateway] Groq Whisper transcription note:', err?.message || err)
       }
-    } catch (err: any) {
-      console.warn('[VoiceGateway] Groq Whisper transcription error:', err?.message || err)
+    }
+
+    // 3. Try Deepgram Nova-2
+    const deepgramKey = process.env.DEEPGRAM_API_KEY
+    if (deepgramKey) {
+      try {
+        const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${deepgramKey}`,
+            'Content-Type': 'audio/wav'
+          },
+          body: new Uint8Array(wavBuffer),
+          signal: AbortSignal.timeout(4000)
+        })
+        if (res.ok) {
+          const json = await res.json() as any
+          const alt = json.results?.channels?.[0]?.alternatives?.[0]
+          if (alt?.transcript) return alt.transcript.trim()
+        }
+      } catch (err: any) {
+        console.warn('[VoiceGateway] Deepgram Nova-2 transcription note:', err?.message || err)
+      }
     }
 
     return ''
@@ -459,7 +498,7 @@ export class VoiceGatewayService {
   }
 
   /**
-   * Stream TTS speech synthesis back to client WebSocket (Deepgram Aura / ElevenLabs)
+   * Stream TTS speech synthesis back to client WebSocket (Kokoro-ONNX / Deepgram Aura / ElevenLabs)
    */
   public async streamTTSResponse(session: VoiceSessionState, text: string) {
     session.isSpeaking = true
@@ -470,9 +509,29 @@ export class VoiceGatewayService {
       agent: session.activeAgent
     }))
 
-    const deepgramKey = process.env.DEEPGRAM_API_KEY
+    // 1. Try local Kokoro-ONNX / Kokoro.js endpoint if configured
+    const kokoroUrl = process.env.KOKORO_TTS_URL
+    let ttsDelivered = false
 
-    if (deepgramKey) {
+    if (kokoroUrl) {
+      try {
+        const res = await fetch(kokoroUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'kokoro', input: text, voice: 'af_sarah' }),
+          signal: AbortSignal.timeout(3000)
+        })
+        if (res.ok) {
+          const audioBuffer = Buffer.from(await res.arrayBuffer())
+          session.ws.send(audioBuffer, { binary: true })
+          ttsDelivered = true
+        }
+      } catch {}
+    }
+
+    // 2. Try Deepgram Aura
+    const deepgramKey = process.env.DEEPGRAM_API_KEY
+    if (!ttsDelivered && deepgramKey) {
       try {
         const res = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=linear16&sample_rate=16000', {
           method: 'POST',
@@ -480,18 +539,46 @@ export class VoiceGatewayService {
             'Authorization': `Token ${deepgramKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ text })
+          body: JSON.stringify({ text }),
+          signal: AbortSignal.timeout(4000)
         })
 
-        if (res.ok && res.body) {
+        if (res.ok) {
           const arrayBuffer = await res.arrayBuffer()
           const audioBuffer = Buffer.from(arrayBuffer)
-
-          // Stream audio chunk to client
           session.ws.send(audioBuffer, { binary: true })
+          ttsDelivered = true
         }
       } catch (err: any) {
-        console.warn('[VoiceGateway] Deepgram Aura TTS stream error:', err?.message || err)
+        console.warn('[VoiceGateway] Deepgram Aura TTS note:', err?.message || err)
+      }
+    }
+
+    // 3. Try ElevenLabs Turbo v2.5
+    const elevenKey = process.env.ELEVENLABS_API_KEY
+    if (!ttsDelivered && elevenKey) {
+      try {
+        const voiceId = '21m00Tcm4TlvDq8ikWAM' // Default executive voice
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': elevenKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text,
+            model_id: 'eleven_turbo_v2_5',
+            voice_settings: { stability: 0.5, similarity_boost: 0.8 }
+          }),
+          signal: AbortSignal.timeout(5000)
+        })
+        if (res.ok) {
+          const audioBuffer = Buffer.from(await res.arrayBuffer())
+          session.ws.send(audioBuffer, { binary: true })
+          ttsDelivered = true
+        }
+      } catch (err: any) {
+        console.warn('[VoiceGateway] ElevenLabs TTS note:', err?.message || err)
       }
     }
 

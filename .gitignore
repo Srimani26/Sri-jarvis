@@ -38,3 +38,8 @@ artifacts/
 
 external/
 scripts/clone-voice-arsenal.mjs
+
+# Obsidian Local Vault
+vault/
+artifacts/documents/
+artifacts/builds/

@@ -23,6 +23,8 @@ import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
 import { telegramNotifier } from './src/services/telegramNotifier'
 import { pipelineManager } from './src/swarm/engine/PipelineManager'
 import { appBuilderEngine } from './src/swarm/tools/appBuilderEngine'
+import { obsidianVaultManager } from './src/swarm/memory/ObsidianVaultManager'
+import { ollamaLocalProvider } from './src/swarm/engine/OllamaLocalProvider'
 
 import { stream, streamSSE } from 'hono/streaming'
 import { TaskStore } from './src/kernel/TaskStore'
@@ -2918,6 +2920,89 @@ app.get('/artifacts/download', (c) => {
     'Content-Type': contentType,
     'Content-Disposition': `attachment; filename="${safeName}"`
   })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// OPEN WEBUI & GOOSE COMPATIBLE INBOUND API BRIDGE (/v1)
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/v1/models — Model catalog discovery for Open WebUI & Goose
+app.get('/v1/models', (c) => {
+  return c.json({
+    object: 'list',
+    data: [
+      { id: 'jarvis-core', object: 'model', created: 1700000000, owned_by: 'sovereign-jarvis', permission: [] },
+      { id: 'qwen3:4b', object: 'model', created: 1700000000, owned_by: 'ollama-local', permission: [] },
+      { id: 'deepseek-r1', object: 'model', created: 1700000000, owned_by: 'deepseek', permission: [] },
+      { id: 'llama-3.3-70b', object: 'model', created: 1700000000, owned_by: 'groq', permission: [] },
+      { id: 'gpt-4o', object: 'model', created: 1700000000, owned_by: 'openai', permission: [] },
+      { id: 'gemini-flash', object: 'model', created: 1700000000, owned_by: 'google', permission: [] }
+    ]
+  })
+})
+
+// POST /api/v1/chat/completions — Open WebUI & Goose Inbound Chat & Tool Gateway
+app.post('/v1/chat/completions', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { model, messages, tools } = body
+    const specialist = (model || '').toLowerCase().includes('raphael') ? 'raphael'
+      : ((model || '').toLowerCase().includes('aegis') ? 'aegis' : 'jarvis')
+
+    const response = await swarmModelRouter.dispatch(specialist, messages || [], tools)
+    return c.json({
+      id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      object: 'chat.completion',
+      created: Math.floor(Date.now() / 1000),
+      model: model || 'jarvis-core',
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: response.content || null,
+            tool_calls: response.tool_calls || undefined
+          },
+          finish_reason: response.tool_calls && response.tool_calls.length > 0 ? 'tool_calls' : 'stop'
+        }
+      ],
+      usage: { prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 }
+    })
+  } catch (err: any) {
+    return c.json({ error: { message: err?.message || String(err), type: 'server_error' } }, 500)
+  }
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// OBSIDIAN MARKDOWN VAULT SYNCHRONIZATION API
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/vault/search — Search local vault markdown notes
+app.get('/vault/search', (c) => {
+  const query = c.req.query('q') || ''
+  const notes = obsidianVaultManager.searchVault(query)
+  return c.json({ ok: true, query, total: notes.length, notes })
+})
+
+// POST /api/vault/notes — Save or update markdown note with YAML frontmatter
+app.post('/vault/notes', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { category, title, content, meta } = body
+    if (!title || !content) {
+      return c.json({ ok: false, error: 'title and content are required' }, 400)
+    }
+    const result = obsidianVaultManager.saveNote(category || 'Memory', title, content, meta || {})
+    return c.json({ ok: true, result })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500)
+  }
+})
+
+// GET /api/ollama/health — Probe local Ollama Qwen3 status
+app.get('/ollama/health', async (c) => {
+  const status = await ollamaLocalProvider.probeHealth()
+  return c.json({ ok: true, ...status })
 })
 
 // GET /api/health/providers — Live provider availability, circuit breaker status, and models

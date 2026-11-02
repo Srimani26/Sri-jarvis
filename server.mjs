@@ -11361,6 +11361,86 @@ var init_toolRegistry = __esm({
   }
 });
 
+// src/swarm/engine/OllamaLocalProvider.ts
+var OllamaLocalProvider, ollamaLocalProvider;
+var init_OllamaLocalProvider = __esm({
+  "src/swarm/engine/OllamaLocalProvider.ts"() {
+    "use strict";
+    OllamaLocalProvider = class _OllamaLocalProvider {
+      static instance;
+      baseUrl;
+      static getInstance(customUrl) {
+        if (!_OllamaLocalProvider.instance) {
+          _OllamaLocalProvider.instance = new _OllamaLocalProvider(customUrl);
+        }
+        return _OllamaLocalProvider.instance;
+      }
+      constructor(customUrl) {
+        this.baseUrl = customUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+      }
+      getBaseUrl() {
+        return this.baseUrl;
+      }
+      /**
+       * Check if local Ollama daemon is active
+       */
+      async probeHealth() {
+        const start = Date.now();
+        try {
+          const res = await fetch(`${this.baseUrl}/api/tags`, {
+            signal: AbortSignal.timeout(2e3)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const models = (data.models || []).map((m) => m.name);
+            return {
+              online: true,
+              models: models.length > 0 ? models : ["qwen3:4b", "deepseek-r1:latest"],
+              baseUrl: this.baseUrl,
+              latencyMs: Date.now() - start
+            };
+          }
+          return { online: false, models: [], baseUrl: this.baseUrl };
+        } catch {
+          return { online: false, models: [], baseUrl: this.baseUrl };
+        }
+      }
+      /**
+       * Run local inference via Ollama OpenAI-compatible endpoint
+       */
+      async dispatchCompletion(model, messages, tools2) {
+        try {
+          const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: model || "qwen3:4b",
+              messages,
+              tools: tools2 && tools2.length > 0 ? tools2 : void 0,
+              temperature: 0.2
+            }),
+            signal: AbortSignal.timeout(15e3)
+          });
+          if (res.ok) {
+            const json = await res.json();
+            const choice = json.choices?.[0]?.message;
+            if (choice) {
+              return {
+                content: choice.content,
+                tool_calls: choice.tool_calls
+              };
+            }
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      }
+    };
+    ollamaLocalProvider = OllamaLocalProvider.getInstance();
+  }
+});
+
 // src/swarm/engine/ModelRouter.ts
 var SwarmModelRouter, swarmModelRouter;
 var init_ModelRouter = __esm({
@@ -11368,6 +11448,7 @@ var init_ModelRouter = __esm({
     "use strict";
     init_SecretSanitizer();
     init_toolRegistry();
+    init_OllamaLocalProvider();
     SwarmModelRouter = class _SwarmModelRouter {
       static instance;
       activeProviders = {};
@@ -11654,6 +11735,13 @@ var init_ModelRouter = __esm({
        */
       async runStartupHandshake() {
         const report = {};
+        const ollamaProbe = await ollamaLocalProvider.probeHealth();
+        report.ollama = {
+          tier: 0,
+          models: ollamaProbe.models.length > 0 ? ollamaProbe.models : ["ollama/qwen3:4b", "ollama/deepseek-r1:latest"],
+          status: ollamaProbe.online ? "ONLINE" : "UNAVAILABLE",
+          latencyMs: ollamaProbe.latencyMs
+        };
         const groqKey = virtualKeyVault.getActiveKey("groq") || process.env.GROQ_API_KEY;
         if (groqKey) {
           const start = Date.now();
@@ -12667,8 +12755,8 @@ var RevenueHunterEngine_exports = {};
 __export(RevenueHunterEngine_exports, {
   RevenueHunterEngine: () => RevenueHunterEngine
 });
-import { existsSync as existsSync11, mkdirSync as mkdirSync7, writeFileSync as writeFileSync9, readFileSync as readFileSync9 } from "fs";
-import { resolve as resolve8, join as join9 } from "path";
+import { existsSync as existsSync12, mkdirSync as mkdirSync8, writeFileSync as writeFileSync10, readFileSync as readFileSync10 } from "fs";
+import { resolve as resolve8, join as join10 } from "path";
 var RevenueHunterEngine;
 var init_RevenueHunterEngine = __esm({
   "src/agents/RevenueHunterEngine.ts"() {
@@ -12678,8 +12766,8 @@ var init_RevenueHunterEngine = __esm({
     init_OpenQodexReviewEngine();
     RevenueHunterEngine = class _RevenueHunterEngine {
       static dataDir = resolve8(process.cwd(), "data");
-      static opportunitiesFile = join9(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
-      static settingsFile = join9(_RevenueHunterEngine.dataDir, "payout_settings.json");
+      static opportunitiesFile = join10(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
+      static settingsFile = join10(_RevenueHunterEngine.dataDir, "payout_settings.json");
       // Real opportunities are ingested dynamically via JobScoutTool / incoming client feeds.
       static defaultOpportunities = [];
       static defaultSettings = {
@@ -12693,20 +12781,20 @@ var init_RevenueHunterEngine = __esm({
         autoWithdrawThresholdINR: 1e4
       };
       static ensureDataDir() {
-        if (!existsSync11(this.dataDir)) {
-          mkdirSync7(this.dataDir, { recursive: true });
+        if (!existsSync12(this.dataDir)) {
+          mkdirSync8(this.dataDir, { recursive: true });
         }
-        if (!existsSync11(this.opportunitiesFile)) {
-          writeFileSync9(this.opportunitiesFile, JSON.stringify(this.defaultOpportunities, null, 2), "utf-8");
+        if (!existsSync12(this.opportunitiesFile)) {
+          writeFileSync10(this.opportunitiesFile, JSON.stringify(this.defaultOpportunities, null, 2), "utf-8");
         }
-        if (!existsSync11(this.settingsFile)) {
-          writeFileSync9(this.settingsFile, JSON.stringify(this.defaultSettings, null, 2), "utf-8");
+        if (!existsSync12(this.settingsFile)) {
+          writeFileSync10(this.settingsFile, JSON.stringify(this.defaultSettings, null, 2), "utf-8");
         }
       }
       static getOpportunities() {
         this.ensureDataDir();
         try {
-          const raw2 = readFileSync9(this.opportunitiesFile, "utf-8");
+          const raw2 = readFileSync10(this.opportunitiesFile, "utf-8");
           return JSON.parse(raw2);
         } catch {
           return this.defaultOpportunities;
@@ -12714,7 +12802,7 @@ var init_RevenueHunterEngine = __esm({
       }
       static saveOpportunities(opps) {
         this.ensureDataDir();
-        writeFileSync9(this.opportunitiesFile, JSON.stringify(opps, null, 2), "utf-8");
+        writeFileSync10(this.opportunitiesFile, JSON.stringify(opps, null, 2), "utf-8");
       }
       static addOrUpdateOpportunity(opp) {
         const opps = this.getOpportunities();
@@ -12729,7 +12817,7 @@ var init_RevenueHunterEngine = __esm({
       static getSettings() {
         this.ensureDataDir();
         try {
-          const raw2 = readFileSync9(this.settingsFile, "utf-8");
+          const raw2 = readFileSync10(this.settingsFile, "utf-8");
           return JSON.parse(raw2);
         } catch {
           return this.defaultSettings;
@@ -12739,7 +12827,7 @@ var init_RevenueHunterEngine = __esm({
         this.ensureDataDir();
         const current = this.getSettings();
         const updated = { ...current, ...settings };
-        writeFileSync9(this.settingsFile, JSON.stringify(updated, null, 2), "utf-8");
+        writeFileSync10(this.settingsFile, JSON.stringify(updated, null, 2), "utf-8");
         return updated;
       }
       static getLedgerMetrics() {
@@ -12905,8 +12993,8 @@ var PersonalKnowledgeEngine_exports = {};
 __export(PersonalKnowledgeEngine_exports, {
   PersonalKnowledgeEngine: () => PersonalKnowledgeEngine
 });
-import { existsSync as existsSync13, mkdirSync as mkdirSync9, readFileSync as readFileSync10, writeFileSync as writeFileSync11 } from "fs";
-import { resolve as resolve11, join as join11 } from "path";
+import { existsSync as existsSync14, mkdirSync as mkdirSync10, readFileSync as readFileSync11, writeFileSync as writeFileSync12 } from "fs";
+import { resolve as resolve11, join as join12 } from "path";
 var PersonalKnowledgeEngine;
 var init_PersonalKnowledgeEngine = __esm({
   "src/memory/PersonalKnowledgeEngine.ts"() {
@@ -12914,20 +13002,20 @@ var init_PersonalKnowledgeEngine = __esm({
     PersonalKnowledgeEngine = class _PersonalKnowledgeEngine {
       static knowledgeBase = /* @__PURE__ */ new Map();
       static dataDir = resolve11(process.cwd(), "data");
-      static storageFile = join11(_PersonalKnowledgeEngine.dataDir, "personal_knowledge.json");
+      static storageFile = join12(_PersonalKnowledgeEngine.dataDir, "personal_knowledge.json");
       static {
         this.bootstrapMasterProfile();
       }
       static ensureStorage() {
-        if (!existsSync13(this.dataDir)) {
-          mkdirSync9(this.dataDir, { recursive: true });
+        if (!existsSync14(this.dataDir)) {
+          mkdirSync10(this.dataDir, { recursive: true });
         }
       }
       static bootstrapMasterProfile() {
         this.ensureStorage();
-        if (existsSync13(this.storageFile)) {
+        if (existsSync14(this.storageFile)) {
           try {
-            const raw2 = readFileSync10(this.storageFile, "utf-8");
+            const raw2 = readFileSync11(this.storageFile, "utf-8");
             const entries = JSON.parse(raw2);
             for (const e of entries) {
               this.knowledgeBase.set(e.id, e);
@@ -12984,7 +13072,7 @@ var init_PersonalKnowledgeEngine = __esm({
         this.ensureStorage();
         try {
           const arr = Array.from(this.knowledgeBase.values());
-          writeFileSync11(this.storageFile, JSON.stringify(arr, null, 2), "utf-8");
+          writeFileSync12(this.storageFile, JSON.stringify(arr, null, 2), "utf-8");
         } catch (err) {
           console.error("[PersonalKnowledgeEngine] Failed to save to disk:", err);
         }
@@ -13037,26 +13125,26 @@ var EnterpriseTreasuryEngine_exports = {};
 __export(EnterpriseTreasuryEngine_exports, {
   EnterpriseTreasuryEngine: () => EnterpriseTreasuryEngine
 });
-import { existsSync as existsSync19, mkdirSync as mkdirSync14, writeFileSync as writeFileSync17, readFileSync as readFileSync13 } from "fs";
-import { resolve as resolve15, join as join17 } from "path";
+import { existsSync as existsSync20, mkdirSync as mkdirSync15, writeFileSync as writeFileSync18, readFileSync as readFileSync14 } from "fs";
+import { resolve as resolve15, join as join18 } from "path";
 var EnterpriseTreasuryEngine;
 var init_EnterpriseTreasuryEngine = __esm({
   "src/treasury/EnterpriseTreasuryEngine.ts"() {
     "use strict";
     EnterpriseTreasuryEngine = class _EnterpriseTreasuryEngine {
       static dataDir = resolve15(process.cwd(), "data");
-      static invoicesFile = join17(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
-      static contractsFile = join17(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
+      static invoicesFile = join18(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
+      static contractsFile = join18(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
       static USD_TO_INR = 84;
       static ensureStorage() {
-        if (!existsSync19(this.dataDir)) {
-          mkdirSync14(this.dataDir, { recursive: true });
+        if (!existsSync20(this.dataDir)) {
+          mkdirSync15(this.dataDir, { recursive: true });
         }
-        if (!existsSync19(this.invoicesFile)) {
-          writeFileSync17(this.invoicesFile, JSON.stringify([], null, 2), "utf-8");
+        if (!existsSync20(this.invoicesFile)) {
+          writeFileSync18(this.invoicesFile, JSON.stringify([], null, 2), "utf-8");
         }
-        if (!existsSync19(this.contractsFile)) {
-          writeFileSync17(this.contractsFile, JSON.stringify([], null, 2), "utf-8");
+        if (!existsSync20(this.contractsFile)) {
+          writeFileSync18(this.contractsFile, JSON.stringify([], null, 2), "utf-8");
         }
       }
       /**
@@ -13133,7 +13221,7 @@ var init_EnterpriseTreasuryEngine = __esm({
         invoice.printableHtml = this.generateInvoiceHtml(invoice);
         const allInvoices = this.getInvoices();
         allInvoices.unshift(invoice);
-        writeFileSync17(this.invoicesFile, JSON.stringify(allInvoices, null, 2), "utf-8");
+        writeFileSync18(this.invoicesFile, JSON.stringify(allInvoices, null, 2), "utf-8");
         return invoice;
       }
       /**
@@ -13197,7 +13285,7 @@ var init_EnterpriseTreasuryEngine = __esm({
         sow.contractHtml = this.generateSOWHtml(sow);
         const allContracts = this.getContracts();
         allContracts.unshift(sow);
-        writeFileSync17(this.contractsFile, JSON.stringify(allContracts, null, 2), "utf-8");
+        writeFileSync18(this.contractsFile, JSON.stringify(allContracts, null, 2), "utf-8");
         return sow;
       }
       /**
@@ -13236,7 +13324,7 @@ var init_EnterpriseTreasuryEngine = __esm({
       static getInvoices() {
         this.ensureStorage();
         try {
-          return JSON.parse(readFileSync13(this.invoicesFile, "utf-8"));
+          return JSON.parse(readFileSync14(this.invoicesFile, "utf-8"));
         } catch {
           return [];
         }
@@ -13244,7 +13332,7 @@ var init_EnterpriseTreasuryEngine = __esm({
       static getContracts() {
         this.ensureStorage();
         try {
-          return JSON.parse(readFileSync13(this.contractsFile, "utf-8"));
+          return JSON.parse(readFileSync14(this.contractsFile, "utf-8"));
         } catch {
           return [];
         }
@@ -13750,33 +13838,70 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
         console.log("\u26A1 [VoiceGateway] Sovereign WebSocket Server listening on /api/voice/session");
       }
       /**
-       * Transcribe PCM audio buffer with Groq Whisper Large-v3 (<200ms turnaround)
+       * Transcribe PCM audio buffer with Faster-Whisper, Groq Whisper Large-v3, or Deepgram Nova-2
        */
       async transcribeAudio(wavBuffer) {
-        const groqKey = process.env.GROQ_API_KEY;
-        if (!groqKey) {
-          return "";
-        }
-        try {
-          const formData = new FormData();
-          const blob = new Blob([wavBuffer], { type: "audio/wav" });
-          formData.append("file", blob, "audio.wav");
-          formData.append("model", "whisper-large-v3");
-          formData.append("prompt", "Master Sri, Jarvis, Friday, Aegis, Raphael, command, telemetry, dashboard, vault");
-          formData.append("temperature", "0.0");
-          const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${groqKey}`
-            },
-            body: formData
-          });
-          if (res.ok) {
-            const json = await res.json();
-            return json.text || "";
+        const fasterWhisperUrl = process.env.FASTER_WHISPER_URL;
+        if (fasterWhisperUrl) {
+          try {
+            const formData = new FormData();
+            const blob = new Blob([wavBuffer], { type: "audio/wav" });
+            formData.append("file", blob, "audio.wav");
+            const res = await fetch(fasterWhisperUrl, {
+              method: "POST",
+              body: formData,
+              signal: AbortSignal.timeout(3e3)
+            });
+            if (res.ok) {
+              const json = await res.json();
+              if (json.text) return json.text.trim();
+            }
+          } catch {
           }
-        } catch (err) {
-          console.warn("[VoiceGateway] Groq Whisper transcription error:", err?.message || err);
+        }
+        const groqKey = process.env.GROQ_API_KEY;
+        if (groqKey) {
+          try {
+            const formData = new FormData();
+            const blob = new Blob([wavBuffer], { type: "audio/wav" });
+            formData.append("file", blob, "audio.wav");
+            formData.append("model", "whisper-large-v3");
+            formData.append("prompt", "Master Sri, Jarvis, Friday, Aegis, Raphael, command, telemetry, dashboard, vault");
+            formData.append("temperature", "0.0");
+            const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${groqKey}` },
+              body: formData,
+              signal: AbortSignal.timeout(4e3)
+            });
+            if (res.ok) {
+              const json = await res.json();
+              if (json.text) return json.text.trim();
+            }
+          } catch (err) {
+            console.warn("[VoiceGateway] Groq Whisper transcription note:", err?.message || err);
+          }
+        }
+        const deepgramKey = process.env.DEEPGRAM_API_KEY;
+        if (deepgramKey) {
+          try {
+            const res = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true", {
+              method: "POST",
+              headers: {
+                "Authorization": `Token ${deepgramKey}`,
+                "Content-Type": "audio/wav"
+              },
+              body: new Uint8Array(wavBuffer),
+              signal: AbortSignal.timeout(4e3)
+            });
+            if (res.ok) {
+              const json = await res.json();
+              const alt = json.results?.channels?.[0]?.alternatives?.[0];
+              if (alt?.transcript) return alt.transcript.trim();
+            }
+          } catch (err) {
+            console.warn("[VoiceGateway] Deepgram Nova-2 transcription note:", err?.message || err);
+          }
         }
         return "";
       }
@@ -13913,7 +14038,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
         return `Understood, Master Sri. ${agentConfig.name} is executing your command on priority.`;
       }
       /**
-       * Stream TTS speech synthesis back to client WebSocket (Deepgram Aura / ElevenLabs)
+       * Stream TTS speech synthesis back to client WebSocket (Kokoro-ONNX / Deepgram Aura / ElevenLabs)
        */
       async streamTTSResponse(session, text) {
         session.isSpeaking = true;
@@ -13921,8 +14046,26 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
           type: "AGENT_SPEAK_START",
           agent: session.activeAgent
         }));
+        const kokoroUrl = process.env.KOKORO_TTS_URL;
+        let ttsDelivered = false;
+        if (kokoroUrl) {
+          try {
+            const res = await fetch(kokoroUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "kokoro", input: text, voice: "af_sarah" }),
+              signal: AbortSignal.timeout(3e3)
+            });
+            if (res.ok) {
+              const audioBuffer = Buffer.from(await res.arrayBuffer());
+              session.ws.send(audioBuffer, { binary: true });
+              ttsDelivered = true;
+            }
+          } catch {
+          }
+        }
         const deepgramKey = process.env.DEEPGRAM_API_KEY;
-        if (deepgramKey) {
+        if (!ttsDelivered && deepgramKey) {
           try {
             const res = await fetch("https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=linear16&sample_rate=16000", {
               method: "POST",
@@ -13930,15 +14073,43 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
                 "Authorization": `Token ${deepgramKey}`,
                 "Content-Type": "application/json"
               },
-              body: JSON.stringify({ text })
+              body: JSON.stringify({ text }),
+              signal: AbortSignal.timeout(4e3)
             });
-            if (res.ok && res.body) {
+            if (res.ok) {
               const arrayBuffer = await res.arrayBuffer();
               const audioBuffer = Buffer.from(arrayBuffer);
               session.ws.send(audioBuffer, { binary: true });
+              ttsDelivered = true;
             }
           } catch (err) {
-            console.warn("[VoiceGateway] Deepgram Aura TTS stream error:", err?.message || err);
+            console.warn("[VoiceGateway] Deepgram Aura TTS note:", err?.message || err);
+          }
+        }
+        const elevenKey = process.env.ELEVENLABS_API_KEY;
+        if (!ttsDelivered && elevenKey) {
+          try {
+            const voiceId = "21m00Tcm4TlvDq8ikWAM";
+            const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+              method: "POST",
+              headers: {
+                "xi-api-key": elevenKey,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                text,
+                model_id: "eleven_turbo_v2_5",
+                voice_settings: { stability: 0.5, similarity_boost: 0.8 }
+              }),
+              signal: AbortSignal.timeout(5e3)
+            });
+            if (res.ok) {
+              const audioBuffer = Buffer.from(await res.arrayBuffer());
+              session.ws.send(audioBuffer, { binary: true });
+              ttsDelivered = true;
+            }
+          } catch (err) {
+            console.warn("[VoiceGateway] ElevenLabs TTS note:", err?.message || err);
           }
         }
         session.isSpeaking = false;
@@ -13957,8 +14128,8 @@ import "dotenv/config";
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync as existsSync21, readFileSync as readFileSync15 } from "node:fs";
-import { join as join19 } from "node:path";
+import { existsSync as existsSync22, readFileSync as readFileSync16 } from "node:fs";
+import { join as join20 } from "node:path";
 
 // custom-routes.ts
 import "dotenv/config";
@@ -15918,6 +16089,140 @@ var pipelineManager = PipelineManager.getInstance();
 
 // custom-routes.ts
 init_appBuilderEngine();
+
+// src/swarm/memory/ObsidianVaultManager.ts
+import { existsSync as existsSync9, mkdirSync as mkdirSync5, writeFileSync as writeFileSync7, readFileSync as readFileSync7, readdirSync as readdirSync3 } from "node:fs";
+import { join as join7 } from "node:path";
+var ObsidianVaultManager = class _ObsidianVaultManager {
+  static instance;
+  vaultRoot;
+  static getInstance(vaultRoot) {
+    if (!_ObsidianVaultManager.instance) {
+      _ObsidianVaultManager.instance = new _ObsidianVaultManager(vaultRoot);
+    }
+    return _ObsidianVaultManager.instance;
+  }
+  constructor(customPath) {
+    this.vaultRoot = customPath || process.env.OBSIDIAN_VAULT_PATH || join7(process.cwd(), "vault");
+    this.ensureVaultStructure();
+  }
+  getVaultRoot() {
+    return this.vaultRoot;
+  }
+  /**
+   * Ensure standard Obsidian directory hierarchy
+   */
+  ensureVaultStructure() {
+    const categories = ["DailyBriefs", "Pipelines", "Specialists", "Memory", "Tasks"];
+    if (!existsSync9(this.vaultRoot)) {
+      mkdirSync5(this.vaultRoot, { recursive: true });
+    }
+    for (const cat of categories) {
+      const catDir = join7(this.vaultRoot, cat);
+      if (!existsSync9(catDir)) {
+        mkdirSync5(catDir, { recursive: true });
+      }
+    }
+  }
+  /**
+   * Save a formatted Markdown note with YAML frontmatter and [[wikilinks]]
+   */
+  saveNote(category, title, content, meta = {}) {
+    this.ensureVaultStructure();
+    const safeTitle = title.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim();
+    const fileName = `${safeTitle.replace(/\s+/g, "_")}.md`;
+    const targetDir = join7(this.vaultRoot, category);
+    if (!existsSync9(targetDir)) {
+      mkdirSync5(targetDir, { recursive: true });
+    }
+    const fullPath = join7(targetDir, fileName);
+    const fullMeta = {
+      title,
+      date: (/* @__PURE__ */ new Date()).toISOString(),
+      tags: ["jarvis", "autonomous", category.toLowerCase(), ...meta.tags || []],
+      agent: meta.agent || "jarvis",
+      status: meta.status || "COMPLETED",
+      ...meta
+    };
+    const frontmatterLines = [
+      "---",
+      `title: "${fullMeta.title}"`,
+      `date: "${fullMeta.date}"`,
+      `tags: [${fullMeta.tags.map((t) => `"${t}"`).join(", ")}]`,
+      `agent: "${fullMeta.agent}"`,
+      `status: "${fullMeta.status}"`,
+      "---",
+      ""
+    ];
+    const bodyWithWikilinks = [
+      `# ${title}`,
+      "",
+      content.trim(),
+      "",
+      "---",
+      "## Sovereign Swarm Context",
+      `- **Agent Node:** [[Specialists/${fullMeta.agent}]]`,
+      `- **Obsidian Category:** [[${category}]]`,
+      `- **High Command:** [[Master Sri]]`,
+      `- **Pipeline Index:** [[Pipelines/Index]]`
+    ].join("\n");
+    const fileContent = frontmatterLines.join("\n") + bodyWithWikilinks;
+    writeFileSync7(fullPath, fileContent, "utf-8");
+    return {
+      filePath: fullPath,
+      fileName,
+      note: {
+        fileName,
+        category,
+        filePath: fullPath,
+        meta: fullMeta,
+        content: bodyWithWikilinks
+      }
+    };
+  }
+  /**
+   * Read note from vault
+   */
+  readNote(category, fileName) {
+    const fullPath = join7(this.vaultRoot, category, fileName.endsWith(".md") ? fileName : `${fileName}.md`);
+    if (!existsSync9(fullPath)) return null;
+    return readFileSync7(fullPath, "utf-8");
+  }
+  /**
+   * Search markdown notes across all vault categories
+   */
+  searchVault(query) {
+    const q = query.toLowerCase();
+    const results = [];
+    if (!existsSync9(this.vaultRoot)) return results;
+    const categories = readdirSync3(this.vaultRoot, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    for (const cat of categories) {
+      const catPath = join7(this.vaultRoot, cat);
+      const files = readdirSync3(catPath).filter((f) => f.endsWith(".md"));
+      for (const file of files) {
+        const filePath = join7(catPath, file);
+        try {
+          const raw2 = readFileSync7(filePath, "utf-8");
+          if (raw2.toLowerCase().includes(q)) {
+            results.push({
+              fileName: file,
+              category: cat,
+              filePath,
+              meta: { title: file.replace(".md", ""), date: "", tags: [] },
+              content: raw2
+            });
+          }
+        } catch {
+        }
+      }
+    }
+    return results;
+  }
+};
+var obsidianVaultManager = ObsidianVaultManager.getInstance();
+
+// custom-routes.ts
+init_OllamaLocalProvider();
 init_TaskStore();
 init_EventStream();
 import { streamSSE } from "hono/streaming";
@@ -16115,17 +16420,17 @@ var AgentRuntime = class {
       if (!outputResult) {
         verificationFailures.push("No execution output or artifact was generated");
       }
-      const { existsSync: existsSync22, readFileSync: readFileSync16 } = await import("node:fs");
+      const { existsSync: existsSync23, readFileSync: readFileSync17 } = await import("node:fs");
       const { resolve: resolve17 } = await import("node:path");
       if (inputData?.filesToVerify && Array.isArray(inputData.filesToVerify)) {
         for (const f of inputData.filesToVerify) {
           const resolvedPath = resolve17(process.cwd(), f);
-          if (!existsSync22(resolvedPath)) {
+          if (!existsSync23(resolvedPath)) {
             verificationFailures.push(`Verification failure: Deliverable file "${f}" does not exist on disk`);
           } else {
             if (f.endsWith(".json")) {
               try {
-                JSON.parse(readFileSync16(resolvedPath, "utf-8"));
+                JSON.parse(readFileSync17(resolvedPath, "utf-8"));
               } catch (jsonErr) {
                 verificationFailures.push(`Syntax error in JSON deliverable "${f}": ${jsonErr.message}`);
               }
@@ -17609,19 +17914,19 @@ init_TelegramNotifier();
 
 // src/services/LeadDeduplicationService.ts
 init_db();
-import { existsSync as existsSync9, mkdirSync as mkdirSync5, readFileSync as readFileSync7, writeFileSync as writeFileSync7 } from "node:fs";
-import { resolve as resolve6, join as join7 } from "node:path";
+import { existsSync as existsSync10, mkdirSync as mkdirSync6, readFileSync as readFileSync8, writeFileSync as writeFileSync8 } from "node:fs";
+import { resolve as resolve6, join as join8 } from "node:path";
 var LeadDeduplicationService = class _LeadDeduplicationService {
   static dataDir = resolve6(process.cwd(), "data");
-  static leadsFile = join7(_LeadDeduplicationService.dataDir, "processed_leads.json");
+  static leadsFile = join8(_LeadDeduplicationService.dataDir, "processed_leads.json");
   static cache = /* @__PURE__ */ new Map();
   static dbInitialized = false;
   static ensureDataDir() {
-    if (!existsSync9(this.dataDir)) {
-      mkdirSync5(this.dataDir, { recursive: true });
+    if (!existsSync10(this.dataDir)) {
+      mkdirSync6(this.dataDir, { recursive: true });
     }
-    if (!existsSync9(this.leadsFile)) {
-      writeFileSync7(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
+    if (!existsSync10(this.leadsFile)) {
+      writeFileSync8(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
     }
   }
   /**
@@ -17630,7 +17935,7 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
   static async init() {
     this.ensureDataDir();
     try {
-      const raw2 = readFileSync7(this.leadsFile, "utf-8");
+      const raw2 = readFileSync8(this.leadsFile, "utf-8");
       const records = JSON.parse(raw2);
       for (const rec of records) {
         if (rec.id) this.cache.set(rec.id, rec);
@@ -17708,7 +18013,7 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
     if (record.url) this.cache.set(record.url, record);
     try {
       const records = Array.from(new Set(Array.from(this.cache.values())));
-      writeFileSync7(this.leadsFile, JSON.stringify(records, null, 2), "utf-8");
+      writeFileSync8(this.leadsFile, JSON.stringify(records, null, 2), "utf-8");
     } catch (e) {
       console.warn("[LeadDeduplicationService] Failed to write leads file:", e?.message);
     }
@@ -17740,7 +18045,7 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
   static async clear() {
     this.cache.clear();
     this.ensureDataDir();
-    writeFileSync7(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
+    writeFileSync8(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
     try {
       await prisma.$executeRawUnsafe(`DELETE FROM scouted_leads;`);
     } catch {
@@ -17750,25 +18055,25 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
 
 // src/services/RealizedEarningsService.ts
 init_db();
-import { existsSync as existsSync10, mkdirSync as mkdirSync6, readFileSync as readFileSync8, writeFileSync as writeFileSync8 } from "node:fs";
-import { resolve as resolve7, join as join8 } from "node:path";
+import { existsSync as existsSync11, mkdirSync as mkdirSync7, readFileSync as readFileSync9, writeFileSync as writeFileSync9 } from "node:fs";
+import { resolve as resolve7, join as join9 } from "node:path";
 var RealizedEarningsService = class _RealizedEarningsService {
   static dataDir = resolve7(process.cwd(), "data");
-  static ledgerFile = join8(_RealizedEarningsService.dataDir, "realized_earnings.json");
+  static ledgerFile = join9(_RealizedEarningsService.dataDir, "realized_earnings.json");
   static cache = /* @__PURE__ */ new Map();
   static dbInitialized = false;
   static ensureDataDir() {
-    if (!existsSync10(this.dataDir)) {
-      mkdirSync6(this.dataDir, { recursive: true });
+    if (!existsSync11(this.dataDir)) {
+      mkdirSync7(this.dataDir, { recursive: true });
     }
-    if (!existsSync10(this.ledgerFile)) {
-      writeFileSync8(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
+    if (!existsSync11(this.ledgerFile)) {
+      writeFileSync9(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
     }
   }
   static async init() {
     this.ensureDataDir();
     try {
-      const raw2 = readFileSync8(this.ledgerFile, "utf-8");
+      const raw2 = readFileSync9(this.ledgerFile, "utf-8");
       const records = JSON.parse(raw2);
       for (const rec of records) {
         if (rec.id) this.cache.set(rec.id, rec);
@@ -17813,7 +18118,7 @@ var RealizedEarningsService = class _RealizedEarningsService {
     this.cache.set(record.id, record);
     try {
       const records = Array.from(this.cache.values());
-      writeFileSync8(this.ledgerFile, JSON.stringify(records, null, 2), "utf-8");
+      writeFileSync9(this.ledgerFile, JSON.stringify(records, null, 2), "utf-8");
     } catch (e) {
       console.warn("[RealizedEarningsService] Failed to write ledger file:", e?.message);
     }
@@ -17862,7 +18167,7 @@ var RealizedEarningsService = class _RealizedEarningsService {
   static async clear() {
     this.cache.clear();
     this.ensureDataDir();
-    writeFileSync8(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
+    writeFileSync9(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
     try {
       await prisma.$executeRawUnsafe(`DELETE FROM realized_earnings;`);
     } catch {
@@ -19971,13 +20276,13 @@ var DisasterRecoveryManager = class {
 };
 
 // custom-routes.ts
-import { readFileSync as readFileSync14, writeFileSync as writeFileSync18, existsSync as existsSync20, chmodSync as chmodSync2, mkdirSync as mkdirSync15, readdirSync as readdirSync4, statSync as statSync5 } from "fs";
-import { join as join18, resolve as resolve16, extname } from "path";
+import { readFileSync as readFileSync15, writeFileSync as writeFileSync19, existsSync as existsSync21, chmodSync as chmodSync2, mkdirSync as mkdirSync16, readdirSync as readdirSync5, statSync as statSync5 } from "fs";
+import { join as join19, resolve as resolve16, extname } from "path";
 import { randomBytes as randomBytes2 } from "crypto";
 
 // src/security/SovereignGate.ts
-import { readFileSync as readFileSync11, writeFileSync as writeFileSync13, existsSync as existsSync15, chmodSync } from "fs";
-import { join as join13 } from "path";
+import { readFileSync as readFileSync12, writeFileSync as writeFileSync14, existsSync as existsSync16, chmodSync } from "fs";
+import { join as join14 } from "path";
 import { randomBytes } from "crypto";
 import jwt from "jsonwebtoken";
 var SovereignGate = class {
@@ -20000,10 +20305,10 @@ var SovereignGate = class {
       this.cachedSecret = process.env.RUNTIME_AUTH_SECRET.trim();
       return this.cachedSecret;
     }
-    const secretFile = join13(process.cwd(), ".jarvis-secret");
+    const secretFile = join14(process.cwd(), ".jarvis-secret");
     try {
-      if (existsSync15(secretFile)) {
-        const stored = readFileSync11(secretFile, "utf8").trim();
+      if (existsSync16(secretFile)) {
+        const stored = readFileSync12(secretFile, "utf8").trim();
         if (stored.length >= 32) {
           this.cachedSecret = stored;
           return this.cachedSecret;
@@ -20013,7 +20318,7 @@ var SovereignGate = class {
     }
     const SOVEREIGN_STABLE_SEED = "jarvis-sovereign-master-sri-mark-v-auth-secret-key-3284f46-permanent-auth";
     try {
-      writeFileSync13(secretFile, SOVEREIGN_STABLE_SEED, { mode: 384 });
+      writeFileSync14(secretFile, SOVEREIGN_STABLE_SEED, { mode: 384 });
       chmodSync(secretFile, 384);
     } catch {
     }
@@ -20959,13 +21264,13 @@ ${systemPrompt}` }] });
 };
 
 // src/services/HermesDocumentService.ts
-import { existsSync as existsSync16, mkdirSync as mkdirSync11, writeFileSync as writeFileSync14, statSync as statSync3 } from "fs";
-import { resolve as resolve13, join as join14 } from "path";
+import { existsSync as existsSync17, mkdirSync as mkdirSync12, writeFileSync as writeFileSync15, statSync as statSync3 } from "fs";
+import { resolve as resolve13, join as join15 } from "path";
 var HermesDocumentService = class {
   static storageDir = resolve13(process.cwd(), "artifacts", "storage");
   static ensureStorageDir() {
-    if (!existsSync16(this.storageDir)) {
-      mkdirSync11(this.storageDir, { recursive: true });
+    if (!existsSync17(this.storageDir)) {
+      mkdirSync12(this.storageDir, { recursive: true });
     }
   }
   /**
@@ -21039,8 +21344,8 @@ var HermesDocumentService = class {
         content: options.content
       });
     }
-    const targetPath = join14(this.storageDir, filename);
-    writeFileSync14(targetPath, fileBuffer);
+    const targetPath = join15(this.storageDir, filename);
+    writeFileSync15(targetPath, fileBuffer);
     const stats = statSync3(targetPath);
     return {
       success: true,
@@ -21232,11 +21537,11 @@ var DailyBriefingEngine = class {
 };
 
 // src/agents/SkillCreationEngine.ts
-import { existsSync as existsSync17, mkdirSync as mkdirSync12, writeFileSync as writeFileSync15, readFileSync as readFileSync12 } from "fs";
-import { resolve as resolve14, join as join15 } from "path";
+import { existsSync as existsSync18, mkdirSync as mkdirSync13, writeFileSync as writeFileSync16, readFileSync as readFileSync13 } from "fs";
+import { resolve as resolve14, join as join16 } from "path";
 var SkillCreationEngine = class _SkillCreationEngine {
   static dataDir = resolve14(process.cwd(), "data");
-  static skillsFile = join15(_SkillCreationEngine.dataDir, "custom_skills.json");
+  static skillsFile = join16(_SkillCreationEngine.dataDir, "custom_skills.json");
   static defaultSkills = [
     {
       id: "SKILL-GROCERY-AI",
@@ -21279,17 +21584,17 @@ var SkillCreationEngine = class _SkillCreationEngine {
     }
   ];
   static ensureDataDir() {
-    if (!existsSync17(this.dataDir)) {
-      mkdirSync12(this.dataDir, { recursive: true });
+    if (!existsSync18(this.dataDir)) {
+      mkdirSync13(this.dataDir, { recursive: true });
     }
-    if (!existsSync17(this.skillsFile)) {
-      writeFileSync15(this.skillsFile, JSON.stringify(this.defaultSkills, null, 2), "utf-8");
+    if (!existsSync18(this.skillsFile)) {
+      writeFileSync16(this.skillsFile, JSON.stringify(this.defaultSkills, null, 2), "utf-8");
     }
   }
   static getSkills() {
     this.ensureDataDir();
     try {
-      const raw2 = readFileSync12(this.skillsFile, "utf-8");
+      const raw2 = readFileSync13(this.skillsFile, "utf-8");
       return JSON.parse(raw2);
     } catch {
       return this.defaultSkills;
@@ -21318,7 +21623,7 @@ var SkillCreationEngine = class _SkillCreationEngine {
       executionCount: 1
     };
     skills.push(newSkill);
-    writeFileSync15(this.skillsFile, JSON.stringify(skills, null, 2), "utf-8");
+    writeFileSync16(this.skillsFile, JSON.stringify(skills, null, 2), "utf-8");
     return newSkill;
   }
 };
@@ -21773,16 +22078,16 @@ var FrontierModelVault = class {
 };
 
 // src/services/JioCloudVaultService.ts
-import { existsSync as existsSync18, mkdirSync as mkdirSync13, writeFileSync as writeFileSync16 } from "fs";
-import { join as join16 } from "path";
+import { existsSync as existsSync19, mkdirSync as mkdirSync14, writeFileSync as writeFileSync17 } from "fs";
+import { join as join17 } from "path";
 var JioCloudVaultService = class {
   static defaultMountPath = process.env.JIO_MOUNT_PATH || "J:\\JIO-VAULT";
-  static localStagingPath = join16(process.cwd(), "artifacts", "storage", "jio-vault");
+  static localStagingPath = join17(process.cwd(), "artifacts", "storage", "jio-vault");
   /**
    * Returns current connection status of the 5,000 GB JioCloud storage
    */
   static getConnectionStatus() {
-    const isVirtualMounted = existsSync18(this.defaultMountPath);
+    const isVirtualMounted = existsSync19(this.defaultMountPath);
     return {
       connected: isVirtualMounted,
       mountType: isVirtualMounted ? "RCLONE_VIRTUAL_DRIVE" : "CLOUD_STAGING_MODE",
@@ -21798,15 +22103,15 @@ var JioCloudVaultService = class {
    * Creates an automated backup snapshot directly into the JioCloud vault
    */
   static createSnapshot(snapshotName = "master-sri-sovereign-snapshot") {
-    const targetDir = existsSync18(this.defaultMountPath) ? join16(this.defaultMountPath, "backups") : join16(this.localStagingPath, "backups");
-    if (!existsSync18(targetDir)) {
+    const targetDir = existsSync19(this.defaultMountPath) ? join17(this.defaultMountPath, "backups") : join17(this.localStagingPath, "backups");
+    if (!existsSync19(targetDir)) {
       try {
-        mkdirSync13(targetDir, { recursive: true });
+        mkdirSync14(targetDir, { recursive: true });
       } catch {
       }
     }
     const filename = `${snapshotName}_${Date.now()}.json`;
-    const targetFile = join16(targetDir, filename);
+    const targetFile = join17(targetDir, filename);
     const snapshotPayload = {
       commander: "Master Sri",
       system: "J.A.R.V.I.S. Mark-V Sovereign Kernel",
@@ -21816,7 +22121,7 @@ var JioCloudVaultService = class {
       status: "VERIFIED_DURABLE"
     };
     try {
-      writeFileSync16(targetFile, JSON.stringify(snapshotPayload, null, 2), "utf-8");
+      writeFileSync17(targetFile, JSON.stringify(snapshotPayload, null, 2), "utf-8");
     } catch {
     }
     return {
@@ -21943,15 +22248,15 @@ async function ensureDatabaseSchema() {
     schemaRepairAttempted = true;
     console.error("[jarvis] database schema missing, repairing:", msg);
     try {
-      const { readFileSync: readFileSync16, writeFileSync: writeFileSync19 } = await import("node:fs");
-      const { join: join20 } = await import("node:path");
+      const { readFileSync: readFileSync17, writeFileSync: writeFileSync20 } = await import("node:fs");
+      const { join: join21 } = await import("node:path");
       const { execFileSync } = await import("node:child_process");
-      const schemaPath = join20(process.cwd(), "prisma", "schema.prisma");
+      const schemaPath = join21(process.cwd(), "prisma", "schema.prisma");
       const rawDbUrl2 = process.env.DATABASE_URL || "";
       const isPg = rawDbUrl2.startsWith("postgres://") || rawDbUrl2.startsWith("postgresql://");
       const targetProvider = isPg ? "postgresql" : "sqlite";
       try {
-        const schema = readFileSync16(schemaPath, "utf-8");
+        const schema = readFileSync17(schemaPath, "utf-8");
         const updated = schema.replace(
           /datasource\s+db\s*\{[\s\S]*?provider\s*=\s*["'][^"']+["'][\s\S]*?\}/,
           `datasource db {
@@ -21959,7 +22264,7 @@ async function ensureDatabaseSchema() {
 }`
         );
         if (schema !== updated) {
-          writeFileSync19(schemaPath, updated, "utf-8");
+          writeFileSync20(schemaPath, updated, "utf-8");
         }
       } catch (_) {
       }
@@ -21999,17 +22304,17 @@ var JWT_SECRET = loadJwtSecret();
 var BCRYPT_ROUNDS = 12;
 function loadInviteCode() {
   if (process.env.JARVIS_INVITE_CODE) return process.env.JARVIS_INVITE_CODE;
-  const inviteFile = join18(process.cwd(), ".jarvis-invite");
+  const inviteFile = join19(process.cwd(), ".jarvis-invite");
   try {
-    if (existsSync20(inviteFile)) {
-      const stored = readFileSync14(inviteFile, "utf8").trim();
+    if (existsSync21(inviteFile)) {
+      const stored = readFileSync15(inviteFile, "utf8").trim();
       if (stored.length >= 8) return stored;
     }
   } catch {
   }
   const generated = randomBytes2(9).toString("base64url");
   try {
-    writeFileSync18(inviteFile, generated, { mode: 384 });
+    writeFileSync19(inviteFile, generated, { mode: 384 });
     chmodSync2(inviteFile, 384);
   } catch {
   }
@@ -22603,11 +22908,11 @@ function isModelReady(model) {
   return false;
 }
 var runtimeKeyOverrides = {};
-var KEYS_FILE = join18(process.cwd(), ".jarvis-keys.json");
+var KEYS_FILE = join19(process.cwd(), ".jarvis-keys.json");
 function loadKeys() {
-  if (existsSync20(KEYS_FILE)) {
+  if (existsSync21(KEYS_FILE)) {
     try {
-      const diskKeys = JSON.parse(readFileSync14(KEYS_FILE, "utf8"));
+      const diskKeys = JSON.parse(readFileSync15(KEYS_FILE, "utf8"));
       Object.assign(runtimeKeyOverrides, diskKeys);
     } catch {
     }
@@ -22638,7 +22943,7 @@ function loadKeys() {
 function saveKeys(keys) {
   Object.assign(runtimeKeyOverrides, keys);
   try {
-    writeFileSync18(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
+    writeFileSync19(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
     chmodSync2(KEYS_FILE, 384);
   } catch {
   }
@@ -22895,10 +23200,10 @@ ${JSON.stringify(audit.output, null, 2)}
       let fullPath = resolve16(process.cwd(), cleanPath);
       if (cleanPath.startsWith("assets/") || cleanPath.startsWith("sections/") || cleanPath.startsWith("snippets/") || cleanPath.startsWith("layout/")) {
         const inviCandidate = resolve16("c:/Users/hp/invi-theme", cleanPath);
-        if (existsSync20(inviCandidate)) fullPath = inviCandidate;
+        if (existsSync21(inviCandidate)) fullPath = inviCandidate;
       }
-      if (existsSync20(fullPath) && statSync5(fullPath).isFile()) {
-        const content = readFileSync14(fullPath, "utf-8");
+      if (existsSync21(fullPath) && statSync5(fullPath).isFile()) {
+        const content = readFileSync15(fullPath, "utf-8");
         context += `
 
 [VERIFIED DISK FILE: ${cleanPath}]:
@@ -23842,8 +24147,8 @@ app.get("/storage/download/:taskNumber/:format", async (c) => {
     if (!filePath) {
       return c.text("Report not found in storage vault", 404);
     }
-    const { readFileSync: readFileSync16 } = await import("node:fs");
-    const fileBytes = readFileSync16(filePath);
+    const { readFileSync: readFileSync17 } = await import("node:fs");
+    const fileBytes = readFileSync17(filePath);
     const contentType = format === "pdf" ? "application/pdf" : format === "doc" ? "application/msword" : format === "xlsx" ? "application/vnd.ms-excel" : "text/markdown";
     return new Response(fileBytes, {
       headers: {
@@ -23882,12 +24187,12 @@ app.get("/storage/download-custom/:filename", async (c) => {
   try {
     const filename = c.req.param("filename");
     const { resolve: resolve17 } = await import("node:path");
-    const { existsSync: existsSync22, readFileSync: readFileSync16 } = await import("node:fs");
+    const { existsSync: existsSync23, readFileSync: readFileSync17 } = await import("node:fs");
     const filePath = resolve17(process.cwd(), "artifacts", "storage", filename);
-    if (!existsSync22(filePath)) {
+    if (!existsSync23(filePath)) {
       return c.text("Custom document not found", 404);
     }
-    const fileBytes = readFileSync16(filePath);
+    const fileBytes = readFileSync17(filePath);
     const ext = filename.split(".").pop()?.toLowerCase();
     const contentType = ext === "pdf" ? "application/pdf" : ext === "doc" ? "application/msword" : "text/plain";
     return new Response(fileBytes, {
@@ -24126,14 +24431,14 @@ app.get("/preview/:slug/:file", (c) => {
 app.get("/artifacts/download", (c) => {
   const fileParam = c.req.query("file");
   if (!fileParam) return c.text("Missing file parameter", 400);
-  const { existsSync: existsSync22, readFileSync: readFileSync16 } = __require("node:fs");
-  const { join: join20 } = __require("node:path");
+  const { existsSync: existsSync23, readFileSync: readFileSync17 } = __require("node:fs");
+  const { join: join21 } = __require("node:path");
   const safeName = fileParam.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const filePath = join20(process.cwd(), "artifacts", "documents", safeName);
-  if (!existsSync22(filePath)) {
+  const filePath = join21(process.cwd(), "artifacts", "documents", safeName);
+  if (!existsSync23(filePath)) {
     return c.text("File not found", 404);
   }
-  const content = readFileSync16(filePath);
+  const content = readFileSync17(filePath);
   let contentType = "application/octet-stream";
   if (safeName.endsWith(".pdf")) contentType = "application/pdf";
   else if (safeName.endsWith(".xlsx")) contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -24142,6 +24447,69 @@ app.get("/artifacts/download", (c) => {
     "Content-Type": contentType,
     "Content-Disposition": `attachment; filename="${safeName}"`
   });
+});
+app.get("/v1/models", (c) => {
+  return c.json({
+    object: "list",
+    data: [
+      { id: "jarvis-core", object: "model", created: 17e8, owned_by: "sovereign-jarvis", permission: [] },
+      { id: "qwen3:4b", object: "model", created: 17e8, owned_by: "ollama-local", permission: [] },
+      { id: "deepseek-r1", object: "model", created: 17e8, owned_by: "deepseek", permission: [] },
+      { id: "llama-3.3-70b", object: "model", created: 17e8, owned_by: "groq", permission: [] },
+      { id: "gpt-4o", object: "model", created: 17e8, owned_by: "openai", permission: [] },
+      { id: "gemini-flash", object: "model", created: 17e8, owned_by: "google", permission: [] }
+    ]
+  });
+});
+app.post("/v1/chat/completions", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { model, messages, tools: tools2 } = body;
+    const specialist = (model || "").toLowerCase().includes("raphael") ? "raphael" : (model || "").toLowerCase().includes("aegis") ? "aegis" : "jarvis";
+    const response = await swarmModelRouter.dispatch(specialist, messages || [], tools2);
+    return c.json({
+      id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1e3),
+      model: model || "jarvis-core",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: response.content || null,
+            tool_calls: response.tool_calls || void 0
+          },
+          finish_reason: response.tool_calls && response.tool_calls.length > 0 ? "tool_calls" : "stop"
+        }
+      ],
+      usage: { prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 }
+    });
+  } catch (err) {
+    return c.json({ error: { message: err?.message || String(err), type: "server_error" } }, 500);
+  }
+});
+app.get("/vault/search", (c) => {
+  const query = c.req.query("q") || "";
+  const notes = obsidianVaultManager.searchVault(query);
+  return c.json({ ok: true, query, total: notes.length, notes });
+});
+app.post("/vault/notes", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { category, title, content, meta } = body;
+    if (!title || !content) {
+      return c.json({ ok: false, error: "title and content are required" }, 400);
+    }
+    const result = obsidianVaultManager.saveNote(category || "Memory", title, content, meta || {});
+    return c.json({ ok: true, result });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || String(err) }, 500);
+  }
+});
+app.get("/ollama/health", async (c) => {
+  const status = await ollamaLocalProvider.probeHealth();
+  return c.json({ ok: true, ...status });
 });
 app.get("/health/providers", (c) => {
   return c.json({
@@ -27276,10 +27644,10 @@ app.post("/workspace/execute", async (c) => {
 app.get("/workspaces", requireAuth, async (c) => {
   try {
     const baseDir = resolve16(process.cwd(), "workspaces");
-    if (!existsSync20(baseDir)) mkdirSync15(baseDir, { recursive: true });
-    const items = readdirSync4(baseDir, { withFileTypes: true });
+    if (!existsSync21(baseDir)) mkdirSync16(baseDir, { recursive: true });
+    const items = readdirSync5(baseDir, { withFileTypes: true });
     const projects = items.filter((item) => item.isDirectory()).map((dir) => {
-      const pPath = join18(baseDir, dir.name);
+      const pPath = join19(baseDir, dir.name);
       const files = WorkspaceManager.listFiles(dir.name);
       const stats = statSync5(pPath);
       return {
@@ -27288,7 +27656,7 @@ app.get("/workspaces", requireAuth, async (c) => {
         filesCount: files.length,
         updatedAt: stats.mtime.toISOString(),
         previewUrl: `/api/workspaces/preview/${dir.name}`,
-        hasIndexHtml: existsSync20(join18(pPath, "index.html"))
+        hasIndexHtml: existsSync21(join19(pPath, "index.html"))
       };
     }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     return c.json({ ok: true, projects });
@@ -27337,7 +27705,7 @@ var MIME_MAP = {
 var ensureDefaultWorkspaceExists = (targetProject = "swarm_can_you_create_a_todo_li") => {
   const projectPath = WorkspaceManager.getProjectPath(targetProject);
   const indexPath = resolve16(projectPath, "index.html");
-  if (existsSync20(indexPath)) return projectPath;
+  if (existsSync21(indexPath)) return projectPath;
   WorkspaceManager.initProject(targetProject);
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -27611,19 +27979,19 @@ document.addEventListener('DOMContentLoaded', () => {
 var serveWorkspaceFile = (projectName, subPath) => {
   let projectPath = WorkspaceManager.getProjectPath(projectName);
   let filePath = subPath ? resolve16(projectPath, subPath) : resolve16(projectPath, "index.html");
-  if (!existsSync20(projectPath) || !existsSync20(filePath) && (!subPath || subPath === "index.html")) {
+  if (!existsSync21(projectPath) || !existsSync21(filePath) && (!subPath || subPath === "index.html")) {
     projectPath = ensureDefaultWorkspaceExists(projectName);
     filePath = subPath ? resolve16(projectPath, subPath) : resolve16(projectPath, "index.html");
   }
   if (!filePath.startsWith(projectPath)) {
     return { status: 403, error: "Path traversal denied" };
   }
-  if (existsSync20(filePath) && statSync5(filePath).isDirectory()) {
+  if (existsSync21(filePath) && statSync5(filePath).isDirectory()) {
     filePath = resolve16(filePath, "index.html");
   }
-  if (!existsSync20(filePath)) {
+  if (!existsSync21(filePath)) {
     const rootIndex = resolve16(projectPath, "index.html");
-    if (existsSync20(rootIndex)) {
+    if (existsSync21(rootIndex)) {
       filePath = rootIndex;
     } else {
       ensureDefaultWorkspaceExists(projectName);
@@ -27632,7 +28000,7 @@ var serveWorkspaceFile = (projectName, subPath) => {
   }
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_MAP[ext] || "text/plain; charset=utf-8";
-  const content = readFileSync14(filePath);
+  const content = readFileSync15(filePath);
   return { status: 200, contentType, content };
 };
 app.get("/workspaces/preview/:projectName", async (c) => {
@@ -27640,8 +28008,8 @@ app.get("/workspaces/preview/:projectName", async (c) => {
     const projectName = c.req.param("projectName");
     if (projectName.includes(".")) {
       const workspacesDir = WorkspaceManager.WORKSPACES_ROOT || resolve16(process.cwd(), "workspaces");
-      if (existsSync20(workspacesDir)) {
-        const entries = readdirSync4(workspacesDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => ({ name: d.name, time: statSync5(join18(workspacesDir, d.name)).mtimeMs })).sort((a, b) => b.time - a.time);
+      if (existsSync21(workspacesDir)) {
+        const entries = readdirSync5(workspacesDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => ({ name: d.name, time: statSync5(join19(workspacesDir, d.name)).mtimeMs })).sort((a, b) => b.time - a.time);
         for (const entry of entries) {
           const candidate = serveWorkspaceFile(entry.name, projectName);
           if (candidate.status === 200 && candidate.content) {
@@ -27877,11 +28245,11 @@ app.post("/docs/generate", requireAuth, async (c) => {
 app.get("/docs/download/:filename", async (c) => {
   try {
     const filename = c.req.param("filename");
-    const safePath = join18(process.cwd(), "artifacts", "storage", filename.replace(/[^a-zA-Z0-9_.-]/g, ""));
-    if (!existsSync20(safePath)) {
+    const safePath = join19(process.cwd(), "artifacts", "storage", filename.replace(/[^a-zA-Z0-9_.-]/g, ""));
+    if (!existsSync21(safePath)) {
       return c.json({ error: "File not found" }, 404);
     }
-    const fileBytes = readFileSync14(safePath);
+    const fileBytes = readFileSync15(safePath);
     const contentType = filename.endsWith(".pdf") ? "application/pdf" : filename.endsWith(".doc") ? "application/msword" : "application/octet-stream";
     return c.body(fileBytes, 200, {
       "Content-Type": contentType,
@@ -29039,14 +29407,24 @@ app2.get("/preview/:slug/:file", (c) => {
   newUrl.pathname = "/api/preview/" + c.req.param("slug") + "/" + c.req.param("file");
   return app2.fetch(new Request(newUrl.toString(), c.req.raw));
 });
+app2.get("/v1/models", (c) => {
+  const newUrl = new URL(c.req.url);
+  newUrl.pathname = "/api/v1/models";
+  return app2.fetch(new Request(newUrl.toString(), c.req.raw));
+});
+app2.post("/v1/chat/completions", (c) => {
+  const newUrl = new URL(c.req.url);
+  newUrl.pathname = "/api/v1/chat/completions";
+  return app2.fetch(new Request(newUrl.toString(), c.req.raw));
+});
 var tools = createToolsHandlers({});
 app2.post("/api/tools/execute", (c) => tools.execute(c.req.raw));
 app2.get("/api/tools/schemas", (c) => tools.list(c.req.raw));
 app2.use("/*", serveStatic({ root: "./dist" }));
 app2.get("*", (c) => {
-  const indexPath = join19(process.cwd(), "dist", "index.html");
-  if (existsSync21(indexPath)) {
-    return c.html(readFileSync15(indexPath, "utf-8"));
+  const indexPath = join20(process.cwd(), "dist", "index.html");
+  if (existsSync22(indexPath)) {
+    return c.html(readFileSync16(indexPath, "utf-8"));
   }
   return c.text("J.A.R.V.I.S. Sovereign Cloud Engine Active", 200);
 });

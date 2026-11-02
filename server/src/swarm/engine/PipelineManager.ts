@@ -239,3 +239,4 @@ export class PipelineManager {
 }
 
 export const pipelineManager = PipelineManager.getInstance()
+

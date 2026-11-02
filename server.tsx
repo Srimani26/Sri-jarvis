@@ -85,6 +85,18 @@ app.get('/preview/:slug/:file', (c) => {
   return app.fetch(new Request(newUrl.toString(), c.req.raw))
 })
 
+// Top-level /v1 OpenAI & Open WebUI gateway forwarding
+app.get('/v1/models', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/v1/models'
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+app.post('/v1/chat/completions', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/v1/chat/completions'
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+
 // Installed-integration tools proxy
 const tools = createToolsHandlers({})
 app.post('/api/tools/execute', (c) => tools.execute(c.req.raw))

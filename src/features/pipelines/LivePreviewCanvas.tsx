@@ -124,3 +124,4 @@ export const LivePreviewCanvas: React.FC<LivePreviewCanvasProps> = ({ pipeline }
     </div>
   )
 }
+

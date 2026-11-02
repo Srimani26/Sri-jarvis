@@ -31,3 +31,4 @@ CREATE TABLE IF NOT EXISTS pipeline_milestones (
 
 CREATE INDEX IF NOT EXISTS idx_pipelines_status ON autonomous_pipelines(status);
 CREATE INDEX IF NOT EXISTS idx_milestones_pipeline_id ON pipeline_milestones(pipeline_id);
+
