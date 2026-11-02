@@ -73,19 +73,46 @@ export const VERIFIED_PUBLIC_ENDPOINTS: PublicEndpointDefinition[] = [
     baseUrl: 'https://dns.google/resolve',
     description: 'Query DNS records (A, AAAA, MX, TXT) for cybersecurity reconnaissance.',
     exampleParams: { name: 'google.com', type: 'A' }
+  },
+  {
+    id: 'geocoding_open_meteo',
+    name: 'Open-Meteo Geocoding API',
+    category: 'geolocation',
+    baseUrl: 'https://geocoding-api.open-meteo.com/v1/search',
+    description: 'Search coordinates and country metadata for any city worldwide.',
+    exampleParams: { name: 'Bengaluru', count: '1' }
+  },
+  {
+    id: 'finance_frankfurter',
+    name: 'Frankfurter Central Bank Currency Rates',
+    category: 'currency',
+    baseUrl: 'https://api.frankfurter.app/latest',
+    description: 'Track ECB official currency reference rates with no API key.',
+    exampleParams: { from: 'USD', to: 'EUR' }
+  },
+  {
+    id: 'science_iss',
+    name: 'Open Notify International Space Station Location',
+    category: 'network',
+    baseUrl: 'http://api.open-notify.org/iss-now.json',
+    description: 'Live orbital telemetry of the International Space Station.',
+    exampleParams: {}
   }
 ]
 
 // SSRF Protection: Allowlist of permitted external domains
 const ALLOWED_PUBLIC_DOMAINS = [
   'api.open-meteo.com',
+  'geocoding-api.open-meteo.com',
   'wttr.in',
   'open.er-api.com',
+  'api.frankfurter.app',
   'api.coingecko.com',
   'ipapi.co',
   'en.wikipedia.org',
   'dns.google',
-  'api.github.com'
+  'api.github.com',
+  'api.open-notify.org'
 ]
 
 /**
@@ -156,3 +183,4 @@ export async function executeQueryPublicService(
     text: text.slice(0, 4000)
   }
 }
+

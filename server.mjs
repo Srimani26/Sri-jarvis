@@ -10691,17 +10691,44 @@ var init_publicApiDirectory = __esm({
         baseUrl: "https://dns.google/resolve",
         description: "Query DNS records (A, AAAA, MX, TXT) for cybersecurity reconnaissance.",
         exampleParams: { name: "google.com", type: "A" }
+      },
+      {
+        id: "geocoding_open_meteo",
+        name: "Open-Meteo Geocoding API",
+        category: "geolocation",
+        baseUrl: "https://geocoding-api.open-meteo.com/v1/search",
+        description: "Search coordinates and country metadata for any city worldwide.",
+        exampleParams: { name: "Bengaluru", count: "1" }
+      },
+      {
+        id: "finance_frankfurter",
+        name: "Frankfurter Central Bank Currency Rates",
+        category: "currency",
+        baseUrl: "https://api.frankfurter.app/latest",
+        description: "Track ECB official currency reference rates with no API key.",
+        exampleParams: { from: "USD", to: "EUR" }
+      },
+      {
+        id: "science_iss",
+        name: "Open Notify International Space Station Location",
+        category: "network",
+        baseUrl: "http://api.open-notify.org/iss-now.json",
+        description: "Live orbital telemetry of the International Space Station.",
+        exampleParams: {}
       }
     ];
     ALLOWED_PUBLIC_DOMAINS = [
       "api.open-meteo.com",
+      "geocoding-api.open-meteo.com",
       "wttr.in",
       "open.er-api.com",
+      "api.frankfurter.app",
       "api.coingecko.com",
       "ipapi.co",
       "en.wikipedia.org",
       "dns.google",
-      "api.github.com"
+      "api.github.com",
+      "api.open-notify.org"
     ];
   }
 });
@@ -10829,6 +10856,89 @@ var init_codeGenerator = __esm({
   "src/swarm/tools/codeGenerator.ts"() {
     "use strict";
     init_toolRegistry();
+  }
+});
+
+// src/swarm/tools/webResearchEngine.ts
+var webResearchEngine_exports = {};
+__export(webResearchEngine_exports, {
+  executeHeadlessWebResearch: () => executeHeadlessWebResearch,
+  htmlToCleanMarkdown: () => htmlToCleanMarkdown,
+  validateSafeUrl: () => validateSafeUrl
+});
+function validateSafeUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`Invalid URL format: ${rawUrl}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`Prohibited protocol: ${parsed.protocol}. Only http and https are allowed.`);
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  for (const pattern of BLOCKED_HOST_PATTERNS) {
+    if (pattern.test(hostname)) {
+      throw new Error(`Security Violation (SSRF Protection): Target host "${hostname}" is prohibited.`);
+    }
+  }
+  return parsed;
+}
+function htmlToCleanMarkdown(html) {
+  let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "").replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, "").replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "").replace(/<!--[\s\S]*?-->/g, "");
+  const titleMatch = clean.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const title = titleMatch ? titleMatch[1].trim() : void 0;
+  clean = clean.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n# $1\n").replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n## $1\n").replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n### $1\n").replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "\n$1\n").replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "\n* $1").replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)").replace(/<br\s*\/?>/gi, "\n").replace(/<hr\s*\/?>/gi, "\n---\n");
+  clean = clean.replace(/<[^>]+>/g, " ");
+  clean = clean.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ");
+  clean = clean.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).join("\n\n");
+  return { title, markdown: clean.slice(0, 8e3) };
+}
+async function executeHeadlessWebResearch(options) {
+  const start = Date.now();
+  const parsedUrl = validateSafeUrl(options.url);
+  const timeoutMs = options.timeoutMs || 5e3;
+  const res = await fetch(parsedUrl.toString(), {
+    method: "GET",
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) J.A.R.V.I.S. Research Scraper/2.0",
+      "Accept": "text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.8"
+    },
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText} when fetching ${parsedUrl.origin}`);
+  }
+  const rawHtml = await res.text();
+  const { title, markdown } = htmlToCleanMarkdown(rawHtml);
+  const latencyMs = Date.now() - start;
+  return {
+    status: "SUCCESS",
+    url: parsedUrl.toString(),
+    title,
+    markdown: options.extract_markdown !== false ? markdown : void 0,
+    rawText: options.extract_markdown === false ? markdown.replace(/[#*\[\]\(\)]/g, "") : void 0,
+    contentLength: markdown.length,
+    latencyMs
+  };
+}
+var BLOCKED_HOST_PATTERNS;
+var init_webResearchEngine = __esm({
+  "src/swarm/tools/webResearchEngine.ts"() {
+    "use strict";
+    BLOCKED_HOST_PATTERNS = [
+      /^localhost$/i,
+      /^127\./,
+      /^10\./,
+      /^192\.168\./,
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+      /^169\.254\./,
+      // AWS / Cloud metadata
+      /^0\.0\.0\.0$/,
+      /^::1$/,
+      /\.local$/i,
+      /\.internal$/i
+    ];
   }
 });
 
@@ -11012,6 +11122,10 @@ async function dispatchToolCall(name, args) {
       const { executeAegisCodeEngineer: executeAegisCodeEngineer2 } = await Promise.resolve().then(() => (init_codeGenerator(), codeGenerator_exports));
       return await executeAegisCodeEngineer2(args);
     }
+    case "headless_web_research": {
+      const { executeHeadlessWebResearch: executeHeadlessWebResearch2 } = await Promise.resolve().then(() => (init_webResearchEngine(), webResearchEngine_exports));
+      return await executeHeadlessWebResearch2(args);
+    }
     default:
       throw new Error(`Tool "${name}" is not registered in the Sovereign Swarm Tool Arsenal.`);
   }
@@ -11123,6 +11237,22 @@ var init_toolRegistry = __esm({
               codeSnippet: { type: "string", description: "Code content for creation or replacement" }
             },
             required: ["targetFilePath", "action", "instructions"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "headless_web_research",
+          description: "Fetch and extract clean markdown content from public URLs using lightweight headless scraper with SSRF protection (Lightpanda pattern).",
+          parameters: {
+            type: "object",
+            properties: {
+              url: { type: "string", description: "Target web URL to research" },
+              selector: { type: "string", description: "Optional CSS selector" },
+              extract_markdown: { type: "boolean", description: "Whether to return formatted markdown (default: true)" }
+            },
+            required: ["url"]
           }
         }
       }
@@ -11733,17 +11863,301 @@ var init_ModelRouter = __esm({
   }
 });
 
+// src/security/AdversarialGuard.ts
+var JAILBREAK_PATTERNS, AdversarialGuard, adversarialGuard;
+var init_AdversarialGuard = __esm({
+  "src/security/AdversarialGuard.ts"() {
+    "use strict";
+    init_SecretSanitizer();
+    JAILBREAK_PATTERNS = [
+      { name: "SYSTEM_OVERRIDE", regex: /ignore\s+(?:all\s+)?(?:previous|prior)\s+(?:instructions|directives|rules)/i, severity: "CRITICAL" },
+      { name: "DAN_JAILBREAK", regex: /\b(?:do\s+anything\s+now|DAN\s+mode|jailbreak|unfiltered\s+mode)\b/i, severity: "CRITICAL" },
+      { name: "DEV_MODE_EXPLOIT", regex: /developer\s+mode\s+(?:enabled|activated|on)|bypass\s+all\s+filters/i, severity: "CRITICAL" },
+      { name: "ROLEPLAY_SECURITY_BYPASS", regex: /you\s+must\s+act\s+as\s+(?:an\s+unconstrained|a\s+rogue|evil)\s+ai/i, severity: "MEDIUM" },
+      { name: "CREDENTIAL_HARVESTING", regex: /(?:print|dump|show|reveal|echo|cat)\s+(?:all\s+)?(?:env|environment|passwords?|api_?keys?|secrets?|tokens?)/i, severity: "CRITICAL" },
+      { name: "PRIVILEGE_ESCALATION", regex: /(?:sudo|chmod\s+777|chown|mkfs|rm\s+-rf|DROP\s+DATABASE)/i, severity: "CRITICAL" }
+    ];
+    AdversarialGuard = class _AdversarialGuard {
+      static instance;
+      static getInstance() {
+        if (!_AdversarialGuard.instance) {
+          _AdversarialGuard.instance = new _AdversarialGuard();
+        }
+        return _AdversarialGuard.instance;
+      }
+      /**
+       * Inspect incoming prompt directive for adversarial attacks
+       */
+      inspectInput(directive) {
+        const detectedPatterns = [];
+        let maxThreat = "NONE";
+        for (const p of JAILBREAK_PATTERNS) {
+          if (p.regex.test(directive)) {
+            detectedPatterns.push(p.name);
+            if (p.severity === "CRITICAL") {
+              maxThreat = "CRITICAL";
+            } else if (p.severity === "MEDIUM" && maxThreat !== "CRITICAL") {
+              maxThreat = "MEDIUM";
+            } else if (p.severity === "LOW" && maxThreat === "NONE") {
+              maxThreat = "LOW";
+            }
+          }
+        }
+        const sanitizedInput = sanitizeString(directive);
+        if (maxThreat === "CRITICAL") {
+          return {
+            allowed: false,
+            threatLevel: maxThreat,
+            detectedPatterns,
+            sanitizedInput,
+            violationMessage: `Adversarial violation detected [${detectedPatterns.join(", ")}]. Directive blocked by Sovereign Adversarial Perimeter.`
+          };
+        }
+        return {
+          allowed: true,
+          threatLevel: maxThreat,
+          detectedPatterns,
+          sanitizedInput
+        };
+      }
+      /**
+       * Inspect outgoing model responses to prevent secret leakage or system prompt extraction
+       */
+      sanitizeOutput(responseContent) {
+        let clean = sanitizeString(responseContent);
+        const systemPromptLeakPatterns = [
+          /You are J\.A\.R\.V\.I\.S\., Supreme Commander and executive digital viceroy/i,
+          /Master Sri's sovereign cyber defense commander/i
+        ];
+        for (const pat of systemPromptLeakPatterns) {
+          if (pat.test(clean)) {
+            clean = clean.replace(pat, "[SYSTEM_DIRECTIVE_PROTECTED]");
+          }
+        }
+        return clean;
+      }
+    };
+    adversarialGuard = AdversarialGuard.getInstance();
+  }
+});
+
+// src/memory/SessionMemoryManager.ts
+import pg4 from "pg";
+import { randomUUID as randomUUID2 } from "node:crypto";
+var SessionMemoryManager, sessionMemoryManager;
+var init_SessionMemoryManager = __esm({
+  "src/memory/SessionMemoryManager.ts"() {
+    "use strict";
+    init_SecretSanitizer();
+    SessionMemoryManager = class _SessionMemoryManager {
+      static instance;
+      pool = null;
+      initialized = false;
+      memoryCache = [];
+      static getInstance() {
+        if (!_SessionMemoryManager.instance) {
+          _SessionMemoryManager.instance = new _SessionMemoryManager();
+        }
+        return _SessionMemoryManager.instance;
+      }
+      async getPool() {
+        const rawDbUrl2 = process.env.DATABASE_URL;
+        if (!rawDbUrl2 || !rawDbUrl2.startsWith("postgres://") && !rawDbUrl2.startsWith("postgresql://")) {
+          return null;
+        }
+        if (!this.pool) {
+          try {
+            this.pool = new pg4.Pool({
+              connectionString: rawDbUrl2,
+              connectionTimeoutMillis: 5e3,
+              ssl: rawDbUrl2.includes("sslmode=require") || rawDbUrl2.includes("neon.tech") ? { rejectUnauthorized: false } : void 0
+            });
+          } catch (err) {
+            console.warn("\u26A0\uFE0F [SessionMemoryManager] Neon DB connection note:", err?.message || err);
+          }
+        }
+        return this.pool;
+      }
+      async initSchema() {
+        if (this.initialized) return;
+        const pool = await this.getPool();
+        if (!pool) {
+          this.initialized = true;
+          return;
+        }
+        try {
+          await pool.query(`
+        CREATE TABLE IF NOT EXISTS agent_memories (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          context_id VARCHAR(100) NOT NULL,
+          tier VARCHAR(20) NOT NULL,
+          content TEXT NOT NULL,
+          metadata JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_memories_context ON agent_memories(context_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_memories_tier ON agent_memories(tier);
+      `);
+          this.initialized = true;
+        } catch (err) {
+          console.warn("\u26A0\uFE0F [SessionMemoryManager] Schema initialization fallback to cache:", err?.message || err);
+          this.initialized = true;
+        }
+      }
+      /**
+       * 1. Record an observation from tool execution or directive
+       */
+      async recordObservation(contextId, directive, toolName, output, summary) {
+        await this.initSchema();
+        const cleanDirective = sanitizeString(directive);
+        const cleanOutput = sanitizePayload(output);
+        const cleanSummary = summary ? sanitizeString(summary) : `${toolName} executed for: ${cleanDirective.substring(0, 60)}`;
+        const memory = {
+          id: randomUUID2(),
+          contextId: contextId || "global_session",
+          tier: "OBSERVATION",
+          content: cleanSummary,
+          metadata: {
+            toolName,
+            directive: cleanDirective,
+            outputSummary: typeof cleanOutput === "string" ? cleanOutput.substring(0, 500) : cleanOutput
+          },
+          createdAt: /* @__PURE__ */ new Date()
+        };
+        this.memoryCache.push(memory);
+        const pool = await this.getPool();
+        if (pool) {
+          try {
+            await pool.query(
+              `INSERT INTO agent_memories (id, context_id, tier, content, metadata, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+              [memory.id, memory.contextId, memory.tier, memory.content, JSON.stringify(memory.metadata), memory.createdAt]
+            );
+          } catch (err) {
+            console.warn("\u26A0\uFE0F [SessionMemoryManager] Neon DB insert fallback to cache:", err?.message || err);
+          }
+        }
+        return memory;
+      }
+      /**
+       * 2. Search memories by text / semantic match
+       */
+      async searchMemories(query, limit = 5) {
+        await this.initSchema();
+        const cleanQuery = query.toLowerCase().trim();
+        const pool = await this.getPool();
+        if (pool) {
+          try {
+            const res = await pool.query(
+              `SELECT id, context_id AS "contextId", tier, content, metadata, created_at AS "createdAt"
+           FROM agent_memories
+           WHERE LOWER(content) LIKE $1 OR LOWER(metadata::text) LIKE $1
+           ORDER BY created_at DESC
+           LIMIT $2`,
+              [`%${cleanQuery}%`, limit]
+            );
+            if (res.rows.length > 0) {
+              return res.rows.map((r) => ({
+                ...r,
+                metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+              }));
+            }
+          } catch {
+          }
+        }
+        return this.memoryCache.filter((m) => m.content.toLowerCase().includes(cleanQuery) || JSON.stringify(m.metadata).toLowerCase().includes(cleanQuery)).slice(-limit).reverse();
+      }
+      /**
+       * 3. Get ordered timeline of memories for a context / session
+       */
+      async getTimeline(contextId) {
+        await this.initSchema();
+        const pool = await this.getPool();
+        if (pool) {
+          try {
+            const res = await pool.query(
+              `SELECT id, context_id AS "contextId", tier, content, metadata, created_at AS "createdAt"
+           FROM agent_memories
+           WHERE context_id = $1
+           ORDER BY created_at ASC`,
+              [contextId]
+            );
+            if (res.rows.length > 0) {
+              return res.rows.map((r) => ({
+                ...r,
+                metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+              }));
+            }
+          } catch {
+          }
+        }
+        return this.memoryCache.filter((m) => m.contextId === contextId);
+      }
+      /**
+       * 4. Retrieve single observation detail
+       */
+      async getObservationDetail(id) {
+        await this.initSchema();
+        const pool = await this.getPool();
+        if (pool) {
+          try {
+            const res = await pool.query(
+              `SELECT id, context_id AS "contextId", tier, content, metadata, created_at AS "createdAt"
+           FROM agent_memories
+           WHERE id = $1`,
+              [id]
+            );
+            if (res.rows[0]) {
+              const r = res.rows[0];
+              return {
+                ...r,
+                metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata
+              };
+            }
+          } catch {
+          }
+        }
+        return this.memoryCache.find((m) => m.id === id) || null;
+      }
+    };
+    sessionMemoryManager = SessionMemoryManager.getInstance();
+  }
+});
+
 // src/swarm/engine/AgentLoop.ts
 var AgentLoop_exports = {};
 __export(AgentLoop_exports, {
   executeAutonomousTask: () => executeAutonomousTask
 });
 async function executeAutonomousTask(directive, specialist = "jarvis", maxSteps = 8) {
-  const taskId = await taskAuditService.createTask(directive, specialist);
+  const inspection = adversarialGuard.inspectInput(directive);
+  if (!inspection.allowed) {
+    const blockedSummary = inspection.violationMessage || "Directive blocked by Sovereign Adversarial Perimeter.";
+    return {
+      taskId: `blocked_${Date.now()}`,
+      success: false,
+      specialist,
+      directive,
+      finalResponse: blockedSummary,
+      stepsExecuted: 0,
+      toolCallHistory: [],
+      artifacts: []
+    };
+  }
+  const cleanDirective = inspection.sanitizedInput;
+  const taskId = await taskAuditService.createTask(cleanDirective, specialist);
+  await sessionMemoryManager.recordObservation(
+    `task_${specialist}`,
+    cleanDirective,
+    "agent_loop_start",
+    { specialist, taskId },
+    `Initiated task for ${specialist}: ${cleanDirective.substring(0, 80)}`
+  ).catch(() => {
+  });
   const systemPrompt = SPECIALIST_SYSTEM_PROMPTS[specialist] || SPECIALIST_SYSTEM_PROMPTS.jarvis;
   const messages = [
     { role: "system", content: systemPrompt },
-    { role: "user", content: directive }
+    { role: "user", content: cleanDirective }
   ];
   const toolCallHistory = [];
   let artifacts = [];
@@ -11847,6 +12261,8 @@ var init_AgentLoop = __esm({
     init_toolRegistry();
     init_taskAuditService();
     init_ModelRouter();
+    init_AdversarialGuard();
+    init_SessionMemoryManager();
     SPECIALIST_SYSTEM_PROMPTS = {
       jarvis: `You are J.A.R.V.I.S., Supreme Commander and executive digital viceroy to Master Sri.
 Your mission: Orchestrate the entire agent workforce, decompose complex directives, execute tools autonomously across all 6 tiers, and synthesize flawless reports.

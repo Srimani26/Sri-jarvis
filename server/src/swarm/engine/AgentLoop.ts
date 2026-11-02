@@ -9,6 +9,8 @@
 import { SWARM_TOOL_SCHEMAS, dispatchToolCall } from '../tools/toolRegistry'
 import { taskAuditService } from '../../services/taskAuditService'
 import { swarmModelRouter } from './ModelRouter'
+import { adversarialGuard } from '../../security/AdversarialGuard'
+import { sessionMemoryManager } from '../../memory/SessionMemoryManager'
 
 export type SwarmSpecialist =
   | 'jarvis'
@@ -106,12 +108,37 @@ export async function executeAutonomousTask(
   specialist: SwarmSpecialist = 'jarvis',
   maxSteps = 8
 ): Promise<AutonomousTaskResult> {
-  const taskId = await taskAuditService.createTask(directive, specialist)
+  // 1. Adversarial Guard Inspection (AiSOC & jailbreaks pattern)
+  const inspection = adversarialGuard.inspectInput(directive)
+  if (!inspection.allowed) {
+    const blockedSummary = inspection.violationMessage || 'Directive blocked by Sovereign Adversarial Perimeter.'
+    return {
+      taskId: `blocked_${Date.now()}`,
+      success: false,
+      specialist,
+      directive,
+      finalResponse: blockedSummary,
+      stepsExecuted: 0,
+      toolCallHistory: [],
+      artifacts: []
+    }
+  }
+
+  const cleanDirective = inspection.sanitizedInput
+  const taskId = await taskAuditService.createTask(cleanDirective, specialist)
+  await sessionMemoryManager.recordObservation(
+    `task_${specialist}`,
+    cleanDirective,
+    'agent_loop_start',
+    { specialist, taskId },
+    `Initiated task for ${specialist}: ${cleanDirective.substring(0, 80)}`
+  ).catch(() => {})
+
   const systemPrompt = SPECIALIST_SYSTEM_PROMPTS[specialist] || SPECIALIST_SYSTEM_PROMPTS.jarvis
 
   const messages: any[] = [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: directive }
+    { role: 'user', content: cleanDirective }
   ]
 
   const toolCallHistory: ToolCallRecord[] = []

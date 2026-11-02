@@ -123,6 +123,22 @@ export const SWARM_TOOL_SCHEMAS = [
         required: ['targetFilePath', 'action', 'instructions']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'headless_web_research',
+      description: 'Fetch and extract clean markdown content from public URLs using lightweight headless scraper with SSRF protection (Lightpanda pattern).',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Target web URL to research' },
+          selector: { type: 'string', description: 'Optional CSS selector' },
+          extract_markdown: { type: 'boolean', description: 'Whether to return formatted markdown (default: true)' }
+        },
+        required: ['url']
+      }
+    }
   }
 ]
 
@@ -345,6 +361,11 @@ export async function dispatchToolCall(name: string, args: Record<string, any>):
     case 'aegis_code_engineer': {
       const { executeAegisCodeEngineer } = await import('./codeGenerator')
       return await executeAegisCodeEngineer(args as any)
+    }
+
+    case 'headless_web_research': {
+      const { executeHeadlessWebResearch } = await import('./webResearchEngine')
+      return await executeHeadlessWebResearch(args as any)
     }
 
     default:
