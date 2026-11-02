@@ -1776,27 +1776,55 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
       return
     }
 
+    // 0.39 DYNAMIC SPECIALIST AGENT HANDOFF ("call aegis", "switch to raphael", "friday, ...")
+    const specialistHandoff = lower.match(/(?:call|switch to|ask|talk to)\s+(aegis|raphael|friday|jarvis)/i) ||
+      lower.match(/^(?:hey\s+)?(aegis|raphael|friday|jarvis)\b/i)
+    if (specialistHandoff && specialistHandoff[1]) {
+      const targetAgentId = specialistHandoff[1].toLowerCase()
+      if (AGENTS[targetAgentId] && targetAgentId !== activeAgentRef.current?.id) {
+        selectAgent(AGENTS[targetAgentId])
+        activeAgentRef.current = AGENTS[targetAgentId]
+      }
+    }
+
     // 0.40 HANDS-FREE TAB & WORKSPACE NAVIGATION
-    if (
-      lower.includes('open storage') || lower.includes('go to storage') || lower.includes('storage vault') ||
-      lower.includes('open task') || lower.includes('open mission') || lower.includes('go to task') || lower.includes('mission control') ||
-      lower.includes('open revenue') || lower.includes('go to revenue') || lower.includes('show earnings') ||
-      lower.includes('open chat') || lower.includes('go to chat') ||
-      lower.includes('open cyber') || lower.includes('cyber defense') ||
-      lower.includes('open code') || lower.includes('code lab')
-    ) {
+    const navMatch = lower.match(/(?:go to|open|show|navigate to)\s+(dashboard|telemetry|studio|vault|chat|settings|profile|cyber|defense|code|codlab|revenue|tasks|missions|storage)/i) ||
+      (lower.includes('storage') && (lower.includes('vault') || lower.includes('open') || lower.includes('go'))) ||
+      (lower.includes('telemetry') && (lower.includes('open') || lower.includes('go') || lower.includes('show'))) ||
+      (lower.includes('dashboard') && (lower.includes('open') || lower.includes('go') || lower.includes('show')))
+
+    if (navMatch) {
+      let rawTarget = navMatch[1] ? navMatch[1].toLowerCase() : (lower.includes('telemetry') ? 'telemetry' : (lower.includes('storage') ? 'storage' : 'command'))
       let targetTab = 'command'
-      let spokenAck = 'Navigating to Command Center, Master Sri.'
-      if (lower.includes('storage')) { targetTab = 'storage'; spokenAck = 'Navigating to your Storage Vault, Master Sri. Your compiled PDFs and client dossiers are ready.' }
-      else if (lower.includes('task') || lower.includes('mission')) { targetTab = 'tasks'; spokenAck = 'Opening Missions and Tasks, Master Sri. Reviewing active autonomous pipelines.' }
-      else if (lower.includes('revenue') || lower.includes('earning')) { targetTab = 'revenue'; spokenAck = 'Opening Sovereign Revenue Engine, Master Sri. Ingested freelance contracts and payouts ready.' }
-      else if (lower.includes('chat')) { targetTab = 'chat'; spokenAck = 'Opening AI Chat interface, Master Sri.' }
-      else if (lower.includes('cyber') || lower.includes('defense')) { targetTab = 'cyber'; spokenAck = 'Arming Cyber Threat Defense layer, Master Sri.' }
-      else if (lower.includes('code')) { targetTab = 'codlab'; spokenAck = 'Opening Code Lab development suite, Master Sri.' }
+      let surfaceName = 'Command Center'
+
+      if (rawTarget === 'telemetry' || rawTarget === 'tasks' || rawTarget === 'missions') {
+        targetTab = 'tasks'
+        surfaceName = 'Missions & Telemetry'
+      } else if (rawTarget === 'storage' || rawTarget === 'vault') {
+        targetTab = 'storage'
+        surfaceName = 'Storage Vault'
+      } else if (rawTarget === 'revenue' || rawTarget === 'earning') {
+        targetTab = 'revenue'
+        surfaceName = 'Sovereign Revenue Engine'
+      } else if (rawTarget === 'chat') {
+        targetTab = 'chat'
+        surfaceName = 'AI Chat'
+      } else if (rawTarget === 'cyber' || rawTarget === 'defense') {
+        targetTab = 'cyber'
+        surfaceName = 'Cyber Threat Defense'
+      } else if (rawTarget === 'code' || rawTarget === 'codlab' || rawTarget === 'studio') {
+        targetTab = 'codlab'
+        surfaceName = 'Code Lab'
+      } else if (rawTarget === 'settings' || rawTarget === 'profile') {
+        targetTab = 'profile'
+        surfaceName = 'Profile & Settings'
+      }
 
       onNavigate(targetTab)
       playJarvisChime('execute')
-      setJarvisResponse(`### 🧭 Hands-Free Navigation\n- **Target Surface**: \`${targetTab.toUpperCase()}\`\n- **Status**: Dispatched successfully.`)
+      const spokenAck = `Navigating to ${surfaceName}, Master Sri.`
+      setJarvisResponse(`### ? Hands-Free Navigation\n- **Target Surface**: \`${targetTab.toUpperCase()}\` (${surfaceName})\n- **Status**: Dispatched successfully.`)
       speakVoice(spokenAck, activeAgentRef.current?.lang || 'en-GB')
       setIsProcessing(false)
       return

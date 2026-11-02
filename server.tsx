@@ -26,6 +26,7 @@ import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
 import { validateDatabaseConnectivity } from './src/lib/db'
 import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
 import { TelegramBotListener, startTelegramBotListener, stopTelegramBotListener } from './src/notifications/TelegramBotListener'
+import { voiceGateway } from './src/services/voiceGateway'
 
 const app = new Hono()
 
@@ -137,4 +138,9 @@ const shutdown = async (signal: string) => {
 process.on('SIGINT', () => shutdown('SIGINT'))
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 
-serve({ port, fetch: app.fetch })
+const serverInstance = serve({ port, fetch: app.fetch })
+try {
+  voiceGateway.attachToServer(serverInstance as any)
+} catch (wsErr: any) {
+  console.warn('⚡ [VoiceGateway] WebSocket attach note:', wsErr?.message || wsErr)
+}

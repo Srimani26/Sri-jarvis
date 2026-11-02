@@ -8012,6 +8012,21 @@ app.post('/voice/self-eval', async (c) => {
   });
 });
 
+// POST /api/voice/intent — Sovereign Voice Semantic Intent & Action Parser
+app.post('/voice/intent', async (c) => {
+  try {
+    const { parseVoiceIntent } = await import('./src/services/voiceGateway');
+    const body = await c.req.json();
+    const text = String(body?.text || body?.transcript || '').trim();
+    const currentAgent = (body?.agent || 'jarvis') as any;
+
+    const result = parseVoiceIntent(text, currentAgent);
+    return c.json({ ok: true, intent: result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Intent parse failed' }, 500);
+  }
+});
+
 app.all('*', (c) =>
   c.json(
     { error: 'Not found', detail: `No API route for ${c.req.method} ${c.req.path}` },
