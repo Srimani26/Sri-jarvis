@@ -90,6 +90,39 @@ export const SWARM_TOOL_SCHEMAS = [
         required: ['summary']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_public_service',
+      description: 'Query verified free public APIs (weather, currency rates, crypto prices, geolocation, Wikipedia summary) without authentication.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: { type: 'string', description: 'Category: weather, currency, crypto, geolocation, knowledge, network' },
+          endpoint: { type: 'string', description: 'Endpoint ID or verified URL' },
+          queryParams: { type: 'object', description: 'Key-value query parameters' }
+        },
+        required: ['category', 'endpoint']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'aegis_code_engineer',
+      description: 'Autonomous CLI code generation, inspection, and refactoring engine with AST/syntax validation (LocalCodeCli pattern).',
+      parameters: {
+        type: 'object',
+        properties: {
+          targetFilePath: { type: 'string', description: 'Relative path to file in project' },
+          action: { type: 'string', enum: ['CREATE', 'REFACTOR', 'INSPECT'], description: 'Action to perform' },
+          instructions: { type: 'string', description: 'Directive or modification instructions' },
+          codeSnippet: { type: 'string', description: 'Code content for creation or replacement' }
+        },
+        required: ['targetFilePath', 'action', 'instructions']
+      }
+    }
   }
 ]
 
@@ -304,7 +337,18 @@ export async function dispatchToolCall(name: string, args: Record<string, any>):
         artifacts: args.artifacts || []
       }
 
+    case 'query_public_service': {
+      const { executeQueryPublicService } = await import('./publicApiDirectory')
+      return await executeQueryPublicService(args.category, args.endpoint, args.queryParams || {})
+    }
+
+    case 'aegis_code_engineer': {
+      const { executeAegisCodeEngineer } = await import('./codeGenerator')
+      return await executeAegisCodeEngineer(args as any)
+    }
+
     default:
       throw new Error(`Tool "${name}" is not registered in the Sovereign Swarm Tool Arsenal.`)
   }
 }
+

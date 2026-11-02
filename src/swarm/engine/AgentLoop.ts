@@ -8,6 +8,7 @@
 
 import { SWARM_TOOL_SCHEMAS, dispatchToolCall } from '../tools/toolRegistry'
 import { taskAuditService } from '../../services/taskAuditService'
+import { swarmModelRouter } from './ModelRouter'
 
 export type SwarmSpecialist = 'aegis' | 'raphael' | 'friday'
 
@@ -78,8 +79,8 @@ export async function executeAutonomousTask(
   while (step < maxSteps) {
     step += 1
 
-    // 1. Dispatch request to Specialist LLM
-    const response = await callSpecialistLLM(specialist, messages)
+    // 1. Dispatch request to Specialist LLM via Resilient ModelRouter Waterfall
+    const response = await swarmModelRouter.dispatch(specialist, messages)
 
     // 2. Pure text response with no tool calls -> End of loop
     if (!response.tool_calls || response.tool_calls.length === 0) {

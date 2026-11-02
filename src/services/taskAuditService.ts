@@ -8,6 +8,7 @@
 
 import pg from 'pg'
 import { randomUUID } from 'node:crypto'
+import { sanitizePayload, sanitizeString } from '../security/SecretSanitizer'
 
 export interface SwarmTaskRecord {
   id: string
@@ -109,10 +110,11 @@ export class TaskAuditService {
   public async createTask(directive: string, specialist: string): Promise<string> {
     await this.initSchema()
     const taskId = randomUUID()
+    const cleanDirective = sanitizeString(directive)
 
     const task: SwarmTaskRecord = {
       id: taskId,
-      directive,
+      directive: cleanDirective,
       specialist,
       status: 'RUNNING',
       createdAt: new Date()
@@ -126,7 +128,7 @@ export class TaskAuditService {
         await pool.query(
           `INSERT INTO swarm_tasks (id, directive, specialist, status, created_at)
            VALUES ($1, $2, $3, $4, $5)`,
-          [taskId, directive, specialist, 'RUNNING', task.createdAt]
+          [taskId, cleanDirective, specialist, 'RUNNING', task.createdAt]
         )
       } catch (err: any) {
         console.warn('[TaskAuditService] Database insert fallback to in-memory:', err?.message || err)
@@ -149,13 +151,15 @@ export class TaskAuditService {
   ): Promise<void> {
     await this.initSchema()
     const execId = randomUUID()
+    const cleanArgs = sanitizePayload(args)
+    const cleanOutput = sanitizePayload(output)
 
     const record: SwarmToolExecutionRecord = {
       id: execId,
       taskId,
       toolName,
-      arguments: args,
-      output,
+      arguments: cleanArgs,
+      output: cleanOutput,
       status,
       latencyMs,
       executedAt: new Date()
@@ -173,8 +177,8 @@ export class TaskAuditService {
             execId,
             taskId,
             toolName,
-            JSON.stringify(args || {}),
-            JSON.stringify(output || {}),
+            JSON.stringify(cleanArgs || {}),
+            JSON.stringify(cleanOutput || {}),
             status,
             latencyMs,
             record.executedAt
@@ -193,10 +197,11 @@ export class TaskAuditService {
     await this.initSchema()
     const task = this.inMemoryTasks.get(taskId)
     const completedAt = new Date()
+    const cleanResult = sanitizeString(result)
 
     if (task) {
       task.status = status
-      task.result = result
+      task.result = cleanResult
       task.completedAt = completedAt
     }
 
@@ -205,7 +210,7 @@ export class TaskAuditService {
       try {
         await pool.query(
           `UPDATE swarm_tasks SET status = $1, result = $2, completed_at = $3 WHERE id = $4`,
-          [status, result, completedAt, taskId]
+          [status, cleanResult, completedAt, taskId]
         )
       } catch (err: any) {
         console.warn('[TaskAuditService] Database update note:', err?.message || err)
