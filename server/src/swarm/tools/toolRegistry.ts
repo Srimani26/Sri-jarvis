@@ -217,6 +217,98 @@ export const SWARM_TOOL_SCHEMAS = [
         required: ['projectSlug', 'specification']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_view_tree',
+      description: 'List directory file structure tree up to maxDepth (excluding node_modules and dist).',
+      parameters: {
+        type: 'object',
+        properties: {
+          directory: { type: 'string', description: 'Directory to view (default ".")' },
+          maxDepth: { type: 'number', description: 'Maximum depth to traverse (default 3)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_read_file',
+      description: 'Read exact line ranges from a file with line numbers to conserve tokens.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'Path to target file' },
+          startLine: { type: 'number', description: 'Starting line number (1-based)' },
+          endLine: { type: 'number', description: 'Ending line number' }
+        },
+        required: ['filePath']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_patch_file',
+      description: 'Perform surgical diff patch replacement in a file without rewriting entire contents.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'Path to target file' },
+          oldString: { type: 'string', description: 'Exact string to be replaced' },
+          newString: { type: 'string', description: 'Replacement string' }
+        },
+        required: ['filePath', 'oldString', 'newString']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_write_file',
+      description: 'Create or completely overwrite a file in the workspace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'Target file path' },
+          content: { type: 'string', description: 'Complete content to write' }
+        },
+        required: ['filePath', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_grep',
+      description: 'Search for regex pattern across codebase files.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: 'Regex pattern or substring' },
+          directory: { type: 'string', description: 'Directory to search (default ".")' }
+        },
+        required: ['pattern']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'terminal_run_command',
+      description: 'Execute a terminal command inside the workspace and capture stdout/stderr with feedback recovery.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Command line string to execute' },
+          workingDir: { type: 'string', description: 'Working directory path' },
+          timeoutMs: { type: 'number', description: 'Timeout in ms (default 30000)' }
+        },
+        required: ['command']
+      }
+    }
   }
 ]
 
@@ -469,6 +561,36 @@ export async function dispatchToolCall(name: string, args: Record<string, any>):
     case 'aegis_scaffold_and_deploy_web': {
       const { appBuilderEngine } = await import('./appBuilderEngine')
       return await appBuilderEngine.scaffoldAndDeployWeb(args as any)
+    }
+
+    case 'workspace_view_tree': {
+      const { workspaceViewTree } = await import('./surgicalFileTools')
+      return workspaceViewTree(args?.directory, args?.maxDepth)
+    }
+
+    case 'workspace_read_file': {
+      const { workspaceReadFile } = await import('./surgicalFileTools')
+      return workspaceReadFile(args?.filePath, args?.startLine, args?.endLine)
+    }
+
+    case 'workspace_patch_file': {
+      const { workspacePatchFile } = await import('./surgicalFileTools')
+      return workspacePatchFile(args?.filePath, args?.oldString, args?.newString)
+    }
+
+    case 'workspace_write_file': {
+      const { workspaceWriteFile } = await import('./surgicalFileTools')
+      return workspaceWriteFile(args?.filePath, args?.content)
+    }
+
+    case 'workspace_grep': {
+      const { workspaceGrep } = await import('./surgicalFileTools')
+      return workspaceGrep(args?.pattern, args?.directory)
+    }
+
+    case 'terminal_run_command': {
+      const { terminalRunCommand } = await import('./sandboxTerminalTool')
+      return await terminalRunCommand(args?.command, args?.workingDir, args?.timeoutMs)
     }
 
     default:

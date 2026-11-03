@@ -388,7 +388,7 @@ var init_ExecutionKernel = __esm({
        * Verify task outputs
        */
       static verifyResult(checks) {
-        return new Promise(async (resolve17) => {
+        return new Promise(async (resolve19) => {
           const checksRun = [];
           const failures = [];
           for (const check of checks) {
@@ -400,7 +400,7 @@ var init_ExecutionKernel = __esm({
               failures.push(`${check.name} threw: ${err.message}`);
             }
           }
-          resolve17({
+          resolve19({
             passed: failures.length === 0,
             checksRun,
             failures,
@@ -546,7 +546,7 @@ var init_WorkspaceManager = __esm({
           }
         }
         const start = Date.now();
-        return new Promise((resolve17) => {
+        return new Promise((resolve19) => {
           const proc = spawn(command, {
             cwd: projectPath,
             shell: true,
@@ -580,7 +580,7 @@ Command timed out after ${timeoutMs}ms`;
           proc.on("close", (code) => {
             if (timer) clearTimeout(timer);
             const durationMs = Date.now() - start;
-            resolve17({
+            resolve19({
               success: code === 0,
               stdout: stdout.trim(),
               stderr: stderr.trim(),
@@ -591,7 +591,7 @@ Command timed out after ${timeoutMs}ms`;
           proc.on("error", (err) => {
             if (timer) clearTimeout(timer);
             const durationMs = Date.now() - start;
-            resolve17({
+            resolve19({
               success: false,
               stdout: stdout.trim(),
               stderr: `${stderr}
@@ -11563,10 +11563,292 @@ window.runInspection = function() {
   }
 });
 
-// src/swarm/tools/toolRegistry.ts
+// src/swarm/tools/surgicalFileTools.ts
+var surgicalFileTools_exports = {};
+__export(surgicalFileTools_exports, {
+  workspaceGrep: () => workspaceGrep,
+  workspacePatchFile: () => workspacePatchFile,
+  workspaceReadFile: () => workspaceReadFile,
+  workspaceViewTree: () => workspaceViewTree,
+  workspaceWriteFile: () => workspaceWriteFile
+});
+import { existsSync as existsSync8, mkdirSync as mkdirSync5, readFileSync as readFileSync6, writeFileSync as writeFileSync6, readdirSync as readdirSync3, statSync as statSync3 } from "node:fs";
+import { join as join6, resolve as resolve5, relative as relative3, dirname as dirname4 } from "node:path";
+function workspaceViewTree(directory = ".", maxDepth = 3, workspaceRoot = process.cwd()) {
+  const root = resolve5(workspaceRoot, directory);
+  if (!existsSync8(root)) {
+    return `[TREE_ERROR] Directory not found: ${directory}`;
+  }
+  const lines = [relative3(workspaceRoot, root) || "."];
+  function walk(currentDir, currentDepth, prefix) {
+    if (currentDepth > maxDepth) return;
+    let entries = [];
+    try {
+      entries = readdirSync3(currentDir).filter((name) => !IGNORED_DIRS.has(name));
+    } catch {
+      return;
+    }
+    entries.sort((a, b) => {
+      const aIsDir = statSync3(join6(currentDir, a)).isDirectory();
+      const bIsDir = statSync3(join6(currentDir, b)).isDirectory();
+      if (aIsDir && !bIsDir) return -1;
+      if (!aIsDir && bIsDir) return 1;
+      return a.localeCompare(b);
+    });
+    entries.forEach((entry, idx) => {
+      const fullPath = join6(currentDir, entry);
+      const isLast = idx === entries.length - 1;
+      const isDir = statSync3(fullPath).isDirectory();
+      const branch = isLast ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
+      lines.push(`${prefix}${branch}${entry}${isDir ? "/" : ""}`);
+      if (isDir) {
+        walk(fullPath, currentDepth + 1, prefix + (isLast ? "    " : "\u2502   "));
+      }
+    });
+  }
+  walk(root, 1, "");
+  return lines.join("\n");
+}
+function workspaceReadFile(filePath, startLine = 1, endLine, workspaceRoot = process.cwd()) {
+  const targetPath = resolve5(workspaceRoot, filePath);
+  if (!existsSync8(targetPath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+  const raw2 = readFileSync6(targetPath, "utf-8");
+  const lines = raw2.split(/\r?\n/);
+  const totalLines = lines.length;
+  const s = Math.max(1, startLine);
+  const e = endLine ? Math.min(totalLines, endLine) : totalLines;
+  const sliced = lines.slice(s - 1, e);
+  const formatted = sliced.map((line, idx) => {
+    const lineNum = String(s + idx).padStart(4, " ");
+    return `${lineNum} | ${line}`;
+  }).join("\n");
+  return {
+    filePath: relative3(workspaceRoot, targetPath),
+    totalLines,
+    startLine: s,
+    endLine: e,
+    content: formatted
+  };
+}
+function workspacePatchFile(filePath, oldString, newString, workspaceRoot = process.cwd()) {
+  const targetPath = resolve5(workspaceRoot, filePath);
+  if (!existsSync8(targetPath)) {
+    throw new Error(`Cannot patch non-existent file: ${filePath}`);
+  }
+  const raw2 = readFileSync6(targetPath, "utf-8");
+  if (raw2.includes(oldString)) {
+    const patched = raw2.replace(oldString, newString);
+    writeFileSync6(targetPath, patched, "utf-8");
+    return {
+      success: true,
+      filePath: relative3(workspaceRoot, targetPath),
+      replacements: 1,
+      message: `Successfully replaced target substring in ${filePath}.`
+    };
+  }
+  const normalizedRaw = raw2.replace(/\r\n/g, "\n");
+  const normalizedOld = oldString.replace(/\r\n/g, "\n");
+  const normalizedNew = newString.replace(/\r\n/g, "\n");
+  if (normalizedRaw.includes(normalizedOld)) {
+    const patched = normalizedRaw.replace(normalizedOld, normalizedNew);
+    writeFileSync6(targetPath, patched, "utf-8");
+    return {
+      success: true,
+      filePath: relative3(workspaceRoot, targetPath),
+      replacements: 1,
+      message: `Successfully replaced normalized substring in ${filePath}.`
+    };
+  }
+  const trimmedOld = oldString.trim();
+  if (trimmedOld.length > 0 && normalizedRaw.includes(trimmedOld)) {
+    const patched = normalizedRaw.replace(trimmedOld, normalizedNew.trim());
+    writeFileSync6(targetPath, patched, "utf-8");
+    return {
+      success: true,
+      filePath: relative3(workspaceRoot, targetPath),
+      replacements: 1,
+      message: `Successfully patched trimmed single-line match in ${filePath}.`
+    };
+  }
+  throw new Error(`Target string not found in ${filePath}. Please read the file first to verify exact contents.`);
+}
+function workspaceWriteFile(filePath, content, workspaceRoot = process.cwd()) {
+  const targetPath = resolve5(workspaceRoot, filePath);
+  const dir = dirname4(targetPath);
+  if (!existsSync8(dir)) {
+    mkdirSync5(dir, { recursive: true });
+  }
+  writeFileSync6(targetPath, content, "utf-8");
+  return {
+    success: true,
+    filePath: relative3(workspaceRoot, targetPath),
+    bytesWritten: Buffer.byteLength(content, "utf-8")
+  };
+}
+function workspaceGrep(pattern, directory = ".", maxResults = 40, workspaceRoot = process.cwd()) {
+  const root = resolve5(workspaceRoot, directory);
+  if (!existsSync8(root)) return [];
+  const results = [];
+  const regex = new RegExp(pattern, "i");
+  function walk(currentDir) {
+    if (results.length >= maxResults) return;
+    let entries = [];
+    try {
+      entries = readdirSync3(currentDir).filter((name) => !IGNORED_DIRS.has(name));
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (results.length >= maxResults) break;
+      const fullPath = join6(currentDir, entry);
+      try {
+        const stat = statSync3(fullPath);
+        if (stat.isDirectory()) {
+          walk(fullPath);
+        } else if (stat.isFile() && stat.size < 5e5) {
+          const content = readFileSync6(fullPath, "utf-8");
+          const lines = content.split(/\r?\n/);
+          for (let i = 0; i < lines.length; i++) {
+            if (regex.test(lines[i])) {
+              results.push({
+                file: relative3(workspaceRoot, fullPath),
+                line: i + 1,
+                content: lines[i].trim().substring(0, 140)
+              });
+              if (results.length >= maxResults) break;
+            }
+          }
+        }
+      } catch {
+      }
+    }
+  }
+  walk(root);
+  return results;
+}
+var IGNORED_DIRS;
+var init_surgicalFileTools = __esm({
+  "src/swarm/tools/surgicalFileTools.ts"() {
+    "use strict";
+    IGNORED_DIRS = /* @__PURE__ */ new Set([
+      "node_modules",
+      ".git",
+      "dist",
+      ".cache",
+      "tmp",
+      ".next",
+      ".turbo",
+      "build"
+    ]);
+  }
+});
+
+// src/swarm/tools/sandboxTerminalTool.ts
+var sandboxTerminalTool_exports = {};
+__export(sandboxTerminalTool_exports, {
+  terminalRunCommand: () => terminalRunCommand
+});
 import { exec as exec3 } from "node:child_process";
-import { existsSync as existsSync8, readFileSync as readFileSync6, writeFileSync as writeFileSync6 } from "node:fs";
-import { resolve as resolve5 } from "node:path";
+import { resolve as resolve6 } from "node:path";
+async function terminalRunCommand(command, workingDir = process.cwd(), timeoutMs = 3e4) {
+  const cleanCmd = (command || "").trim();
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (pattern.test(cleanCmd)) {
+      return {
+        success: false,
+        command: cleanCmd,
+        exitCode: 126,
+        stdout: "",
+        stderr: "SECURITY_ALERT: Command blocked by sovereign safety perimeter.",
+        durationMs: 0,
+        errorBlock: `[SECURITY_BLOCKED: Command violates safety invariants: ${cleanCmd}]`,
+        workingDir
+      };
+    }
+  }
+  const resolvedDir = resolve6(workingDir);
+  const startTime = Date.now();
+  return new Promise((resolveResult) => {
+    const isWindows = process.platform === "win32";
+    const shell = isWindows ? "powershell.exe" : "/bin/bash";
+    const child = exec3(cleanCmd, {
+      cwd: resolvedDir,
+      timeout: timeoutMs,
+      maxBuffer: 4 * 1024 * 1024,
+      shell,
+      env: {
+        ...process.env,
+        CI: "true",
+        NODE_ENV: "test"
+      }
+    }, (error, stdout, stderr) => {
+      const durationMs = Date.now() - startTime;
+      const out = (stdout || "").trim();
+      const err = (stderr || "").trim();
+      if (error) {
+        const exitCode = typeof error.code === "number" ? error.code : 1;
+        const errorDetails = err || out || error.message;
+        resolveResult({
+          success: false,
+          command: cleanCmd,
+          exitCode,
+          stdout: out,
+          stderr: err,
+          durationMs,
+          errorBlock: `[EXECUTION_FAILED: code ${exitCode}]
+Stderr:
+${errorDetails}`,
+          workingDir: resolvedDir
+        });
+      } else {
+        resolveResult({
+          success: true,
+          command: cleanCmd,
+          exitCode: 0,
+          stdout: out,
+          stderr: err,
+          durationMs,
+          workingDir: resolvedDir
+        });
+      }
+    });
+    child.on("error", (spawnErr) => {
+      const durationMs = Date.now() - startTime;
+      resolveResult({
+        success: false,
+        command: cleanCmd,
+        exitCode: 1,
+        stdout: "",
+        stderr: spawnErr.message,
+        durationMs,
+        errorBlock: `[SPAWN_ERROR: ${spawnErr.message}]`,
+        workingDir: resolvedDir
+      });
+    });
+  });
+}
+var DANGEROUS_PATTERNS;
+var init_sandboxTerminalTool = __esm({
+  "src/swarm/tools/sandboxTerminalTool.ts"() {
+    "use strict";
+    DANGEROUS_PATTERNS = [
+      /rm\s+-rf\s+\/($|\s)/i,
+      /mkfs/i,
+      /:(){ :|:& };:/,
+      /format\s+[c-z]:/i,
+      /dd\s+if=.*of=\/dev\//i,
+      /shutdown/i,
+      /reboot/i
+    ];
+  }
+});
+
+// src/swarm/tools/toolRegistry.ts
+import { exec as exec4 } from "node:child_process";
+import { existsSync as existsSync9, readFileSync as readFileSync7, writeFileSync as writeFileSync7 } from "node:fs";
+import { resolve as resolve7 } from "node:path";
 import pg2 from "pg";
 function getNeonPool() {
   const rawDbUrl2 = process.env.DATABASE_URL;
@@ -11632,9 +11914,9 @@ async function executeGithubManageFile(action, filePath, content, commitMessage)
       } catch {
       }
     }
-    const localPath = resolve5(process.cwd(), cleanPath);
-    if (existsSync8(localPath)) {
-      const text = readFileSync6(localPath, "utf-8");
+    const localPath = resolve7(process.cwd(), cleanPath);
+    if (existsSync9(localPath)) {
+      const text = readFileSync7(localPath, "utf-8");
       return { path: cleanPath, size: text.length, content: text, source: "LOCAL_WORKSPACE" };
     }
     throw new Error(`File not found in GitHub repository or local workspace: ${cleanPath}`);
@@ -11685,8 +11967,8 @@ async function executeGithubManageFile(action, filePath, content, commitMessage)
         console.warn("[GitHub Tool] Remote commit error, persisting locally:", err?.message || err);
       }
     }
-    const localPath = resolve5(process.cwd(), cleanPath);
-    writeFileSync6(localPath, content, "utf-8");
+    const localPath = resolve7(process.cwd(), cleanPath);
+    writeFileSync7(localPath, content, "utf-8");
     return {
       status: "SAVED_LOCALLY",
       path: cleanPath,
@@ -11703,7 +11985,7 @@ async function executeSandboxCommand(command, timeoutMs = 1e4) {
   }
   return new Promise((resolveResult) => {
     const cwd = process.cwd();
-    exec3(
+    exec4(
       command,
       {
         cwd,
@@ -11766,6 +12048,30 @@ async function dispatchToolCall(name, args) {
     case "aegis_scaffold_and_deploy_web": {
       const { appBuilderEngine: appBuilderEngine2 } = await Promise.resolve().then(() => (init_appBuilderEngine(), appBuilderEngine_exports));
       return await appBuilderEngine2.scaffoldAndDeployWeb(args);
+    }
+    case "workspace_view_tree": {
+      const { workspaceViewTree: workspaceViewTree2 } = await Promise.resolve().then(() => (init_surgicalFileTools(), surgicalFileTools_exports));
+      return workspaceViewTree2(args?.directory, args?.maxDepth);
+    }
+    case "workspace_read_file": {
+      const { workspaceReadFile: workspaceReadFile2 } = await Promise.resolve().then(() => (init_surgicalFileTools(), surgicalFileTools_exports));
+      return workspaceReadFile2(args?.filePath, args?.startLine, args?.endLine);
+    }
+    case "workspace_patch_file": {
+      const { workspacePatchFile: workspacePatchFile2 } = await Promise.resolve().then(() => (init_surgicalFileTools(), surgicalFileTools_exports));
+      return workspacePatchFile2(args?.filePath, args?.oldString, args?.newString);
+    }
+    case "workspace_write_file": {
+      const { workspaceWriteFile: workspaceWriteFile2 } = await Promise.resolve().then(() => (init_surgicalFileTools(), surgicalFileTools_exports));
+      return workspaceWriteFile2(args?.filePath, args?.content);
+    }
+    case "workspace_grep": {
+      const { workspaceGrep: workspaceGrep2 } = await Promise.resolve().then(() => (init_surgicalFileTools(), surgicalFileTools_exports));
+      return workspaceGrep2(args?.pattern, args?.directory);
+    }
+    case "terminal_run_command": {
+      const { terminalRunCommand: terminalRunCommand2 } = await Promise.resolve().then(() => (init_sandboxTerminalTool(), sandboxTerminalTool_exports));
+      return await terminalRunCommand2(args?.command, args?.workingDir, args?.timeoutMs);
     }
     default:
       throw new Error(`Tool "${name}" is not registered in the Sovereign Swarm Tool Arsenal.`);
@@ -11972,6 +12278,98 @@ var init_toolRegistry = __esm({
               specification: { type: "object", description: "Components, features, title, styling and theme specifications" }
             },
             required: ["projectSlug", "specification"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "workspace_view_tree",
+          description: "List directory file structure tree up to maxDepth (excluding node_modules and dist).",
+          parameters: {
+            type: "object",
+            properties: {
+              directory: { type: "string", description: 'Directory to view (default ".")' },
+              maxDepth: { type: "number", description: "Maximum depth to traverse (default 3)" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "workspace_read_file",
+          description: "Read exact line ranges from a file with line numbers to conserve tokens.",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "Path to target file" },
+              startLine: { type: "number", description: "Starting line number (1-based)" },
+              endLine: { type: "number", description: "Ending line number" }
+            },
+            required: ["filePath"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "workspace_patch_file",
+          description: "Perform surgical diff patch replacement in a file without rewriting entire contents.",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "Path to target file" },
+              oldString: { type: "string", description: "Exact string to be replaced" },
+              newString: { type: "string", description: "Replacement string" }
+            },
+            required: ["filePath", "oldString", "newString"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "workspace_write_file",
+          description: "Create or completely overwrite a file in the workspace.",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "Target file path" },
+              content: { type: "string", description: "Complete content to write" }
+            },
+            required: ["filePath", "content"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "workspace_grep",
+          description: "Search for regex pattern across codebase files.",
+          parameters: {
+            type: "object",
+            properties: {
+              pattern: { type: "string", description: "Regex pattern or substring" },
+              directory: { type: "string", description: 'Directory to search (default ".")' }
+            },
+            required: ["pattern"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "terminal_run_command",
+          description: "Execute a terminal command inside the workspace and capture stdout/stderr with feedback recovery.",
+          parameters: {
+            type: "object",
+            properties: {
+              command: { type: "string", description: "Command line string to execute" },
+              workingDir: { type: "string", description: "Working directory path" },
+              timeoutMs: { type: "number", description: "Timeout in ms (default 30000)" }
+            },
+            required: ["command"]
           }
         }
       }
@@ -13611,8 +14009,8 @@ var RevenueHunterEngine_exports = {};
 __export(RevenueHunterEngine_exports, {
   RevenueHunterEngine: () => RevenueHunterEngine
 });
-import { existsSync as existsSync12, mkdirSync as mkdirSync8, writeFileSync as writeFileSync10, readFileSync as readFileSync10 } from "fs";
-import { resolve as resolve8, join as join10 } from "path";
+import { existsSync as existsSync13, mkdirSync as mkdirSync9, writeFileSync as writeFileSync11, readFileSync as readFileSync11 } from "fs";
+import { resolve as resolve10, join as join11 } from "path";
 var RevenueHunterEngine;
 var init_RevenueHunterEngine = __esm({
   "src/agents/RevenueHunterEngine.ts"() {
@@ -13621,9 +14019,9 @@ var init_RevenueHunterEngine = __esm({
     init_AIUIDesignSystem();
     init_OpenQodexReviewEngine();
     RevenueHunterEngine = class _RevenueHunterEngine {
-      static dataDir = resolve8(process.cwd(), "data");
-      static opportunitiesFile = join10(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
-      static settingsFile = join10(_RevenueHunterEngine.dataDir, "payout_settings.json");
+      static dataDir = resolve10(process.cwd(), "data");
+      static opportunitiesFile = join11(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
+      static settingsFile = join11(_RevenueHunterEngine.dataDir, "payout_settings.json");
       // Real opportunities are ingested dynamically via JobScoutTool / incoming client feeds.
       static defaultOpportunities = [];
       static defaultSettings = {
@@ -13637,20 +14035,20 @@ var init_RevenueHunterEngine = __esm({
         autoWithdrawThresholdINR: 1e4
       };
       static ensureDataDir() {
-        if (!existsSync12(this.dataDir)) {
-          mkdirSync8(this.dataDir, { recursive: true });
+        if (!existsSync13(this.dataDir)) {
+          mkdirSync9(this.dataDir, { recursive: true });
         }
-        if (!existsSync12(this.opportunitiesFile)) {
-          writeFileSync10(this.opportunitiesFile, JSON.stringify(this.defaultOpportunities, null, 2), "utf-8");
+        if (!existsSync13(this.opportunitiesFile)) {
+          writeFileSync11(this.opportunitiesFile, JSON.stringify(this.defaultOpportunities, null, 2), "utf-8");
         }
-        if (!existsSync12(this.settingsFile)) {
-          writeFileSync10(this.settingsFile, JSON.stringify(this.defaultSettings, null, 2), "utf-8");
+        if (!existsSync13(this.settingsFile)) {
+          writeFileSync11(this.settingsFile, JSON.stringify(this.defaultSettings, null, 2), "utf-8");
         }
       }
       static getOpportunities() {
         this.ensureDataDir();
         try {
-          const raw2 = readFileSync10(this.opportunitiesFile, "utf-8");
+          const raw2 = readFileSync11(this.opportunitiesFile, "utf-8");
           return JSON.parse(raw2);
         } catch {
           return this.defaultOpportunities;
@@ -13658,7 +14056,7 @@ var init_RevenueHunterEngine = __esm({
       }
       static saveOpportunities(opps) {
         this.ensureDataDir();
-        writeFileSync10(this.opportunitiesFile, JSON.stringify(opps, null, 2), "utf-8");
+        writeFileSync11(this.opportunitiesFile, JSON.stringify(opps, null, 2), "utf-8");
       }
       static addOrUpdateOpportunity(opp) {
         const opps = this.getOpportunities();
@@ -13673,7 +14071,7 @@ var init_RevenueHunterEngine = __esm({
       static getSettings() {
         this.ensureDataDir();
         try {
-          const raw2 = readFileSync10(this.settingsFile, "utf-8");
+          const raw2 = readFileSync11(this.settingsFile, "utf-8");
           return JSON.parse(raw2);
         } catch {
           return this.defaultSettings;
@@ -13683,7 +14081,7 @@ var init_RevenueHunterEngine = __esm({
         this.ensureDataDir();
         const current = this.getSettings();
         const updated = { ...current, ...settings };
-        writeFileSync10(this.settingsFile, JSON.stringify(updated, null, 2), "utf-8");
+        writeFileSync11(this.settingsFile, JSON.stringify(updated, null, 2), "utf-8");
         return updated;
       }
       static getLedgerMetrics() {
@@ -13849,29 +14247,29 @@ var PersonalKnowledgeEngine_exports = {};
 __export(PersonalKnowledgeEngine_exports, {
   PersonalKnowledgeEngine: () => PersonalKnowledgeEngine
 });
-import { existsSync as existsSync14, mkdirSync as mkdirSync10, readFileSync as readFileSync11, writeFileSync as writeFileSync12 } from "fs";
-import { resolve as resolve11, join as join12 } from "path";
+import { existsSync as existsSync15, mkdirSync as mkdirSync11, readFileSync as readFileSync12, writeFileSync as writeFileSync13 } from "fs";
+import { resolve as resolve13, join as join13 } from "path";
 var PersonalKnowledgeEngine;
 var init_PersonalKnowledgeEngine = __esm({
   "src/memory/PersonalKnowledgeEngine.ts"() {
     "use strict";
     PersonalKnowledgeEngine = class _PersonalKnowledgeEngine {
       static knowledgeBase = /* @__PURE__ */ new Map();
-      static dataDir = resolve11(process.cwd(), "data");
-      static storageFile = join12(_PersonalKnowledgeEngine.dataDir, "personal_knowledge.json");
+      static dataDir = resolve13(process.cwd(), "data");
+      static storageFile = join13(_PersonalKnowledgeEngine.dataDir, "personal_knowledge.json");
       static {
         this.bootstrapMasterProfile();
       }
       static ensureStorage() {
-        if (!existsSync14(this.dataDir)) {
-          mkdirSync10(this.dataDir, { recursive: true });
+        if (!existsSync15(this.dataDir)) {
+          mkdirSync11(this.dataDir, { recursive: true });
         }
       }
       static bootstrapMasterProfile() {
         this.ensureStorage();
-        if (existsSync14(this.storageFile)) {
+        if (existsSync15(this.storageFile)) {
           try {
-            const raw2 = readFileSync11(this.storageFile, "utf-8");
+            const raw2 = readFileSync12(this.storageFile, "utf-8");
             const entries = JSON.parse(raw2);
             for (const e of entries) {
               this.knowledgeBase.set(e.id, e);
@@ -13928,7 +14326,7 @@ var init_PersonalKnowledgeEngine = __esm({
         this.ensureStorage();
         try {
           const arr = Array.from(this.knowledgeBase.values());
-          writeFileSync12(this.storageFile, JSON.stringify(arr, null, 2), "utf-8");
+          writeFileSync13(this.storageFile, JSON.stringify(arr, null, 2), "utf-8");
         } catch (err) {
           console.error("[PersonalKnowledgeEngine] Failed to save to disk:", err);
         }
@@ -13981,26 +14379,26 @@ var EnterpriseTreasuryEngine_exports = {};
 __export(EnterpriseTreasuryEngine_exports, {
   EnterpriseTreasuryEngine: () => EnterpriseTreasuryEngine
 });
-import { existsSync as existsSync20, mkdirSync as mkdirSync15, writeFileSync as writeFileSync18, readFileSync as readFileSync14 } from "fs";
-import { resolve as resolve15, join as join18 } from "path";
+import { existsSync as existsSync21, mkdirSync as mkdirSync16, writeFileSync as writeFileSync19, readFileSync as readFileSync15 } from "fs";
+import { resolve as resolve17, join as join19 } from "path";
 var EnterpriseTreasuryEngine;
 var init_EnterpriseTreasuryEngine = __esm({
   "src/treasury/EnterpriseTreasuryEngine.ts"() {
     "use strict";
     EnterpriseTreasuryEngine = class _EnterpriseTreasuryEngine {
-      static dataDir = resolve15(process.cwd(), "data");
-      static invoicesFile = join18(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
-      static contractsFile = join18(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
+      static dataDir = resolve17(process.cwd(), "data");
+      static invoicesFile = join19(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
+      static contractsFile = join19(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
       static USD_TO_INR = 84;
       static ensureStorage() {
-        if (!existsSync20(this.dataDir)) {
-          mkdirSync15(this.dataDir, { recursive: true });
+        if (!existsSync21(this.dataDir)) {
+          mkdirSync16(this.dataDir, { recursive: true });
         }
-        if (!existsSync20(this.invoicesFile)) {
-          writeFileSync18(this.invoicesFile, JSON.stringify([], null, 2), "utf-8");
+        if (!existsSync21(this.invoicesFile)) {
+          writeFileSync19(this.invoicesFile, JSON.stringify([], null, 2), "utf-8");
         }
-        if (!existsSync20(this.contractsFile)) {
-          writeFileSync18(this.contractsFile, JSON.stringify([], null, 2), "utf-8");
+        if (!existsSync21(this.contractsFile)) {
+          writeFileSync19(this.contractsFile, JSON.stringify([], null, 2), "utf-8");
         }
       }
       /**
@@ -14077,7 +14475,7 @@ var init_EnterpriseTreasuryEngine = __esm({
         invoice.printableHtml = this.generateInvoiceHtml(invoice);
         const allInvoices = this.getInvoices();
         allInvoices.unshift(invoice);
-        writeFileSync18(this.invoicesFile, JSON.stringify(allInvoices, null, 2), "utf-8");
+        writeFileSync19(this.invoicesFile, JSON.stringify(allInvoices, null, 2), "utf-8");
         return invoice;
       }
       /**
@@ -14141,7 +14539,7 @@ var init_EnterpriseTreasuryEngine = __esm({
         sow.contractHtml = this.generateSOWHtml(sow);
         const allContracts = this.getContracts();
         allContracts.unshift(sow);
-        writeFileSync18(this.contractsFile, JSON.stringify(allContracts, null, 2), "utf-8");
+        writeFileSync19(this.contractsFile, JSON.stringify(allContracts, null, 2), "utf-8");
         return sow;
       }
       /**
@@ -14180,7 +14578,7 @@ var init_EnterpriseTreasuryEngine = __esm({
       static getInvoices() {
         this.ensureStorage();
         try {
-          return JSON.parse(readFileSync14(this.invoicesFile, "utf-8"));
+          return JSON.parse(readFileSync15(this.invoicesFile, "utf-8"));
         } catch {
           return [];
         }
@@ -14188,7 +14586,7 @@ var init_EnterpriseTreasuryEngine = __esm({
       static getContracts() {
         this.ensureStorage();
         try {
-          return JSON.parse(readFileSync14(this.contractsFile, "utf-8"));
+          return JSON.parse(readFileSync15(this.contractsFile, "utf-8"));
         } catch {
           return [];
         }
@@ -15130,8 +15528,8 @@ import "dotenv/config";
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync as existsSync22, readFileSync as readFileSync16 } from "node:fs";
-import { join as join20 } from "node:path";
+import { existsSync as existsSync23, readFileSync as readFileSync17 } from "node:fs";
+import { join as join21 } from "node:path";
 
 // custom-routes.ts
 import "dotenv/config";
@@ -17121,8 +17519,8 @@ var pipelineManager = PipelineManager.getInstance();
 init_appBuilderEngine();
 
 // src/swarm/memory/ObsidianVaultManager.ts
-import { existsSync as existsSync9, mkdirSync as mkdirSync5, writeFileSync as writeFileSync7, readFileSync as readFileSync7, readdirSync as readdirSync3 } from "node:fs";
-import { join as join7 } from "node:path";
+import { existsSync as existsSync10, mkdirSync as mkdirSync6, writeFileSync as writeFileSync8, readFileSync as readFileSync8, readdirSync as readdirSync4 } from "node:fs";
+import { join as join8 } from "node:path";
 var ObsidianVaultManager = class _ObsidianVaultManager {
   static instance;
   vaultRoot;
@@ -17133,7 +17531,7 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
     return _ObsidianVaultManager.instance;
   }
   constructor(customPath) {
-    this.vaultRoot = customPath || process.env.OBSIDIAN_VAULT_PATH || join7(process.cwd(), "vault");
+    this.vaultRoot = customPath || process.env.OBSIDIAN_VAULT_PATH || join8(process.cwd(), "vault");
     this.ensureVaultStructure();
   }
   getVaultRoot() {
@@ -17144,13 +17542,13 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
    */
   ensureVaultStructure() {
     const categories = ["DailyBriefs", "Pipelines", "Specialists", "Memory", "Tasks"];
-    if (!existsSync9(this.vaultRoot)) {
-      mkdirSync5(this.vaultRoot, { recursive: true });
+    if (!existsSync10(this.vaultRoot)) {
+      mkdirSync6(this.vaultRoot, { recursive: true });
     }
     for (const cat of categories) {
-      const catDir = join7(this.vaultRoot, cat);
-      if (!existsSync9(catDir)) {
-        mkdirSync5(catDir, { recursive: true });
+      const catDir = join8(this.vaultRoot, cat);
+      if (!existsSync10(catDir)) {
+        mkdirSync6(catDir, { recursive: true });
       }
     }
   }
@@ -17161,11 +17559,11 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
     this.ensureVaultStructure();
     const safeTitle = title.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim();
     const fileName = `${safeTitle.replace(/\s+/g, "_")}.md`;
-    const targetDir = join7(this.vaultRoot, category);
-    if (!existsSync9(targetDir)) {
-      mkdirSync5(targetDir, { recursive: true });
+    const targetDir = join8(this.vaultRoot, category);
+    if (!existsSync10(targetDir)) {
+      mkdirSync6(targetDir, { recursive: true });
     }
-    const fullPath = join7(targetDir, fileName);
+    const fullPath = join8(targetDir, fileName);
     const fullMeta = {
       title,
       date: (/* @__PURE__ */ new Date()).toISOString(),
@@ -17197,7 +17595,7 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
       `- **Pipeline Index:** [[Pipelines/Index]]`
     ].join("\n");
     const fileContent = frontmatterLines.join("\n") + bodyWithWikilinks;
-    writeFileSync7(fullPath, fileContent, "utf-8");
+    writeFileSync8(fullPath, fileContent, "utf-8");
     return {
       filePath: fullPath,
       fileName,
@@ -17214,9 +17612,9 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
    * Read note from vault
    */
   readNote(category, fileName) {
-    const fullPath = join7(this.vaultRoot, category, fileName.endsWith(".md") ? fileName : `${fileName}.md`);
-    if (!existsSync9(fullPath)) return null;
-    return readFileSync7(fullPath, "utf-8");
+    const fullPath = join8(this.vaultRoot, category, fileName.endsWith(".md") ? fileName : `${fileName}.md`);
+    if (!existsSync10(fullPath)) return null;
+    return readFileSync8(fullPath, "utf-8");
   }
   /**
    * Search markdown notes across all vault categories
@@ -17224,15 +17622,15 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
   searchVault(query) {
     const q = query.toLowerCase();
     const results = [];
-    if (!existsSync9(this.vaultRoot)) return results;
-    const categories = readdirSync3(this.vaultRoot, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    if (!existsSync10(this.vaultRoot)) return results;
+    const categories = readdirSync4(this.vaultRoot, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
     for (const cat of categories) {
-      const catPath = join7(this.vaultRoot, cat);
-      const files = readdirSync3(catPath).filter((f) => f.endsWith(".md"));
+      const catPath = join8(this.vaultRoot, cat);
+      const files = readdirSync4(catPath).filter((f) => f.endsWith(".md"));
       for (const file of files) {
-        const filePath = join7(catPath, file);
+        const filePath = join8(catPath, file);
         try {
-          const raw2 = readFileSync7(filePath, "utf-8");
+          const raw2 = readFileSync8(filePath, "utf-8");
           if (raw2.toLowerCase().includes(q)) {
             results.push({
               fileName: file,
@@ -17402,7 +17800,7 @@ var AgentRuntime = class {
       }
     };
     try {
-      outputResult = await new Promise(async (resolve18, reject) => {
+      outputResult = await new Promise(async (resolve20, reject) => {
         const timer = setTimeout(() => {
           reject(new Error(`Agent '${agentId}' exceeded timeout ceiling of ${agent.timeoutMs}ms`));
         }, agent.timeoutMs);
@@ -17429,7 +17827,7 @@ var AgentRuntime = class {
             }
           }
           clearTimeout(timer);
-          resolve18({
+          resolve20({
             summary: `Objective successfully completed by ${agent.name}`,
             objective,
             agentId,
@@ -17450,17 +17848,17 @@ var AgentRuntime = class {
       if (!outputResult) {
         verificationFailures.push("No execution output or artifact was generated");
       }
-      const { existsSync: existsSync23, readFileSync: readFileSync17 } = await import("node:fs");
-      const { resolve: resolve17 } = await import("node:path");
+      const { existsSync: existsSync24, readFileSync: readFileSync18 } = await import("node:fs");
+      const { resolve: resolve19 } = await import("node:path");
       if (inputData?.filesToVerify && Array.isArray(inputData.filesToVerify)) {
         for (const f of inputData.filesToVerify) {
-          const resolvedPath = resolve17(process.cwd(), f);
-          if (!existsSync23(resolvedPath)) {
+          const resolvedPath = resolve19(process.cwd(), f);
+          if (!existsSync24(resolvedPath)) {
             verificationFailures.push(`Verification failure: Deliverable file "${f}" does not exist on disk`);
           } else {
             if (f.endsWith(".json")) {
               try {
-                JSON.parse(readFileSync17(resolvedPath, "utf-8"));
+                JSON.parse(readFileSync18(resolvedPath, "utf-8"));
               } catch (jsonErr) {
                 verificationFailures.push(`Syntax error in JSON deliverable "${f}": ${jsonErr.message}`);
               }
@@ -18944,19 +19342,19 @@ init_TelegramNotifier();
 
 // src/services/LeadDeduplicationService.ts
 init_db();
-import { existsSync as existsSync10, mkdirSync as mkdirSync6, readFileSync as readFileSync8, writeFileSync as writeFileSync8 } from "node:fs";
-import { resolve as resolve6, join as join8 } from "node:path";
+import { existsSync as existsSync11, mkdirSync as mkdirSync7, readFileSync as readFileSync9, writeFileSync as writeFileSync9 } from "node:fs";
+import { resolve as resolve8, join as join9 } from "node:path";
 var LeadDeduplicationService = class _LeadDeduplicationService {
-  static dataDir = resolve6(process.cwd(), "data");
-  static leadsFile = join8(_LeadDeduplicationService.dataDir, "processed_leads.json");
+  static dataDir = resolve8(process.cwd(), "data");
+  static leadsFile = join9(_LeadDeduplicationService.dataDir, "processed_leads.json");
   static cache = /* @__PURE__ */ new Map();
   static dbInitialized = false;
   static ensureDataDir() {
-    if (!existsSync10(this.dataDir)) {
-      mkdirSync6(this.dataDir, { recursive: true });
+    if (!existsSync11(this.dataDir)) {
+      mkdirSync7(this.dataDir, { recursive: true });
     }
-    if (!existsSync10(this.leadsFile)) {
-      writeFileSync8(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
+    if (!existsSync11(this.leadsFile)) {
+      writeFileSync9(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
     }
   }
   /**
@@ -18965,7 +19363,7 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
   static async init() {
     this.ensureDataDir();
     try {
-      const raw2 = readFileSync8(this.leadsFile, "utf-8");
+      const raw2 = readFileSync9(this.leadsFile, "utf-8");
       const records = JSON.parse(raw2);
       for (const rec of records) {
         if (rec.id) this.cache.set(rec.id, rec);
@@ -19043,7 +19441,7 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
     if (record.url) this.cache.set(record.url, record);
     try {
       const records = Array.from(new Set(Array.from(this.cache.values())));
-      writeFileSync8(this.leadsFile, JSON.stringify(records, null, 2), "utf-8");
+      writeFileSync9(this.leadsFile, JSON.stringify(records, null, 2), "utf-8");
     } catch (e) {
       console.warn("[LeadDeduplicationService] Failed to write leads file:", e?.message);
     }
@@ -19075,7 +19473,7 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
   static async clear() {
     this.cache.clear();
     this.ensureDataDir();
-    writeFileSync8(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
+    writeFileSync9(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
     try {
       await prisma.$executeRawUnsafe(`DELETE FROM scouted_leads;`);
     } catch {
@@ -19085,25 +19483,25 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
 
 // src/services/RealizedEarningsService.ts
 init_db();
-import { existsSync as existsSync11, mkdirSync as mkdirSync7, readFileSync as readFileSync9, writeFileSync as writeFileSync9 } from "node:fs";
-import { resolve as resolve7, join as join9 } from "node:path";
+import { existsSync as existsSync12, mkdirSync as mkdirSync8, readFileSync as readFileSync10, writeFileSync as writeFileSync10 } from "node:fs";
+import { resolve as resolve9, join as join10 } from "node:path";
 var RealizedEarningsService = class _RealizedEarningsService {
-  static dataDir = resolve7(process.cwd(), "data");
-  static ledgerFile = join9(_RealizedEarningsService.dataDir, "realized_earnings.json");
+  static dataDir = resolve9(process.cwd(), "data");
+  static ledgerFile = join10(_RealizedEarningsService.dataDir, "realized_earnings.json");
   static cache = /* @__PURE__ */ new Map();
   static dbInitialized = false;
   static ensureDataDir() {
-    if (!existsSync11(this.dataDir)) {
-      mkdirSync7(this.dataDir, { recursive: true });
+    if (!existsSync12(this.dataDir)) {
+      mkdirSync8(this.dataDir, { recursive: true });
     }
-    if (!existsSync11(this.ledgerFile)) {
-      writeFileSync9(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
+    if (!existsSync12(this.ledgerFile)) {
+      writeFileSync10(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
     }
   }
   static async init() {
     this.ensureDataDir();
     try {
-      const raw2 = readFileSync9(this.ledgerFile, "utf-8");
+      const raw2 = readFileSync10(this.ledgerFile, "utf-8");
       const records = JSON.parse(raw2);
       for (const rec of records) {
         if (rec.id) this.cache.set(rec.id, rec);
@@ -19148,7 +19546,7 @@ var RealizedEarningsService = class _RealizedEarningsService {
     this.cache.set(record.id, record);
     try {
       const records = Array.from(this.cache.values());
-      writeFileSync9(this.ledgerFile, JSON.stringify(records, null, 2), "utf-8");
+      writeFileSync10(this.ledgerFile, JSON.stringify(records, null, 2), "utf-8");
     } catch (e) {
       console.warn("[RealizedEarningsService] Failed to write ledger file:", e?.message);
     }
@@ -19197,7 +19595,7 @@ var RealizedEarningsService = class _RealizedEarningsService {
   static async clear() {
     this.cache.clear();
     this.ensureDataDir();
-    writeFileSync9(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
+    writeFileSync10(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
     try {
       await prisma.$executeRawUnsafe(`DELETE FROM realized_earnings;`);
     } catch {
@@ -21306,13 +21704,13 @@ var DisasterRecoveryManager = class {
 };
 
 // custom-routes.ts
-import { readFileSync as readFileSync15, writeFileSync as writeFileSync19, existsSync as existsSync21, chmodSync as chmodSync2, mkdirSync as mkdirSync16, readdirSync as readdirSync5, statSync as statSync5 } from "fs";
-import { join as join19, resolve as resolve16, extname } from "path";
+import { readFileSync as readFileSync16, writeFileSync as writeFileSync20, existsSync as existsSync22, chmodSync as chmodSync2, mkdirSync as mkdirSync17, readdirSync as readdirSync6, statSync as statSync6 } from "fs";
+import { join as join20, resolve as resolve18, extname } from "path";
 import { randomBytes as randomBytes2 } from "crypto";
 
 // src/security/SovereignGate.ts
-import { readFileSync as readFileSync12, writeFileSync as writeFileSync14, existsSync as existsSync16, chmodSync } from "fs";
-import { join as join14 } from "path";
+import { readFileSync as readFileSync13, writeFileSync as writeFileSync15, existsSync as existsSync17, chmodSync } from "fs";
+import { join as join15 } from "path";
 import { randomBytes } from "crypto";
 import jwt from "jsonwebtoken";
 var SovereignGate = class {
@@ -21335,10 +21733,10 @@ var SovereignGate = class {
       this.cachedSecret = process.env.RUNTIME_AUTH_SECRET.trim();
       return this.cachedSecret;
     }
-    const secretFile = join14(process.cwd(), ".jarvis-secret");
+    const secretFile = join15(process.cwd(), ".jarvis-secret");
     try {
-      if (existsSync16(secretFile)) {
-        const stored = readFileSync12(secretFile, "utf8").trim();
+      if (existsSync17(secretFile)) {
+        const stored = readFileSync13(secretFile, "utf8").trim();
         if (stored.length >= 32) {
           this.cachedSecret = stored;
           return this.cachedSecret;
@@ -21348,7 +21746,7 @@ var SovereignGate = class {
     }
     const SOVEREIGN_STABLE_SEED = "jarvis-sovereign-master-sri-mark-v-auth-secret-key-3284f46-permanent-auth";
     try {
-      writeFileSync14(secretFile, SOVEREIGN_STABLE_SEED, { mode: 384 });
+      writeFileSync15(secretFile, SOVEREIGN_STABLE_SEED, { mode: 384 });
       chmodSync(secretFile, 384);
     } catch {
     }
@@ -22294,13 +22692,13 @@ ${systemPrompt}` }] });
 };
 
 // src/services/HermesDocumentService.ts
-import { existsSync as existsSync17, mkdirSync as mkdirSync12, writeFileSync as writeFileSync15, statSync as statSync3 } from "fs";
-import { resolve as resolve13, join as join15 } from "path";
+import { existsSync as existsSync18, mkdirSync as mkdirSync13, writeFileSync as writeFileSync16, statSync as statSync4 } from "fs";
+import { resolve as resolve15, join as join16 } from "path";
 var HermesDocumentService = class {
-  static storageDir = resolve13(process.cwd(), "artifacts", "storage");
+  static storageDir = resolve15(process.cwd(), "artifacts", "storage");
   static ensureStorageDir() {
-    if (!existsSync17(this.storageDir)) {
-      mkdirSync12(this.storageDir, { recursive: true });
+    if (!existsSync18(this.storageDir)) {
+      mkdirSync13(this.storageDir, { recursive: true });
     }
   }
   /**
@@ -22374,9 +22772,9 @@ var HermesDocumentService = class {
         content: options.content
       });
     }
-    const targetPath = join15(this.storageDir, filename);
-    writeFileSync15(targetPath, fileBuffer);
-    const stats = statSync3(targetPath);
+    const targetPath = join16(this.storageDir, filename);
+    writeFileSync16(targetPath, fileBuffer);
+    const stats = statSync4(targetPath);
     return {
       success: true,
       filename,
@@ -22567,11 +22965,11 @@ var DailyBriefingEngine = class {
 };
 
 // src/agents/SkillCreationEngine.ts
-import { existsSync as existsSync18, mkdirSync as mkdirSync13, writeFileSync as writeFileSync16, readFileSync as readFileSync13 } from "fs";
-import { resolve as resolve14, join as join16 } from "path";
+import { existsSync as existsSync19, mkdirSync as mkdirSync14, writeFileSync as writeFileSync17, readFileSync as readFileSync14 } from "fs";
+import { resolve as resolve16, join as join17 } from "path";
 var SkillCreationEngine = class _SkillCreationEngine {
-  static dataDir = resolve14(process.cwd(), "data");
-  static skillsFile = join16(_SkillCreationEngine.dataDir, "custom_skills.json");
+  static dataDir = resolve16(process.cwd(), "data");
+  static skillsFile = join17(_SkillCreationEngine.dataDir, "custom_skills.json");
   static defaultSkills = [
     {
       id: "SKILL-GROCERY-AI",
@@ -22614,17 +23012,17 @@ var SkillCreationEngine = class _SkillCreationEngine {
     }
   ];
   static ensureDataDir() {
-    if (!existsSync18(this.dataDir)) {
-      mkdirSync13(this.dataDir, { recursive: true });
+    if (!existsSync19(this.dataDir)) {
+      mkdirSync14(this.dataDir, { recursive: true });
     }
-    if (!existsSync18(this.skillsFile)) {
-      writeFileSync16(this.skillsFile, JSON.stringify(this.defaultSkills, null, 2), "utf-8");
+    if (!existsSync19(this.skillsFile)) {
+      writeFileSync17(this.skillsFile, JSON.stringify(this.defaultSkills, null, 2), "utf-8");
     }
   }
   static getSkills() {
     this.ensureDataDir();
     try {
-      const raw2 = readFileSync13(this.skillsFile, "utf-8");
+      const raw2 = readFileSync14(this.skillsFile, "utf-8");
       return JSON.parse(raw2);
     } catch {
       return this.defaultSkills;
@@ -22653,7 +23051,7 @@ var SkillCreationEngine = class _SkillCreationEngine {
       executionCount: 1
     };
     skills.push(newSkill);
-    writeFileSync16(this.skillsFile, JSON.stringify(skills, null, 2), "utf-8");
+    writeFileSync17(this.skillsFile, JSON.stringify(skills, null, 2), "utf-8");
     return newSkill;
   }
 };
@@ -23108,16 +23506,16 @@ var FrontierModelVault = class {
 };
 
 // src/services/JioCloudVaultService.ts
-import { existsSync as existsSync19, mkdirSync as mkdirSync14, writeFileSync as writeFileSync17 } from "fs";
-import { join as join17 } from "path";
+import { existsSync as existsSync20, mkdirSync as mkdirSync15, writeFileSync as writeFileSync18 } from "fs";
+import { join as join18 } from "path";
 var JioCloudVaultService = class {
   static defaultMountPath = process.env.JIO_MOUNT_PATH || "J:\\JIO-VAULT";
-  static localStagingPath = join17(process.cwd(), "artifacts", "storage", "jio-vault");
+  static localStagingPath = join18(process.cwd(), "artifacts", "storage", "jio-vault");
   /**
    * Returns current connection status of the 5,000 GB JioCloud storage
    */
   static getConnectionStatus() {
-    const isVirtualMounted = existsSync19(this.defaultMountPath);
+    const isVirtualMounted = existsSync20(this.defaultMountPath);
     return {
       connected: isVirtualMounted,
       mountType: isVirtualMounted ? "RCLONE_VIRTUAL_DRIVE" : "CLOUD_STAGING_MODE",
@@ -23133,15 +23531,15 @@ var JioCloudVaultService = class {
    * Creates an automated backup snapshot directly into the JioCloud vault
    */
   static createSnapshot(snapshotName = "master-sri-sovereign-snapshot") {
-    const targetDir = existsSync19(this.defaultMountPath) ? join17(this.defaultMountPath, "backups") : join17(this.localStagingPath, "backups");
-    if (!existsSync19(targetDir)) {
+    const targetDir = existsSync20(this.defaultMountPath) ? join18(this.defaultMountPath, "backups") : join18(this.localStagingPath, "backups");
+    if (!existsSync20(targetDir)) {
       try {
-        mkdirSync14(targetDir, { recursive: true });
+        mkdirSync15(targetDir, { recursive: true });
       } catch {
       }
     }
     const filename = `${snapshotName}_${Date.now()}.json`;
-    const targetFile = join17(targetDir, filename);
+    const targetFile = join18(targetDir, filename);
     const snapshotPayload = {
       commander: "Master Sri",
       system: "J.A.R.V.I.S. Mark-V Sovereign Kernel",
@@ -23151,7 +23549,7 @@ var JioCloudVaultService = class {
       status: "VERIFIED_DURABLE"
     };
     try {
-      writeFileSync17(targetFile, JSON.stringify(snapshotPayload, null, 2), "utf-8");
+      writeFileSync18(targetFile, JSON.stringify(snapshotPayload, null, 2), "utf-8");
     } catch {
     }
     return {
@@ -23278,15 +23676,15 @@ async function ensureDatabaseSchema() {
     schemaRepairAttempted = true;
     console.error("[jarvis] database schema missing, repairing:", msg);
     try {
-      const { readFileSync: readFileSync17, writeFileSync: writeFileSync20 } = await import("node:fs");
-      const { join: join21 } = await import("node:path");
+      const { readFileSync: readFileSync18, writeFileSync: writeFileSync21 } = await import("node:fs");
+      const { join: join22 } = await import("node:path");
       const { execFileSync } = await import("node:child_process");
-      const schemaPath = join21(process.cwd(), "prisma", "schema.prisma");
+      const schemaPath = join22(process.cwd(), "prisma", "schema.prisma");
       const rawDbUrl2 = process.env.DATABASE_URL || "";
       const isPg = rawDbUrl2.startsWith("postgres://") || rawDbUrl2.startsWith("postgresql://");
       const targetProvider = isPg ? "postgresql" : "sqlite";
       try {
-        const schema = readFileSync17(schemaPath, "utf-8");
+        const schema = readFileSync18(schemaPath, "utf-8");
         const updated = schema.replace(
           /datasource\s+db\s*\{[\s\S]*?provider\s*=\s*["'][^"']+["'][\s\S]*?\}/,
           `datasource db {
@@ -23294,7 +23692,7 @@ async function ensureDatabaseSchema() {
 }`
         );
         if (schema !== updated) {
-          writeFileSync20(schemaPath, updated, "utf-8");
+          writeFileSync21(schemaPath, updated, "utf-8");
         }
       } catch (_) {
       }
@@ -23334,17 +23732,17 @@ var JWT_SECRET = loadJwtSecret();
 var BCRYPT_ROUNDS = 12;
 function loadInviteCode() {
   if (process.env.JARVIS_INVITE_CODE) return process.env.JARVIS_INVITE_CODE;
-  const inviteFile = join19(process.cwd(), ".jarvis-invite");
+  const inviteFile = join20(process.cwd(), ".jarvis-invite");
   try {
-    if (existsSync21(inviteFile)) {
-      const stored = readFileSync15(inviteFile, "utf8").trim();
+    if (existsSync22(inviteFile)) {
+      const stored = readFileSync16(inviteFile, "utf8").trim();
       if (stored.length >= 8) return stored;
     }
   } catch {
   }
   const generated = randomBytes2(9).toString("base64url");
   try {
-    writeFileSync19(inviteFile, generated, { mode: 384 });
+    writeFileSync20(inviteFile, generated, { mode: 384 });
     chmodSync2(inviteFile, 384);
   } catch {
   }
@@ -23938,11 +24336,11 @@ function isModelReady(model) {
   return false;
 }
 var runtimeKeyOverrides = {};
-var KEYS_FILE = join19(process.cwd(), ".jarvis-keys.json");
+var KEYS_FILE = join20(process.cwd(), ".jarvis-keys.json");
 function loadKeys() {
-  if (existsSync21(KEYS_FILE)) {
+  if (existsSync22(KEYS_FILE)) {
     try {
-      const diskKeys = JSON.parse(readFileSync15(KEYS_FILE, "utf8"));
+      const diskKeys = JSON.parse(readFileSync16(KEYS_FILE, "utf8"));
       Object.assign(runtimeKeyOverrides, diskKeys);
     } catch {
     }
@@ -23973,7 +24371,7 @@ function loadKeys() {
 function saveKeys(keys) {
   Object.assign(runtimeKeyOverrides, keys);
   try {
-    writeFileSync19(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
+    writeFileSync20(KEYS_FILE, JSON.stringify(runtimeKeyOverrides, null, 2), { mode: 384 });
     chmodSync2(KEYS_FILE, 384);
   } catch {
   }
@@ -24227,13 +24625,13 @@ ${JSON.stringify(audit.output, null, 2)}
   for (const match of matches.slice(0, 3)) {
     try {
       const cleanPath = match.trim().replace(/^['"]|['"]$/g, "");
-      let fullPath = resolve16(process.cwd(), cleanPath);
+      let fullPath = resolve18(process.cwd(), cleanPath);
       if (cleanPath.startsWith("assets/") || cleanPath.startsWith("sections/") || cleanPath.startsWith("snippets/") || cleanPath.startsWith("layout/")) {
-        const inviCandidate = resolve16("c:/Users/hp/invi-theme", cleanPath);
-        if (existsSync21(inviCandidate)) fullPath = inviCandidate;
+        const inviCandidate = resolve18("c:/Users/hp/invi-theme", cleanPath);
+        if (existsSync22(inviCandidate)) fullPath = inviCandidate;
       }
-      if (existsSync21(fullPath) && statSync5(fullPath).isFile()) {
-        const content = readFileSync15(fullPath, "utf-8");
+      if (existsSync22(fullPath) && statSync6(fullPath).isFile()) {
+        const content = readFileSync16(fullPath, "utf-8");
         context += `
 
 [VERIFIED DISK FILE: ${cleanPath}]:
@@ -25177,8 +25575,8 @@ app.get("/storage/download/:taskNumber/:format", async (c) => {
     if (!filePath) {
       return c.text("Report not found in storage vault", 404);
     }
-    const { readFileSync: readFileSync17 } = await import("node:fs");
-    const fileBytes = readFileSync17(filePath);
+    const { readFileSync: readFileSync18 } = await import("node:fs");
+    const fileBytes = readFileSync18(filePath);
     const contentType = format === "pdf" ? "application/pdf" : format === "doc" ? "application/msword" : format === "xlsx" ? "application/vnd.ms-excel" : "text/markdown";
     return new Response(fileBytes, {
       headers: {
@@ -25216,13 +25614,13 @@ app.post("/storage/generate", async (c) => {
 app.get("/storage/download-custom/:filename", async (c) => {
   try {
     const filename = c.req.param("filename");
-    const { resolve: resolve17 } = await import("node:path");
-    const { existsSync: existsSync23, readFileSync: readFileSync17 } = await import("node:fs");
-    const filePath = resolve17(process.cwd(), "artifacts", "storage", filename);
-    if (!existsSync23(filePath)) {
+    const { resolve: resolve19 } = await import("node:path");
+    const { existsSync: existsSync24, readFileSync: readFileSync18 } = await import("node:fs");
+    const filePath = resolve19(process.cwd(), "artifacts", "storage", filename);
+    if (!existsSync24(filePath)) {
       return c.text("Custom document not found", 404);
     }
-    const fileBytes = readFileSync17(filePath);
+    const fileBytes = readFileSync18(filePath);
     const ext = filename.split(".").pop()?.toLowerCase();
     const contentType = ext === "pdf" ? "application/pdf" : ext === "doc" ? "application/msword" : "text/plain";
     return new Response(fileBytes, {
@@ -25461,14 +25859,14 @@ app.get("/preview/:slug/:file", (c) => {
 app.get("/artifacts/download", (c) => {
   const fileParam = c.req.query("file");
   if (!fileParam) return c.text("Missing file parameter", 400);
-  const { existsSync: existsSync23, readFileSync: readFileSync17 } = __require("node:fs");
-  const { join: join21 } = __require("node:path");
+  const { existsSync: existsSync24, readFileSync: readFileSync18 } = __require("node:fs");
+  const { join: join22 } = __require("node:path");
   const safeName = fileParam.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const filePath = join21(process.cwd(), "artifacts", "documents", safeName);
-  if (!existsSync23(filePath)) {
+  const filePath = join22(process.cwd(), "artifacts", "documents", safeName);
+  if (!existsSync24(filePath)) {
     return c.text("File not found", 404);
   }
-  const content = readFileSync17(filePath);
+  const content = readFileSync18(filePath);
   let contentType = "application/octet-stream";
   if (safeName.endsWith(".pdf")) contentType = "application/pdf";
   else if (safeName.endsWith(".xlsx")) contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -27416,9 +27814,9 @@ Deliverable Files: ${filesChanged.join(", ") || "Direct execution output"}
           try {
             const { WorkspaceManager: WorkspaceManager2 } = await Promise.resolve().then(() => (init_WorkspaceManager(), WorkspaceManager_exports));
             const projectDir = WorkspaceManager2.getProjectPath(projectDeliverables.projectName);
-            const { exec: exec4 } = await import("node:child_process");
+            const { exec: exec5 } = await import("node:child_process");
             const { promisify: promisify5 } = await import("node:util");
-            const execAsync3 = promisify5(exec4);
+            const execAsync3 = promisify5(exec5);
             const testRun = await execAsync3("node test.js", { cwd: projectDir, timeout: 15e3 });
             testLog = testRun.stdout || testRun.stderr || "Tests completed with code 0";
             await TaskStore.emitEvent(task.id, "TEST_COMPLETED", `S.E.N.T.I.N.E.L. integration test suite passed cleanly`, { testLog });
@@ -28684,20 +29082,20 @@ app.post("/workspace/execute", async (c) => {
 });
 app.get("/workspaces", requireAuth, async (c) => {
   try {
-    const baseDir = resolve16(process.cwd(), "workspaces");
-    if (!existsSync21(baseDir)) mkdirSync16(baseDir, { recursive: true });
-    const items = readdirSync5(baseDir, { withFileTypes: true });
+    const baseDir = resolve18(process.cwd(), "workspaces");
+    if (!existsSync22(baseDir)) mkdirSync17(baseDir, { recursive: true });
+    const items = readdirSync6(baseDir, { withFileTypes: true });
     const projects = items.filter((item) => item.isDirectory()).map((dir) => {
-      const pPath = join19(baseDir, dir.name);
+      const pPath = join20(baseDir, dir.name);
       const files = WorkspaceManager.listFiles(dir.name);
-      const stats = statSync5(pPath);
+      const stats = statSync6(pPath);
       return {
         name: dir.name,
         path: pPath,
         filesCount: files.length,
         updatedAt: stats.mtime.toISOString(),
         previewUrl: `/api/workspaces/preview/${dir.name}`,
-        hasIndexHtml: existsSync21(join19(pPath, "index.html"))
+        hasIndexHtml: existsSync22(join20(pPath, "index.html"))
       };
     }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     return c.json({ ok: true, projects });
@@ -28745,8 +29143,8 @@ var MIME_MAP = {
 };
 var ensureDefaultWorkspaceExists = (targetProject = "swarm_can_you_create_a_todo_li") => {
   const projectPath = WorkspaceManager.getProjectPath(targetProject);
-  const indexPath = resolve16(projectPath, "index.html");
-  if (existsSync21(indexPath)) return projectPath;
+  const indexPath = resolve18(projectPath, "index.html");
+  if (existsSync22(indexPath)) return projectPath;
   WorkspaceManager.initProject(targetProject);
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -29019,38 +29417,38 @@ document.addEventListener('DOMContentLoaded', () => {
 };
 var serveWorkspaceFile = (projectName, subPath) => {
   let projectPath = WorkspaceManager.getProjectPath(projectName);
-  let filePath = subPath ? resolve16(projectPath, subPath) : resolve16(projectPath, "index.html");
-  if (!existsSync21(projectPath) || !existsSync21(filePath) && (!subPath || subPath === "index.html")) {
+  let filePath = subPath ? resolve18(projectPath, subPath) : resolve18(projectPath, "index.html");
+  if (!existsSync22(projectPath) || !existsSync22(filePath) && (!subPath || subPath === "index.html")) {
     projectPath = ensureDefaultWorkspaceExists(projectName);
-    filePath = subPath ? resolve16(projectPath, subPath) : resolve16(projectPath, "index.html");
+    filePath = subPath ? resolve18(projectPath, subPath) : resolve18(projectPath, "index.html");
   }
   if (!filePath.startsWith(projectPath)) {
     return { status: 403, error: "Path traversal denied" };
   }
-  if (existsSync21(filePath) && statSync5(filePath).isDirectory()) {
-    filePath = resolve16(filePath, "index.html");
+  if (existsSync22(filePath) && statSync6(filePath).isDirectory()) {
+    filePath = resolve18(filePath, "index.html");
   }
-  if (!existsSync21(filePath)) {
-    const rootIndex = resolve16(projectPath, "index.html");
-    if (existsSync21(rootIndex)) {
+  if (!existsSync22(filePath)) {
+    const rootIndex = resolve18(projectPath, "index.html");
+    if (existsSync22(rootIndex)) {
       filePath = rootIndex;
     } else {
       ensureDefaultWorkspaceExists(projectName);
-      filePath = resolve16(projectPath, "index.html");
+      filePath = resolve18(projectPath, "index.html");
     }
   }
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_MAP[ext] || "text/plain; charset=utf-8";
-  const content = readFileSync15(filePath);
+  const content = readFileSync16(filePath);
   return { status: 200, contentType, content };
 };
 app.get("/workspaces/preview/:projectName", async (c) => {
   try {
     const projectName = c.req.param("projectName");
     if (projectName.includes(".")) {
-      const workspacesDir = WorkspaceManager.WORKSPACES_ROOT || resolve16(process.cwd(), "workspaces");
-      if (existsSync21(workspacesDir)) {
-        const entries = readdirSync5(workspacesDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => ({ name: d.name, time: statSync5(join19(workspacesDir, d.name)).mtimeMs })).sort((a, b) => b.time - a.time);
+      const workspacesDir = WorkspaceManager.WORKSPACES_ROOT || resolve18(process.cwd(), "workspaces");
+      if (existsSync22(workspacesDir)) {
+        const entries = readdirSync6(workspacesDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => ({ name: d.name, time: statSync6(join20(workspacesDir, d.name)).mtimeMs })).sort((a, b) => b.time - a.time);
         for (const entry of entries) {
           const candidate = serveWorkspaceFile(entry.name, projectName);
           if (candidate.status === 200 && candidate.content) {
@@ -29286,11 +29684,11 @@ app.post("/docs/generate", requireAuth, async (c) => {
 app.get("/docs/download/:filename", async (c) => {
   try {
     const filename = c.req.param("filename");
-    const safePath = join19(process.cwd(), "artifacts", "storage", filename.replace(/[^a-zA-Z0-9_.-]/g, ""));
-    if (!existsSync21(safePath)) {
+    const safePath = join20(process.cwd(), "artifacts", "storage", filename.replace(/[^a-zA-Z0-9_.-]/g, ""));
+    if (!existsSync22(safePath)) {
       return c.json({ error: "File not found" }, 404);
     }
-    const fileBytes = readFileSync15(safePath);
+    const fileBytes = readFileSync16(safePath);
     const contentType = filename.endsWith(".pdf") ? "application/pdf" : filename.endsWith(".doc") ? "application/msword" : "application/octet-stream";
     return c.body(fileBytes, 200, {
       "Content-Type": contentType,
@@ -29886,7 +30284,7 @@ var TelegramBotListener = class {
           await this.pollUpdates(botToken, authorizedId);
         } catch (err) {
           if (!this.pollingActive) break;
-          await new Promise((resolve17) => setTimeout(resolve17, 3e3));
+          await new Promise((resolve19) => setTimeout(resolve19, 3e3));
         }
       }
     })().catch((err) => {
@@ -30463,9 +30861,9 @@ app2.post("/api/tools/execute", (c) => tools.execute(c.req.raw));
 app2.get("/api/tools/schemas", (c) => tools.list(c.req.raw));
 app2.use("/*", serveStatic({ root: "./dist" }));
 app2.get("*", (c) => {
-  const indexPath = join20(process.cwd(), "dist", "index.html");
-  if (existsSync22(indexPath)) {
-    return c.html(readFileSync16(indexPath, "utf-8"));
+  const indexPath = join21(process.cwd(), "dist", "index.html");
+  if (existsSync23(indexPath)) {
+    return c.html(readFileSync17(indexPath, "utf-8"));
   }
   return c.text("J.A.R.V.I.S. Sovereign Cloud Engine Active", 200);
 });
