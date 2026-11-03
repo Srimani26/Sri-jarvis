@@ -99,7 +99,15 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
   const text = rawText.trim()
   const lower = text.toLowerCase()
 
-  // 1. Hands-Free SPA Navigation Patterns
+  // 1. Hands-Free Acoustic Status Check ("can you hear me")
+  if (lower.includes('can you hear me') || lower.includes('you hear me') || lower.includes('mic check') || lower.includes('mic test')) {
+    return {
+      type: 'QUERY',
+      replyText: 'Loud and clear, Master Sri. All systems standing by.'
+    }
+  }
+
+  // 2. Hands-Free SPA Navigation Patterns
   const navMatch = lower.match(/(?:go to|open|show|navigate to)\s+(?:the\s+)?(dashboard|telemetry|studio|vault|chat|settings|storage|cyber|defense|code|revenue|tasks)/i)
   if (navMatch && navMatch[1]) {
     const rawTarget = navMatch[1].toLowerCase()
@@ -113,7 +121,7 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
     }
   }
 
-  // 2. Specialist Persona Handoff Patterns
+  // 3. Specialist Persona Handoff Patterns
   const handoffMatch = lower.match(/(?:call|switch to|ask|talk to)\s+(aegis|raphael|friday|jarvis)/i) ||
     lower.match(/^(?:hey\s+)?(aegis|raphael|friday|jarvis)[,\s]/i)
   if (handoffMatch && handoffMatch[1]) {
@@ -136,7 +144,7 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
     }
   }
 
-  // 3. Autonomous Standard Query
+  // 4. Autonomous Standard Query
   return {
     type: 'QUERY'
   }
@@ -268,7 +276,7 @@ export class VoiceGatewayService {
       } catch {}
     }
 
-    // 2. Try Groq Whisper Large-v3 (<200ms turnaround)
+    // 2. Try Groq Whisper Large-v3 (<200ms turnaround with English biasing)
     const groqKey = process.env.GROQ_API_KEY
     if (groqKey) {
       try {
@@ -276,42 +284,43 @@ export class VoiceGatewayService {
         const blob = new Blob([wavBuffer], { type: 'audio/wav' })
         formData.append('file', blob, 'audio.wav')
         formData.append('model', 'whisper-large-v3')
-        formData.append('prompt', 'Master Sri, Jarvis, Friday, Aegis, Raphael, command, telemetry, dashboard, vault')
+        formData.append('language', 'en')
+        formData.append('prompt', 'Master Sri command to J.A.R.V.I.S.')
         formData.append('temperature', '0.0')
 
         const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${groqKey}` },
           body: formData,
-          signal: AbortSignal.timeout(4000)
+          signal: AbortSignal.timeout(5000)
         })
 
         if (res.ok) {
           const json = await res.json() as any
-          if (json.text) return json.text.trim()
+          if (json.text && json.text.trim()) return json.text.trim()
         }
       } catch (err: any) {
         console.warn('[VoiceGateway] Groq Whisper transcription note:', err?.message || err)
       }
     }
 
-    // 3. Try Deepgram Nova-2
+    // 3. Fallback: Deepgram Nova-2 STT
     const deepgramKey = process.env.DEEPGRAM_API_KEY
     if (deepgramKey) {
       try {
-        const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true', {
+        const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=en', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${deepgramKey}`,
             'Content-Type': 'audio/wav'
           },
           body: new Uint8Array(wavBuffer),
-          signal: AbortSignal.timeout(4000)
+          signal: AbortSignal.timeout(5000)
         })
         if (res.ok) {
           const json = await res.json() as any
           const alt = json.results?.channels?.[0]?.alternatives?.[0]
-          if (alt?.transcript) return alt.transcript.trim()
+          if (alt?.transcript && alt.transcript.trim()) return alt.transcript.trim()
         }
       } catch (err: any) {
         console.warn('[VoiceGateway] Deepgram Nova-2 transcription note:', err?.message || err)
@@ -529,11 +538,11 @@ export class VoiceGatewayService {
       } catch {}
     }
 
-    // 2. Try Deepgram Aura
+    // 2. Try Deepgram Aura (standard MP3 stream for universal mobile hardware decoding)
     const deepgramKey = process.env.DEEPGRAM_API_KEY
     if (!ttsDelivered && deepgramKey) {
       try {
-        const res = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=linear16&sample_rate=16000', {
+        const res = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=mp3', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${deepgramKey}`,
@@ -554,12 +563,12 @@ export class VoiceGatewayService {
       }
     }
 
-    // 3. Try ElevenLabs Turbo v2.5
+    // 3. Try ElevenLabs Turbo v2.5 (standard MP3 format)
     const elevenKey = process.env.ELEVENLABS_API_KEY
     if (!ttsDelivered && elevenKey) {
       try {
         const voiceId = '21m00Tcm4TlvDq8ikWAM' // Default executive voice
-        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
           method: 'POST',
           headers: {
             'xi-api-key': elevenKey,

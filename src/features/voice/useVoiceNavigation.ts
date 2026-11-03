@@ -4,15 +4,22 @@
  *
  * Implements:
  * 1. Persistent WebSocket connection to /api/voice/session authenticated with biometric token.
- * 2. 16kHz AudioWorkletNode capture with zero-CPU silent STANDBY state machine.
- * 3. Incoming Action Receiver:
- *    - If payload.action === "NAVIGATE": invokes client route transition hands-free.
- *    - If payload.type === "AGENT_HANDOFF": updates active specialist persona.
- *    - If binary audio chunk received: feeds into AudioContext for gapless playback.
- * 4. Automatic echo suppression: pauses microphone capture while the AI agent is speaking.
+ * 2. 16kHz AudioWorkletNode capture with 0.01 RMS threshold and 400ms hangover padding.
+ * 3. Monotonic Audio Queue Scheduling via AudioQueuePlayer:
+ *    - Eliminates audio fast-forward/chipmunk playback by matching native hardware sample rates.
+ *    - Unlocks AudioContext clock on user touch/mic gestures.
+ * 4. Dual-Engine Capture Fallback:
+ *    - Primary: 16kHz Linear PCM over WebSocket to /api/voice/session.
+ *    - Fallback: If WebSocket is disconnected or latency > 1.5s, automatically captures MediaRecorder .webm/.mp4 blob
+ *      and POSTs to /api/voice/transcribe (Groq Whisper Large-v3 endpoint).
+ * 5. Visual Console Confirmation:
+ *    - User's spoken text is immediately transcribed and logged to the console.
+ * 6. Echo Suppression Mute Gate:
+ *    - Automatically mutes microphone worklet while the agent is speaking.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { audioQueuePlayer } from './AudioQueuePlayer'
 
 export interface VoiceNavigationOptions {
   onNavigate?: (route: string) => void
@@ -42,63 +49,83 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const workletNodeRef = useRef<AudioWorkletNode | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
-  const audioQueueRef = useRef<ArrayBuffer[]>([])
-  const isPlayingRef = useRef(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const speechDetectedRef = useRef(false)
+  const lastPacketSendTimeRef = useRef<number>(0)
+  const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const updateStatus = useCallback((status: 'STANDBY' | 'LISTENING' | 'PROCESSING' | 'SPEAKING') => {
     setVoiceStatus(status)
     if (onStatusChange) onStatusChange(status)
   }, [onStatusChange])
 
-  // Play next audio buffer in queue via AudioBufferSourceNode
-  const playNextAudioChunk = useCallback(async () => {
-    if (audioQueueRef.current.length === 0 || isPlayingRef.current) return
-
-    const ctx = audioContextRef.current
-    if (!ctx) return
-
-    const rawBuffer = audioQueueRef.current.shift()
-    if (!rawBuffer) return
-
-    isPlayingRef.current = true
+  // Process incoming binary audio chunks through monotonic AudioQueuePlayer
+  const handleIncomingAudioChunk = useCallback(async (data: ArrayBuffer) => {
     updateStatus('SPEAKING')
+    if (workletNodeRef.current) {
+      workletNodeRef.current.port.postMessage({ type: 'MUTE' })
+    }
 
-    try {
-      // Decode 16kHz linear PCM into Web Audio AudioBuffer
-      const int16Array = new Int16Array(rawBuffer)
-      const audioBuffer = ctx.createBuffer(1, int16Array.length, 16000)
-      const channelData = audioBuffer.getChannelData(0)
-
-      for (let i = 0; i < int16Array.length; i++) {
-        channelData[i] = int16Array[i] / 32768.0
+    await audioQueuePlayer.enqueueChunk(
+      data,
+      () => updateStatus('SPEAKING'),
+      () => {
+        if (workletNodeRef.current) {
+          workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
+        }
+        updateStatus('STANDBY')
       }
+    )
+  }, [updateStatus])
 
-      const source = ctx.createBufferSource()
-      source.buffer = audioBuffer
-      source.connect(ctx.destination)
+  // HTTP Fallback Transcriber via POST /api/voice/transcribe (Groq Whisper Large-v3)
+  const transcribeBlobFallback = useCallback(async (audioBlob: Blob) => {
+    try {
+      updateStatus('PROCESSING')
+      const formData = new FormData()
+      formData.append('file', audioBlob, 'mic-fallback.webm')
 
-      source.onended = () => {
-        isPlayingRef.current = false
-        if (audioQueueRef.current.length > 0) {
-          playNextAudioChunk()
-        } else {
-          // All speech audio finished: Unmute mic and enter STANDBY
-          if (workletNodeRef.current) {
-            workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
+      const res = await fetch('/api/voice/transcribe', {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(6000)
+      })
+
+      if (res.ok) {
+        const json = await res.json() as any
+        const transcriptText = (json.text || '').trim()
+        if (transcriptText) {
+          console.log('[VoiceNavigation] Transcribed text (HTTP fallback):', transcriptText)
+          setLastTranscript(transcriptText)
+          if (onTranscript) onTranscript(transcriptText)
+
+          // Dispatch intent
+          const intentRes = await fetch('/api/voice/intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: transcriptText, currentAgent: activeAgent })
+          })
+
+          if (intentRes.ok) {
+            const intentData = await intentRes.json() as any
+            const intent = intentData.intent
+            if (intent?.type === 'NAVIGATE' && intent?.target && onNavigate) {
+              onNavigate(intent.target)
+            } else if (intent?.type === 'HANDOFF' && intent?.agent) {
+              setActiveAgent(intent.agent)
+              if (onAgentChange) onAgentChange(intent.agent)
+            }
           }
-          updateStatus('STANDBY')
         }
       }
-
-      source.start()
     } catch (err) {
-      console.warn('[useVoiceNavigation] Audio playback error:', err)
-      isPlayingRef.current = false
+      console.warn('[VoiceNavigation] Transcribe HTTP fallback error:', err)
+    } finally {
       updateStatus('STANDBY')
     }
-  }, [updateStatus])
+  }, [activeAgent, onAgentChange, onNavigate, onTranscript, updateStatus])
 
   // Connect WebSocket to /api/voice/session
   const connectVoiceSession = useCallback((token?: string) => {
@@ -106,9 +133,9 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
       return
     }
 
-    const sessionToken = token || sessionStorage.getItem('jarvis_biometric_token') || 'bio_sri_session'
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
+    const sessionToken = token || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('jarvis_biometric_token') : null) || 'bio_sri_session'
+    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3005'
     const wsUrl = `${protocol}//${host}/api/voice/session?token=${encodeURIComponent(sessionToken)}`
 
     const ws = new WebSocket(wsUrl)
@@ -121,10 +148,15 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     }
 
     ws.onmessage = async (event) => {
+      // Clear fallback timer when message received from WebSocket
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current)
+        fallbackTimeoutRef.current = null
+      }
+
       if (typeof event.data !== 'string') {
         // Binary TTS audio chunk received from Deepgram Aura / ElevenLabs
-        audioQueueRef.current.push(event.data)
-        playNextAudioChunk()
+        await handleIncomingAudioChunk(event.data)
         return
       }
 
@@ -135,8 +167,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         if (payload.action === 'NAVIGATE' && payload.route) {
           if (onNavigate) {
             onNavigate(payload.route)
-          } else {
-            // Fallback direct window navigation / hash navigation
+          } else if (typeof window !== 'undefined') {
             window.location.hash = payload.route
           }
         }
@@ -149,6 +180,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
 
         // 3. Transcript returned
         if (payload.type === 'TRANSCRIPT' && payload.text) {
+          console.log('[VoiceNavigation] Transcribed text (WebSocket):', payload.text)
           setLastTranscript(payload.text)
           if (onTranscript) onTranscript(payload.text)
         }
@@ -168,7 +200,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         }
 
         if (payload.type === 'AGENT_SPEAK_END') {
-          if (audioQueueRef.current.length === 0) {
+          if (!audioQueuePlayer.isSpeaking()) {
             if (workletNodeRef.current) {
               workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
             }
@@ -188,9 +220,9 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     ws.onerror = (err) => {
       console.warn('[useVoiceNavigation] WebSocket error:', err)
     }
-  }, [onNavigate, onAgentChange, onTranscript, onAgentResponse, playNextAudioChunk, updateStatus])
+  }, [handleIncomingAudioChunk, onAgentChange, onAgentResponse, onNavigate, onTranscript, updateStatus])
 
-  // Initialize AudioWorkletNode and 16kHz capture
+  // Initialize AudioWorkletNode, MediaRecorder fallback, and 16kHz capture
   const startListening = useCallback(async () => {
     try {
       if (!audioContextRef.current) {
@@ -202,6 +234,9 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
       if (ctx.state === 'suspended') {
         await ctx.resume()
       }
+
+      // Explicitly prime AudioQueuePlayer on user touch/mic interaction
+      await audioQueuePlayer.prime(ctx)
 
       // Load 16kHz Linear PCM AudioWorkletProcessor
       try {
@@ -221,6 +256,40 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
       })
 
       mediaStreamRef.current = stream
+
+      // Initialize parallel MediaRecorder for HTTP fallback if WebSocket drops or stalls
+      try {
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/mp4'
+        const recorder = new MediaRecorder(stream, { mimeType })
+        recordedChunksRef.current = []
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            recordedChunksRef.current.push(e.data)
+          }
+        }
+
+        recorder.onstop = () => {
+          if (recordedChunksRef.current.length > 0) {
+            const blob = new Blob(recordedChunksRef.current, { type: mimeType })
+            recordedChunksRef.current = []
+            // Trigger HTTP fallback if WebSocket is not open or stalled
+            const ws = wsRef.current
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+              transcribeBlobFallback(blob)
+            }
+          }
+        }
+
+        mediaRecorderRef.current = recorder
+      } catch (recErr) {
+        console.warn('[useVoiceNavigation] MediaRecorder fallback init note:', recErr)
+      }
+
       const source = ctx.createMediaStreamSource(stream)
       const workletNode = new AudioWorkletNode(ctx, 'jarvis-audio-worklet-processor')
       workletNodeRef.current = workletNode
@@ -230,10 +299,9 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         if (type !== 'PCM_CHUNK') return
 
         const ws = wsRef.current
-        if (!ws || ws.readyState !== WebSocket.OPEN) return
+        const isWsAvailable = ws && ws.readyState === WebSocket.OPEN
 
-        // Zero-CPU Silent Standby State Machine:
-        // When quiet: DO NOT send packets over WebSocket
+        // Threshold detection: 0.01 + 400ms hangover
         if (isAboveThreshold) {
           speechDetectedRef.current = true
           updateStatus('LISTENING')
@@ -243,36 +311,67 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
             silenceTimerRef.current = null
           }
 
-          // Stream binary 16kHz linear PCM chunk directly
-          ws.send(buffer)
-        } else if (speechDetectedRef.current) {
-          // Still stream trailing consonant buffers during short silence
-          ws.send(buffer)
+          // Start MediaRecorder chunk recording if not recording
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+            try {
+              recordedChunksRef.current = []
+              mediaRecorderRef.current.start(250)
+            } catch {}
+          }
 
-          // If silence lasts >700ms, trigger turn completion
+          if (isWsAvailable) {
+            lastPacketSendTimeRef.current = Date.now()
+            ws.send(buffer)
+          }
+        } else if (speechDetectedRef.current) {
+          // Send trailing buffers during short silence
+          if (isWsAvailable) {
+            ws.send(buffer)
+          }
+
+          // Conclude turn after 700ms silence
           if (!silenceTimerRef.current) {
             silenceTimerRef.current = setTimeout(() => {
               speechDetectedRef.current = false
               silenceTimerRef.current = null
               updateStatus('PROCESSING')
 
-              // Signal backend to transcribe accumulated audio
-              ws.send(JSON.stringify({ type: 'SPEECH_END' }))
+              // Stop MediaRecorder fallback buffer
+              if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+                try { mediaRecorderRef.current.stop() } catch {}
+              }
+
+              if (isWsAvailable) {
+                ws.send(JSON.stringify({ type: 'SPEECH_END' }))
+
+                // Set 1.5s latency watchdog: if no response from WS, fall back to HTTP
+                if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current)
+                fallbackTimeoutRef.current = setTimeout(() => {
+                  console.warn('[VoiceNavigation] WebSocket latency exceeded 1.5s, checking HTTP fallback')
+                  if (recordedChunksRef.current.length > 0) {
+                    const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' })
+                    transcribeBlobFallback(blob)
+                  }
+                }, 1500)
+              }
             }, 700)
           }
         }
       }
 
       source.connect(workletNode)
-      workletNode.connect(ctx.destination)
+      // Do not connect workletNode to ctx.destination to prevent microphone feedback loop
       updateStatus('STANDBY')
     } catch (err) {
       console.warn('[useVoiceNavigation] Audio capture initialization failed:', err)
     }
-  }, [updateStatus])
+  }, [transcribeBlobFallback, updateStatus])
 
   // Stop listening and release media tracks
   const stopListening = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try { mediaRecorderRef.current.stop() } catch {}
+    }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop())
       mediaStreamRef.current = null
@@ -281,6 +380,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
       workletNodeRef.current.disconnect()
       workletNodeRef.current = null
     }
+    audioQueuePlayer.stop()
     updateStatus('STANDBY')
   }, [updateStatus])
 
@@ -323,4 +423,3 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
 }
 
 export default useVoiceNavigation
-

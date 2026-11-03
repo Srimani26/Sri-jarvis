@@ -13681,6 +13681,12 @@ function pcmToWav(pcmBuffer, sampleRate = 16e3) {
 function parseVoiceIntent(rawText, currentAgent) {
   const text = rawText.trim();
   const lower = text.toLowerCase();
+  if (lower.includes("can you hear me") || lower.includes("you hear me") || lower.includes("mic check") || lower.includes("mic test")) {
+    return {
+      type: "QUERY",
+      replyText: "Loud and clear, Master Sri. All systems standing by."
+    };
+  }
   const navMatch = lower.match(/(?:go to|open|show|navigate to)\s+(?:the\s+)?(dashboard|telemetry|studio|vault|chat|settings|storage|cyber|defense|code|revenue|tasks)/i);
   if (navMatch && navMatch[1]) {
     const rawTarget = navMatch[1].toLowerCase();
@@ -13866,17 +13872,18 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
             const blob = new Blob([wavBuffer], { type: "audio/wav" });
             formData.append("file", blob, "audio.wav");
             formData.append("model", "whisper-large-v3");
-            formData.append("prompt", "Master Sri, Jarvis, Friday, Aegis, Raphael, command, telemetry, dashboard, vault");
+            formData.append("language", "en");
+            formData.append("prompt", "Master Sri command to J.A.R.V.I.S.");
             formData.append("temperature", "0.0");
             const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
               method: "POST",
               headers: { "Authorization": `Bearer ${groqKey}` },
               body: formData,
-              signal: AbortSignal.timeout(4e3)
+              signal: AbortSignal.timeout(5e3)
             });
             if (res.ok) {
               const json = await res.json();
-              if (json.text) return json.text.trim();
+              if (json.text && json.text.trim()) return json.text.trim();
             }
           } catch (err) {
             console.warn("[VoiceGateway] Groq Whisper transcription note:", err?.message || err);
@@ -13885,19 +13892,19 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
         const deepgramKey = process.env.DEEPGRAM_API_KEY;
         if (deepgramKey) {
           try {
-            const res = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true", {
+            const res = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=en", {
               method: "POST",
               headers: {
                 "Authorization": `Token ${deepgramKey}`,
                 "Content-Type": "audio/wav"
               },
               body: new Uint8Array(wavBuffer),
-              signal: AbortSignal.timeout(4e3)
+              signal: AbortSignal.timeout(5e3)
             });
             if (res.ok) {
               const json = await res.json();
               const alt = json.results?.channels?.[0]?.alternatives?.[0];
-              if (alt?.transcript) return alt.transcript.trim();
+              if (alt?.transcript && alt.transcript.trim()) return alt.transcript.trim();
             }
           } catch (err) {
             console.warn("[VoiceGateway] Deepgram Nova-2 transcription note:", err?.message || err);
@@ -14067,7 +14074,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
         const deepgramKey = process.env.DEEPGRAM_API_KEY;
         if (!ttsDelivered && deepgramKey) {
           try {
-            const res = await fetch("https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=linear16&sample_rate=16000", {
+            const res = await fetch("https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=mp3", {
               method: "POST",
               headers: {
                 "Authorization": `Token ${deepgramKey}`,
@@ -14090,7 +14097,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
         if (!ttsDelivered && elevenKey) {
           try {
             const voiceId = "21m00Tcm4TlvDq8ikWAM";
-            const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
               method: "POST",
               headers: {
                 "xi-api-key": elevenKey,
@@ -25507,6 +25514,8 @@ Format your response in Markdown with:
 app.post("/voice/transcribe", async (c) => {
   try {
     let file = null;
+    let buffer = null;
+    let mimeType = "audio/webm";
     try {
       const formData = await c.req.formData();
       file = formData.get("file");
@@ -25517,23 +25526,67 @@ app.post("/voice/transcribe", async (c) => {
       } catch {
       }
     }
-    if (!file || typeof file === "string") {
+    if (file && typeof file !== "string") {
+      const arrayBuffer = await file.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+      mimeType = (file.type || "audio/webm").split(";")[0];
+    } else {
+      try {
+        const arrayBuffer = await c.req.arrayBuffer();
+        if (arrayBuffer && arrayBuffer.byteLength > 0) {
+          buffer = Buffer.from(arrayBuffer);
+          const ct = c.req.header("content-type") || "audio/webm";
+          mimeType = ct.split(";")[0];
+        }
+      } catch {
+      }
+    }
+    if (!buffer || buffer.length === 0) {
       return c.json({ ok: false, error: "Audio file is required", text: "" }, 400);
     }
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length === 0) {
-      return c.json({ ok: false, error: "Audio file is empty", text: "" }, 400);
-    }
     const keys = loadKeys();
+    const groqKey = process.env.GROQ_API_KEY || keys.groq;
     const deepgramKey = process.env.DEEPGRAM_API_KEY || keys.deepgram || DEEPGRAM_DEFAULT_KEY;
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || keys.gemini || keys.geminiKeys && keys.geminiKeys[0];
-    const groqKey = process.env.GROQ_API_KEY || keys.groq;
-    const mimeType = (file.type || "audio/webm").split(";")[0];
-    const techVocabulary = "J.A.R.V.I.S., Master Sri, Flipkart, Amazon, Shopify, YouTube, play songs, play the song, analyze, best deal, review, quality, products, compare, terminal, workspace, Aegis, Vortex, Midas, Cerebro, Stark OS, PostgreSQL, Neon, Prisma, Docker, Render, TypeScript, Next.js, FastAPI, n8n, Tailwind, mission, telemetry, rollcall, status";
+    const whisperPrompt = "Master Sri command to J.A.R.V.I.S., Friday, Raphael, Aegis, Midas, telemetry, dashboard, vault, revenue, code";
+    if (groqKey) {
+      try {
+        const groqForm = new FormData();
+        const blob = new Blob([buffer], { type: mimeType });
+        groqForm.append("file", blob, "audio.webm");
+        groqForm.append("model", "whisper-large-v3");
+        groqForm.append("prompt", whisperPrompt);
+        groqForm.append("temperature", "0");
+        groqForm.append("language", "en");
+        const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}` },
+          body: groqForm,
+          signal: AbortSignal.timeout(1e4)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const text = (data?.text || "").trim();
+          if (text) {
+            return c.json({
+              ok: true,
+              text,
+              confidence: 0.98,
+              engine: "groq-whisper-large-v3",
+              promptRepeat: false
+            });
+          }
+        } else {
+          const errText = await res.text().catch(() => "");
+          console.warn(`[STT] Groq Whisper returned ${res.status}: ${errText.slice(0, 150)}. Failing over to Deepgram Nova-2...`);
+        }
+      } catch (groqErr) {
+        console.warn(`[STT] Groq Whisper failed: ${groqErr.message}. Failing over to Deepgram Nova-2...`);
+      }
+    }
     if (deepgramKey) {
       try {
-        const dgRes = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&utterances=true&keywords=J.A.R.V.I.S.:3,Master+Sri:3,Sri:3,Friday:2,Raphael:2,Aegis:2,Midas:2,Vortex:2,Invi:2,Shopify:2,Flipkart:2,Amazon:2,YouTube:2,coding:2,deploy:2", {
+        const dgRes = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&utterances=true&language=en&keywords=J.A.R.V.I.S.:3,Master+Sri:3,Sri:3,Friday:2,Raphael:2,Aegis:2,Midas:2,Vortex:2,Invi:2,Shopify:2,Flipkart:2,Amazon:2,YouTube:2,coding:2,deploy:2", {
           method: "POST",
           headers: {
             Authorization: `Token ${deepgramKey}`,
@@ -25557,45 +25610,10 @@ app.post("/voice/transcribe", async (c) => {
           }
         } else {
           const errText = await dgRes.text().catch(() => "");
-          console.warn(`[STT] Deepgram Nova-2 returned ${dgRes.status}: ${errText.slice(0, 100)}. Failing over to Groq Whisper...`);
+          console.warn(`[STT] Deepgram Nova-2 returned ${dgRes.status}: ${errText.slice(0, 100)}. Failing over to Gemini...`);
         }
       } catch (dgErr) {
-        console.warn(`[STT] Deepgram Nova-2 failed: ${dgErr.message}. Failing over to Groq Whisper...`);
-      }
-    }
-    if (groqKey) {
-      try {
-        const groqForm = new FormData();
-        const blob = new Blob([buffer], { type: mimeType });
-        groqForm.append("file", blob, "audio.webm");
-        groqForm.append("model", "whisper-large-v3");
-        groqForm.append("prompt", techVocabulary);
-        groqForm.append("temperature", "0");
-        groqForm.append("language", "en");
-        const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${groqKey}` },
-          body: groqForm,
-          signal: AbortSignal.timeout(12e3)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const text = (data?.text || "").trim();
-          if (text) {
-            return c.json({
-              ok: true,
-              text,
-              confidence: 0.95,
-              engine: "groq-whisper-large-v3",
-              promptRepeat: false
-            });
-          }
-        } else {
-          const errText = await res.text().catch(() => "");
-          console.warn(`[STT] Groq Whisper returned ${res.status}: ${errText.slice(0, 150)}. Failing over to Gemini...`);
-        }
-      } catch (groqErr) {
-        console.warn(`[STT] Groq Whisper failed: ${groqErr.message}. Failing over to Gemini...`);
+        console.warn(`[STT] Deepgram Nova-2 failed: ${dgErr.message}. Failing over to Gemini...`);
       }
     }
     if (geminiKey) {

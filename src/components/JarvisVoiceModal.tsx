@@ -8,8 +8,9 @@ import {
   Clock, Rocket, TrendingUp, ShoppingBag
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech, speakInstantNativeSpeech } from '@/lib/sound'
+import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech, speakInstantNativeSpeech, primeAudioPlayback } from '@/lib/sound'
 import { webAudioPlayer } from '@/voice/WebAudioPlayer'
+import { audioQueuePlayer } from '@/features/voice/AudioQueuePlayer'
 import { AdaptiveVAD } from '@/voice/AdaptiveVAD'
 import { ConversationOS } from '@/voice/ConversationOS'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
@@ -811,6 +812,11 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
   // Wake Up Handler: immediately opens microphone for Master Sri without canned interruptions or beeps
   const wakeUp = () => {
+    primeAudioPlayback()
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume().catch(() => {})
+    }
+    audioQueuePlayer.prime(audioCtxRef.current || undefined).catch(() => {})
     stopNeuralSpeech()
     setIsSleeping(false)
     isSleepingRef.current = false
@@ -3522,6 +3528,8 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume().catch(() => {})
       }
+      primeAudioPlayback()
+      audioQueuePlayer.prime(audioCtx || undefined).catch(() => {})
       const analyser = analyserRef.current
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')

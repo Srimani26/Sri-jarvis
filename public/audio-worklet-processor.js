@@ -4,9 +4,10 @@
  * 
  * Features:
  * 1. Downsamples from browser hardware rate (44.1kHz/48kHz) to 16kHz single-channel Linear PCM.
- * 2. Real-time RMS calculation for client VAD.
- * 3. Echo-suppression mute gate: pauses capture while the AI agent is speaking.
- * 4. Zero memory allocations in hot loop to prevent garbage collection pauses.
+ * 2. Real-time RMS calculation for client VAD with 0.01 mobile microphone threshold.
+ * 3. 400ms hangover pad so sentence endings and softer speech are not cut off mid-word.
+ * 4. Echo-suppression mute gate: pauses capture while the AI agent is speaking.
+ * 5. Zero memory allocations in hot loop to prevent garbage collection pauses.
  */
 
 class JarvisAudioWorkletProcessor extends AudioWorkletProcessor {
@@ -17,7 +18,9 @@ class JarvisAudioWorkletProcessor extends AudioWorkletProcessor {
     this.outputBuffer = new Int16Array(this.bufferSize);
     this.outputIndex = 0;
     this.isMuted = false;
-    this.speechThreshold = 0.015; // RMS threshold
+    this.speechThreshold = 0.01; // Lowered to 0.01 for mobile microphones
+    this.hangoverMaxFrames = 7;   // ~448ms hangover padding (7 * 64ms)
+    this.hangoverFrames = 0;
 
     this.port.onmessage = (event) => {
       const data = event.data;
@@ -25,9 +28,11 @@ class JarvisAudioWorkletProcessor extends AudioWorkletProcessor {
       if (data.type === 'MUTE') {
         this.isMuted = true;
         this.outputIndex = 0;
+        this.hangoverFrames = 0;
       } else if (data.type === 'UNMUTE') {
         this.isMuted = false;
         this.outputIndex = 0;
+        this.hangoverFrames = 0;
       } else if (data.type === 'SET_THRESHOLD') {
         if (typeof data.threshold === 'number') {
           this.speechThreshold = data.threshold;
@@ -54,6 +59,15 @@ class JarvisAudioWorkletProcessor extends AudioWorkletProcessor {
     }
     const rms = Math.sqrt(sumSquares / inputLength);
 
+    // Dynamic 400ms Hangover State Machine
+    if (rms >= this.speechThreshold) {
+      this.hangoverFrames = this.hangoverMaxFrames;
+    } else if (this.hangoverFrames > 0) {
+      this.hangoverFrames--;
+    }
+
+    const isSpeechActive = rms >= this.speechThreshold || this.hangoverFrames > 0;
+
     // Linear downsampling to 16kHz
     const ratio = inputSampleRate / this.targetSampleRate;
     let inIdx = 0;
@@ -74,7 +88,8 @@ class JarvisAudioWorkletProcessor extends AudioWorkletProcessor {
             type: 'PCM_CHUNK',
             buffer: pcmCopy.buffer,
             rms: rms,
-            isAboveThreshold: rms >= this.speechThreshold,
+            isAboveThreshold: isSpeechActive,
+            isHangover: this.hangoverFrames > 0 && rms < this.speechThreshold,
             sampleRate: 16000
           },
           [pcmCopy.buffer]
@@ -90,4 +105,3 @@ class JarvisAudioWorkletProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('jarvis-audio-worklet-processor', JarvisAudioWorkletProcessor);
-
