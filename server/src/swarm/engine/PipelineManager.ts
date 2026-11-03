@@ -12,6 +12,7 @@
 import { executeAutonomousTask } from './AgentLoop'
 import { SwarmSpecialist } from './ModelRouter'
 import { telegramNotifier } from '../../services/telegramNotifier'
+import { taskAuditService } from '../../services/taskAuditService'
 
 export interface PipelineMilestone {
   id: string
@@ -138,6 +139,15 @@ export class PipelineManager {
     milestone.started_at = new Date().toISOString()
     pipeline.status = 'IN_PROGRESS'
 
+    taskAuditService.logToolExecution(
+      pipelineId,
+      `milestone_start_${milestone.specialist}`,
+      { stepOrder, name: milestone.name, specialist: milestone.specialist },
+      { status: 'RUNNING' },
+      'SUCCESS',
+      0
+    ).catch(() => {})
+
     return milestone
   }
 
@@ -161,10 +171,28 @@ export class PipelineManager {
     milestone.latency_ms = latencyMs
     milestone.finished_at = new Date().toISOString()
 
+    taskAuditService.logToolExecution(
+      pipelineId,
+      `milestone_complete_${milestone.specialist}`,
+      { stepOrder, name: milestone.name, specialist: milestone.specialist },
+      { status: 'COMPLETED', outputSummary },
+      'SUCCESS',
+      latencyMs
+    ).catch(() => {})
+
     pipeline.completed_steps = pipeline.milestones.filter(m => m.status === 'COMPLETED').length
     if (pipeline.completed_steps >= pipeline.total_steps) {
       pipeline.status = 'COMPLETED'
       pipeline.completed_at = new Date().toISOString()
+
+      taskAuditService.logToolExecution(
+        pipelineId,
+        'pipeline_all_milestones_completed',
+        { title: pipeline.title, totalSteps: pipeline.total_steps },
+        { status: 'COMPLETED' },
+        'SUCCESS',
+        0
+      ).catch(() => {})
     }
 
     return milestone

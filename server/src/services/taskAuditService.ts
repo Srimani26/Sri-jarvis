@@ -226,6 +226,14 @@ export class TaskAuditService {
     return this.inMemoryExecutions.filter(e => e.taskId === taskId)
   }
 
+  public getRecentExecutions(limit = 20): SwarmToolExecutionRecord[] {
+    return this.inMemoryExecutions.slice(-limit)
+  }
+
+  public getRecentLogs(limit = 20): SwarmToolExecutionRecord[] {
+    return this.getRecentExecutions(limit)
+  }
+
   public getAllTasks(): SwarmTaskRecord[] {
     return Array.from(this.inMemoryTasks.values())
   }

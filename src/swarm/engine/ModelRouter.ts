@@ -23,6 +23,61 @@ export type SwarmSpecialist =
   | 'stark_os'
   | string
 
+export interface SpecialistRoutingConfig {
+  primaryProvider: 'groq' | 'openrouter' | 'gemini' | 'openai'
+  primaryModel: string
+  fallbackChain: Array<{ provider: 'groq' | 'openrouter' | 'gemini' | 'openai' | 'github'; model: string }>
+  toolScope: string[]
+}
+
+export const SPECIALIST_ROUTING_RULES: Record<string, SpecialistRoutingConfig> = {
+  raphael: {
+    primaryProvider: 'groq',
+    primaryModel: 'deepseek-r1-distill-llama-70b',
+    fallbackChain: [
+      { provider: 'openrouter', model: 'deepseek/deepseek-r1:free' },
+      { provider: 'gemini', model: 'gemini-flash-lite-latest' }
+    ],
+    toolScope: ['neon_sql_query', 'query_public_service', 'execute_sandbox_command', 'finish_task']
+  },
+  aegis: {
+    primaryProvider: 'openrouter',
+    primaryModel: 'qwen/qwen-2.5-coder-32b-instruct',
+    fallbackChain: [
+      { provider: 'groq', model: 'llama-3.3-70b-versatile' },
+      { provider: 'openrouter', model: 'qwen/qwen-2.5-coder-32b-instruct:free' },
+      { provider: 'openai', model: 'gpt-4o' }
+    ],
+    toolScope: ['aegis_scaffold_and_deploy_web', 'execute_sandbox_command', 'github_manage_file', 'finish_task']
+  },
+  friday: {
+    primaryProvider: 'gemini',
+    primaryModel: 'gemini-flash-lite-latest',
+    fallbackChain: [
+      { provider: 'groq', model: 'llama-3.3-70b-versatile' },
+      { provider: 'openrouter', model: 'google/gemini-2.0-flash-exp:free' }
+    ],
+    toolScope: ['generate_office_document', 'google_workspace_action', 'neon_sql_query', 'finish_task']
+  },
+  jarvis: {
+    primaryProvider: 'groq',
+    primaryModel: 'llama-3.3-70b-versatile',
+    fallbackChain: [
+      { provider: 'gemini', model: 'gemini-flash-lite-latest' },
+      { provider: 'openai', model: 'gpt-4o' }
+    ],
+    toolScope: ['*']
+  },
+  cerebro: {
+    primaryProvider: 'groq',
+    primaryModel: 'deepseek-r1-distill-llama-70b',
+    fallbackChain: [
+      { provider: 'gemini', model: 'gemini-flash-lite-latest' }
+    ],
+    toolScope: ['scrape_web', 'query_public_service', 'neon_sql_query', 'finish_task']
+  }
+}
+
 export interface ModelCompletionResult {
   content?: string
   tool_calls?: any[]
@@ -51,6 +106,11 @@ export class SwarmModelRouter {
     return { ...this.activeProviders }
   }
 
+  public getSpecialistRouting(specialist: string): SpecialistRoutingConfig {
+    const key = (specialist || 'jarvis').toLowerCase().trim()
+    return SPECIALIST_ROUTING_RULES[key] || SPECIALIST_ROUTING_RULES['jarvis']
+  }
+
   /**
    * Dispatch prompt across resilient Provider Waterfall:
    * Tier 1: Groq High-Speed (LLaMA 3.3 70B / DeepSeek-R1 Distill)
@@ -65,6 +125,97 @@ export class SwarmModelRouter {
     tools: any[] = SWARM_TOOL_SCHEMAS
   ): Promise<ModelCompletionResult> {
     const failedTiers: number[] = []
+    const specLower = (specialist || 'jarvis').toLowerCase().trim()
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // SPECIALIST PRIMARY OVERRIDES: Best-in-class reasoning model by role
+    // Aegis: openrouter/qwen/qwen-2.5-coder-32b-instruct
+    // Friday: gemini-flash-lite-latest / gemini-2.5-flash
+    // ──────────────────────────────────────────────────────────────────────────
+    if (specLower === 'aegis') {
+      const openrouterKey = virtualKeyVault.getActiveKey('openrouter') || process.env.OPENROUTER_API_KEY
+      if (openrouterKey) {
+        try {
+          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openrouterKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'qwen/qwen-2.5-coder-32b-instruct',
+              messages,
+              tools: tools && tools.length > 0 ? tools : undefined,
+              tool_choice: tools && tools.length > 0 ? 'auto' : undefined,
+              temperature: 0.1
+            }),
+            signal: AbortSignal.timeout(8000)
+          })
+          if (res.ok) {
+            const json = await res.json() as any
+            const choice = json.choices?.[0]?.message
+            if (choice) {
+              return {
+                content: choice.content,
+                tool_calls: choice.tool_calls,
+                provider: 'openrouter/qwen-2.5-coder',
+                tier: 1
+              }
+            }
+          }
+        } catch (aegisErr) {
+          console.warn('🔄 [ModelRouter] Aegis Qwen primary note, falling back to waterfall:', aegisErr)
+        }
+      }
+    }
+
+    if (specLower === 'friday') {
+      const geminiKey = virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY
+      if (geminiKey) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`
+          const functionDeclarations = tools ? tools.map(s => s.function || s) : []
+          const contents = messages
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '') }]
+            }))
+
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents,
+              tools: functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined,
+              generationConfig: { temperature: 0.2 }
+            }),
+            signal: AbortSignal.timeout(8000)
+          })
+          if (res.ok) {
+            const json = await res.json() as any
+            const part = json.candidates?.[0]?.content?.parts?.[0]
+            if (part) {
+              return {
+                content: part.text || '',
+                tool_calls: part.functionCall ? [{
+                  id: `gemini_call_${Date.now()}`,
+                  type: 'function',
+                  function: {
+                    name: part.functionCall.name,
+                    arguments: JSON.stringify(part.functionCall.args || {})
+                  }
+                }] : undefined,
+                provider: 'google-gemini-friday',
+                tier: 1
+              }
+            }
+          }
+        } catch (fridayErr) {
+          console.warn('🔄 [ModelRouter] Friday Gemini primary note, falling back to waterfall:', fridayErr)
+        }
+      }
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // TIER 1: Primary High-Speed (Groq LLaMA 3.3 70B / DeepSeek-R1)
