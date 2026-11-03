@@ -309,6 +309,126 @@ export const SWARM_TOOL_SCHEMAS = [
         required: ['command']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_email',
+      description: 'Send an email via Google Workspace / Gmail API (RFC 2822 base64 MIME).',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'Recipient email address' },
+          subject: { type: 'string', description: 'Email subject line' },
+          bodyHtml: { type: 'string', description: 'HTML or text body of the email' },
+          cc: { type: 'string', description: 'CC recipient address (optional)' }
+        },
+        required: ['to', 'subject', 'bodyHtml']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'draft_email',
+      description: 'Create an email draft in Google Workspace / Gmail.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'Recipient email address' },
+          subject: { type: 'string', description: 'Email subject line' },
+          bodyHtml: { type: 'string', description: 'HTML or text body of draft' }
+        },
+        required: ['to', 'subject', 'bodyHtml']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'schedule_meeting',
+      description: 'Schedule a calendar meeting with automatic Google Meet conference link and 15-minute reminders.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Meeting title/summary' },
+          startIso: { type: 'string', description: 'Start time in ISO format (e.g. 2026-11-04T15:00:00Z)' },
+          endIso: { type: 'string', description: 'End time in ISO format (e.g. 2026-11-04T16:00:00Z)' },
+          attendees: { type: 'array', items: { type: 'string' }, description: 'List of attendee email addresses' },
+          description: { type: 'string', description: 'Meeting agenda and notes' }
+        },
+        required: ['title', 'startIso', 'endIso']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_upcoming_meetings',
+      description: 'List upcoming Google Calendar meetings and Google Meet video links.',
+      parameters: {
+        type: 'object',
+        properties: {
+          maxResults: { type: 'number', description: 'Maximum meetings to return (default 10)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_presentation',
+      description: 'Generate an executive PowerPoint (.pptx) presentation with dark slate theme (#0F172A), cyan accents, and structured layouts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileName: { type: 'string', description: 'Presentation filename (e.g. "ai_automation_strategy.pptx")' },
+          title: { type: 'string', description: 'Presentation main title' },
+          subtitle: { type: 'string', description: 'Subtitle for cover slide' },
+          slides: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'Slide title' },
+                subtitle: { type: 'string', description: 'Slide subtitle' },
+                bulletPoints: { type: 'array', items: { type: 'string' } },
+                visualLayout: { type: 'string', enum: ['standard', 'two-column', 'hero', 'metric-cards', 'timeline'] },
+                speakerNotes: { type: 'string' },
+                metrics: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      label: { type: 'string' },
+                      value: { type: 'string' }
+                    }
+                  }
+                }
+              },
+              required: ['title']
+            },
+            description: 'Array of slide definitions'
+          }
+        },
+        required: ['fileName', 'title', 'slides']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'android_device_control',
+      description: 'Control connected Android mobile device via WebSocket bridge (launch apps, make phone calls, inspect device status).',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['launch_app', 'make_call', 'get_device_status'], description: 'Action to perform on phone' },
+          target: { type: 'string', description: 'Package name / app alias (e.g. "whatsapp", "youtube") or phone number' }
+        },
+        required: ['action']
+      }
+    }
   }
 ]
 
@@ -591,6 +711,36 @@ export async function dispatchToolCall(name: string, args: Record<string, any>):
     case 'terminal_run_command': {
       const { terminalRunCommand } = await import('./sandboxTerminalTool')
       return await terminalRunCommand(args?.command, args?.workingDir, args?.timeoutMs)
+    }
+
+    case 'send_email': {
+      const { googleWorkspaceService } = await import('../../services/googleWorkspaceService')
+      return await googleWorkspaceService.send_email(args as any)
+    }
+
+    case 'draft_email': {
+      const { googleWorkspaceService } = await import('../../services/googleWorkspaceService')
+      return await googleWorkspaceService.draft_email(args as any)
+    }
+
+    case 'schedule_meeting': {
+      const { googleWorkspaceService } = await import('../../services/googleWorkspaceService')
+      return await googleWorkspaceService.schedule_meeting(args as any)
+    }
+
+    case 'list_upcoming_meetings': {
+      const { googleWorkspaceService } = await import('../../services/googleWorkspaceService')
+      return await googleWorkspaceService.list_upcoming_meetings(args?.maxResults)
+    }
+
+    case 'generate_presentation': {
+      const { generatePresentation } = await import('./presentationGenerator')
+      return await generatePresentation(args as any)
+    }
+
+    case 'android_device_control': {
+      const { androidBridgeService } = await import('../../services/androidBridgeService')
+      return androidBridgeService.executeDeviceControl(args as any)
     }
 
     default:

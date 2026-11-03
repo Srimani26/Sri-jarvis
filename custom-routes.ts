@@ -2915,11 +2915,76 @@ app.get('/artifacts/download', (c) => {
   if (safeName.endsWith('.pdf')) contentType = 'application/pdf'
   else if (safeName.endsWith('.xlsx')) contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   else if (safeName.endsWith('.docx')) contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  else if (safeName.endsWith('.pptx')) contentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 
   return c.body(content, 200, {
     'Content-Type': contentType,
     'Content-Disposition': `attachment; filename="${safeName}"`
   })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// SOVEREIGN MOBILE OS BRIDGE & GOOGLE WORKSPACE API
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/mobile/bridge/status — Connected Android devices & offline queue inspection
+app.get('/mobile/bridge/status', (c) => {
+  const { androidBridgeService } = require('./src/services/androidBridgeService')
+  return c.json(androidBridgeService.getDeviceStatus())
+})
+
+// POST /api/mobile/bridge/action — Dispatch app launch, calls, notifications
+app.post('/mobile/bridge/action', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const { androidBridgeService } = require('./src/services/androidBridgeService')
+  const result = androidBridgeService.executeDeviceControl({
+    action: body.action || 'get_device_status',
+    target: body.target || body.packageName || body.phoneNumber
+  })
+  return c.json(result)
+})
+
+// POST /api/workspace/google/email — Dispatch or draft email
+app.post('/workspace/google/email', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const { googleWorkspaceService } = require('./src/services/googleWorkspaceService')
+  if (body.action === 'draft') {
+    const res = await googleWorkspaceService.draft_email({
+      to: body.to,
+      subject: body.subject,
+      bodyHtml: body.bodyHtml || body.body || ''
+    })
+    return c.json(res)
+  }
+  const res = await googleWorkspaceService.send_email({
+    to: body.to,
+    subject: body.subject,
+    bodyHtml: body.bodyHtml || body.body || '',
+    cc: body.cc
+  })
+  return c.json(res)
+})
+
+// POST /api/workspace/google/meeting — Schedule Google Meet conference
+app.post('/workspace/google/meeting', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const { googleWorkspaceService } = require('./src/services/googleWorkspaceService')
+  const res = await googleWorkspaceService.schedule_meeting({
+    title: body.title || 'Executive Meeting',
+    startIso: body.startIso || body.startTime || new Date(Date.now() + 3600000).toISOString(),
+    endIso: body.endIso || body.endTime || new Date(Date.now() + 7200000).toISOString(),
+    attendees: body.attendees,
+    description: body.description
+  })
+  return c.json(res)
+})
+
+// GET /api/workspace/google/meetings — List upcoming meetings
+app.get('/workspace/google/meetings', async (c) => {
+  const max = Number(c.req.query('max')) || 10
+  const { googleWorkspaceService } = require('./src/services/googleWorkspaceService')
+  const res = await googleWorkspaceService.list_upcoming_meetings(max)
+  return c.json(res)
 })
 
 // ═══════════════════════════════════════════════════════════════════

@@ -93,10 +93,12 @@ export function pcmToWav(pcmBuffer: Buffer, sampleRate = 16000): Buffer {
 
 // Semantic Intent Parser: Checks Navigation, Specialist Handoff, or Direct Query
 export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent): {
-  type: 'NAVIGATE' | 'HANDOFF' | 'QUERY'
+  type: 'NAVIGATE' | 'HANDOFF' | 'QUERY' | 'SCHEDULE_MEETING' | 'GENERATE_PRESENTATION' | 'DEVICE_CONTROL'
   target?: string
   agent?: SpecialistAgent
   replyText?: string
+  action?: 'launch_app' | 'make_call' | 'get_device_status'
+  metadata?: Record<string, any>
 } {
   const text = rawText.trim()
   const lower = text.toLowerCase()
@@ -109,7 +111,63 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
     }
   }
 
-  // 2. Hands-Free SPA Navigation Patterns
+  // 2. Android Device Bridge Mobile Control
+  // e.g. "open WhatsApp on my phone", "open youtube on phone", "open settings"
+  const phoneAppMatch = lower.match(/(?:open|launch)\s+([a-zA-Z0-9_\s.]+?)\s+on\s+(?:my\s+)?phone/i) ||
+    lower.match(/^(?:open|launch)\s+(whatsapp|youtube|settings|chrome|camera|maps|spotify|telegram)$/i)
+  if (phoneAppMatch && phoneAppMatch[1]) {
+    const rawApp = phoneAppMatch[1].trim()
+    return {
+      type: 'DEVICE_CONTROL',
+      action: 'launch_app',
+      target: rawApp,
+      replyText: `Opening ${rawApp} on your phone now, Master Sri.`
+    }
+  }
+
+  // Phone Call Action: e.g. "make a call to +123456", "call 9876543210 on my phone", "call mom on phone"
+  const phoneCallMatch = lower.match(/(?:make a call to|call)\s+([+0-9a-zA-Z\s]+?)\s+on\s+(?:my\s+)?phone/i) ||
+    lower.match(/^call\s+([+0-9\-()\s]{7,})$/i)
+  if (phoneCallMatch && phoneCallMatch[1]) {
+    const rawNumber = phoneCallMatch[1].trim()
+    return {
+      type: 'DEVICE_CONTROL',
+      action: 'make_call',
+      target: rawNumber,
+      replyText: `Dialing ${rawNumber} through mobile device bridge, Master Sri.`
+    }
+  }
+
+  // 3. Calendar & Google Meet Scheduler
+  // e.g. "Schedule a meeting with John tomorrow at 3 PM", "Schedule meeting with team"
+  const scheduleMatch = rawText.match(/schedule\s+(?:a\s+)?meeting\s+(?:with\s+)?(.+)/i)
+  if (scheduleMatch && scheduleMatch[1]) {
+    const details = scheduleMatch[1].trim()
+    return {
+      type: 'SCHEDULE_MEETING',
+      target: details,
+      metadata: {
+        title: `Meeting: ${details}`,
+        startIso: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+        endIso: new Date(Date.now() + 25 * 3600 * 1000).toISOString()
+      },
+      replyText: `Scheduling Google Meet conference for ${details}, Master Sri.`
+    }
+  }
+
+  // 4. Automated PPTX Presentation Generator
+  // e.g. "Write a PPT presentation about AI Automation", "generate presentation about multi-agent swarm"
+  const pptMatch = rawText.match(/(?:write|create|make|generate)\s+(?:a\s+)?(?:(?:ppt|powerpoint)\s+)?(?:presentation|slides|deck|ppt|powerpoint)\s+(?:about|on|for)\s+(.+)/i)
+  if (pptMatch && pptMatch[1]) {
+    const topic = pptMatch[1].trim()
+    return {
+      type: 'GENERATE_PRESENTATION',
+      target: topic,
+      replyText: `Compiling executive PPTX presentation slides on ${topic}, Master Sri.`
+    }
+  }
+
+  // 5. Hands-Free SPA Navigation Patterns
   const navMatch = lower.match(/(?:go to|open|show|navigate to)\s+(?:the\s+)?(dashboard|telemetry|studio|vault|chat|settings|storage|cyber|defense|code|revenue|tasks)/i)
   if (navMatch && navMatch[1]) {
     const rawTarget = navMatch[1].toLowerCase()
@@ -123,7 +181,7 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
     }
   }
 
-  // 3. Specialist Persona Handoff Patterns
+  // 6. Specialist Persona Handoff Patterns
   const handoffMatch = lower.match(/(?:call|switch to|ask|talk to)\s+(aegis|raphael|friday|jarvis)/i) ||
     lower.match(/^(?:hey\s+)?(aegis|raphael|friday|jarvis)[,\s]/i)
   if (handoffMatch && handoffMatch[1]) {
@@ -146,7 +204,7 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
     }
   }
 
-  // 4. Autonomous Standard Query
+  // 7. Autonomous Standard Query
   return {
     type: 'QUERY'
   }
@@ -398,6 +456,105 @@ export class VoiceGatewayService {
       }))
 
       await this.streamTTSResponse(session, intent.replyText || 'Specialist channel active, Master Sri.')
+      return
+    }
+
+    if (intent.type === 'DEVICE_CONTROL') {
+      const { androidBridgeService } = await import('./androidBridgeService')
+      const deviceResult = androidBridgeService.executeDeviceControl({
+        action: intent.action || 'launch_app',
+        target: intent.target
+      })
+
+      const spokenAck = deviceResult.queued
+        ? "Mobile device is currently offline. The command has been queued in Termux bridge."
+        : (intent.replyText || "Command dispatched to mobile device, Master Sri.")
+
+      session.ws.send(JSON.stringify({
+        type: 'DEVICE_CONTROL',
+        action: intent.action,
+        target: intent.target,
+        result: deviceResult,
+        spokenAck
+      }))
+
+      await this.streamTTSResponse(session, spokenAck)
+      return
+    }
+
+    if (intent.type === 'SCHEDULE_MEETING') {
+      const { googleWorkspaceService } = await import('./googleWorkspaceService')
+      const meetingTitle = intent.metadata?.title || `Meeting regarding ${intent.target || 'Executive Discussion'}`
+      const startIso = intent.metadata?.startIso || new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+      const endIso = intent.metadata?.endIso || new Date(Date.now() + 25 * 3600 * 1000).toISOString()
+
+      const meetResult = await googleWorkspaceService.schedule_meeting({
+        title: meetingTitle,
+        startIso,
+        endIso,
+        attendees: intent.metadata?.attendee ? [intent.metadata.attendee] : []
+      })
+
+      const spokenAck = meetResult.meetLink
+        ? `Meeting scheduled with Google Meet conference, Master Sri.`
+        : (meetResult.simulatedEvent?.meetLink
+          ? `Meeting scheduled with Google Meet link: ${meetResult.simulatedEvent.meetLink}`
+          : "Meeting scheduled on your calendar, Master Sri.")
+
+      session.ws.send(JSON.stringify({
+        type: 'MEETING_SCHEDULED',
+        title: meetingTitle,
+        meetLink: meetResult.meetLink || meetResult.simulatedEvent?.meetLink,
+        result: meetResult,
+        spokenAck
+      }))
+
+      await this.streamTTSResponse(session, spokenAck)
+      return
+    }
+
+    if (intent.type === 'GENERATE_PRESENTATION') {
+      const topic = intent.target || 'Strategic Directive'
+      const cleanName = `${topic.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 30)}_briefing.pptx`
+      const { generatePresentation } = await import('../swarm/tools/presentationGenerator')
+
+      const presResult = await generatePresentation({
+        fileName: cleanName,
+        title: `${topic.toUpperCase()} STRATEGY`,
+        subtitle: 'Executive Multi-Agent Intelligence Briefing',
+        slides: [
+          {
+            title: 'Executive Overview',
+            bulletPoints: [
+              `Strategic objectives and deployment roadmap for ${topic}`,
+              'Autonomous workforce allocation and architectural milestones',
+              'Sovereign infrastructure and zero-latency execution'
+            ],
+            visualLayout: 'standard'
+          },
+          {
+            title: 'Core Performance Metrics',
+            visualLayout: 'metric-cards',
+            metrics: [
+              { label: 'Latency', value: '<250ms' },
+              { label: 'Reliability', value: '99.9%' },
+              { label: 'Autonomy', value: 'Level 5' }
+            ]
+          }
+        ]
+      })
+
+      const spokenAck = `Presentation on ${topic} compiled successfully, Master Sri. Available now in your storage vault.`
+
+      session.ws.send(JSON.stringify({
+        type: 'PRESENTATION_GENERATED',
+        fileName: cleanName,
+        downloadUrl: presResult.downloadUrl,
+        result: presResult,
+        spokenAck
+      }))
+
+      await this.streamTTSResponse(session, spokenAck)
       return
     }
 
