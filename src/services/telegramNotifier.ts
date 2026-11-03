@@ -89,6 +89,113 @@ export class TelegramNotifierService {
   }
 
   /**
+   * Dispatches autonomous tasks to AutonomousAgentLoop with live telemetry and artifact streaming
+   */
+  public async handleAutonomousRun(
+    chatId: string | number,
+    agentName: string,
+    directive: string
+  ): Promise<{ success: boolean; result?: any; summary: string }> {
+    const validSpecialists: Record<string, SwarmSpecialist> = {
+      jarvis: 'jarvis',
+      aegis: 'aegis',
+      raphael: 'raphael',
+      friday: 'friday',
+      cerebro: 'cerebro',
+      midas: 'midas',
+      vortex: 'vortex'
+    }
+
+    const specialist: SwarmSpecialist = validSpecialists[agentName.toLowerCase()] || 'jarvis'
+
+    // Immediate dispatch acknowledgement
+    await this.sendMessage(
+      `🚀 *[Autonomous Swarm Dispatch]*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `• *Specialist:* \`${specialist.toUpperCase()}\`\n` +
+      `• *Directive:* _${directive}_\n` +
+      `• *Engine:* Claude-Code & Groq ReAct Loop V2\n` +
+      `⏳ _Executing multi-step reasoning, surgical tools, and proof-of-work verification..._`,
+      chatId
+    )
+
+    const startTime = Date.now()
+
+    try {
+      const { executeAutonomousReAct } = await import('../swarm/engine/AutonomousAgentLoop')
+
+      const lower = directive.toLowerCase()
+      const isWebApp = lower.includes('web') || lower.includes('app') || lower.includes('scaffold') || lower.includes('preview') || lower.includes('dashboard')
+      const isDoc = lower.includes('pdf') || lower.includes('document') || lower.includes('pptx') || lower.includes('excel') || lower.includes('report') || lower.includes('presentation')
+      const deliverableType = isWebApp ? 'web_app' : (isDoc ? 'document' : 'general')
+
+      const result = await executeAutonomousReAct(directive, {
+        specialist,
+        maxSteps: 25,
+        requireVerification: true,
+        deliverableType
+      })
+
+      const latencyMs = Date.now() - startTime
+
+      // Collect artifacts & format links
+      const allArtifacts = new Set<string>()
+      if (Array.isArray(result.artifacts)) {
+        result.artifacts.forEach(a => allArtifacts.add(a))
+      }
+      if (Array.isArray(result.toolCallHistory)) {
+        for (const tc of result.toolCallHistory) {
+          if (tc.output?.filePath) allArtifacts.add(tc.output.filePath)
+          if (tc.output?.previewUrl) allArtifacts.add(tc.output.previewUrl)
+          if (tc.output?.downloadUrl) allArtifacts.add(tc.output.downloadUrl)
+          if (Array.isArray(tc.output?.filesCreated)) {
+            tc.output.filesCreated.forEach((f: string) => allArtifacts.add(f))
+          }
+        }
+      }
+
+      let artifactSection = ''
+      if (allArtifacts.size > 0) {
+        const artifactItems = Array.from(allArtifacts).map(a => {
+          if (a.startsWith('/preview/')) return `• 🌐 *Live Web Preview:* \`${a}\``
+          if (a.startsWith('/api/artifacts/download')) return `• 📥 *Download:* \`${a}\``
+          if (a.endsWith('.pdf') || a.endsWith('.pptx') || a.endsWith('.xlsx') || a.endsWith('.docx')) {
+            const fileName = a.split(/[/\\]/).pop()
+            return `• 📄 *Document:* \`${fileName}\` (\`/api/artifacts/download?file=${fileName}\`)`
+          }
+          return `• 📦 \`${a}\``
+        })
+        artifactSection = `\n\n📦 *Deliverables & Artifacts:*\n${artifactItems.join('\n')}`
+      }
+
+      const verifyStatus = result.verificationDetails
+        ? (result.verificationDetails.verified ? '✅ Verified (All proof checks passed)' : '⚠️ Verification Note')
+        : '✅ Verified'
+
+      const summary = [
+        `⚡ *[Task Completed by ${specialist.toUpperCase()}]*`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `• *Status:* ${result.success ? '✅ SUCCESS' : '❌ FAILED'}`,
+        `• *Execution Latency:* \`${latencyMs}ms\``,
+        `• *ReAct Turns:* \`${result.stepsExecuted}\` (Self-Healed: \`${result.selfHealed ? 'YES' : 'NO'}\`)`,
+        `• *Verification:* ${verifyStatus}`,
+        artifactSection,
+        '',
+        `📝 *Executive Summary:*`,
+        result.finalResponse.substring(0, 1000),
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      ].filter(Boolean).join('\n')
+
+      await this.sendMessage(summary, chatId)
+      return { success: result.success, result, summary }
+    } catch (err: any) {
+      const errReply = `❌ *[Task Error]* Execution failed: ${err?.message || err}`
+      await this.sendMessage(errReply, chatId)
+      return { success: false, summary: errReply }
+    }
+  }
+
+  /**
    * Handle incoming webhook update from Telegram
    */
   public async handleInboundUpdate(update: any): Promise<{ handled: boolean; reply?: string; command?: string }> {
@@ -128,45 +235,50 @@ export class TelegramNotifierService {
     }
 
     // 2. /run <specialist> <directive>
-    if (text.startsWith('/run')) {
-      const parts = text.substring(4).trim().split(/\s+/)
-      const specialistArg = parts[0]?.toLowerCase() as SwarmSpecialist
-      const directive = parts.slice(1).join(' ').trim()
+    const runMatch = text.match(/^\/run(?:\s+([a-zA-Z0-9_-]+))?(?:\s+(.+))?$/i)
+    if (runMatch) {
+      const agentName = (runMatch[1] || 'jarvis').toLowerCase()
+      const directive = (runMatch[2] || '').trim()
 
       if (!directive) {
-        const usage = '⚠️ *Usage:* `/run <specialist> <directive>`\n*Examples:*\n• `/run aegis audit git working tree`\n• `/run friday summarize morning forex and crypto`'
+        const usage = '⚠️ *Usage:* `/run <specialist> <directive>`\n*Examples:*\n• `/run aegis audit git working tree`\n• `/run friday generate Q4 revenue PDF report`\n• `/run raphael design database schema for solar billing`'
         await this.sendMessage(usage, senderChatId)
         return { handled: true, command: '/run', reply: usage }
       }
 
-      const validSpecialists = ['jarvis', 'aegis', 'raphael', 'friday', 'midas', 'cerebro']
-      const specialist: SwarmSpecialist = validSpecialists.includes(specialistArg) ? specialistArg : 'jarvis'
-
-      await this.sendMessage(`🚀 *[Swarm Initiated]* Dispatching autonomous task to \`${specialist.toUpperCase()}\`:\n_${directive}_`, senderChatId)
-
-      // Execute task headlessly
-      const startTime = Date.now()
-      try {
-        const result = await executeAutonomousTask(directive, specialist)
-        const latency = Date.now() - startTime
-        const summary = [
-          `⚡ *[Task Completed by ${specialist.toUpperCase()}]*`,
-          `*Status:* ${result.success ? '✅ SUCCESS' : '❌ FAILED'} (${latency}ms)`,
-          `*Steps Executed:* ${result.stepsExecuted}`,
-          '',
-          `*Result:* ${result.finalResponse.substring(0, 1000)}`
-        ].join('\n')
-
-        await this.sendMessage(summary, senderChatId)
-        return { handled: true, command: '/run', reply: summary }
-      } catch (err: any) {
-        const errReply = `❌ *[Task Error]* Execution failed: ${err?.message || err}`
-        await this.sendMessage(errReply, senderChatId)
-        return { handled: true, command: '/run', reply: errReply }
-      }
+      const runRes = await this.handleAutonomousRun(senderChatId, agentName, directive)
+      return { handled: true, command: '/run', reply: runRes.summary }
     }
 
-    // 3. Plain text query / conversational message
+    // 3. Freeform Natural Language Commands & Specialist Delegations
+    const agentPrefixMatch = text.match(/^(?:hey\s+)?(jarvis|aegis|raphael|friday|cerebro|midas|vortex)[,:\s]+(.+)/i)
+    const isActionDirective = /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(text)
+
+    if (agentPrefixMatch && agentPrefixMatch[2]) {
+      const targetAgent = agentPrefixMatch[1].toLowerCase()
+      const directive = agentPrefixMatch[2].trim()
+      const runRes = await this.handleAutonomousRun(senderChatId, targetAgent, directive)
+      return { handled: true, command: 'NATURAL_DELEGATION', reply: runRes.summary }
+    }
+
+    if (isActionDirective) {
+      const lower = text.toLowerCase()
+      let inferredAgent: SwarmSpecialist = 'jarvis'
+      if (lower.includes('pdf') || lower.includes('excel') || lower.includes('pptx') || lower.includes('report') || lower.includes('email') || lower.includes('meeting')) {
+        inferredAgent = 'friday'
+      } else if (lower.includes('code') || lower.includes('build') || lower.includes('scaffold') || lower.includes('refactor') || lower.includes('patch') || lower.includes('web') || lower.includes('app') || lower.includes('test')) {
+        inferredAgent = 'aegis'
+      } else if (lower.includes('schema') || lower.includes('sql') || lower.includes('math') || lower.includes('security') || lower.includes('database')) {
+        inferredAgent = 'raphael'
+      } else if (lower.includes('research') || lower.includes('market') || lower.includes('scrape') || lower.includes('competitor')) {
+        inferredAgent = 'cerebro'
+      }
+
+      const runRes = await this.handleAutonomousRun(senderChatId, inferredAgent, text)
+      return { handled: true, command: 'NATURAL_DIRECTIVE', reply: runRes.summary }
+    }
+
+    // 4. Plain text conversational message
     try {
       const response = await swarmModelRouter.dispatch('jarvis', [
         {

@@ -317,7 +317,26 @@ export class TelegramBotListener {
 
     console.log(`📱 [TelegramBotListener] Received message '${trimmed.slice(0, 45)}...' from Master Sri`);
 
-    // 1. Direct /bid command
+    // 1. Direct /run command (Autonomous Swarm Bridge)
+    if (command === '/run') {
+      const { telegramNotifier } = await import('../services/telegramNotifier');
+      const runMatch = trimmed.match(/^\/run(?:\s+([a-zA-Z0-9_-]+))?(?:\s+(.+))?$/i);
+      const agentName = (runMatch?.[1] || 'jarvis').toLowerCase();
+      const directive = (runMatch?.[2] || '').trim();
+
+      if (!directive) {
+        await TelegramNotifier.sendMessage(
+          '⚠️ <b>Usage:</b> <code>/run &lt;specialist&gt; &lt;directive&gt;</code>\n<b>Examples:</b>\n• <code>/run aegis audit git working tree</code>\n• <code>/run friday generate Q4 revenue PDF report</code>\n• <code>/run raphael design database schema for billing</code>',
+          { targetChatId: chatId }
+        );
+        return;
+      }
+
+      await telegramNotifier.handleAutonomousRun(chatId, agentName, directive);
+      return;
+    }
+
+    // 2. Direct /bid command
     if (command === '/bid') {
       const brief = trimmed.slice(4).trim();
       if (!brief) {
@@ -420,6 +439,7 @@ ${leadSummary}
 Available commands for Master Sri:
 
 • <code>/status</code> - System uptime, active providers, realized cash & throughput
+• <code>/run &lt;agent&gt; &lt;directive&gt;</code> - Dispatch autonomous ReAct task to Aegis, Raphael, Friday, Cerebro
 • <code>/bid &lt;brief or URL&gt;</code> - Instant on-demand code fix & winning pitch
 • <code>/scout</code>  - Force immediate scraping cycle & dispatch fresh gigs
 • <code>/eod</code>    - On-demand Executive EOD Financial Audit report
