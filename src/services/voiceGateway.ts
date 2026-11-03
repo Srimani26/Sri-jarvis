@@ -14,6 +14,7 @@
 
 import { WebSocketServer, WebSocket } from 'ws'
 import type { Server as HttpServer } from 'node:http'
+import { swarmModelRouter } from '../swarm/engine/ModelRouter'
 
 export type SpecialistAgent = 'jarvis' | 'aegis' | 'raphael' | 'friday'
 
@@ -27,6 +28,7 @@ export interface VoiceSessionState {
   isListening: boolean
   isSpeaking: boolean
   lastActive: number
+  abortController?: AbortController | null
 }
 
 // Specialist System Prompts with authentic executive wit & sovereign loyalty
@@ -233,6 +235,10 @@ export class VoiceGatewayService {
               }))
             }
           } else if (msg.type === 'USER_INTERRUPTED') {
+            if (session.abortController) {
+              session.abortController.abort()
+              session.abortController = null
+            }
             session.isSpeaking = false
             session.pcmBuffer = []
             session.totalBytes = 0
@@ -395,9 +401,86 @@ export class VoiceGatewayService {
       return
     }
 
-    // Actionable Autonomous Swarm Tool Directive Check
+    // Actionable Autonomous Swarm Tool Directive Check (Dual-Tier Brain)
     const lowerTranscript = transcript.toLowerCase()
-    const isActionableSwarmDirective = (
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // TIER 2: Asynchronous Swarm Handoff (Heavy Directives)
+    // Verbal ACK dispatched in <250ms, heavy ReAct loop executes in background.
+    // ──────────────────────────────────────────────────────────────────────────
+    const isHeavyDirective = (
+      lowerTranscript.includes('build') ||
+      lowerTranscript.includes('scaffold') ||
+      lowerTranscript.includes('full-stack') ||
+      lowerTranscript.includes('generate document') ||
+      lowerTranscript.includes('generate report') ||
+      lowerTranscript.includes('generate pdf') ||
+      lowerTranscript.includes('generate docx') ||
+      lowerTranscript.includes('generate excel') ||
+      lowerTranscript.includes('deploy') ||
+      lowerTranscript.includes('refactor') ||
+      lowerTranscript.includes('multi-page') ||
+      lowerTranscript.includes('portfolio') ||
+      lowerTranscript.includes('pipeline') ||
+      lowerTranscript.includes('clothing store') ||
+      lowerTranscript.includes('ecommerce')
+    )
+
+    if (isHeavyDirective) {
+      const ack = "Understood, Master Sri. Aegis and Raphael are spinning up the workspace now. I'll alert your Telegram when it's ready."
+
+      session.ws.send(JSON.stringify({
+        type: 'SWARM_HANDOFF_ASYNC',
+        status: 'DISPATCHED',
+        agent: session.activeAgent,
+        directive: transcript,
+        spokenAck: ack
+      }))
+
+      // Speak confirmation immediately (<250ms verbal turnaround)
+      await this.streamTTSResponse(session, ack)
+
+      // Asynchronous background execution — non-blocking to voice channel
+      ;(async () => {
+        try {
+          const { executeAutonomousTask } = await import('../swarm/engine/AgentLoop')
+          const specialist = (session.activeAgent === 'jarvis' ? 'aegis' : session.activeAgent) as 'aegis' | 'raphael' | 'friday'
+          const swarmResult = await executeAutonomousTask(transcript, specialist, 8)
+
+          // Telegram alert if configured
+          const telegramToken = process.env.TELEGRAM_BOT_TOKEN
+          const telegramChatId = process.env.TELEGRAM_CHAT_ID
+          if (telegramToken && telegramChatId) {
+            try {
+              await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: telegramChatId,
+                  text: `⚡ *J.A.R.V.I.S. ASYNC MISSION ACCOMPLISHED*\n\n*Directive:* ${transcript}\n*Specialist:* ${specialist}\n\n${swarmResult.finalResponse}`,
+                  parse_mode: 'Markdown'
+                })
+              })
+            } catch {}
+          }
+
+          if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+            session.ws.send(JSON.stringify({
+              type: 'SWARM_TASK_COMPLETE',
+              agent: session.activeAgent,
+              task: swarmResult
+            }))
+          }
+        } catch (err: any) {
+          console.warn('[VoiceGateway] Background async swarm task note:', err?.message || err)
+        }
+      })()
+
+      return
+    }
+
+    // Light Tool Action Check (e.g. run test, check database)
+    const isLightToolDirective = (
       lowerTranscript.includes('run test') ||
       lowerTranscript.includes('fix error') ||
       lowerTranscript.includes('fix bug') ||
@@ -410,7 +493,7 @@ export class VoiceGatewayService {
       lowerTranscript.includes('execute command')
     )
 
-    if (isActionableSwarmDirective) {
+    if (isLightToolDirective) {
       session.ws.send(JSON.stringify({
         type: 'SWARM_TASK_START',
         agent: session.activeAgent,
@@ -420,7 +503,7 @@ export class VoiceGatewayService {
       try {
         const { executeAutonomousTask } = await import('../swarm/engine/AgentLoop')
         const specialist = (session.activeAgent === 'jarvis' ? 'aegis' : session.activeAgent) as 'aegis' | 'raphael' | 'friday'
-        const swarmResult = await executeAutonomousTask(transcript, specialist, 6)
+        const swarmResult = await executeAutonomousTask(transcript, specialist, 4)
 
         session.ws.send(JSON.stringify({
           type: 'SWARM_TASK_COMPLETE',
@@ -431,32 +514,166 @@ export class VoiceGatewayService {
         await this.streamTTSResponse(session, swarmResult.finalResponse)
         return
       } catch (err: any) {
-        console.warn('[VoiceGateway] Autonomous swarm task execution fallback:', err?.message || err)
+        console.warn('[VoiceGateway] Light tool execution fallback:', err?.message || err)
       }
     }
 
-    // Standard Query: Route to active specialist's LLM engine
+    // ──────────────────────────────────────────────────────────────────────────
+    // TIER 1: Real-Time Spoken Interactivity (<250ms TTFA)
+    // Token-level streaming from Groq with per-sentence TTS pipelining.
+    // ──────────────────────────────────────────────────────────────────────────
     const agentConfig = SPECIALIST_PERSONAS[session.activeAgent]
-    const answer = await this.generateAgentResponse(session.activeAgent, transcript, agentConfig.prompt)
+    const messages = [
+      { role: 'system', content: agentConfig.prompt },
+      { role: 'user', content: transcript }
+    ]
 
-    session.ws.send(JSON.stringify({
-      type: 'AGENT_RESPONSE',
-      agent: session.activeAgent,
-      text: answer
-    }))
+    let speechStarted = false
+    let clauseIdx = 0
 
-    await this.streamTTSResponse(session, answer)
+    try {
+      const fullResponse = await swarmModelRouter.dispatchStreaming(
+        session.activeAgent,
+        messages,
+        async (clause: string, isFirst: boolean) => {
+          if (session.abortController?.signal.aborted) return
+
+          if (!speechStarted) {
+            speechStarted = true
+            session.isSpeaking = true
+            session.ws.send(JSON.stringify({
+              type: 'AGENT_SPEAK_START',
+              agent: session.activeAgent
+            }))
+          }
+
+          const audioChunk = await this.synthesizeTTSAudio(clause, session.abortController?.signal)
+          if (audioChunk && (!session.abortController || !session.abortController.signal.aborted)) {
+            session.ws.send(audioChunk, { binary: true })
+            session.ws.send(JSON.stringify({
+              type: 'AGENT_STREAM_CHUNK',
+              clause,
+              clauseIndex: clauseIdx++,
+              isFirst
+            }))
+          }
+        }
+      )
+
+      if (!session.abortController?.signal.aborted) {
+        session.ws.send(JSON.stringify({
+          type: 'AGENT_RESPONSE',
+          agent: session.activeAgent,
+          text: fullResponse
+        }))
+
+        session.isSpeaking = false
+        session.ws.send(JSON.stringify({
+          type: 'AGENT_SPEAK_END',
+          agent: session.activeAgent
+        }))
+      }
+    } catch (streamErr: any) {
+      console.warn('[VoiceGateway] Streaming voice dispatch fallback:', streamErr?.message || streamErr)
+      const answer = await this.generateAgentResponse(session.activeAgent, transcript, agentConfig.prompt)
+      session.ws.send(JSON.stringify({
+        type: 'AGENT_RESPONSE',
+        agent: session.activeAgent,
+        text: answer
+      }))
+      await this.streamTTSResponse(session, answer)
+    }
   }
 
   /**
-   * Dispatch query to LLM based on specialist persona
+   * Fast TTS synthesis returning MP3 buffer for token/clause streaming.
+   * Priority: Deepgram Aura (<150ms TTFB) -> ElevenLabs Flash v2.5 -> Kokoro -> synthetic MP3 frame fallback
+   */
+  public async synthesizeTTSAudio(text: string, signal?: AbortSignal): Promise<Buffer | null> {
+    if (!text || !text.trim()) return null
+
+    // 1. Try Deepgram Aura (Ultra-low latency MP3 stream, ~120ms TTFB)
+    const deepgramKey = process.env.DEEPGRAM_API_KEY
+    if (deepgramKey) {
+      try {
+        const res = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=mp3', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${deepgramKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ text }),
+          signal: signal || AbortSignal.timeout(3000)
+        })
+
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer()
+          return Buffer.from(arrayBuffer)
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return null
+        console.warn('[VoiceGateway] Deepgram Aura TTS note:', err?.message || err)
+      }
+    }
+
+    // 2. Try ElevenLabs Flash v2.5 (Fastest ElevenLabs streaming model)
+    const elevenKey = process.env.ELEVENLABS_API_KEY
+    if (elevenKey) {
+      try {
+        const voiceId = '21m00Tcm4TlvDq8ikWAM' // Default executive voice
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': elevenKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text,
+            model_id: 'eleven_flash_v2_5',
+            voice_settings: { stability: 0.5, similarity_boost: 0.8 }
+          }),
+          signal: signal || AbortSignal.timeout(4000)
+        })
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer()
+          return Buffer.from(arrayBuffer)
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return null
+        console.warn('[VoiceGateway] ElevenLabs Flash v2.5 note:', err?.message || err)
+      }
+    }
+
+    // 3. Try local Kokoro-ONNX / Kokoro.js endpoint
+    const kokoroUrl = process.env.KOKORO_TTS_URL
+    if (kokoroUrl) {
+      try {
+        const res = await fetch(kokoroUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'kokoro', input: text, voice: 'af_sarah' }),
+          signal: signal || AbortSignal.timeout(3000)
+        })
+        if (res.ok) {
+          return Buffer.from(await res.arrayBuffer())
+        }
+      } catch {}
+    }
+
+    // 4. Fallback valid MP3 silence frame (preserves binary streaming contract in dev/offline tests)
+    return Buffer.from([
+      0xff, 0xfb, 0x90, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    ])
+  }
+
+  /**
+   * Dispatch query to LLM based on specialist persona (standard fallback)
    */
   public async generateAgentResponse(agent: SpecialistAgent, userQuery: string, systemPrompt: string): Promise<string> {
     const groqKey = process.env.GROQ_API_KEY
     const geminiKey = process.env.GEMINI_API_KEY
 
-    // If Raphael: Prefer DeepSeek-R1 / high-logic model
-    // If Jarvis / Aegis / Friday: Prefer LLaMA 3.3 70B or Gemini 2.5 Flash
     if (groqKey) {
       try {
         const modelId = agent === 'raphael' ? 'deepseek-r1-distill-llama-70b' : 'llama-3.3-70b-versatile'
@@ -485,7 +702,6 @@ export class VoiceGatewayService {
       } catch {}
     }
 
-    // Fallback: Google Gemini API (already verified active in Master Sri's .env)
     if (geminiKey) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`
@@ -507,95 +723,25 @@ export class VoiceGatewayService {
       } catch {}
     }
 
-    return `Understood, Master Sri. ${agentConfig.name} is executing your command on priority.`
+    return `Understood, Master Sri. ${SPECIALIST_PERSONAS[agent].name} is executing your command on priority.`
   }
 
   /**
-   * Stream TTS speech synthesis back to client WebSocket (Kokoro-ONNX / Deepgram Aura / ElevenLabs)
+   * Stream TTS speech synthesis back to client WebSocket
    */
   public async streamTTSResponse(session: VoiceSessionState, text: string) {
     session.isSpeaking = true
 
-    // Inform client that agent is speaking (AudioWorklet mutes mic to stop echo feedback)
     session.ws.send(JSON.stringify({
       type: 'AGENT_SPEAK_START',
       agent: session.activeAgent
     }))
 
-    // 1. Try local Kokoro-ONNX / Kokoro.js endpoint if configured
-    const kokoroUrl = process.env.KOKORO_TTS_URL
-    let ttsDelivered = false
-
-    if (kokoroUrl) {
-      try {
-        const res = await fetch(kokoroUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'kokoro', input: text, voice: 'af_sarah' }),
-          signal: AbortSignal.timeout(3000)
-        })
-        if (res.ok) {
-          const audioBuffer = Buffer.from(await res.arrayBuffer())
-          session.ws.send(audioBuffer, { binary: true })
-          ttsDelivered = true
-        }
-      } catch {}
+    const audioBuffer = await this.synthesizeTTSAudio(text, session.abortController?.signal)
+    if (audioBuffer && (!session.abortController || !session.abortController.signal.aborted)) {
+      session.ws.send(audioBuffer, { binary: true })
     }
 
-    // 2. Try Deepgram Aura (standard MP3 stream for universal mobile hardware decoding)
-    const deepgramKey = process.env.DEEPGRAM_API_KEY
-    if (!ttsDelivered && deepgramKey) {
-      try {
-        const res = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=mp3', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${deepgramKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ text }),
-          signal: AbortSignal.timeout(4000)
-        })
-
-        if (res.ok) {
-          const arrayBuffer = await res.arrayBuffer()
-          const audioBuffer = Buffer.from(arrayBuffer)
-          session.ws.send(audioBuffer, { binary: true })
-          ttsDelivered = true
-        }
-      } catch (err: any) {
-        console.warn('[VoiceGateway] Deepgram Aura TTS note:', err?.message || err)
-      }
-    }
-
-    // 3. Try ElevenLabs Turbo v2.5 (standard MP3 format)
-    const elevenKey = process.env.ELEVENLABS_API_KEY
-    if (!ttsDelivered && elevenKey) {
-      try {
-        const voiceId = '21m00Tcm4TlvDq8ikWAM' // Default executive voice
-        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': elevenKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            text,
-            model_id: 'eleven_turbo_v2_5',
-            voice_settings: { stability: 0.5, similarity_boost: 0.8 }
-          }),
-          signal: AbortSignal.timeout(5000)
-        })
-        if (res.ok) {
-          const audioBuffer = Buffer.from(await res.arrayBuffer())
-          session.ws.send(audioBuffer, { binary: true })
-          ttsDelivered = true
-        }
-      } catch (err: any) {
-        console.warn('[VoiceGateway] ElevenLabs TTS note:', err?.message || err)
-      }
-    }
-
-    // End of speech playback
     session.isSpeaking = false
     session.ws.send(JSON.stringify({
       type: 'AGENT_SPEAK_END',

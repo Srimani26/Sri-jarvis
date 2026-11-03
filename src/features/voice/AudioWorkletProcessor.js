@@ -19,7 +19,7 @@ class JarvisAudioWorkletProcessor extends AudioWorkletProcessor {
     this.outputIndex = 0;
     this.isMuted = false;
     this.speechThreshold = 0.01; // Lowered to 0.01 for mobile microphones
-    this.hangoverMaxFrames = 7;   // ~448ms hangover padding (7 * 64ms)
+    this.hangoverMaxFrames = 3;   // ~192ms tight hangover padding (3 * 64ms) for ultra-low latency <350ms turn-taking
     this.hangoverFrames = 0;
 
     this.port.onmessage = (event) => {

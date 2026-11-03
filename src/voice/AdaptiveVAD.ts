@@ -41,8 +41,8 @@ export class AdaptiveVAD {
 
   constructor(config: VADConfig = {}) {
     this.preSpeechBufferMs = config.preSpeechBufferMs ?? 250
-    this.silenceHangoverMs = config.silenceHangoverMs ?? 700
-    this.minSpeechDurationMs = config.minSpeechDurationMs ?? 250
+    this.silenceHangoverMs = config.silenceHangoverMs ?? 200 // Reduced to 200ms for <350ms turn-taking
+    this.minSpeechDurationMs = config.minSpeechDurationMs ?? 200
     this.energyDelta = config.energyDelta ?? 2.8
     this.minAbsoluteEnergy = config.minAbsoluteEnergy ?? 3.5
   }

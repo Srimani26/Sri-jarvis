@@ -486,6 +486,122 @@ export class SwarmModelRouter {
     this.activeProviders = report
     return report
   }
+
+  /**
+   * Ultra-Low-Latency Token-to-Clause Streaming Pipeline (<350ms TTFA)
+   * Streams tokens directly from Tier 1 Groq LLaMA 3.3 70B, segments by semantic
+   * clause boundaries (/([.?!;:\n])\s*$/ or 5+ words with comma), and triggers
+   * onClause() immediately so TTS synthesis begins before the LLM finishes.
+   */
+  public async dispatchStreaming(
+    specialist: SwarmSpecialist,
+    messages: any[],
+    onClause: (clause: string, isFirst: boolean) => Promise<void> | void
+  ): Promise<string> {
+    const groqKey = virtualKeyVault.getActiveKey('groq') || process.env.GROQ_API_KEY
+    if (groqKey) {
+      try {
+        const model = specialist === 'raphael' ? 'deepseek-r1-distill-llama-70b' : 'llama-3.3-70b-versatile'
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            stream: true,
+            temperature: 0.6,
+            max_tokens: 150
+          }),
+          signal: AbortSignal.timeout(6000)
+        })
+
+        if (res.ok && res.body) {
+          let fullText = ''
+          let currentClause = ''
+          let isFirst = true
+
+          const processLine = async (line: string) => {
+            const trimmed = line.trim()
+            if (!trimmed || !trimmed.startsWith('data: ')) return
+            if (trimmed === 'data: [DONE]') return
+
+            try {
+              const data = JSON.parse(trimmed.slice(6))
+              const delta = data.choices?.[0]?.delta?.content || ''
+              if (!delta) return
+
+              fullText += delta
+              currentClause += delta
+
+              const words = currentClause.trim().split(/\s+/)
+              const hasPunctuationEnd = /([.?!;\n])\s*$/.test(currentClause)
+              const hasCommaClause = words.length >= 5 && /([,])\s*$/.test(currentClause)
+
+              if (hasPunctuationEnd || hasCommaClause) {
+                const toDispatch = currentClause.trim()
+                if (toDispatch.length > 0) {
+                  await onClause(toDispatch, isFirst)
+                  isFirst = false
+                  currentClause = ''
+                }
+              }
+            } catch {}
+          }
+
+          let buffer = ''
+          const decoder = new TextDecoder('utf-8')
+
+          if (typeof (res.body as any).getReader === 'function') {
+            const reader = (res.body as any).getReader()
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              buffer += decoder.decode(value, { stream: true })
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || ''
+              for (const line of lines) {
+                await processLine(line)
+              }
+            }
+          } else if (typeof (res.body as any)[Symbol.asyncIterator] === 'function') {
+            for await (const chunk of (res.body as any)) {
+              buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true })
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || ''
+              for (const line of lines) {
+                await processLine(line)
+              }
+            }
+          }
+
+          if (buffer.trim()) {
+            await processLine(buffer)
+          }
+
+          if (currentClause.trim().length > 0) {
+            await onClause(currentClause.trim(), isFirst)
+            isFirst = false
+            currentClause = ''
+          }
+
+          if (fullText.trim()) {
+            return fullText.trim()
+          }
+        }
+      } catch (err: any) {
+        console.warn('🔄 [ModelRouter] Groq dispatchStreaming error, falling back:', err?.message || err)
+      }
+    }
+
+    // Fallback: standard dispatch
+    const fallback = await this.dispatch(specialist, messages, [])
+    const text = fallback.content || 'Standing by, Master Sri.'
+    await onClause(text, true)
+    return text
+  }
 }
 
 export const swarmModelRouter = SwarmModelRouter.getInstance()

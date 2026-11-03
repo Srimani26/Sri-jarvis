@@ -280,10 +280,20 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
           evaluateTouchlessDirectives(payload.text)
         }
 
-        // 4. Agent Spoken Response
+        // 4. Agent Spoken Response & Real-Time Streaming Chunks
+        if (payload.type === 'AGENT_STREAM_CHUNK' && payload.clause) {
+          setLastResponse(prev => (payload.isFirst ? payload.clause : `${prev} ${payload.clause}`))
+          if (onAgentResponse) onAgentResponse(payload.clause)
+        }
+
         if (payload.type === 'AGENT_RESPONSE' && payload.text) {
           setLastResponse(payload.text)
           if (onAgentResponse) onAgentResponse(payload.text)
+        }
+
+        if (payload.type === 'SWARM_HANDOFF_ASYNC' && payload.spokenAck) {
+          setLastResponse(payload.spokenAck)
+          if (onAgentResponse) onAgentResponse(payload.spokenAck)
         }
 
         // 5. Echo-suppression Mute Gate
@@ -455,7 +465,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
                   }
                 }, 1500)
               }
-            }, 700)
+            }, 200) // Fast VAD silence endpointing: 200ms cut-off saves 500ms turn-taking latency
           }
         }
       }
