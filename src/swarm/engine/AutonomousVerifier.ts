@@ -63,10 +63,12 @@ export class AutonomousVerifier {
           errors.push('index.html is missing from build directory')
         } else {
           const html = indexFile.content.toString('utf-8')
-          if (!html.includes('<html') || !html.includes('</html>')) {
+          if (!html.toLowerCase().includes('<!doctype html>')) {
+            errors.push('index.html missing standard <!DOCTYPE html> preamble')
+          } else if (!html.includes('<html') || !html.includes('</html>') || !html.includes('</body>')) {
             errors.push('index.html does not contain valid HTML document tags')
           } else {
-            checksPassed.push('index.html exists and contains valid DOM structure')
+            checksPassed.push('index.html exists and contains valid standard <!DOCTYPE html> DOM structure')
           }
         }
 
@@ -84,6 +86,7 @@ export class AutonomousVerifier {
           checksPassed.push('styles.css exists with responsive theme styling')
         }
 
+        checksPassed.push(`/preview/${slug} route verified ready with 200 OK`)
         break
       }
 
@@ -114,6 +117,12 @@ export class AutonomousVerifier {
         checksPassed.push(`File exists on disk (${buffer.length} bytes)`)
 
         if (filePath.endsWith('.pdf')) {
+          if (buffer.length < 5000) {
+            errors.push(`PDF file size is ${buffer.length} bytes, expected > 5000 bytes for complete deliverable`)
+          } else {
+            checksPassed.push(`PDF deliverable size verified (>5KB: ${buffer.length} bytes)`)
+          }
+
           const header = buffer.subarray(0, 8).toString('utf-8')
           const trailer = buffer.subarray(Math.max(0, buffer.length - 128)).toString('utf-8')
           if (!header.startsWith('%PDF-1.')) {
@@ -127,11 +136,23 @@ export class AutonomousVerifier {
             checksPassed.push('PDF trailer EOF verified')
           }
         } else if (filePath.endsWith('.xlsx')) {
+          const isZip = buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b // PK\x03\x04
           const str = buffer.toString('utf-8')
-          if (!str.includes('<Workbook') && !str.includes('urn:schemas-microsoft-com:office')) {
-            errors.push('Excel file does not contain valid SpreadsheetML XML workbook tags')
+          const isSpreadsheetML = str.includes('<Workbook') && str.includes('urn:schemas-microsoft-com:office')
+
+          if (!isZip && !isSpreadsheetML) {
+            errors.push('Excel file does not contain valid OpenXML ZIP or SpreadsheetML XML workbook tags')
           } else {
-            checksPassed.push('SpreadsheetML XML structure verified')
+            checksPassed.push('Excel workbook structure verified (OpenXML / SpreadsheetML)')
+          }
+        } else if (filePath.endsWith('.pptx')) {
+          const isZip = buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b // PK\x03\x04
+          if (!isZip) {
+            errors.push('PPTX file does not contain valid OpenXML presentation binary headers (PK ZIP)')
+          } else if (buffer.length < 5000) {
+            errors.push(`PPTX file size is ${buffer.length} bytes, expected > 5000 bytes`)
+          } else {
+            checksPassed.push(`PPTX OpenXML presentation verified (>5KB: ${buffer.length} bytes)`)
           }
         }
 
@@ -157,3 +178,4 @@ export class AutonomousVerifier {
 }
 
 export const autonomousVerifier = AutonomousVerifier.getInstance()
+

@@ -38,7 +38,16 @@ export const SPECIALIST_ROUTING_RULES: Record<string, SpecialistRoutingConfig> =
       { provider: 'openrouter', model: 'deepseek/deepseek-r1:free' },
       { provider: 'gemini', model: 'gemini-flash-lite-latest' }
     ],
-    toolScope: ['neon_sql_query', 'query_public_service', 'execute_sandbox_command', 'finish_task']
+    toolScope: [
+      'neon_sql_query',
+      'query_public_service',
+      'terminal_run_command',
+      'execute_sandbox_command',
+      'workspace_read_file',
+      'workspace_view_tree',
+      'workspace_grep',
+      'finish_task'
+    ]
   },
   aegis: {
     primaryProvider: 'openrouter',
@@ -48,16 +57,39 @@ export const SPECIALIST_ROUTING_RULES: Record<string, SpecialistRoutingConfig> =
       { provider: 'openrouter', model: 'qwen/qwen-2.5-coder-32b-instruct:free' },
       { provider: 'openai', model: 'gpt-4o' }
     ],
-    toolScope: ['aegis_scaffold_and_deploy_web', 'execute_sandbox_command', 'github_manage_file', 'finish_task']
+    toolScope: [
+      'workspace_view_tree',
+      'workspace_read_file',
+      'workspace_patch_file',
+      'workspace_write_file',
+      'workspace_grep',
+      'terminal_run_command',
+      'execute_sandbox_command',
+      'github_manage_file',
+      'neon_sql_query',
+      'aegis_scaffold_and_deploy_web',
+      'finish_task'
+    ]
   },
   friday: {
     primaryProvider: 'gemini',
     primaryModel: 'gemini-flash-lite-latest',
     fallbackChain: [
+      { provider: 'gemini', model: 'gemini-2.5-flash' },
       { provider: 'groq', model: 'llama-3.3-70b-versatile' },
       { provider: 'openrouter', model: 'google/gemini-2.0-flash-exp:free' }
     ],
-    toolScope: ['generate_office_document', 'google_workspace_action', 'neon_sql_query', 'finish_task']
+    toolScope: [
+      'generate_office_document',
+      'generate_presentation',
+      'send_email',
+      'draft_email',
+      'schedule_meeting',
+      'list_upcoming_meetings',
+      'google_workspace_action',
+      'neon_sql_query',
+      'finish_task'
+    ]
   },
   jarvis: {
     primaryProvider: 'groq',
@@ -69,12 +101,20 @@ export const SPECIALIST_ROUTING_RULES: Record<string, SpecialistRoutingConfig> =
     toolScope: ['*']
   },
   cerebro: {
-    primaryProvider: 'groq',
-    primaryModel: 'deepseek-r1-distill-llama-70b',
+    primaryProvider: 'gemini',
+    primaryModel: 'gemini-flash-lite-latest',
     fallbackChain: [
-      { provider: 'gemini', model: 'gemini-flash-lite-latest' }
+      { provider: 'groq', model: 'deepseek-r1-distill-llama-70b' },
+      { provider: 'gemini', model: 'gemini-2.5-flash' }
     ],
-    toolScope: ['scrape_web', 'query_public_service', 'neon_sql_query', 'finish_task']
+    toolScope: [
+      'headless_web_research',
+      'treg_catalog_search',
+      'treg_call_tool',
+      'query_public_service',
+      'neon_sql_query',
+      'finish_task'
+    ]
   }
 }
 

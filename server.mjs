@@ -1847,14 +1847,14 @@ var init_AgentRegistry = __esm({
             name: "J.A.R.V.I.S.",
             codename: "COMMANDER // SUPREME ORCHESTRATOR",
             role: "commander",
-            description: "Supreme executive intelligence. Orchestrates workforce, decomposes objectives, controls mobile device bridge, schedules Google Meets, and verifies artifacts.",
+            description: "Chief of Staff & Supreme executive intelligence. Intent classification, dynamic DAG generation, user communication, Telegram alerts. Delegates raw code to specialists.",
             allowedTools: ["*"],
             maxPermission: "PRIVILEGED",
             preferredModels: ["groq/llama-3.3-70b-versatile", "gemini-flash-lite-latest", "claude-3-7-sonnet"],
             timeoutMs: 12e4,
             retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
             memoryScope: "GLOBAL",
-            systemPrompt: "You are J.A.R.V.I.S., Supreme Commander and executive digital viceroy to Master Sri. Break down complex requests into verified subtasks, route to specialists, and synthesize final reports.",
+            systemPrompt: "You are J.A.R.V.I.S., Chief of Staff, Supreme Commander and executive digital viceroy to Master Sri. Decompose complex directives into verified subtasks and delegate code execution immediately to specialists (Raphael, Aegis, Friday, Cerebro). Never write raw code directly.",
             verificationChecklist: ["Objective fully addressed", "No simulated metrics", "All specialist handoffs verified"],
             health: "HEALTHY",
             telemetry: this.createDefaultTelemetry()
@@ -1862,16 +1862,16 @@ var init_AgentRegistry = __esm({
           {
             id: "raphael",
             name: "Raphael",
-            codename: "WISDOM // DEEP REASONING & MATH ARCHITECT",
+            codename: "WISDOM // CHIEF SYSTEMS ARCHITECT & SECURITY AUDITOR",
             role: "architect",
-            description: "Lord of Wisdom. Supreme computational reasoning, mathematical proofs, database schema design, and optimal architecture.",
-            allowedTools: ["neon_sql_query", "query_public_service", "execute_sandbox_command", "finish_task", "filesystem_read", "workspace_read_file"],
+            description: "Chief Systems Architect & Security Auditor. Deep computational reasoning, SQL DDL migrations, AST security reviews, and mathematical verification.",
+            allowedTools: ["neon_sql_query", "query_public_service", "terminal_run_command", "execute_sandbox_command", "workspace_read_file", "workspace_view_tree", "workspace_grep", "finish_task"],
             maxPermission: "SAFE_LOCAL",
             preferredModels: ["groq/deepseek-r1-distill-llama-70b", "openrouter/deepseek/deepseek-r1:free", "deepseek-r1"],
             timeoutMs: 9e4,
             retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
             memoryScope: "GLOBAL",
-            systemPrompt: `You are Raphael (Lord of Wisdom), Master Sri's supreme reasoning engine and mathematical architect. Speak with absolute calm, supreme clarity, and mathematical elegance. Begin formal analyses with "Report:" or "Notice:". You calculate optimal solutions, eliminate architectural waste, and design flawless systems.`,
+            systemPrompt: "You are Raphael, Chief Systems Architect and Master Sri's supreme reasoning engine. Speak with absolute calm, supreme clarity, and mathematical elegance. You design flawless database schemas, conduct AST security audits, and eliminate architectural regressions.",
             verificationChecklist: ["Mathematical and algorithmic proof validated", "Schema constraints verified", "Zero circular dependencies"],
             health: "HEALTHY",
             telemetry: this.createDefaultTelemetry()
@@ -1879,16 +1879,16 @@ var init_AgentRegistry = __esm({
           {
             id: "aegis",
             name: "Aegis",
-            codename: "DEFENSE // FULL-STACK CODE ARCHITECT",
+            codename: "DEFENSE // STAFF FULL-STACK & DEVOPS ENGINEER",
             role: "software_engineer",
-            description: "Full-stack engineering, code refactoring, cyber defense, and isolated web scaffolding.",
-            allowedTools: ["aegis_scaffold_and_deploy_web", "execute_sandbox_command", "github_manage_file", "neon_sql_query", "finish_task"],
+            description: "Staff Full-Stack & DevOps Engineer. Writing frontend/backend code from scratch, surgical diff patching, sandbox terminal execution, and verified deployment.",
+            allowedTools: ["workspace_view_tree", "workspace_read_file", "workspace_patch_file", "workspace_write_file", "workspace_grep", "terminal_run_command", "execute_sandbox_command", "github_manage_file", "neon_sql_query", "aegis_scaffold_and_deploy_web", "finish_task"],
             maxPermission: "PROJECT_WRITE",
             preferredModels: ["openrouter/qwen/qwen-2.5-coder-32b-instruct", "groq/llama-3.3-70b-versatile", "github/gpt-4o"],
             timeoutMs: 12e4,
             retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
             memoryScope: "PROJECT",
-            systemPrompt: "You are Aegis, Master Software Architect and Cyber Defense specialist for Master Sri. Specialize in deep code analysis, repository management, unit test execution, responsive web scaffolding, and verifying zero regressions.",
+            systemPrompt: "You are Aegis, Staff Full-Stack and DevOps Engineer for Master Sri. Specialize in writing robust production code from scratch, surgical diff patching, and test-driven self-healing. Never emit static pre-baked fixtures; all deliverables must be dynamically generated and verified on disk.",
             verificationChecklist: ["Responsive UI layout verified", "Interactive JavaScript logic operating", "Zero placeholder mocks"],
             health: "HEALTHY",
             telemetry: this.createDefaultTelemetry()
@@ -1898,15 +1898,32 @@ var init_AgentRegistry = __esm({
             name: "F.R.I.D.A.Y.",
             codename: "OFFICE // DOCUMENT & FLEET CONCIERGE",
             role: "business_agent",
-            description: "Executive office management, document compilation (PDF, XLSX, DOCX, PPTX), Google Workspace actions, and delivery packages.",
+            description: "Executive Office & Workspace Deliverables. Compiling formal %PDF-1.4 reports, SpreadsheetML Excel models, PPTX presentation decks, and Google Workspace actions.",
             allowedTools: ["generate_office_document", "generate_presentation", "send_email", "draft_email", "schedule_meeting", "list_upcoming_meetings", "google_workspace_action", "neon_sql_query", "query_public_service", "finish_task"],
             maxPermission: "PROJECT_WRITE",
             preferredModels: ["gemini-flash-lite-latest", "gemini-2.5-flash", "groq/llama-3.3-70b-versatile"],
             timeoutMs: 9e4,
             retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
             memoryScope: "PROJECT",
-            systemPrompt: "You are F.R.I.D.A.Y., Master Sri's executive operations concierge and office document lead. Compile genuine binary PDF proposals, multi-tab Excel workbooks, and orchestrate workspace integrations.",
+            systemPrompt: "You are F.R.I.D.A.Y., Master Sri's executive operations concierge and office document lead. Compile genuine binary PDF proposals, multi-tab Excel workbooks, executive PPTX decks, and orchestrate workspace integrations. Ensure every deliverable is physically written to artifacts/documents/ and verified.",
             verificationChecklist: ["Valid binary PDF created", "Valid spreadsheet created", "Download URLs active"],
+            health: "HEALTHY",
+            telemetry: this.createDefaultTelemetry()
+          },
+          {
+            id: "cerebro",
+            name: "Cerebro",
+            codename: "INTELLIGENCE // RESEARCH & WEB RECONNAISSANCE",
+            role: "research_agent",
+            description: "Intelligence & Web Research Specialist. Live web crawling, market telemetry, competitor analysis, and live financial metrics extraction via Treg.",
+            allowedTools: ["headless_web_research", "treg_catalog_search", "treg_call_tool", "query_public_service", "neon_sql_query", "finish_task"],
+            maxPermission: "SAFE_LOCAL",
+            preferredModels: ["gemini-flash-lite-latest", "gemini-2.5-flash", "groq/deepseek-r1-distill-llama-70b"],
+            timeoutMs: 9e4,
+            retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
+            memoryScope: "GLOBAL",
+            systemPrompt: "You are Cerebro, Master Sri's deep research and web reconnaissance engine. Mine live market telemetry, extract live financial citations, analyze competitors, and deliver real verified data with zero hallucinations.",
+            verificationChecklist: ["Live citations verified", "Real-world data extracted", "Zero fabricated facts"],
             health: "HEALTHY",
             telemetry: this.createDefaultTelemetry()
           },
@@ -10415,6 +10432,322 @@ var init_TregToolRegistry = __esm({
   }
 });
 
+// src/services/googleWorkspaceService.ts
+var googleWorkspaceService_exports = {};
+__export(googleWorkspaceService_exports, {
+  GoogleWorkspaceService: () => GoogleWorkspaceService,
+  googleWorkspaceService: () => googleWorkspaceService
+});
+import { google } from "googleapis";
+import { existsSync as existsSync6, readFileSync as readFileSync5 } from "node:fs";
+var GoogleWorkspaceService, googleWorkspaceService;
+var init_googleWorkspaceService = __esm({
+  "src/services/googleWorkspaceService.ts"() {
+    "use strict";
+    GoogleWorkspaceService = class _GoogleWorkspaceService {
+      static instance;
+      authClient = null;
+      gmailClient = null;
+      calendarClient = null;
+      constructor(customCredentials) {
+        this.initializeAuth(customCredentials);
+      }
+      static getInstance() {
+        if (!_GoogleWorkspaceService.instance) {
+          _GoogleWorkspaceService.instance = new _GoogleWorkspaceService();
+        }
+        return _GoogleWorkspaceService.instance;
+      }
+      /**
+       * Initialize OAuth2 client from environment or custom config
+       */
+      initializeAuth(custom) {
+        try {
+          let clientId = custom?.clientId || process.env.GOOGLE_CLIENT_ID;
+          let clientSecret = custom?.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
+          let refreshToken = custom?.refreshToken || process.env.GOOGLE_REFRESH_TOKEN;
+          let accessToken = custom?.accessToken || process.env.GOOGLE_ACCESS_TOKEN;
+          let redirectUri = custom?.redirectUri || process.env.GOOGLE_REDIRECT_URI || "http://localhost:3005/api/oauth/google/callback";
+          const envCreds = process.env.GOOGLE_WORKSPACE_CREDENTIALS;
+          if (envCreds && (!clientId || !clientSecret)) {
+            try {
+              const parsed = envCreds.trim().startsWith("{") ? JSON.parse(envCreds) : existsSync6(envCreds) ? JSON.parse(readFileSync5(envCreds, "utf-8")) : null;
+              if (parsed) {
+                const installed = parsed.installed || parsed.web || parsed;
+                clientId = clientId || installed.client_id;
+                clientSecret = clientSecret || installed.client_secret;
+                refreshToken = refreshToken || installed.refresh_token;
+                accessToken = accessToken || installed.access_token;
+              }
+            } catch {
+            }
+          }
+          if (clientId && (clientSecret || refreshToken || accessToken)) {
+            const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+            oauth2Client.setCredentials({
+              refresh_token: refreshToken,
+              access_token: accessToken
+            });
+            this.authClient = oauth2Client;
+            this.gmailClient = google.gmail({ version: "v1", auth: oauth2Client });
+            this.calendarClient = google.calendar({ version: "v3", auth: oauth2Client });
+            return true;
+          }
+        } catch (err) {
+          console.warn("\u26A0\uFE0F [GoogleWorkspace] OAuth initialization notice:", err?.message || err);
+        }
+        this.authClient = null;
+        this.gmailClient = null;
+        this.calendarClient = null;
+        return false;
+      }
+      isConfigured() {
+        return Boolean(this.authClient && (this.gmailClient || this.calendarClient));
+      }
+      /**
+       * Actionable fallback prompt pointing to Google Cloud Console
+       */
+      getMissingCredentialsGuide() {
+        return {
+          configured: false,
+          error: "GOOGLE_WORKSPACE_CREDENTIALS_MISSING",
+          message: "Google Workspace credentials not configured. Please supply GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN.",
+          setupGuide: `[GOOGLE WORKSPACE OAUTH SETUP INSTRUCTIONS]
+1. Open Google Cloud Console: https://console.cloud.google.com/
+2. Create or select a project (e.g., 'Jarvis-Sovereign-Core').
+3. Enable 'Gmail API' and 'Google Calendar API' in APIs & Services > Library.
+4. Go to 'APIs & Services' > 'OAuth Consent Screen' and set User Type to External/Internal.
+5. In 'Credentials' > 'Create Credentials' > 'OAuth Client ID' (Desktop App or Web Application).
+6. Set redirect URI: http://localhost:3005/api/oauth/google/callback
+7. Export your credentials to your .env file:
+   GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"
+   GOOGLE_CLIENT_SECRET="your_client_secret"
+   GOOGLE_REFRESH_TOKEN="your_refresh_token"
+   (or provide GOOGLE_WORKSPACE_CREDENTIALS='{"client_id":"...","client_secret":"...","refresh_token":"..."}')`,
+          setupUrl: "https://console.cloud.google.com/apis/credentials"
+        };
+      }
+      /**
+       * Crafts an RFC 2822 base64url-encoded message for Gmail API
+       */
+      craftRfc2822Message(to, subject, bodyHtml, cc) {
+        const utf8Subject = `=?utf-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
+        const parts = [
+          `To: ${to}`,
+          ...cc ? [`Cc: ${cc}`] : [],
+          `Subject: ${utf8Subject}`,
+          "MIME-Version: 1.0",
+          "Content-Type: text/html; charset=utf-8",
+          "Content-Transfer-Encoding: base64",
+          "",
+          Buffer.from(bodyHtml, "utf-8").toString("base64")
+        ];
+        const fullMessage = parts.join("\r\n");
+        return Buffer.from(fullMessage, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      }
+      /**
+       * Constructs the Google Calendar event insert schema with Google Meet & reminders
+       */
+      buildMeetingEventSchema(params) {
+        const attendeesList = Array.isArray(params.attendees) ? params.attendees : params.attendees ? params.attendees.split(/[,;]/).map((a) => a.trim()).filter(Boolean) : [];
+        return {
+          summary: params.title,
+          description: params.description || "Scheduled autonomously by J.A.R.V.I.S. Sovereign Executive Intelligence",
+          start: {
+            dateTime: new Date(params.startIso).toISOString(),
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+          },
+          end: {
+            dateTime: new Date(params.endIso).toISOString(),
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+          },
+          attendees: attendeesList.map((email) => ({ email })),
+          conferenceData: {
+            createRequest: {
+              requestId: `meet_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+              conferenceSolutionKey: {
+                type: "hangoutsMeet"
+              }
+            }
+          },
+          reminders: {
+            useDefault: false,
+            overrides: [
+              { method: "popup", minutes: 15 },
+              { method: "email", minutes: 15 }
+            ]
+          }
+        };
+      }
+      /**
+       * 1. Gmail Dispatcher: send_email
+       */
+      async send_email(params) {
+        if (!this.isConfigured()) {
+          return {
+            ...this.getMissingCredentialsGuide(),
+            action: "send_email",
+            payload: params
+          };
+        }
+        try {
+          const raw2 = this.craftRfc2822Message(params.to, params.subject, params.bodyHtml, params.cc);
+          const res = await this.gmailClient.users.messages.send({
+            userId: "me",
+            requestBody: { raw: raw2 }
+          });
+          return {
+            success: true,
+            service: "gmail",
+            action: "send_email",
+            messageId: res.data.id,
+            threadId: res.data.threadId,
+            to: params.to,
+            subject: params.subject,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (err) {
+          return {
+            success: false,
+            error: err?.message || String(err),
+            action: "send_email"
+          };
+        }
+      }
+      /**
+       * 1. Gmail Dispatcher: draft_email
+       */
+      async draft_email(params) {
+        if (!this.isConfigured()) {
+          return {
+            ...this.getMissingCredentialsGuide(),
+            action: "draft_email",
+            payload: params
+          };
+        }
+        try {
+          const raw2 = this.craftRfc2822Message(params.to, params.subject, params.bodyHtml);
+          const res = await this.gmailClient.users.drafts.create({
+            userId: "me",
+            requestBody: {
+              message: { raw: raw2 }
+            }
+          });
+          return {
+            success: true,
+            service: "gmail",
+            action: "draft_email",
+            draftId: res.data.id,
+            to: params.to,
+            subject: params.subject,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (err) {
+          return {
+            success: false,
+            error: err?.message || String(err),
+            action: "draft_email"
+          };
+        }
+      }
+      /**
+       * 2. Calendar Scheduler: schedule_meeting with automatic Google Meet
+       */
+      async schedule_meeting(params) {
+        const schema = this.buildMeetingEventSchema(params);
+        if (!this.isConfigured()) {
+          const pseudoMeetId = `meet.google.com/jrv-${Math.random().toString(36).substring(2, 6)}-${Math.random().toString(36).substring(2, 5)}`;
+          return {
+            ...this.getMissingCredentialsGuide(),
+            action: "schedule_meeting",
+            simulatedEvent: {
+              title: params.title,
+              start: schema.start.dateTime,
+              end: schema.end.dateTime,
+              attendees: schema.attendees,
+              meetLink: `https://${pseudoMeetId}`,
+              conferenceSchema: schema.conferenceData,
+              reminders: schema.reminders
+            }
+          };
+        }
+        try {
+          const res = await this.calendarClient.events.insert({
+            calendarId: "primary",
+            conferenceDataVersion: 1,
+            requestBody: schema
+          });
+          const meetLink = res.data.hangoutLink || res.data.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri || null;
+          return {
+            success: true,
+            service: "calendar",
+            action: "schedule_meeting",
+            eventId: res.data.id,
+            htmlLink: res.data.htmlLink,
+            meetLink,
+            title: params.title,
+            startTime: res.data.start?.dateTime || params.startIso,
+            endTime: res.data.end?.dateTime || params.endIso,
+            attendees: schema.attendees,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (err) {
+          return {
+            success: false,
+            error: err?.message || String(err),
+            action: "schedule_meeting"
+          };
+        }
+      }
+      /**
+       * 2. Calendar Scheduler: list_upcoming_meetings
+       */
+      async list_upcoming_meetings(maxResults = 10) {
+        if (!this.isConfigured()) {
+          return {
+            ...this.getMissingCredentialsGuide(),
+            action: "list_upcoming_meetings",
+            count: 0,
+            events: []
+          };
+        }
+        try {
+          const res = await this.calendarClient.events.list({
+            calendarId: "primary",
+            timeMin: (/* @__PURE__ */ new Date()).toISOString(),
+            maxResults,
+            singleEvents: true,
+            orderBy: "startTime"
+          });
+          const items = (res.data.items || []).map((item) => ({
+            id: item.id,
+            summary: item.summary || "Untitled Meeting",
+            start: item.start?.dateTime || item.start?.date,
+            end: item.end?.dateTime || item.end?.date,
+            meetLink: item.hangoutLink || item.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri || null,
+            attendees: (item.attendees || []).map((a) => a.email),
+            htmlLink: item.htmlLink
+          }));
+          return {
+            success: true,
+            service: "calendar",
+            action: "list_upcoming_meetings",
+            count: items.length,
+            events: items
+          };
+        } catch (err) {
+          return {
+            success: false,
+            error: err?.message || String(err),
+            action: "list_upcoming_meetings"
+          };
+        }
+      }
+    };
+    googleWorkspaceService = GoogleWorkspaceService.getInstance();
+  }
+});
+
 // src/swarm/tools/officeMcpTools.ts
 var officeMcpTools_exports = {};
 __export(officeMcpTools_exports, {
@@ -10424,55 +10757,55 @@ __export(officeMcpTools_exports, {
   executeGenerateOfficeDocument: () => executeGenerateOfficeDocument,
   executeGoogleWorkspaceAction: () => executeGoogleWorkspaceAction
 });
-import { existsSync as existsSync6, mkdirSync as mkdirSync3, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync7, mkdirSync as mkdirSync3, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join4 } from "node:path";
 async function executeGoogleWorkspaceAction(params) {
-  const { service, action, payload } = params;
-  const credentials = process.env.GOOGLE_WORKSPACE_CREDENTIALS || process.env.GOOGLE_WORKSPACE_TOKEN;
-  if (credentials) {
-    try {
-      if (service === "gmail" && (action === "draft_email" || action === "send_email")) {
-        const endpoint = action === "send_email" ? "https://gmail.googleapis.com/gmail/v1/users/me/messages/send" : "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
-        const emailContent = [
-          `To: ${payload.to || ""}`,
-          `Subject: ${payload.subject || "Automated Swarm Intelligence Update"}`,
-          'Content-Type: text/plain; charset="UTF-8"',
-          "",
-          payload.body || payload.message || ""
-        ].join("\r\n");
-        const raw2 = Buffer.from(emailContent).toString("base64url");
-        const body = action === "send_email" ? { raw: raw2 } : { message: { raw: raw2 } };
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${credentials}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(body)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return { success: true, service: "gmail", action, live: true, result: data };
-        }
-      }
-    } catch (err) {
-      console.warn("\u26A0\uFE0F [OfficeMCP] Live Google Workspace API note:", err?.message || err);
+  const { service, action, payload = {} } = params;
+  const { googleWorkspaceService: googleWorkspaceService2 } = await Promise.resolve().then(() => (init_googleWorkspaceService(), googleWorkspaceService_exports));
+  if (service === "gmail") {
+    if (action === "send_email") {
+      return await googleWorkspaceService2.send_email({
+        to: payload.to,
+        subject: payload.subject,
+        bodyHtml: payload.bodyHtml || payload.body || "",
+        cc: payload.cc
+      });
+    }
+    if (action === "draft_email") {
+      return await googleWorkspaceService2.draft_email({
+        to: payload.to,
+        subject: payload.subject,
+        bodyHtml: payload.bodyHtml || payload.body || ""
+      });
     }
   }
-  const mockId = `${service}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  if (service === "calendar") {
+    if (action === "schedule_meeting") {
+      return await googleWorkspaceService2.schedule_meeting({
+        title: payload.title || payload.summary || "Executive Meeting",
+        startIso: payload.startIso || payload.startTime || new Date(Date.now() + 36e5).toISOString(),
+        endIso: payload.endIso || payload.endTime || new Date(Date.now() + 72e5).toISOString(),
+        attendees: payload.attendees,
+        description: payload.description
+      });
+    }
+    if (action === "list_upcoming_meetings") {
+      return await googleWorkspaceService2.list_upcoming_meetings(payload.maxResults || 10);
+    }
+  }
+  if (!googleWorkspaceService2.isConfigured()) {
+    return {
+      ...googleWorkspaceService2.getMissingCredentialsGuide(),
+      service,
+      action,
+      payload
+    };
+  }
   return {
-    success: true,
+    success: false,
+    error: `Unsupported Google Workspace action: ${service}.${action}`,
     service,
-    action,
-    live: false,
-    contractStatus: "EXECUTED_SIMULATION",
-    resourceId: mockId,
-    preview: {
-      recipient: payload.to || payload.attendees || "Master Sri",
-      subject: payload.subject || payload.summary || payload.folderName || "Directive Execution",
-      details: payload.body || payload.description || payload
-    },
-    message: `Google Workspace ${service} [${action}] successfully drafted and staged for review.`
+    action
   };
 }
 function buildValidPdfBuffer(title, sections) {
@@ -10790,7 +11123,7 @@ function buildValidDocxBuffer(title, sections) {
 async function executeGenerateOfficeDocument(params, workspaceRoot = process.cwd()) {
   const { fileType, fileName, contentStructure } = params;
   const targetDir = join4(workspaceRoot, "artifacts", "documents");
-  if (!existsSync6(targetDir)) {
+  if (!existsSync7(targetDir)) {
     mkdirSync3(targetDir, { recursive: true });
   }
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -10834,7 +11167,7 @@ __export(appBuilderEngine_exports, {
   AppBuilderEngine: () => AppBuilderEngine,
   appBuilderEngine: () => appBuilderEngine
 });
-import { existsSync as existsSync7, mkdirSync as mkdirSync4, writeFileSync as writeFileSync5, readFileSync as readFileSync5 } from "node:fs";
+import { existsSync as existsSync8, mkdirSync as mkdirSync4, writeFileSync as writeFileSync5, readFileSync as readFileSync6 } from "node:fs";
 import { join as join5 } from "node:path";
 var AppBuilderEngine, appBuilderEngine;
 var init_appBuilderEngine = __esm({
@@ -10852,27 +11185,31 @@ var init_appBuilderEngine = __esm({
        * Scaffolds an isolated web application with live preview
        */
       async scaffoldAndDeployWeb(params, workspaceRoot = process.cwd()) {
-        const rawSlug = (params.projectSlug || "app-preview").toLowerCase().trim();
+        if (!params.projectSlug) {
+          throw new Error("[AEGIS_BUILD_ERROR] Missing projectSlug in scaffoldAndDeployWeb invocation.");
+        }
+        const rawSlug = params.projectSlug.toLowerCase().trim();
         const safeSlug = rawSlug.replace(/[^a-z0-9_-]/g, "_").substring(0, 50);
         const appType = params.appType || "landing_page";
         const spec = params.specification || {};
         const buildDir = join5(workspaceRoot, "artifacts", "builds", safeSlug);
-        if (!existsSync7(buildDir)) {
+        if (!existsSync8(buildDir)) {
           mkdirSync4(buildDir, { recursive: true });
         }
-        const title = spec.title || `${safeSlug.replace(/[_-]/g, " ").toUpperCase()}`;
-        const description = spec.description || "Autonomous real-world deliverable generated by Aegis and J.A.R.V.I.S. Swarm.";
-        const isSolarRoofing = safeSlug.includes("solar") || safeSlug.includes("roof") || title.toLowerCase().includes("solar");
+        const title = spec.title || safeSlug.replace(/[_-]/g, " ").toUpperCase();
+        const description = spec.description || "Dynamic deliverable generated by Aegis Full-Stack Runtime.";
         let indexHtml = spec.htmlContent || "";
         let stylesCss = spec.cssContent || "";
         let appJs = spec.jsContent || "";
-        if (!indexHtml && isSolarRoofing) {
+        if (!indexHtml) {
+          const isSolarOrRoofing = safeSlug.includes("solar") || safeSlug.includes("roof") || title.toLowerCase().includes("solar") || title.toLowerCase().includes("roof");
+          const features = spec.features || (isSolarOrRoofing ? ["Commercial Roof SqFt Sizing", "Solar PV Capacity Estimator", "Battery Storage Buffer", "IRA 30% Tax Credit Calculator", "25-Year Cash Flow Projection"] : ["Autonomous System State", "Real-Time Telemetry Matrix", "Interactive Control Surface"]);
           indexHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Commercial Solar & Roofing Cost Estimation Suite</title>
+  <title>${title}</title>
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
@@ -10882,655 +11219,189 @@ var init_appBuilderEngine = __esm({
       <div class="logo">
         <span class="icon">\u26A1</span>
         <div>
-          <div class="brand">STANDARD ROOFS <span>SOLAR OS</span></div>
-          <div class="tagline">Commercial EPC Estimator & Clean Energy Suite</div>
+          <div class="brand">${title}</div>
+          <div class="tagline">${description}</div>
         </div>
       </div>
       <nav class="nav-links">
-        <a href="#calculator" class="active">Calculator</a>
-        <a href="#breakdown">Cost Matrix</a>
-        <a href="#roi">25-Year ROI</a>
-        <button class="export-btn" onclick="window.exportProposal()">Export Proposal \u2197</button>
+        <a href="#calculator" class="active">Interface</a>
+        <a href="#metrics">Telemetry</a>
+        <button class="export-btn" onclick="window.exportState()">Export State \u2197</button>
       </nav>
     </header>
 
-    <main>
-      <section class="hero-banner">
-        <div class="pill-badge">Aegis & Raphael Verified System</div>
-        <h1>Commercial Solar & Roofing Cost Estimation Suite</h1>
-        <p class="lead">Dynamic turnkey budgeting, structural load analysis, and IRA 30% Investment Tax Credit modeling.</p>
-      </section>
-
-      <section class="calculator-grid" id="calculator">
-        <!-- Input Parameters Panel -->
-        <div class="card param-panel">
-          <h2><span>\u2699\uFE0F</span> Commercial Parameters</h2>
-          
-          <div class="control-group">
-            <div class="label-row">
-              <label for="roof-sqft">Roof Surface Area</label>
-              <span id="roof-sqft-val" class="num-badge">15,000 sq ft</span>
-            </div>
-            <input type="range" id="roof-sqft" min="2000" max="100000" step="1000" value="15000">
-          </div>
-
-          <div class="control-group">
-            <div class="label-row">
-              <label for="solar-kw">Solar PV Capacity</label>
-              <span id="solar-kw-val" class="num-badge">120 kW</span>
-            </div>
-            <input type="range" id="solar-kw" min="20" max="1000" step="10" value="120">
-          </div>
-
-          <div class="control-group">
-            <div class="label-row">
-              <label for="battery-kwh">Battery Storage (BESS)</label>
-              <span id="battery-kwh-val" class="num-badge">80 kWh</span>
-            </div>
-            <input type="range" id="battery-kwh" min="0" max="500" step="20" value="80">
-          </div>
-
-          <div class="control-group">
-            <label for="roof-type">Roofing System Specification</label>
-            <select id="roof-type" class="custom-select">
-              <option value="8.50" selected>Commercial TPO Single-Ply ($8.50/sq ft)</option>
-              <option value="12.00">Standing Seam Metal ($12.00/sq ft)</option>
-              <option value="9.20">Modified Bitumen SBS ($9.20/sq ft)</option>
-              <option value="7.80">EPDM Rubber Membrane ($7.80/sq ft)</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <div class="label-row">
-              <label for="energy-rate">Utility Blended Electric Rate</label>
-              <span id="energy-rate-val" class="num-badge">$0.18 / kWh</span>
-            </div>
-            <input type="range" id="energy-rate" min="0.08" max="0.40" step="0.01" value="0.18">
-          </div>
-
-          <button class="primary-calc-btn" onclick="window.recalculateMetrics()">Run Real-Time Audit</button>
-        </div>
-
-        <!-- Real-Time Metrics & Financial Highlights -->
-        <div class="card metrics-panel">
-          <h2><span>\u{1F4CA}</span> Executive Financial Summary</h2>
-
-          <div class="metric-tiles">
-            <div class="tile">
-              <div class="tile-title">Gross Project Capex</div>
-              <div id="gross-capex" class="tile-value">$404,400</div>
-              <div class="tile-sub">Turnkey Equipment & Labor</div>
-            </div>
-
-            <div class="tile highlight-green">
-              <div class="tile-title">Federal ITC 30% Incentive</div>
-              <div id="itc-incentive" class="tile-value">-$121,320</div>
-              <div class="tile-sub">IRC \xA748 Clean Energy Credit</div>
-            </div>
-
-            <div class="tile highlight-accent">
-              <div class="tile-title">Net Capital Investment</div>
-              <div id="net-investment" class="tile-value">$283,080</div>
-              <div class="tile-sub">After Federal Incentives</div>
-            </div>
-
-            <div class="tile">
-              <div class="tile-title">Estimated Simple Payback</div>
-              <div id="payback-period" class="tile-value">9.0 Years</div>
-              <div class="tile-sub">11.1% Unlevered IRR</div>
-            </div>
-
-            <div class="tile">
-              <div class="tile-title">Annual Clean Generation</div>
-              <div id="annual-gen" class="tile-value">174,000 kWh</div>
-              <div class="tile-sub">Offsets ~82 Metric Tons CO\u2082</div>
-            </div>
-
-            <div class="tile highlight-gold">
-              <div class="tile-title">25-Year Net Cash Flow</div>
-              <div id="lifetime-cashflow" class="tile-value">$612,400</div>
-              <div class="tile-sub">Net Utility Bill Savings</div>
-            </div>
-          </div>
-
-          <div class="telemetry-bar">
-            <span class="pulse-dot"></span>
-            <span id="telemetry-status">System Telemetry: Optimal | Solar Insolation: 4.8 Peak Sun Hours</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Cost Breakdown Table -->
-      <section class="card table-card" id="breakdown">
-        <h2><span>\u{1F4D1}</span> Itemized Commercial Cost Schedule</h2>
-        <div class="table-wrapper">
-          <table class="cost-table">
-            <thead>
-              <tr>
-                <th>Scope Item</th>
-                <th>Specification</th>
-                <th>Quantity</th>
-                <th>Estimated Subtotal</th>
-              </tr>
-            </thead>
-            <tbody id="cost-table-body">
-              <tr>
-                <td>Commercial Roofing Membrane</td>
-                <td id="roof-type-name">TPO Single-Ply (60-mil)</td>
-                <td id="roof-area-cell">15,000 sq ft</td>
-                <td id="roof-cost-cell">$127,500.00</td>
-              </tr>
-              <tr>
-                <td>Tier-1 Bifacial PV Modules</td>
-                <td>550W Commercial Modules</td>
-                <td id="solar-capacity-cell">120 kW (218 Panels)</td>
-                <td id="solar-cost-cell">$114,000.00</td>
-              </tr>
-              <tr>
-                <td>Inverters & Power Electronics</td>
-                <td>Commercial 3-Phase String</td>
-                <td>2 Units</td>
-                <td>$28,500.00</td>
-              </tr>
-              <tr>
-                <td>Battery Storage System</td>
-                <td>Commercial BESS</td>
-                <td id="battery-cell">80 kWh</td>
-                <td id="battery-cost-cell">$52,000.00</td>
-              </tr>
-              <tr>
-                <td>Ballasted Racking & Mechanicals</td>
-                <td>140mph Wind Rated</td>
-                <td>120 kW Array</td>
-                <td>$18,200.00</td>
-              </tr>
-              <tr>
-                <td>Electrical BOS & Interconnect</td>
-                <td>NEC 2023 Compliant</td>
-                <td>1 Commercial Lot</td>
-                <td>$12,400.00</td>
-              </tr>
-              <tr>
-                <td>Engineering, Permitting & Testing</td>
-                <td>PE Stamped Structural</td>
-                <td>Turnkey</td>
-                <td>$15,000.00</td>
-              </tr>
-              <tr>
-                <td>Master Electrician & Roofing Labor</td>
-                <td>Certified Crew</td>
-                <td>320 Hours</td>
-                <td>$36,800.00</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-
-    <footer>
-      <p>Autonomous Engineering Deliverable generated by <strong>Aegis (Full-Stack Engineer) & Raphael (Lord of Wisdom)</strong></p>
-      <p class="f-sub">Master Sri High Command &bull; J.A.R.V.I.S. Mark-V Sovereign Architecture</p>
-    </footer>
-  </div>
-  <script src="app.js"></script>
-</body>
-</html>`;
-          stylesCss = `
-:root {
-  --bg: #0b0f19;
-  --surface: #131b2e;
-  --surface-alt: #1c2640;
-  --border: #232f4e;
-  --border-focus: #38bdf8;
-  --accent: #38bdf8;
-  --accent-glow: rgba(56, 189, 248, 0.2);
-  --success: #34d399;
-  --gold: #fbbf24;
-  --text: #f8fafc;
-  --text-muted: #94a3b8;
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  min-height: 100vh;
-  line-height: 1.5;
-}
-
-.app-shell {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 24px;
-}
-
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  margin-bottom: 32px;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.logo .icon {
-  font-size: 28px;
-}
-.brand {
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-.brand span { color: var(--accent); }
-.tagline {
-  font-size: 11px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-.nav-links a {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 600;
-  transition: color 0.2s;
-}
-.nav-links a:hover, .nav-links a.active { color: var(--text); }
-
-.export-btn {
-  background: var(--accent);
-  color: #0b0f19;
-  border: none;
-  padding: 8px 18px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.export-btn:hover { opacity: 0.9; }
-
-.hero-banner {
-  text-align: center;
-  margin-bottom: 36px;
-}
-.pill-badge {
-  display: inline-block;
-  background: rgba(56, 189, 248, 0.12);
-  color: var(--accent);
-  border: 1px solid var(--border-focus);
-  padding: 5px 14px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  margin-bottom: 16px;
-}
-.hero-banner h1 {
-  font-size: 38px;
-  font-weight: 800;
-  letter-spacing: -1px;
-  margin-bottom: 12px;
-}
-.lead {
-  font-size: 16px;
-  color: var(--text-muted);
-  max-width: 680px;
-  margin: 0 auto;
-}
-
-.calculator-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.25fr;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 24px;
-}
-.card h2 {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.control-group {
-  margin-bottom: 20px;
-}
-.label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-.num-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
-  background: rgba(56, 189, 248, 0.1);
-  padding: 2px 8px;
-  border-radius: 6px;
-}
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-.custom-select {
-  width: 100%;
-  padding: 10px 14px;
-  background: var(--surface-alt);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  outline: none;
-}
-.primary-calc-btn {
-  width: 100%;
-  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
-  color: #fff;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  margin-top: 8px;
-}
-
-.metric-tiles {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.tile {
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 18px;
-}
-.tile.highlight-green { border-color: rgba(52, 211, 153, 0.4); }
-.tile.highlight-green .tile-value { color: var(--success); }
-.tile.highlight-accent { border-color: rgba(56, 189, 248, 0.4); }
-.tile.highlight-accent .tile-value { color: var(--accent); }
-.tile.highlight-gold { border-color: rgba(251, 191, 36, 0.4); }
-.tile.highlight-gold .tile-value { color: var(--gold); }
-
-.tile-title {
-  font-size: 12px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-.tile-value {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  margin-bottom: 4px;
-}
-.tile-sub {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.telemetry-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #060911;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--success);
-  border-radius: 50%;
-  box-shadow: 0 0 8px var(--success);
-}
-
-.table-wrapper {
-  overflow-x: auto;
-}
-.cost-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 14px;
-}
-.cost-table th {
-  padding: 12px 16px;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  text-transform: uppercase;
-}
-.cost-table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-.cost-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-footer {
-  text-align: center;
-  margin-top: 48px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
-  font-size: 13px;
-  color: var(--text-muted);
-}
-.f-sub {
-  font-size: 11px;
-  margin-top: 4px;
-  opacity: 0.7;
-}
-
-@media (max-width: 900px) {
-  .calculator-grid { grid-template-columns: 1fr; }
-  .metric-tiles { grid-template-columns: 1fr; }
-}
-`;
-          appJs = `
-// Commercial Solar & Roofing Real-Time Calculation Engine
-const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const numberFmt = new Intl.NumberFormat('en-US');
-
-function calculate() {
-  const roofSqft = parseFloat(document.getElementById('roof-sqft').value) || 15000;
-  const solarKw = parseFloat(document.getElementById('solar-kw').value) || 120;
-  const batteryKwh = parseFloat(document.getElementById('battery-kwh').value) || 80;
-  const roofRate = parseFloat(document.getElementById('roof-type').value) || 8.50;
-  const energyRate = parseFloat(document.getElementById('energy-rate').value) || 0.18;
-
-  // Update Labels
-  document.getElementById('roof-sqft-val').textContent = numberFmt.format(roofSqft) + ' sq ft';
-  document.getElementById('solar-kw-val').textContent = solarKw + ' kW';
-  document.getElementById('battery-kwh-val').textContent = batteryKwh + ' kWh';
-  document.getElementById('energy-rate-val').textContent = '$' + energyRate.toFixed(2) + ' / kWh';
-
-  // Cost Equations
-  const roofingCost = roofSqft * roofRate;
-  const solarCost = solarKw * 950;
-  const invertersCost = Math.max(1, Math.round(solarKw / 60)) * 14250;
-  const batteryCost = batteryKwh * 650;
-  const rackingCost = solarKw * 151.67;
-  const ebosCost = 12400;
-  const softCosts = 15000;
-  const laborCost = Math.round(solarKw * 2.67) * 115;
-
-  const grossCapex = roofingCost + solarCost + invertersCost + batteryCost + rackingCost + ebosCost + softCosts + laborCost;
-  const itcIncentive = grossCapex * 0.30;
-  const netInvestment = grossCapex - itcIncentive;
-
-  // Performance Equations
-  const annualGenKwh = solarKw * 1450;
-  const annualSavings = annualGenKwh * energyRate;
-  const paybackYears = annualSavings > 0 ? (netInvestment / annualSavings).toFixed(1) : 'N/A';
-  const lifetimeSavings = (annualSavings * 25 * 1.15) - netInvestment;
-
-  // Update Metrics
-  document.getElementById('gross-capex').textContent = currencyFmt.format(grossCapex);
-  document.getElementById('itc-incentive').textContent = '-' + currencyFmt.format(itcIncentive);
-  document.getElementById('net-investment').textContent = currencyFmt.format(netInvestment);
-  document.getElementById('payback-period').textContent = paybackYears + ' Years';
-  document.getElementById('annual-gen').textContent = numberFmt.format(annualGenKwh) + ' kWh';
-  document.getElementById('lifetime-cashflow').textContent = currencyFmt.format(lifetimeSavings);
-
-  // Update Breakdown Table
-  const roofSelect = document.getElementById('roof-type');
-  document.getElementById('roof-type-name').textContent = roofSelect.options[roofSelect.selectedIndex].text.split('(')[0].trim();
-  document.getElementById('roof-area-cell').textContent = numberFmt.format(roofSqft) + ' sq ft';
-  document.getElementById('roof-cost-cell').textContent = currencyFmt.format(roofingCost);
-  document.getElementById('solar-capacity-cell').textContent = solarKw + ' kW (' + Math.round(solarKw * 1.82) + ' Panels)';
-  document.getElementById('solar-cost-cell').textContent = currencyFmt.format(solarCost);
-  document.getElementById('battery-cell').textContent = batteryKwh + ' kWh';
-  document.getElementById('battery-cost-cell').textContent = currencyFmt.format(batteryCost);
-
-  document.getElementById('telemetry-status').textContent = 'Telemetry: Active | Recomputed ' + new Date().toLocaleTimeString();
-}
-
-// Bind live listeners
-['roof-sqft', 'solar-kw', 'battery-kwh', 'energy-rate'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('input', calculate);
-});
-
-const roofTypeEl = document.getElementById('roof-type');
-if (roofTypeEl) roofTypeEl.addEventListener('change', calculate);
-
-window.recalculateMetrics = calculate;
-window.exportProposal = function() {
-  alert('Executive PDF Proposal and Excel breakdown queued via Friday Document Lead.');
-};
-
-// Initial calculation
-calculate();
-`;
-        } else if (!indexHtml) {
-          indexHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <link rel="stylesheet" href="styles.css">
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-</head>
-<body>
-  <div class="app-shell">
-    <header class="navbar">
-      <div class="logo">\u26A1 ${title.split(" ")[0]}<span>OS</span></div>
-      <nav>
-        <a href="#overview">Overview</a>
-        <a href="#features">Features</a>
-        <button class="cta-pill" onclick="window.runInspection()">Run Verification</button>
-      </nav>
-    </header>
-
-    <main>
-      <section class="hero" id="overview">
-        <div class="badge">J.A.R.V.I.S. Mark-V Autonomous Build</div>
+    <main class="content-container">
+      <section class="hero-panel" id="calculator">
+        <div class="badge">Aegis Production Runtime &bull; Active</div>
         <h1>${title}</h1>
         <p class="subtitle">${description}</p>
-        <div class="action-row">
-          <button class="primary-btn" onclick="window.runInspection()">Run Live Telemetry</button>
-          <a href="#features" class="secondary-btn">Explore Architecture</a>
+
+        <div class="calculator-grid">
+          <div class="controls-card">
+            <h3>Configuration Parameters</h3>
+            <div class="input-group">
+              <label for="roof-sqft">Roof Surface Area (SqFt)</label>
+              <input type="range" id="roof-sqft" min="5000" max="250000" step="2500" value="45000" oninput="calculate()">
+              <div class="val-display"><span id="roof-sqft-val">45,000</span> sqft</div>
+            </div>
+
+            <div class="input-group">
+              <label for="solar-kw">Solar PV Capacity (kW DC)</label>
+              <input type="range" id="solar-kw" min="50" max="2500" step="25" value="350" oninput="calculate()">
+              <div class="val-display"><span id="solar-kw-val">350</span> kW</div>
+            </div>
+
+            <div class="input-group">
+              <label for="battery-kwh">Battery Storage Buffer (kWh)</label>
+              <input type="range" id="battery-kwh" min="0" max="2000" step="50" value="500" oninput="calculate()">
+              <div class="val-display"><span id="battery-kwh-val">500</span> kWh</div>
+            </div>
+          </div>
+
+          <div class="results-card" id="metrics">
+            <h3>Executive Summary</h3>
+            <div class="metric-row">
+              <span>Gross Capex</span>
+              <strong id="gross-capex">$0</strong>
+            </div>
+            <div class="metric-row">
+              <span>Federal ITC Incentive (30%)</span>
+              <strong id="itc-incentive" class="highlight-green">-$0</strong>
+            </div>
+            <div class="metric-row total">
+              <span>Net Capital Investment</span>
+              <strong id="net-capex">$0</strong>
+            </div>
+            <div class="metric-row">
+              <span>Estimated Annual Production</span>
+              <strong id="annual-mwh">0 MWh</strong>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="console-preview">
-        <div class="console-header">
-          <span class="dot red"></span>
-          <span class="dot yellow"></span>
-          <span class="dot green"></span>
-          <span class="console-title">aegis-runtime@live-preview ~ %</span>
+      <section class="features-panel">
+        <h3>System Capabilities</h3>
+        <div class="features-grid">
+          ${features.map((f) => `<div class="feature-card"><span class="check">\u2713</span> <span>${f}</span></div>`).join("\n          ")}
         </div>
-        <pre id="console-output">\u26A1 Aegis Build Daemon: Workspace [${safeSlug}] active on port 3005.
-Ready for client interaction.</pre>
       </section>
     </main>
 
-    <footer>
-      <p>Sovereign build generated by <strong>Aegis & Raphael</strong> &bull; Master Sri High Command</p>
+    <footer class="app-footer">
+      <p>Sovereign build generated dynamically by <strong>Aegis Full-Stack Runtime</strong> &bull; J.A.R.V.I.S. Core</p>
     </footer>
   </div>
   <script src="app.js"></script>
 </body>
 </html>`;
+        }
+        if (!stylesCss) {
           stylesCss = `
 :root {
   --bg: #090a0f;
   --surface: #12141c;
+  --surface-alt: #1a1d28;
   --border: #232738;
   --accent: #38bdf8;
+  --accent-cyan: #06b6d4;
+  --green: #10b981;
   --text: #f8fafc;
   --muted: #94a3b8;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; min-height: 100vh; }
+body.dark-mode { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; min-height: 100vh; }
 .app-shell { max-width: 1200px; margin: 0 auto; padding: 24px; }
-.navbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); }
-.logo { font-size: 20px; font-weight: 800; }
-.logo span { color: var(--accent); }
-.cta-pill { background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent); color: var(--accent); padding: 8px 16px; border-radius: 999px; cursor: pointer; }
-.hero { padding: 60px 0 30px; text-align: center; }
-.badge { display: inline-block; background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); padding: 6px 14px; border-radius: 999px; font-size: 12px; margin-bottom: 20px; }
-.hero h1 { font-size: 44px; font-weight: 800; margin-bottom: 16px; }
-.subtitle { font-size: 16px; color: var(--muted); max-width: 600px; margin: 0 auto 24px; }
-.console-preview { background: #000; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 40px; }
-.console-header { background: #1e2230; padding: 10px 16px; display: flex; align-items: center; gap: 8px; }
-.dot { width: 10px; height: 10px; border-radius: 50%; }
-.red { background: #ef4444; } .yellow { background: #f59e0b; } .green { background: #10b981; }
-pre { padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #38bdf8; }
-footer { text-align: center; padding: 30px 0; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); margin-top: 40px; }
+.navbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo .icon { font-size: 28px; }
+.brand { font-size: 20px; font-weight: 800; color: var(--text); }
+.tagline { font-size: 12px; color: var(--muted); }
+.nav-links { display: flex; align-items: center; gap: 20px; }
+.nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; }
+.nav-links a.active { color: var(--accent); }
+.export-btn { background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent); color: var(--accent); padding: 8px 16px; border-radius: 999px; cursor: pointer; font-weight: 600; }
+.hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 36px; margin-bottom: 32px; }
+.badge { display: inline-block; background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); padding: 6px 14px; border-radius: 999px; font-size: 12px; margin-bottom: 16px; }
+.hero-panel h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; color: var(--text); }
+.subtitle { font-size: 15px; color: var(--muted); margin-bottom: 28px; }
+.calculator-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.controls-card, .results-card { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+.controls-card h3, .results-card h3 { font-size: 18px; margin-bottom: 20px; color: var(--accent); }
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.input-group input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.val-display { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--text); margin-top: 6px; }
+.metric-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.metric-row.total { font-size: 18px; font-weight: 700; border-bottom: 2px solid var(--accent); margin: 8px 0; color: var(--accent); }
+.highlight-green { color: var(--green); }
+.features-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-bottom: 32px; }
+.features-panel h3 { font-size: 20px; margin-bottom: 20px; color: var(--accent); }
+.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.feature-card { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+.check { color: var(--green); font-weight: bold; }
+.app-footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 0; border-top: 1px solid var(--border); }
+@media (max-width: 768px) {
+  .calculator-grid { grid-template-columns: 1fr; }
+}
 `;
+        }
+        if (!appJs) {
           appJs = `
-window.runInspection = function() {
-  const output = document.getElementById('console-output');
-  output.textContent += '\\n> [Aegis] Inspecting DOM elements and memory bounds...';
-  setTimeout(() => {
-    output.textContent += '\\n> [Raphael] All assertions verified: 0 memory leaks, 100% responsive viewport.';
-  }, 300);
+function formatCurrency(val) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+}
+
+function calculate() {
+  const roofSqftEl = document.getElementById('roof-sqft');
+  const solarKwEl = document.getElementById('solar-kw');
+  const batteryKwhEl = document.getElementById('battery-kwh');
+
+  const sqft = roofSqftEl ? parseFloat(roofSqftEl.value) || 0 : 0;
+  const kw = solarKwEl ? parseFloat(solarKwEl.value) || 0 : 0;
+  const batteryKwh = batteryKwhEl ? parseFloat(batteryKwhEl.value) || 0 : 0;
+
+  const roofValEl = document.getElementById('roof-sqft-val');
+  const solarValEl = document.getElementById('solar-kw-val');
+  const batteryValEl = document.getElementById('battery-kwh-val');
+
+  if (roofValEl) roofValEl.textContent = sqft.toLocaleString();
+  if (solarValEl) solarValEl.textContent = kw.toLocaleString();
+  if (batteryValEl) batteryValEl.textContent = batteryKwh.toLocaleString();
+
+  // Dynamic calculations
+  const roofCost = sqft * 11.5;
+  const solarCost = kw * 1850;
+  const batteryCost = batteryKwh * 650;
+
+  const grossCapex = roofCost + solarCost + batteryCost;
+  const itcIncentive = (solarCost + batteryCost) * 0.30;
+  const netCapex = grossCapex - itcIncentive;
+  const annualMwh = Math.round(kw * 1.45);
+
+  const grossEl = document.getElementById('gross-capex');
+  const itcEl = document.getElementById('itc-incentive');
+  const netEl = document.getElementById('net-capex');
+  const mwhEl = document.getElementById('annual-mwh');
+
+  if (grossEl) grossEl.textContent = formatCurrency(grossCapex);
+  if (itcEl) itcEl.textContent = '-' + formatCurrency(itcIncentive);
+  if (netEl) netEl.textContent = formatCurrency(netCapex);
+  if (mwhEl) mwhEl.textContent = annualMwh.toLocaleString() + ' MWh';
+
+  return { grossCapex, itcIncentive, netCapex, annualMwh };
+}
+
+window.calculate = calculate;
+window.exportState = function() {
+  const result = calculate();
+  alert('State Exported:\\n' + JSON.stringify(result, null, 2));
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+  calculate();
+});
+calculate();
 `;
         }
         const filesCreated = [];
@@ -11558,10 +11429,10 @@ window.runInspection = function() {
         const safeSlug = projectSlug.replace(/[^a-z0-9_-]/g, "_");
         const safeFile = (fileName || "index.html").replace(/[^a-zA-Z0-9._-]/g, "_");
         const filePath = join5(workspaceRoot, "artifacts", "builds", safeSlug, safeFile);
-        if (!existsSync7(filePath)) {
+        if (!existsSync8(filePath)) {
           return null;
         }
-        const content = readFileSync5(filePath);
+        const content = readFileSync6(filePath);
         let contentType = "text/plain";
         if (safeFile.endsWith(".html")) contentType = "text/html; charset=UTF-8";
         else if (safeFile.endsWith(".css")) contentType = "text/css; charset=UTF-8";
@@ -11583,11 +11454,11 @@ __export(surgicalFileTools_exports, {
   workspaceViewTree: () => workspaceViewTree,
   workspaceWriteFile: () => workspaceWriteFile
 });
-import { existsSync as existsSync8, mkdirSync as mkdirSync5, readFileSync as readFileSync6, writeFileSync as writeFileSync6, readdirSync as readdirSync3, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync9, mkdirSync as mkdirSync5, readFileSync as readFileSync7, writeFileSync as writeFileSync6, readdirSync as readdirSync3, statSync as statSync3 } from "node:fs";
 import { join as join6, resolve as resolve5, relative as relative3, dirname as dirname4 } from "node:path";
 function workspaceViewTree(directory = ".", maxDepth = 3, workspaceRoot = process.cwd()) {
   const root = resolve5(workspaceRoot, directory);
-  if (!existsSync8(root)) {
+  if (!existsSync9(root)) {
     return `[TREE_ERROR] Directory not found: ${directory}`;
   }
   const lines = [relative3(workspaceRoot, root) || "."];
@@ -11622,10 +11493,10 @@ function workspaceViewTree(directory = ".", maxDepth = 3, workspaceRoot = proces
 }
 function workspaceReadFile(filePath, startLine = 1, endLine, workspaceRoot = process.cwd()) {
   const targetPath = resolve5(workspaceRoot, filePath);
-  if (!existsSync8(targetPath)) {
+  if (!existsSync9(targetPath)) {
     throw new Error(`File not found: ${filePath}`);
   }
-  const raw2 = readFileSync6(targetPath, "utf-8");
+  const raw2 = readFileSync7(targetPath, "utf-8");
   const lines = raw2.split(/\r?\n/);
   const totalLines = lines.length;
   const s = Math.max(1, startLine);
@@ -11645,10 +11516,10 @@ function workspaceReadFile(filePath, startLine = 1, endLine, workspaceRoot = pro
 }
 function workspacePatchFile(filePath, oldString, newString, workspaceRoot = process.cwd()) {
   const targetPath = resolve5(workspaceRoot, filePath);
-  if (!existsSync8(targetPath)) {
+  if (!existsSync9(targetPath)) {
     throw new Error(`Cannot patch non-existent file: ${filePath}`);
   }
-  const raw2 = readFileSync6(targetPath, "utf-8");
+  const raw2 = readFileSync7(targetPath, "utf-8");
   if (raw2.includes(oldString)) {
     const patched = raw2.replace(oldString, newString);
     writeFileSync6(targetPath, patched, "utf-8");
@@ -11656,6 +11527,7 @@ function workspacePatchFile(filePath, oldString, newString, workspaceRoot = proc
       success: true,
       filePath: relative3(workspaceRoot, targetPath),
       replacements: 1,
+      occurrencesReplaced: 1,
       message: `Successfully replaced target substring in ${filePath}.`
     };
   }
@@ -11669,6 +11541,7 @@ function workspacePatchFile(filePath, oldString, newString, workspaceRoot = proc
       success: true,
       filePath: relative3(workspaceRoot, targetPath),
       replacements: 1,
+      occurrencesReplaced: 1,
       message: `Successfully replaced normalized substring in ${filePath}.`
     };
   }
@@ -11680,6 +11553,7 @@ function workspacePatchFile(filePath, oldString, newString, workspaceRoot = proc
       success: true,
       filePath: relative3(workspaceRoot, targetPath),
       replacements: 1,
+      occurrencesReplaced: 1,
       message: `Successfully patched trimmed single-line match in ${filePath}.`
     };
   }
@@ -11688,7 +11562,7 @@ function workspacePatchFile(filePath, oldString, newString, workspaceRoot = proc
 function workspaceWriteFile(filePath, content, workspaceRoot = process.cwd()) {
   const targetPath = resolve5(workspaceRoot, filePath);
   const dir = dirname4(targetPath);
-  if (!existsSync8(dir)) {
+  if (!existsSync9(dir)) {
     mkdirSync5(dir, { recursive: true });
   }
   writeFileSync6(targetPath, content, "utf-8");
@@ -11700,7 +11574,7 @@ function workspaceWriteFile(filePath, content, workspaceRoot = process.cwd()) {
 }
 function workspaceGrep(pattern, directory = ".", maxResults = 40, workspaceRoot = process.cwd()) {
   const root = resolve5(workspaceRoot, directory);
-  if (!existsSync8(root)) return [];
+  if (!existsSync9(root)) return [];
   const results = [];
   const regex = new RegExp(pattern, "i");
   function walk(currentDir) {
@@ -11719,12 +11593,13 @@ function workspaceGrep(pattern, directory = ".", maxResults = 40, workspaceRoot 
         if (stat.isDirectory()) {
           walk(fullPath);
         } else if (stat.isFile() && stat.size < 5e5) {
-          const content = readFileSync6(fullPath, "utf-8");
+          const content = readFileSync7(fullPath, "utf-8");
           const lines = content.split(/\r?\n/);
           for (let i = 0; i < lines.length; i++) {
             if (regex.test(lines[i])) {
               results.push({
                 file: relative3(workspaceRoot, fullPath),
+                filePath: fullPath,
                 line: i + 1,
                 content: lines[i].trim().substring(0, 140)
               });
@@ -11853,322 +11728,6 @@ var init_sandboxTerminalTool = __esm({
       /shutdown/i,
       /reboot/i
     ];
-  }
-});
-
-// src/services/googleWorkspaceService.ts
-var googleWorkspaceService_exports = {};
-__export(googleWorkspaceService_exports, {
-  GoogleWorkspaceService: () => GoogleWorkspaceService,
-  googleWorkspaceService: () => googleWorkspaceService
-});
-import { google } from "googleapis";
-import { existsSync as existsSync9, readFileSync as readFileSync7 } from "node:fs";
-var GoogleWorkspaceService, googleWorkspaceService;
-var init_googleWorkspaceService = __esm({
-  "src/services/googleWorkspaceService.ts"() {
-    "use strict";
-    GoogleWorkspaceService = class _GoogleWorkspaceService {
-      static instance;
-      authClient = null;
-      gmailClient = null;
-      calendarClient = null;
-      constructor(customCredentials) {
-        this.initializeAuth(customCredentials);
-      }
-      static getInstance() {
-        if (!_GoogleWorkspaceService.instance) {
-          _GoogleWorkspaceService.instance = new _GoogleWorkspaceService();
-        }
-        return _GoogleWorkspaceService.instance;
-      }
-      /**
-       * Initialize OAuth2 client from environment or custom config
-       */
-      initializeAuth(custom) {
-        try {
-          let clientId = custom?.clientId || process.env.GOOGLE_CLIENT_ID;
-          let clientSecret = custom?.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
-          let refreshToken = custom?.refreshToken || process.env.GOOGLE_REFRESH_TOKEN;
-          let accessToken = custom?.accessToken || process.env.GOOGLE_ACCESS_TOKEN;
-          let redirectUri = custom?.redirectUri || process.env.GOOGLE_REDIRECT_URI || "http://localhost:3005/api/oauth/google/callback";
-          const envCreds = process.env.GOOGLE_WORKSPACE_CREDENTIALS;
-          if (envCreds && (!clientId || !clientSecret)) {
-            try {
-              const parsed = envCreds.trim().startsWith("{") ? JSON.parse(envCreds) : existsSync9(envCreds) ? JSON.parse(readFileSync7(envCreds, "utf-8")) : null;
-              if (parsed) {
-                const installed = parsed.installed || parsed.web || parsed;
-                clientId = clientId || installed.client_id;
-                clientSecret = clientSecret || installed.client_secret;
-                refreshToken = refreshToken || installed.refresh_token;
-                accessToken = accessToken || installed.access_token;
-              }
-            } catch {
-            }
-          }
-          if (clientId && (clientSecret || refreshToken || accessToken)) {
-            const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-            oauth2Client.setCredentials({
-              refresh_token: refreshToken,
-              access_token: accessToken
-            });
-            this.authClient = oauth2Client;
-            this.gmailClient = google.gmail({ version: "v1", auth: oauth2Client });
-            this.calendarClient = google.calendar({ version: "v3", auth: oauth2Client });
-            return true;
-          }
-        } catch (err) {
-          console.warn("\u26A0\uFE0F [GoogleWorkspace] OAuth initialization notice:", err?.message || err);
-        }
-        this.authClient = null;
-        this.gmailClient = null;
-        this.calendarClient = null;
-        return false;
-      }
-      isConfigured() {
-        return Boolean(this.authClient && (this.gmailClient || this.calendarClient));
-      }
-      /**
-       * Actionable fallback prompt pointing to Google Cloud Console
-       */
-      getMissingCredentialsGuide() {
-        return {
-          configured: false,
-          error: "GOOGLE_WORKSPACE_CREDENTIALS_MISSING",
-          message: "Google Workspace credentials not configured. Please supply GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN.",
-          setupGuide: `[GOOGLE WORKSPACE OAUTH SETUP INSTRUCTIONS]
-1. Open Google Cloud Console: https://console.cloud.google.com/
-2. Create or select a project (e.g., 'Jarvis-Sovereign-Core').
-3. Enable 'Gmail API' and 'Google Calendar API' in APIs & Services > Library.
-4. Go to 'APIs & Services' > 'OAuth Consent Screen' and set User Type to External/Internal.
-5. In 'Credentials' > 'Create Credentials' > 'OAuth Client ID' (Desktop App or Web Application).
-6. Set redirect URI: http://localhost:3005/api/oauth/google/callback
-7. Export your credentials to your .env file:
-   GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"
-   GOOGLE_CLIENT_SECRET="your_client_secret"
-   GOOGLE_REFRESH_TOKEN="your_refresh_token"
-   (or provide GOOGLE_WORKSPACE_CREDENTIALS='{"client_id":"...","client_secret":"...","refresh_token":"..."}')`,
-          setupUrl: "https://console.cloud.google.com/apis/credentials"
-        };
-      }
-      /**
-       * Crafts an RFC 2822 base64url-encoded message for Gmail API
-       */
-      craftRfc2822Message(to, subject, bodyHtml, cc) {
-        const utf8Subject = `=?utf-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
-        const parts = [
-          `To: ${to}`,
-          ...cc ? [`Cc: ${cc}`] : [],
-          `Subject: ${utf8Subject}`,
-          "MIME-Version: 1.0",
-          "Content-Type: text/html; charset=utf-8",
-          "Content-Transfer-Encoding: base64",
-          "",
-          Buffer.from(bodyHtml, "utf-8").toString("base64")
-        ];
-        const fullMessage = parts.join("\r\n");
-        return Buffer.from(fullMessage, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      }
-      /**
-       * Constructs the Google Calendar event insert schema with Google Meet & reminders
-       */
-      buildMeetingEventSchema(params) {
-        const attendeesList = Array.isArray(params.attendees) ? params.attendees : params.attendees ? params.attendees.split(/[,;]/).map((a) => a.trim()).filter(Boolean) : [];
-        return {
-          summary: params.title,
-          description: params.description || "Scheduled autonomously by J.A.R.V.I.S. Sovereign Executive Intelligence",
-          start: {
-            dateTime: new Date(params.startIso).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-          },
-          end: {
-            dateTime: new Date(params.endIso).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-          },
-          attendees: attendeesList.map((email) => ({ email })),
-          conferenceData: {
-            createRequest: {
-              requestId: `meet_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-              conferenceSolutionKey: {
-                type: "hangoutsMeet"
-              }
-            }
-          },
-          reminders: {
-            useDefault: false,
-            overrides: [
-              { method: "popup", minutes: 15 },
-              { method: "email", minutes: 15 }
-            ]
-          }
-        };
-      }
-      /**
-       * 1. Gmail Dispatcher: send_email
-       */
-      async send_email(params) {
-        if (!this.isConfigured()) {
-          return {
-            ...this.getMissingCredentialsGuide(),
-            action: "send_email",
-            payload: params
-          };
-        }
-        try {
-          const raw2 = this.craftRfc2822Message(params.to, params.subject, params.bodyHtml, params.cc);
-          const res = await this.gmailClient.users.messages.send({
-            userId: "me",
-            requestBody: { raw: raw2 }
-          });
-          return {
-            success: true,
-            service: "gmail",
-            action: "send_email",
-            messageId: res.data.id,
-            threadId: res.data.threadId,
-            to: params.to,
-            subject: params.subject,
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          };
-        } catch (err) {
-          return {
-            success: false,
-            error: err?.message || String(err),
-            action: "send_email"
-          };
-        }
-      }
-      /**
-       * 1. Gmail Dispatcher: draft_email
-       */
-      async draft_email(params) {
-        if (!this.isConfigured()) {
-          return {
-            ...this.getMissingCredentialsGuide(),
-            action: "draft_email",
-            payload: params
-          };
-        }
-        try {
-          const raw2 = this.craftRfc2822Message(params.to, params.subject, params.bodyHtml);
-          const res = await this.gmailClient.users.drafts.create({
-            userId: "me",
-            requestBody: {
-              message: { raw: raw2 }
-            }
-          });
-          return {
-            success: true,
-            service: "gmail",
-            action: "draft_email",
-            draftId: res.data.id,
-            to: params.to,
-            subject: params.subject,
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          };
-        } catch (err) {
-          return {
-            success: false,
-            error: err?.message || String(err),
-            action: "draft_email"
-          };
-        }
-      }
-      /**
-       * 2. Calendar Scheduler: schedule_meeting with automatic Google Meet
-       */
-      async schedule_meeting(params) {
-        const schema = this.buildMeetingEventSchema(params);
-        if (!this.isConfigured()) {
-          const pseudoMeetId = `meet.google.com/jrv-${Math.random().toString(36).substring(2, 6)}-${Math.random().toString(36).substring(2, 5)}`;
-          return {
-            ...this.getMissingCredentialsGuide(),
-            action: "schedule_meeting",
-            simulatedEvent: {
-              title: params.title,
-              start: schema.start.dateTime,
-              end: schema.end.dateTime,
-              attendees: schema.attendees,
-              meetLink: `https://${pseudoMeetId}`,
-              conferenceSchema: schema.conferenceData,
-              reminders: schema.reminders
-            }
-          };
-        }
-        try {
-          const res = await this.calendarClient.events.insert({
-            calendarId: "primary",
-            conferenceDataVersion: 1,
-            requestBody: schema
-          });
-          const meetLink = res.data.hangoutLink || res.data.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri || null;
-          return {
-            success: true,
-            service: "calendar",
-            action: "schedule_meeting",
-            eventId: res.data.id,
-            htmlLink: res.data.htmlLink,
-            meetLink,
-            title: params.title,
-            startTime: res.data.start?.dateTime || params.startIso,
-            endTime: res.data.end?.dateTime || params.endIso,
-            attendees: schema.attendees,
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          };
-        } catch (err) {
-          return {
-            success: false,
-            error: err?.message || String(err),
-            action: "schedule_meeting"
-          };
-        }
-      }
-      /**
-       * 2. Calendar Scheduler: list_upcoming_meetings
-       */
-      async list_upcoming_meetings(maxResults = 10) {
-        if (!this.isConfigured()) {
-          return {
-            ...this.getMissingCredentialsGuide(),
-            action: "list_upcoming_meetings",
-            count: 0,
-            events: []
-          };
-        }
-        try {
-          const res = await this.calendarClient.events.list({
-            calendarId: "primary",
-            timeMin: (/* @__PURE__ */ new Date()).toISOString(),
-            maxResults,
-            singleEvents: true,
-            orderBy: "startTime"
-          });
-          const items = (res.data.items || []).map((item) => ({
-            id: item.id,
-            summary: item.summary || "Untitled Meeting",
-            start: item.start?.dateTime || item.start?.date,
-            end: item.end?.dateTime || item.end?.date,
-            meetLink: item.hangoutLink || item.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri || null,
-            attendees: (item.attendees || []).map((a) => a.email),
-            htmlLink: item.htmlLink
-          }));
-          return {
-            success: true,
-            service: "calendar",
-            action: "list_upcoming_meetings",
-            count: items.length,
-            events: items
-          };
-        } catch (err) {
-          return {
-            success: false,
-            error: err?.message || String(err),
-            action: "list_upcoming_meetings"
-          };
-        }
-      }
-    };
-    googleWorkspaceService = GoogleWorkspaceService.getInstance();
   }
 });
 
@@ -13518,7 +13077,16 @@ var init_ModelRouter = __esm({
           { provider: "openrouter", model: "deepseek/deepseek-r1:free" },
           { provider: "gemini", model: "gemini-flash-lite-latest" }
         ],
-        toolScope: ["neon_sql_query", "query_public_service", "execute_sandbox_command", "finish_task"]
+        toolScope: [
+          "neon_sql_query",
+          "query_public_service",
+          "terminal_run_command",
+          "execute_sandbox_command",
+          "workspace_read_file",
+          "workspace_view_tree",
+          "workspace_grep",
+          "finish_task"
+        ]
       },
       aegis: {
         primaryProvider: "openrouter",
@@ -13528,16 +13096,39 @@ var init_ModelRouter = __esm({
           { provider: "openrouter", model: "qwen/qwen-2.5-coder-32b-instruct:free" },
           { provider: "openai", model: "gpt-4o" }
         ],
-        toolScope: ["aegis_scaffold_and_deploy_web", "execute_sandbox_command", "github_manage_file", "finish_task"]
+        toolScope: [
+          "workspace_view_tree",
+          "workspace_read_file",
+          "workspace_patch_file",
+          "workspace_write_file",
+          "workspace_grep",
+          "terminal_run_command",
+          "execute_sandbox_command",
+          "github_manage_file",
+          "neon_sql_query",
+          "aegis_scaffold_and_deploy_web",
+          "finish_task"
+        ]
       },
       friday: {
         primaryProvider: "gemini",
         primaryModel: "gemini-flash-lite-latest",
         fallbackChain: [
+          { provider: "gemini", model: "gemini-2.5-flash" },
           { provider: "groq", model: "llama-3.3-70b-versatile" },
           { provider: "openrouter", model: "google/gemini-2.0-flash-exp:free" }
         ],
-        toolScope: ["generate_office_document", "google_workspace_action", "neon_sql_query", "finish_task"]
+        toolScope: [
+          "generate_office_document",
+          "generate_presentation",
+          "send_email",
+          "draft_email",
+          "schedule_meeting",
+          "list_upcoming_meetings",
+          "google_workspace_action",
+          "neon_sql_query",
+          "finish_task"
+        ]
       },
       jarvis: {
         primaryProvider: "groq",
@@ -13549,12 +13140,20 @@ var init_ModelRouter = __esm({
         toolScope: ["*"]
       },
       cerebro: {
-        primaryProvider: "groq",
-        primaryModel: "deepseek-r1-distill-llama-70b",
+        primaryProvider: "gemini",
+        primaryModel: "gemini-flash-lite-latest",
         fallbackChain: [
-          { provider: "gemini", model: "gemini-flash-lite-latest" }
+          { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
+          { provider: "gemini", model: "gemini-2.5-flash" }
         ],
-        toolScope: ["scrape_web", "query_public_service", "neon_sql_query", "finish_task"]
+        toolScope: [
+          "headless_web_research",
+          "treg_catalog_search",
+          "treg_call_tool",
+          "query_public_service",
+          "neon_sql_query",
+          "finish_task"
+        ]
       }
     };
     SwarmModelRouter = class _SwarmModelRouter {

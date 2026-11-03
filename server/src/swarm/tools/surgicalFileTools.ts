@@ -155,6 +155,7 @@ export function workspacePatchFile(
       success: true,
       filePath: relative(workspaceRoot, targetPath),
       replacements: 1,
+      occurrencesReplaced: 1,
       message: `Successfully replaced target substring in ${filePath}.`
     }
   }
@@ -171,6 +172,7 @@ export function workspacePatchFile(
       success: true,
       filePath: relative(workspaceRoot, targetPath),
       replacements: 1,
+      occurrencesReplaced: 1,
       message: `Successfully replaced normalized substring in ${filePath}.`
     }
   }
@@ -184,6 +186,7 @@ export function workspacePatchFile(
       success: true,
       filePath: relative(workspaceRoot, targetPath),
       replacements: 1,
+      occurrencesReplaced: 1,
       message: `Successfully patched trimmed single-line match in ${filePath}.`
     }
   }
@@ -256,6 +259,7 @@ export function workspaceGrep(
             if (regex.test(lines[i])) {
               results.push({
                 file: relative(workspaceRoot, fullPath),
+                filePath: fullPath,
                 line: i + 1,
                 content: lines[i].trim().substring(0, 140)
               })

@@ -69,18 +69,33 @@ function compactContextWindow(messages: any[]): any[] {
   const intermediateMessages = messages.slice(2, -6)
 
   const toolSummaries: string[] = []
+  const filesTouched = new Set<string>()
+
   for (const m of intermediateMessages) {
     if (m.role === 'tool') {
       try {
         const parsed = JSON.parse(m.content)
         toolSummaries.push(`- Tool Output: ${typeof parsed === 'string' ? parsed : (parsed.message || parsed.summary || 'Executed')}`)
+        if (parsed.filePath) filesTouched.add(parsed.filePath)
+        if (parsed.targetPath) filesTouched.add(parsed.targetPath)
+        if (Array.isArray(parsed.filesCreated)) parsed.filesCreated.forEach((f: string) => filesTouched.add(f))
       } catch {
         toolSummaries.push(`- Tool Output: ${String(m.content).substring(0, 80)}`)
+      }
+    } else if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+      for (const tc of m.tool_calls) {
+        try {
+          const args = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.function?.arguments || tc.arguments)
+          if (args?.filePath) filesTouched.add(args.filePath)
+          if (args?.targetPath) filesTouched.add(args.targetPath)
+          if (args?.path) filesTouched.add(args.path)
+        } catch {}
       }
     }
   }
 
-  const summaryContent = `[CONTEXT_WINDOW_ROLLING_COMPACTOR: Intermediate turns compacted (${intermediateMessages.length} messages). Summary of actions taken:\n${toolSummaries.slice(-8).join('\n')}\nRetaining original directive and recent turns.]`
+  const filesSummary = filesTouched.size > 0 ? `\nFiles Created/Modified:\n${Array.from(filesTouched).map(f => `  * ${f}`).join('\n')}` : ''
+  const summaryContent = `[CONTEXT_WINDOW_ROLLING_COMPACTOR: Intermediate turns compacted (${intermediateMessages.length} messages).${filesSummary}\nSummary of actions taken:\n${toolSummaries.slice(-8).join('\n')}\nRetaining original directive and recent turns.]`
 
   return [
     systemMsg,
@@ -204,7 +219,7 @@ OPERATIONAL INVARIANTS:
       }
 
       // Check for self-healing indicator
-      if (toolName === 'terminal_run_command' && output?.exitCode !== 0) {
+      if ((toolName === 'terminal_run_command' || toolName === 'sandbox_terminal_execute') && output?.exitCode !== undefined && output.exitCode !== 0) {
         selfHealed = true
       }
 
@@ -243,12 +258,20 @@ OPERATIONAL INVARIANTS:
         break
       }
 
-      // Append Observation to context
-      messages.push({
-        role: 'tool',
-        tool_call_id: toolId,
-        content: JSON.stringify(output)
-      })
+      // Append Observation to context with structured self-healing feedback on command failure
+      if ((toolName === 'terminal_run_command' || toolName === 'sandbox_terminal_execute') && output?.exitCode !== undefined && output.exitCode !== 0) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolId,
+          content: `[COMMAND_FAILED: Exit Code ${output.exitCode}]\nSTDERR:\n${output.stderr || ''}\nSTDOUT:\n${output.stdout || ''}\nAnalyze the error, patch the target file using workspace_patch_file, and re-execute.`
+        })
+      } else {
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolId,
+          content: typeof output === 'string' ? output : JSON.stringify(output)
+        })
+      }
     }
 
     if (finishTaskEncountered) {
@@ -259,6 +282,20 @@ OPERATIONAL INVARIANTS:
   if (!finalResponse) {
     finalResponse = `Autonomous ReAct execution concluded after ${toolCallHistory.length} tool executions.`
     success = true
+  }
+
+  // Final Proof-of-Work Verification gate if required and not already verified
+  if (options.requireVerification && !verificationDetails) {
+    const req: VerificationRequest = {
+      deliverableType: options.deliverableType || 'general',
+      targetPath: options.verificationTarget,
+      slug: options.slug,
+      testCommand: options.testCommand
+    }
+    verificationDetails = await autonomousVerifier.verifyDeliverable(req, workspaceRoot)
+    if (!verificationDetails.verified) {
+      success = false
+    }
   }
 
   await taskAuditService.completeTask(taskId, success ? 'COMPLETED' : 'FAILED', finalResponse)

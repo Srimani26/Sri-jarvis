@@ -29,64 +29,60 @@ export interface GenerateOfficeDocumentParams {
 }
 
 /**
- * Executes Google Workspace MCP Actions
+ * Executes Google Workspace MCP Actions via real Google APIs
  */
 export async function executeGoogleWorkspaceAction(params: GoogleWorkspaceActionParams): Promise<any> {
-  const { service, action, payload } = params
-  const credentials = process.env.GOOGLE_WORKSPACE_CREDENTIALS || process.env.GOOGLE_WORKSPACE_TOKEN
+  const { service, action, payload = {} } = params
+  const { googleWorkspaceService } = await import('../../services/googleWorkspaceService')
 
-  if (credentials) {
-    try {
-      if (service === 'gmail' && (action === 'draft_email' || action === 'send_email')) {
-        const endpoint = action === 'send_email'
-          ? 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
-          : 'https://gmail.googleapis.com/gmail/v1/users/me/drafts'
-
-        const emailContent = [
-          `To: ${payload.to || ''}`,
-          `Subject: ${payload.subject || 'Automated Swarm Intelligence Update'}`,
-          'Content-Type: text/plain; charset="UTF-8"',
-          '',
-          payload.body || payload.message || ''
-        ].join('\r\n')
-
-        const raw = Buffer.from(emailContent).toString('base64url')
-        const body = action === 'send_email' ? { raw } : { message: { raw } }
-
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${credentials}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(body)
-        })
-
-        if (res.ok) {
-          const data = await res.json()
-          return { success: true, service: 'gmail', action, live: true, result: data }
-        }
-      }
-    } catch (err: any) {
-      console.warn('⚠️ [OfficeMCP] Live Google Workspace API note:', err?.message || err)
+  if (service === 'gmail') {
+    if (action === 'send_email') {
+      return await googleWorkspaceService.send_email({
+        to: payload.to,
+        subject: payload.subject,
+        bodyHtml: payload.bodyHtml || payload.body || '',
+        cc: payload.cc
+      })
+    }
+    if (action === 'draft_email') {
+      return await googleWorkspaceService.draft_email({
+        to: payload.to,
+        subject: payload.subject,
+        bodyHtml: payload.bodyHtml || payload.body || ''
+      })
     }
   }
 
-  // Fallback / Simulated Contract when live OAuth token is not configured
-  const mockId = `${service}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+  if (service === 'calendar') {
+    if (action === 'schedule_meeting') {
+      return await googleWorkspaceService.schedule_meeting({
+        title: payload.title || payload.summary || 'Executive Meeting',
+        startIso: payload.startIso || payload.startTime || new Date(Date.now() + 3600000).toISOString(),
+        endIso: payload.endIso || payload.endTime || new Date(Date.now() + 7200000).toISOString(),
+        attendees: payload.attendees,
+        description: payload.description
+      })
+    }
+    if (action === 'list_upcoming_meetings') {
+      return await googleWorkspaceService.list_upcoming_meetings(payload.maxResults || 10)
+    }
+  }
+
+  // If service or action not directly mapped or unconfigured, invoke fail-closed guide
+  if (!googleWorkspaceService.isConfigured()) {
+    return {
+      ...googleWorkspaceService.getMissingCredentialsGuide(),
+      service,
+      action,
+      payload
+    }
+  }
+
   return {
-    success: true,
+    success: false,
+    error: `Unsupported Google Workspace action: ${service}.${action}`,
     service,
-    action,
-    live: false,
-    contractStatus: 'EXECUTED_SIMULATION',
-    resourceId: mockId,
-    preview: {
-      recipient: payload.to || payload.attendees || 'Master Sri',
-      subject: payload.subject || payload.summary || payload.folderName || 'Directive Execution',
-      details: payload.body || payload.description || payload
-    },
-    message: `Google Workspace ${service} [${action}] successfully drafted and staged for review.`
+    action
   }
 }
 
