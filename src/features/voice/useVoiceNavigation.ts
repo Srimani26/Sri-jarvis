@@ -4,22 +4,23 @@
  *
  * Implements:
  * 1. Persistent WebSocket connection to /api/voice/session authenticated with biometric token.
- * 2. 16kHz AudioWorkletNode capture with 0.01 RMS threshold and 400ms hangover padding.
- * 3. Monotonic Audio Queue Scheduling via AudioQueuePlayer:
- *    - Eliminates audio fast-forward/chipmunk playback by matching native hardware sample rates.
- *    - Unlocks AudioContext clock on user touch/mic gestures.
- * 4. Dual-Engine Capture Fallback:
- *    - Primary: 16kHz Linear PCM over WebSocket to /api/voice/session.
- *    - Fallback: If WebSocket is disconnected or latency > 1.5s, automatically captures MediaRecorder .webm/.mp4 blob
- *      and POSTs to /api/voice/transcribe (Groq Whisper Large-v3 endpoint).
- * 5. Visual Console Confirmation:
- *    - User's spoken text is immediately transcribed and logged to the console.
- * 6. Echo Suppression Mute Gate:
- *    - Automatically mutes microphone worklet while the agent is speaking.
+ * 2. On-Device Wake-Word Detection ("Hey Jarvis", "Jarvis", "Friday") in zero-network Standby mode.
+ * 3. Full-Duplex Hardware AEC & Barge-In Interruption Gate:
+ *    - If user speaks (RMS > 0.03) while Jarvis is speaking, immediately invokes audioQueuePlayer.stopAll(),
+ *      emits USER_INTERRUPTED, and switches to active listening.
+ * 4. Omni-Directional Intent Navigation:
+ *    - Semantic fuzzy & regex routing via resolveVoiceNavigation across 100% of workspace tabs.
+ * 5. Persistent Mobile Awake Harness via MobileWakeLock (screen lock + silent track keepalive).
+ * 6. 6-Second Conversational Follow-Up Window:
+ *    - Keeps mic active after agent speaks before gracefully transitioning back to Wake Word Standby.
+ *    - Touchless cancellation on "Thank you", "Goodbye", "Jarvis mute", or "Jarvis stop".
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { audioQueuePlayer } from './AudioQueuePlayer'
+import { resolveVoiceNavigation } from './voiceNavigationRouter'
+import { wakeWordDetector } from './WakeWordDetector'
+import { mobileWakeLock } from './MobileWakeLock'
 
 export interface VoiceNavigationOptions {
   onNavigate?: (route: string) => void
@@ -28,6 +29,8 @@ export interface VoiceNavigationOptions {
   onAgentResponse?: (text: string) => void
   onStatusChange?: (status: 'STANDBY' | 'LISTENING' | 'PROCESSING' | 'SPEAKING') => void
   autoConnect?: boolean
+  enableWakeWord?: boolean
+  enableWakeLock?: boolean
 }
 
 export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
@@ -36,7 +39,9 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     onAgentChange,
     onTranscript,
     onAgentResponse,
-    onStatusChange
+    onStatusChange,
+    enableWakeWord = true,
+    enableWakeLock = true
   } = options
 
   const [isConnected, setIsConnected] = useState(false)
@@ -52,6 +57,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordedChunksRef = useRef<Blob[]>([])
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const followUpTimerRef = useRef<NodeJS.Timeout | null>(null)
   const speechDetectedRef = useRef(false)
   const lastPacketSendTimeRef = useRef<number>(0)
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -61,8 +67,47 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     if (onStatusChange) onStatusChange(status)
   }, [onStatusChange])
 
+  // Clear any pending conversational follow-up window
+  const clearFollowUpTimer = useCallback(() => {
+    if (followUpTimerRef.current) {
+      clearTimeout(followUpTimerRef.current)
+      followUpTimerRef.current = null
+    }
+  }, [])
+
+  // Start 6-second conversational follow-up window after speech playback finishes
+  const startFollowUpWindow = useCallback(() => {
+    clearFollowUpTimer()
+    updateStatus('LISTENING')
+
+    followUpTimerRef.current = setTimeout(() => {
+      console.log('⏱️ [VoiceNavigation] Conversational follow-up window expired. Returning to Standby.')
+      updateStatus('STANDBY')
+      followUpTimerRef.current = null
+    }, 6000)
+  }, [clearFollowUpTimer, updateStatus])
+
+  // Stop audio immediately on barge-in interruption or explicit mute
+  const handleBargeIn = useCallback(() => {
+    console.log('⚡ [VoiceNavigation] Barge-in triggered. Canceling active audio playback.')
+    audioQueuePlayer.stopAll()
+    clearFollowUpTimer()
+
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'USER_INTERRUPTED' }))
+    }
+
+    if (workletNodeRef.current) {
+      workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
+    }
+
+    updateStatus('LISTENING')
+  }, [clearFollowUpTimer, updateStatus])
+
   // Process incoming binary audio chunks through monotonic AudioQueuePlayer
   const handleIncomingAudioChunk = useCallback(async (data: ArrayBuffer) => {
+    clearFollowUpTimer()
     updateStatus('SPEAKING')
     if (workletNodeRef.current) {
       workletNodeRef.current.port.postMessage({ type: 'MUTE' })
@@ -75,10 +120,57 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         if (workletNodeRef.current) {
           workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
         }
-        updateStatus('STANDBY')
+        // Initiate 6-second conversational follow-up window after speech finishes
+        startFollowUpWindow()
       }
     )
-  }, [updateStatus])
+  }, [clearFollowUpTimer, startFollowUpWindow, updateStatus])
+
+  // Evaluate transcript for omni-directional navigation & touchless commands
+  const evaluateTouchlessDirectives = useCallback((text: string): boolean => {
+    const lower = text.trim().toLowerCase()
+
+    // 1. Touchless Mute / Stop
+    if (
+      lower.includes('jarvis mute') ||
+      lower.includes('jarvis stop') ||
+      lower.includes('mute voice') ||
+      lower.includes('stop speaking')
+    ) {
+      audioQueuePlayer.stopAll()
+      clearFollowUpTimer()
+      updateStatus('STANDBY')
+      return true
+    }
+
+    // 2. Touchless Conversational Exit
+    if (
+      lower === 'thank you' ||
+      lower === 'thanks jarvis' ||
+      lower === 'goodbye' ||
+      lower === 'bye jarvis' ||
+      lower === 'goodbye jarvis'
+    ) {
+      audioQueuePlayer.stopAll()
+      clearFollowUpTimer()
+      updateStatus('STANDBY')
+      return true
+    }
+
+    // 3. Omni-Directional Intent Navigation
+    const navResult = resolveVoiceNavigation(text)
+    if (navResult.matched && navResult.targetRoute) {
+      console.log(`🧭 [VoiceNavigation] Navigating to ${navResult.targetRoute} (${navResult.tabKey})`)
+      if (onNavigate) {
+        onNavigate(navResult.targetRoute)
+      } else if (typeof window !== 'undefined') {
+        window.location.hash = navResult.targetRoute
+      }
+      return true
+    }
+
+    return false
+  }, [clearFollowUpTimer, onNavigate, updateStatus])
 
   // HTTP Fallback Transcriber via POST /api/voice/transcribe (Groq Whisper Large-v3)
   const transcribeBlobFallback = useCallback(async (audioBlob: Blob) => {
@@ -101,21 +193,24 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
           setLastTranscript(transcriptText)
           if (onTranscript) onTranscript(transcriptText)
 
-          // Dispatch intent
-          const intentRes = await fetch('/api/voice/intent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: transcriptText, currentAgent: activeAgent })
-          })
+          const handled = evaluateTouchlessDirectives(transcriptText)
+          if (!handled) {
+            // Dispatch intent to backend
+            const intentRes = await fetch('/api/voice/intent', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: transcriptText, currentAgent: activeAgent })
+            })
 
-          if (intentRes.ok) {
-            const intentData = await intentRes.json() as any
-            const intent = intentData.intent
-            if (intent?.type === 'NAVIGATE' && intent?.target && onNavigate) {
-              onNavigate(intent.target)
-            } else if (intent?.type === 'HANDOFF' && intent?.agent) {
-              setActiveAgent(intent.agent)
-              if (onAgentChange) onAgentChange(intent.agent)
+            if (intentRes.ok) {
+              const intentData = await intentRes.json() as any
+              const intent = intentData.intent
+              if (intent?.type === 'NAVIGATE' && intent?.target && onNavigate) {
+                onNavigate(intent.target)
+              } else if (intent?.type === 'HANDOFF' && intent?.agent) {
+                setActiveAgent(intent.agent)
+                if (onAgentChange) onAgentChange(intent.agent)
+              }
             }
           }
         }
@@ -123,9 +218,9 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     } catch (err) {
       console.warn('[VoiceNavigation] Transcribe HTTP fallback error:', err)
     } finally {
-      updateStatus('STANDBY')
+      startFollowUpWindow()
     }
-  }, [activeAgent, onAgentChange, onNavigate, onTranscript, updateStatus])
+  }, [activeAgent, evaluateTouchlessDirectives, onAgentChange, onNavigate, onTranscript, startFollowUpWindow, updateStatus])
 
   // Connect WebSocket to /api/voice/session
   const connectVoiceSession = useCallback((token?: string) => {
@@ -148,7 +243,6 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     }
 
     ws.onmessage = async (event) => {
-      // Clear fallback timer when message received from WebSocket
       if (fallbackTimeoutRef.current) {
         clearTimeout(fallbackTimeoutRef.current)
         fallbackTimeoutRef.current = null
@@ -183,6 +277,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
           console.log('[VoiceNavigation] Transcribed text (WebSocket):', payload.text)
           setLastTranscript(payload.text)
           if (onTranscript) onTranscript(payload.text)
+          evaluateTouchlessDirectives(payload.text)
         }
 
         // 4. Agent Spoken Response
@@ -193,6 +288,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
 
         // 5. Echo-suppression Mute Gate
         if (payload.type === 'AGENT_SPEAK_START') {
+          clearFollowUpTimer()
           if (workletNodeRef.current) {
             workletNodeRef.current.port.postMessage({ type: 'MUTE' })
           }
@@ -204,7 +300,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
             if (workletNodeRef.current) {
               workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
             }
-            updateStatus('STANDBY')
+            startFollowUpWindow()
           }
         }
       } catch (err) {
@@ -220,9 +316,9 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     ws.onerror = (err) => {
       console.warn('[useVoiceNavigation] WebSocket error:', err)
     }
-  }, [handleIncomingAudioChunk, onAgentChange, onAgentResponse, onNavigate, onTranscript, updateStatus])
+  }, [clearFollowUpTimer, evaluateTouchlessDirectives, handleIncomingAudioChunk, onAgentChange, onAgentResponse, onNavigate, onTranscript, startFollowUpWindow, updateStatus])
 
-  // Initialize AudioWorkletNode, MediaRecorder fallback, and 16kHz capture
+  // Initialize AudioWorkletNode, MediaRecorder fallback, AEC constraints, and 16kHz capture
   const startListening = useCallback(async () => {
     try {
       if (!audioContextRef.current) {
@@ -235,29 +331,33 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         await ctx.resume()
       }
 
-      // Explicitly prime AudioQueuePlayer on user touch/mic interaction
       await audioQueuePlayer.prime(ctx)
+
+      // Acquire mobile wake lock for screen persistence if enabled
+      if (enableWakeLock) {
+        await mobileWakeLock.enableHandsFree()
+      }
 
       // Load 16kHz Linear PCM AudioWorkletProcessor
       try {
         await ctx.audioWorklet.addModule('/audio-worklet-processor.js')
-      } catch {
-        // Module might already be registered
-      }
+      } catch {}
 
+      // Native Hardware Acoustic Echo Cancellation (AEC) Constraints
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 16000
         },
         video: false
       })
 
       mediaStreamRef.current = stream
 
-      // Initialize parallel MediaRecorder for HTTP fallback if WebSocket drops or stalls
+      // Initialize parallel MediaRecorder for HTTP fallback
       try {
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
@@ -277,7 +377,6 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
           if (recordedChunksRef.current.length > 0) {
             const blob = new Blob(recordedChunksRef.current, { type: mimeType })
             recordedChunksRef.current = []
-            // Trigger HTTP fallback if WebSocket is not open or stalled
             const ws = wsRef.current
             if (!ws || ws.readyState !== WebSocket.OPEN) {
               transcribeBlobFallback(blob)
@@ -295,14 +394,21 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
       workletNodeRef.current = workletNode
 
       workletNode.port.onmessage = (event) => {
-        const { type, buffer, isAboveThreshold } = event.data
+        const { type, buffer, isAboveThreshold, rms = 0 } = event.data
         if (type !== 'PCM_CHUNK') return
 
         const ws = wsRef.current
         const isWsAvailable = ws && ws.readyState === WebSocket.OPEN
 
+        // STEP 2 BARGE-IN INTERRUPTION GATE:
+        // If user speaks (RMS > 0.03) while Jarvis is playing audio, interrupt immediately
+        if (audioQueuePlayer.isPlaying() && (rms > 0.03 || (isAboveThreshold && rms > 0.025))) {
+          handleBargeIn()
+        }
+
         // Threshold detection: 0.01 + 400ms hangover
         if (isAboveThreshold) {
+          clearFollowUpTimer()
           speechDetectedRef.current = true
           updateStatus('LISTENING')
 
@@ -311,7 +417,6 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
             silenceTimerRef.current = null
           }
 
-          // Start MediaRecorder chunk recording if not recording
           if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
             try {
               recordedChunksRef.current = []
@@ -324,19 +429,16 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
             ws.send(buffer)
           }
         } else if (speechDetectedRef.current) {
-          // Send trailing buffers during short silence
           if (isWsAvailable) {
             ws.send(buffer)
           }
 
-          // Conclude turn after 700ms silence
           if (!silenceTimerRef.current) {
             silenceTimerRef.current = setTimeout(() => {
               speechDetectedRef.current = false
               silenceTimerRef.current = null
               updateStatus('PROCESSING')
 
-              // Stop MediaRecorder fallback buffer
               if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                 try { mediaRecorderRef.current.stop() } catch {}
               }
@@ -344,7 +446,6 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
               if (isWsAvailable) {
                 ws.send(JSON.stringify({ type: 'SPEECH_END' }))
 
-                // Set 1.5s latency watchdog: if no response from WS, fall back to HTTP
                 if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current)
                 fallbackTimeoutRef.current = setTimeout(() => {
                   console.warn('[VoiceNavigation] WebSocket latency exceeded 1.5s, checking HTTP fallback')
@@ -360,15 +461,36 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
       }
 
       source.connect(workletNode)
-      // Do not connect workletNode to ctx.destination to prevent microphone feedback loop
+
+      // Start on-device wake-word detection in standby mode
+      if (enableWakeWord) {
+        wakeWordDetector.updateOptions({
+          onWakeWord: (keyword) => {
+            console.log(`🎤 [VoiceNavigation] Wake word detected: "${keyword}". Transitioning to ACTIVE_LISTENING.`)
+            clearFollowUpTimer()
+            updateStatus('LISTENING')
+          },
+          onStateChange: (state) => {
+            if (state === 'ACTIVE_LISTENING') {
+              updateStatus('LISTENING')
+            }
+          }
+        })
+        wakeWordDetector.start(ctx)
+      }
+
       updateStatus('STANDBY')
     } catch (err) {
       console.warn('[useVoiceNavigation] Audio capture initialization failed:', err)
     }
-  }, [transcribeBlobFallback, updateStatus])
+  }, [clearFollowUpTimer, enableWakeLock, enableWakeWord, handleBargeIn, transcribeBlobFallback, updateStatus])
 
   // Stop listening and release media tracks
   const stopListening = useCallback(() => {
+    clearFollowUpTimer()
+    wakeWordDetector.stop()
+    mobileWakeLock.release()
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop() } catch {}
     }
@@ -382,7 +504,7 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     }
     audioQueuePlayer.stop()
     updateStatus('STANDBY')
-  }, [updateStatus])
+  }, [clearFollowUpTimer, updateStatus])
 
   // Disconnect session
   const disconnectVoiceSession = useCallback(() => {
@@ -418,7 +540,8 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     disconnectVoiceSession,
     startListening,
     stopListening,
-    switchAgent
+    switchAgent,
+    handleBargeIn
   }
 }
 

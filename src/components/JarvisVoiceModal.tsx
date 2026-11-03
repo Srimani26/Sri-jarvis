@@ -11,6 +11,9 @@ import { cn } from '@/lib/cn'
 import { playJarvisChime, playNeuralSpeech, stopNeuralSpeech, speakInstantNativeSpeech, primeAudioPlayback } from '@/lib/sound'
 import { webAudioPlayer } from '@/voice/WebAudioPlayer'
 import { audioQueuePlayer } from '@/features/voice/AudioQueuePlayer'
+import { mobileWakeLock } from '@/features/voice/MobileWakeLock'
+import { wakeWordDetector } from '@/features/voice/WakeWordDetector'
+import { resolveVoiceNavigation } from '@/features/voice/voiceNavigationRouter'
 import { AdaptiveVAD } from '@/voice/AdaptiveVAD'
 import { ConversationOS } from '@/voice/ConversationOS'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
@@ -629,12 +632,15 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       } catch {}
 
       // Autonomous front camera biometric scan & executive greeting
+      mobileWakeLock.enableHandsFree().catch(() => {})
       startBiometricFaceScan()
     }
     if (!isOpen) {
       isRollingCallRef.current = false
+      mobileWakeLock.release()
       stopListening(true)
       stopNeuralSpeech()
+      audioQueuePlayer.stopAll()
       webAudioPlayer.stop()
       try {
         if (videoStreamRef.current) {
@@ -778,6 +784,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
   // Interruption / Barge-in handler: immediately halts TTS and resumes listening in < 10ms
   const handleInterrupt = () => {
+    audioQueuePlayer.stopAll()
     webAudioPlayer.stop()
     stopNeuralSpeech()
     if (visualizerAnimRef.current) {

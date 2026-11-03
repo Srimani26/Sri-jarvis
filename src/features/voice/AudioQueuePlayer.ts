@@ -118,6 +118,10 @@ export class AudioQueuePlayer {
     return this.activeSources.size > 0 || this.pendingDecodeCount > 0
   }
 
+  public isPlaying(): boolean {
+    return this.isSpeaking()
+  }
+
   /**
    * Instantly stops all current speech and resets schedule timeline (barge-in).
    */
@@ -133,6 +137,13 @@ export class AudioQueuePlayer {
       } catch {}
     }
     this.activeSources.clear()
+  }
+
+  /**
+   * Alias for barge-in interruption.
+   */
+  public stopAll() {
+    this.stop()
   }
 
   /**

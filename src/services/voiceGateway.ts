@@ -232,6 +232,10 @@ export class VoiceGatewayService {
                 title: SPECIALIST_PERSONAS[session.activeAgent].title
               }))
             }
+          } else if (msg.type === 'USER_INTERRUPTED') {
+            session.isSpeaking = false
+            session.pcmBuffer = []
+            session.totalBytes = 0
           } else if (msg.type === 'PING') {
             ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }))
           }
