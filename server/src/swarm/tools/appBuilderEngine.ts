@@ -311,6 +311,111 @@ calculate();
   }
 
   /**
+   * Bundles multi-agent synthesized code (Aegis HTML, Raphael CSS, Midas JS)
+   * into a unified, high-fidelity self-contained application.
+   */
+  public bundleFullSwarmDeliverable(params: {
+    slug: string
+    title: string
+    description?: string
+    htmlContent: string
+    cssContent: string
+    jsContent: string
+  }, workspaceRoot = process.cwd()): AppBuilderResult {
+    const rawSlug = (params.slug || 'commercial-solar-roi-calculator').toLowerCase().trim()
+    const safeSlug = rawSlug.replace(/[^a-z0-9_-]/g, '_').substring(0, 50)
+    const buildDir = join(workspaceRoot, 'artifacts', 'builds', safeSlug)
+
+    if (!existsSync(buildDir)) {
+      mkdirSync(buildDir, { recursive: true })
+    }
+
+    const title = params.title || safeSlug.replace(/[_-]/g, ' ').toUpperCase()
+    const description = params.description || 'Full-Swarm Synthesized Application'
+
+    // Clean markdown codeblocks from inputs if present
+    let cleanHtml = params.htmlContent
+      .replace(/^```html\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim()
+
+    let cleanCss = params.cssContent
+      .replace(/^```css\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim()
+
+    let cleanJs = params.jsContent
+      .replace(/^```(?:javascript|js)\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim()
+
+    // Extract body content if html has its own <html>/<body> tags
+    let bodyContent = cleanHtml
+    const bodyMatch = cleanHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+    if (bodyMatch) {
+      bodyContent = bodyMatch[1].trim()
+    } else {
+      bodyContent = cleanHtml.replace(/<!DOCTYPE[^>]*>/i, '').replace(/<\/?html[^>]*>/gi, '').replace(/<head[\s\S]*?<\/head>/gi, '').trim()
+    }
+
+    // Assemble self-contained index.html with Google Fonts, Tailwind, Lucide icons, and Chart.js
+    const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background-color: #030712;
+      color: #f3f4f6;
+    }
+    ${cleanCss}
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  ${bodyContent}
+  <script>
+    ${cleanJs}
+  </script>
+</body>
+</html>`
+
+    const filesCreated: string[] = []
+
+    writeFileSync(join(buildDir, 'index.html'), fullHtml, 'utf-8')
+    filesCreated.push('index.html')
+
+    writeFileSync(join(buildDir, 'styles.css'), cleanCss, 'utf-8')
+    filesCreated.push('styles.css')
+
+    writeFileSync(join(buildDir, 'app.js'), cleanJs, 'utf-8')
+    filesCreated.push('app.js')
+
+    const previewUrl = `/preview/${safeSlug}`
+
+    return {
+      success: true,
+      projectSlug: safeSlug,
+      appType: 'react_spa',
+      previewUrl,
+      bundleStatus: 'READY',
+      filesCreated,
+      buildDirectory: buildDir
+    }
+  }
+
+  /**
    * Serve a built static file for preview
    */
   public getBuildFile(

@@ -448,7 +448,7 @@ export class SwarmModelRouter {
             tools: functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined,
             generationConfig: { temperature: 0.1 }
           }),
-          signal: AbortSignal.timeout(8000)
+          signal: AbortSignal.timeout(25000)
         })
 
         if (res.status === 429 || res.status === 503) {

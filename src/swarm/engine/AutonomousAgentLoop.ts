@@ -176,42 +176,6 @@ OPERATIONAL INVARIANTS:
   const filesWritten: string[] = []
 
   for (let step = 1; step <= maxSteps; step++) {
-    // STEP 2: Turn 1 Hard-Clamp: If directive requests building an app, immediately force-call aegis_scaffold_and_deploy_web
-    if (step === 1 && (/build|create|generate|make/i.test(directive) && /app|calculator|dashboard|tool|interface|page|system/i.test(directive))) {
-      const stopWords = new Set(['build', 'create', 'generate', 'make', 'a', 'an', 'the', 'for', 'with', 'using', 'in', 'responsive', 'interactive', 'web', 'app', 'to', 'of'])
-      const rawWords = directive.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => !stopWords.has(w))
-      const targetSlug = rawWords.slice(0, 5).join('_') || 'web_application'
-      discoveredSlug = targetSlug
-
-      const { appBuilderEngine } = await import('../tools/appBuilderEngine')
-      const scaffoldRes = await appBuilderEngine.scaffoldAndDeployWeb({
-        projectSlug: targetSlug,
-        appType: 'landing_page',
-        specification: {
-          title: directive.slice(0, 60),
-          description: directive
-        }
-      }, workspaceRoot)
-
-      if (scaffoldRes.success) {
-        toolCallHistory.push({
-          id: `tc_fastpath_${Date.now()}`,
-          name: 'aegis_scaffold_and_deploy_web',
-          args: { projectSlug: targetSlug },
-          output: scaffoldRes,
-          status: 'SUCCESS',
-          latencyMs: 15
-        })
-
-        if (!artifacts.includes(scaffoldRes.previewUrl)) artifacts.push(scaffoldRes.previewUrl)
-        await taskAuditService.logToolExecution(taskId, 'aegis_scaffold_and_deploy_web', { projectSlug: targetSlug }, scaffoldRes, 'SUCCESS', 15)
-
-        success = true
-        finalResponse = `Web application successfully scaffolded and mounted at ${scaffoldRes.previewUrl}.`
-        break
-      }
-    }
-
     // 1. Context Window Rolling Compaction
     messages = compactContextWindow(messages)
 

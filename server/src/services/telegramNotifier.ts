@@ -148,50 +148,51 @@ export class TelegramNotifierService {
         const isWebApp = /build|create|generate|make/i.test(directive) && 
                          /app|calculator|dashboard|tool|interface|page|system/i.test(directive)
 
-        // STEP 1: FAST-PATH SINGLE-TURN WEB APP BUILDER & REACT 25-STEP BYPASS
-        if (isWebApp) {
-          console.log('⚡ [FastPath] Routing web application build directly to appBuilderEngine...')
+        // STEP 1: DEEP SWARM MULTI-AGENT ORCHESTRATION FOR COMPLEX WEB APPS
+        const { swarmOrchestrator } = await import('../swarm/engine/SwarmOrchestrator')
+        if (swarmOrchestrator.isComplexWebProject(directive) || isWebApp) {
+          console.log('⚡ [SwarmOrchestrator] Decomposing directive across Aegis, Raphael, and Midas...')
           try {
-            const { scaffoldAndDeployWeb } = await import('../swarm/tools/appBuilderEngine')
-
-            // Clean slug derivation
-            const stopWords = new Set(['build', 'create', 'generate', 'make', 'a', 'an', 'the', 'for', 'with', 'using', 'in', 'responsive', 'interactive', 'web', 'app', 'to', 'of'])
-            const rawWords = directive.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => !stopWords.has(w))
-            const slug = rawWords.slice(0, 5).join('-') || 'commercial-solar-roi-calculator'
-
-            const result = await scaffoldAndDeployWeb({
-              directive,
-              slug,
-              author: 'AEGIS'
+            const result = await swarmOrchestrator.orchestrateTask(directive, {
+              chatId,
+              specialist,
+              workspaceRoot: process.cwd(),
+              onProgress: async (stage: string, message: string) => {
+                const header = stage === 'DISPATCH' ? '📡 *[Swarm Dispatch]*' : '⚙️ *[Swarm Progress]*'
+                await this.sendMessage(`${header} ${message}`, chatId).catch(() => {})
+              }
             })
 
-            const previewPath = `/preview/${result.projectSlug || slug}`
-            const previewUrl = `https://sri-jarvis.onrender.com${previewPath}`
-            const latencyMs = Date.now() - startTime
+            if ('stages' in result) {
+              const latencyMs = Date.now() - startTime
+              const verifyStatus = result.verificationDetails?.verified
+                ? '✅ Verified (All proof checks passed, zero placeholders)'
+                : '⚠️ Verification Note'
 
-            const completionMsg = [
-              `⚡ *[Task Completed by ${specialist.toUpperCase()}]*`,
-              `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-              `• *Specialist:* \`${specialist.toUpperCase()}\``,
-              `• *Artifact:* \`${directive.slice(0, 60)}\``,
-              `• *Status:* ✅ *SUCCESS (PASSED & MOUNTED)*`,
-              `• *Execution Latency:* \`${latencyMs}ms\``,
-              `• *ReAct Turns:* \`1\` (Fast-Path Single-Turn: \`YES\`)`,
-              `• *Verification:* ✅ Verified (Fast-Path Scaffold & Live Route Ready)`,
-              `\n📦 *Deliverables & Artifacts:*`,
-              `• 🌐 *Live Web Preview:* \`${previewPath}\``,
-              `• 🔗 *Render URL:* \`${previewUrl}\``,
-              `• 📦 \`${result.buildDirectory}\``,
-              '',
-              `📝 *Executive Summary:*`,
-              `Aegis successfully fast-path scaffolded and mounted the web application at \`${previewUrl}\`. Full DOM structure, responsive theme styles, and functional JavaScript logic are mounted and verified.`,
-              `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-            ].join('\n')
+              const fileList = (result.filesCreated || []).map((f: string) => `• 📄 \`${f}\``).join('\n')
 
-            await this.sendMessage(completionMsg, chatId)
-            return
-          } catch (fastErr: any) {
-            console.error('❌ [FastPath] Direct scaffold failed, falling back to AutonomousAgentLoop:', fastErr?.message || fastErr)
+              const completionMsg = [
+                `⚡ *[Task Completed by SWARM (Aegis + Raphael + Midas)]*`,
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+                `• *Specialists:* \`Aegis (Structure) + Raphael (Styling) + Midas (Computation)\``,
+                `• *Status:* ${result.success ? '✅ SUCCESS (Full Swarm Synthesis & Verification Passed)' : '❌ FAILED'}`,
+                `• *Execution Latency:* \`${latencyMs}ms\``,
+                `• *Verification:* ${verifyStatus}`,
+                `\n📦 *Deliverables & Artifacts:*`,
+                `• 🌐 *Live Web Preview:* \`${result.previewPath}\``,
+                `• 🔗 *Render URL:* \`${result.previewUrl}\``,
+                fileList,
+                '',
+                `📝 *Executive Summary:*`,
+                result.summary,
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+              ].filter(Boolean).join('\n')
+
+              await this.sendMessage(completionMsg, chatId)
+              return { success: result.success, result, summary: completionMsg }
+            }
+          } catch (swarmErr: any) {
+            console.error('❌ [SwarmOrchestrator] Swarm decomposition failed, falling back to AutonomousAgentLoop:', swarmErr?.message || swarmErr)
           }
         }
 
