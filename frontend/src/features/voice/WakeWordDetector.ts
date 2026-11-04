@@ -9,10 +9,11 @@
  * 4. Automatic State Transition: STANDBY -> ACTIVE_LISTENING with focus dispatch callback.
  */
 
-export type WakeWordState = 'STANDBY' | 'ACTIVE_LISTENING'
+export type WakeWordState = 'STANDBY' | 'ACTIVE_LISTENING' | 'HOTWORD_STANDBY'
 
 export interface WakeWordDetectorOptions {
   onWakeWord?: (keyword: string) => void
+  onWakeUp?: (keyword: string) => void
   onStateChange?: (state: WakeWordState) => void
   enableChime?: boolean
 }
@@ -144,64 +145,111 @@ export class WakeWordDetector {
 
   /**
    * Triggers wake word activation:
-   * Plays ready chime and transitions state to ACTIVE_LISTENING.
+   * Plays 50ms ascending ready chime, transitions state to ACTIVE_LISTENING,
+   * emits visual pulse notification, and dispatches callbacks.
    */
-  public async triggerWakeWord(keyword: string): Promise<void> {
+  public async triggerWakeUp(keyword = 'jarvis'): Promise<void> {
     if (this.options.enableChime !== false) {
       await this.playReadyChime()
     }
     this.setState('ACTIVE_LISTENING')
     this.options.onWakeWord?.(keyword)
+    this.options.onWakeUp?.(keyword)
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('jarvis:wakeup', { detail: { keyword } }))
+      window.dispatchEvent(new CustomEvent('jarvis:wakeword', { detail: { keyword } }))
+    }
+  }
+
+  public async triggerWakeWord(keyword: string): Promise<void> {
+    return this.triggerWakeUp(keyword)
   }
 
   /**
-   * Starts local, client-side keyword spotting loop.
+   * Evaluates candidate speech transcript against wake words and triggers wake up if matched.
+   */
+  public processTranscript(transcript: string): boolean {
+    if (!transcript || typeof transcript !== 'string') return false
+    const lower = transcript.trim().toLowerCase()
+
+    if (
+      lower.includes('jarvis') ||
+      lower.includes('hey jarvis') ||
+      lower.includes('friday')
+    ) {
+      const keyword = lower.includes('friday') ? 'friday' : 'jarvis'
+      if (this.speechRecognition) {
+        try { this.speechRecognition.abort() } catch {}
+      }
+      this.triggerWakeUp(keyword)
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Starts local, client-side continuous keyword spotting loop.
    */
   public start(audioCtx?: AudioContext): boolean {
     if (this.isRunning) return true
     if (audioCtx) this.audioCtx = audioCtx
 
     this.isRunning = true
-    this.setState('STANDBY')
+    this.setState('HOTWORD_STANDBY')
 
-    // Initialize local browser SpeechRecognition for continuous on-device keyword spotting
+    // Initialize local hardware-accelerated SpeechRecognition for continuous standby listening
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       if (SpeechRecognition) {
         try {
-          const rec = new SpeechRecognition()
-          rec.continuous = true
-          rec.interimResults = true
-          rec.lang = 'en-US'
+          const recognizer = new SpeechRecognition()
+          recognizer.continuous = true
+          recognizer.interimResults = true
+          recognizer.lang = 'en-US'
 
-          rec.onresult = (event: any) => {
-            if (this.state !== 'STANDBY') return // Only trigger while in standby
+          recognizer.onresult = (event: any) => {
+            const transcript = Array.from(event.results)
+              .map((r: any) => r[0]?.transcript || '')
+              .join(' ')
+              .toLowerCase()
 
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const transcript = event.results[i][0]?.transcript || ''
-              const match = this.testWakePattern(transcript)
-              if (match.matched && match.keyword) {
-                this.triggerWakeWord(match.keyword)
-                break
-              }
+            if (
+              transcript.includes('jarvis') ||
+              transcript.includes('hey jarvis') ||
+              transcript.includes('friday')
+            ) {
+              try { recognizer.abort() } catch {}
+              const keyword = transcript.includes('friday') ? 'friday' : 'jarvis'
+              this.triggerWakeUp(keyword)
             }
           }
 
-          rec.onend = () => {
-            if (this.isRunning && this.state === 'STANDBY') {
-              try { rec.start() } catch {}
+          recognizer.onerror = (err: any) => {
+            // Auto-restart on network/aborted errors to keep listening indefinitely
+            if (err?.error !== 'no-speech') {
+              setTimeout(() => {
+                if (this.isRunning && (this.state === 'HOTWORD_STANDBY' || this.state === 'STANDBY')) {
+                  try { recognizer.start() } catch {}
+                }
+              }, 300)
             }
           }
 
-          rec.onerror = () => {
-            // Keep standby loop alive
+          recognizer.onend = () => {
+            // Keep alive in standby
+            if (this.isRunning && (this.state === 'HOTWORD_STANDBY' || this.state === 'STANDBY')) {
+              try { recognizer.start() } catch {}
+            }
           }
 
           try {
-            rec.start()
-            this.speechRecognition = rec
+            recognizer.start()
+            this.speechRecognition = recognizer
           } catch {}
-        } catch {}
+        } catch (e) {
+          console.warn('[WakeWordDetector] SpeechRecognition initialization error:', e)
+        }
       }
     }
 

@@ -67,12 +67,66 @@ export class AudioQueuePlayer {
   private pendingDecodeCount = 0
   private sessionId = 0
   private isUnlocked = false
+  private keepAliveOscillator: OscillatorNode | null = null
+  private keepAliveGain: GainNode | null = null
 
   public static getInstance(): AudioQueuePlayer {
     if (!AudioQueuePlayer.instance) {
       AudioQueuePlayer.instance = new AudioQueuePlayer()
     }
     return AudioQueuePlayer.instance
+  }
+
+  /**
+   * Attaches an inaudible 10Hz oscillator node with microscopic gain (0.0001)
+   * connected to destination. This prevents Android Chrome and iOS Safari from
+   * releasing the microphone hardware and suspending the audio clock when speech finishes.
+   */
+  public startKeepAliveOscillator(audioCtx?: AudioContext): boolean {
+    const ctx = audioCtx || this.audioCtx
+    if (!ctx || ctx.state === 'closed') return false
+    if (this.keepAliveOscillator) return true
+
+    try {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(10, ctx.currentTime) // 10Hz inaudible sub-audible tone
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime) // 0.0001 gain to prevent sleep without audible noise
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start()
+
+      this.keepAliveOscillator = osc
+      this.keepAliveGain = gain
+      console.log('🔊 [AudioQueuePlayer] Silent keep-alive oscillator (10Hz, gain 0.0001) connected.')
+      return true
+    } catch (err) {
+      console.warn('[AudioQueuePlayer] Keep-alive oscillator note:', err)
+      return false
+    }
+  }
+
+  public stopKeepAliveOscillator(): void {
+    if (this.keepAliveOscillator) {
+      try {
+        this.keepAliveOscillator.stop()
+        this.keepAliveOscillator.disconnect()
+      } catch {}
+      this.keepAliveOscillator = null
+    }
+    if (this.keepAliveGain) {
+      try {
+        this.keepAliveGain.disconnect()
+      } catch {}
+      this.keepAliveGain = null
+    }
+  }
+
+  public isKeepAliveActive(): boolean {
+    return this.keepAliveOscillator !== null
   }
 
   /**
@@ -101,6 +155,9 @@ export class AudioQueuePlayer {
       src.buffer = silent
       src.connect(this.audioCtx.destination)
       src.start(0)
+
+      // Start continuous silent keep-alive oscillator
+      this.startKeepAliveOscillator(this.audioCtx)
 
       this.isUnlocked = true
       return true

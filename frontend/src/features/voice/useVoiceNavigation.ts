@@ -22,15 +22,18 @@ import { resolveVoiceNavigation } from './voiceNavigationRouter'
 import { wakeWordDetector } from './WakeWordDetector'
 import { mobileWakeLock } from './MobileWakeLock'
 
+export type VoiceNavigationStatus = 'STANDBY' | 'LISTENING' | 'PROCESSING' | 'SPEAKING' | 'HOTWORD_STANDBY'
+
 export interface VoiceNavigationOptions {
   onNavigate?: (route: string) => void
   onAgentChange?: (agent: string) => void
   onTranscript?: (text: string) => void
   onAgentResponse?: (text: string) => void
-  onStatusChange?: (status: 'STANDBY' | 'LISTENING' | 'PROCESSING' | 'SPEAKING') => void
+  onStatusChange?: (status: VoiceNavigationStatus) => void
   autoConnect?: boolean
   enableWakeWord?: boolean
   enableWakeLock?: boolean
+  followUpWindowMs?: number
 }
 
 export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
@@ -41,12 +44,13 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     onAgentResponse,
     onStatusChange,
     enableWakeWord = true,
-    enableWakeLock = true
+    enableWakeLock = true,
+    followUpWindowMs = 8000
   } = options
 
   const [isConnected, setIsConnected] = useState(false)
   const [activeAgent, setActiveAgent] = useState<'jarvis' | 'aegis' | 'raphael' | 'friday'>('jarvis')
-  const [voiceStatus, setVoiceStatus] = useState<'STANDBY' | 'LISTENING' | 'PROCESSING' | 'SPEAKING'>('STANDBY')
+  const [voiceStatus, setVoiceStatus] = useState<VoiceNavigationStatus>('STANDBY')
   const [lastTranscript, setLastTranscript] = useState('')
   const [lastResponse, setLastResponse] = useState('')
 
@@ -62,10 +66,24 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
   const lastPacketSendTimeRef = useRef<number>(0)
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const updateStatus = useCallback((status: 'STANDBY' | 'LISTENING' | 'PROCESSING' | 'SPEAKING') => {
+  const updateStatus = useCallback((status: VoiceNavigationStatus) => {
     setVoiceStatus(status)
     if (onStatusChange) onStatusChange(status)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('jarvis:state:change', { detail: { status } }))
+    }
   }, [onStatusChange])
+
+  // Microphone Track Guard: Verify track remains enabled throughout transitions
+  const ensureMicTrackActive = useCallback(() => {
+    if (mediaStreamRef.current) {
+      const tracks = mediaStreamRef.current.getAudioTracks()
+      if (tracks.length > 0 && !tracks[0].enabled) {
+        tracks[0].enabled = true
+        console.log('🛡️ [VoiceNavigation] Microphone track re-enabled by Track Guard.')
+      }
+    }
+  }, [])
 
   // Clear any pending conversational follow-up window
   const clearFollowUpTimer = useCallback(() => {
@@ -75,17 +93,19 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
     }
   }, [])
 
-  // Start 6-second conversational follow-up window after speech playback finishes
-  const startFollowUpWindow = useCallback(() => {
+  // Start 8-second conversational follow-up window after speech playback finishes
+  const startFollowUpWindow = useCallback((durationMs: number = followUpWindowMs) => {
     clearFollowUpTimer()
+    ensureMicTrackActive()
     updateStatus('LISTENING')
 
     followUpTimerRef.current = setTimeout(() => {
-      console.log('⏱️ [VoiceNavigation] Conversational follow-up window expired. Returning to Standby.')
-      updateStatus('STANDBY')
+      console.log(`⏱️ [VoiceNavigation] Conversational follow-up window (${durationMs}ms) expired without voice activity. Entering HOTWORD_STANDBY.`)
+      updateStatus('HOTWORD_STANDBY')
+      wakeWordDetector.setState('HOTWORD_STANDBY')
       followUpTimerRef.current = null
-    }, 6000)
-  }, [clearFollowUpTimer, updateStatus])
+    }, durationMs)
+  }, [clearFollowUpTimer, ensureMicTrackActive, followUpWindowMs, updateStatus])
 
   // Stop audio immediately on barge-in interruption or explicit mute
   const handleBargeIn = useCallback(() => {
@@ -120,11 +140,12 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         if (workletNodeRef.current) {
           workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
         }
-        // Initiate 6-second conversational follow-up window after speech finishes
-        startFollowUpWindow()
+        ensureMicTrackActive()
+        // Initiate 8-second conversational follow-up window after speech finishes
+        startFollowUpWindow(8000)
       }
     )
-  }, [clearFollowUpTimer, startFollowUpWindow, updateStatus])
+  }, [clearFollowUpTimer, ensureMicTrackActive, startFollowUpWindow, updateStatus])
 
   // Evaluate transcript for omni-directional navigation & touchless commands
   const evaluateTouchlessDirectives = useCallback((text: string): boolean => {
@@ -239,7 +260,8 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
 
     ws.onopen = () => {
       setIsConnected(true)
-      updateStatus('STANDBY')
+      // Prime conversational readiness directly into LISTENING follow-up window
+      startFollowUpWindow(8000)
     }
 
     ws.onmessage = async (event) => {
@@ -310,7 +332,8 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
             if (workletNodeRef.current) {
               workletNodeRef.current.port.postMessage({ type: 'UNMUTE' })
             }
-            startFollowUpWindow()
+            ensureMicTrackActive()
+            startFollowUpWindow(8000)
           }
         }
       } catch (err) {
@@ -365,6 +388,12 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         video: false
       })
 
+      // Microphone Track Guard: Verify and lock audio track enabled
+      const audioTracks = stream.getAudioTracks()
+      if (audioTracks.length > 0) {
+        audioTracks[0].enabled = true
+      }
+
       mediaStreamRef.current = stream
 
       // Initialize parallel MediaRecorder for HTTP fallback
@@ -417,8 +446,10 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
         }
 
         // Threshold detection: 0.01 + 400ms hangover
-        if (isAboveThreshold) {
+        const hasEnergy = isAboveThreshold || rms >= 0.01
+        if (hasEnergy) {
           clearFollowUpTimer()
+          ensureMicTrackActive()
           speechDetectedRef.current = true
           updateStatus('LISTENING')
 
@@ -478,22 +509,32 @@ export function useVoiceNavigation(options: VoiceNavigationOptions = {}) {
           onWakeWord: (keyword) => {
             console.log(`🎤 [VoiceNavigation] Wake word detected: "${keyword}". Transitioning to ACTIVE_LISTENING.`)
             clearFollowUpTimer()
+            ensureMicTrackActive()
+            updateStatus('LISTENING')
+          },
+          onWakeUp: (keyword) => {
+            clearFollowUpTimer()
+            ensureMicTrackActive()
             updateStatus('LISTENING')
           },
           onStateChange: (state) => {
             if (state === 'ACTIVE_LISTENING') {
+              ensureMicTrackActive()
               updateStatus('LISTENING')
+            } else if (state === 'HOTWORD_STANDBY') {
+              updateStatus('HOTWORD_STANDBY')
             }
           }
         })
         wakeWordDetector.start(ctx)
       }
 
-      updateStatus('STANDBY')
+      // Enter LISTENING mode with conversational follow-up window (keeps mic hot)
+      startFollowUpWindow(8000)
     } catch (err) {
       console.warn('[useVoiceNavigation] Audio capture initialization failed:', err)
     }
-  }, [clearFollowUpTimer, enableWakeLock, enableWakeWord, handleBargeIn, transcribeBlobFallback, updateStatus])
+  }, [clearFollowUpTimer, enableWakeLock, enableWakeWord, ensureMicTrackActive, handleBargeIn, startFollowUpWindow, transcribeBlobFallback, updateStatus])
 
   // Stop listening and release media tracks
   const stopListening = useCallback(() => {

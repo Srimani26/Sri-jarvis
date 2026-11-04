@@ -101,10 +101,16 @@ export class MobileWakeLock {
   /**
    * Enable hands-free persistent mode.
    */
-  public async enableHandsFree(): Promise<boolean> {
+  public async enableHandsFree(ctx?: AudioContext): Promise<boolean> {
     this.isHandsFreeActive = true
     const screenLocked = await this.acquireScreenLock()
     this.startSilentAudioKeepalive()
+    if (ctx) {
+      try {
+        const { audioQueuePlayer } = await import('./AudioQueuePlayer')
+        audioQueuePlayer.startKeepAliveOscillator(ctx)
+      } catch {}
+    }
     return screenLocked
   }
 
