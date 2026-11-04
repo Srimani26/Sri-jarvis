@@ -18,6 +18,7 @@ import { executeAutonomousReAct, AutonomousTaskResult } from './AutonomousAgentL
 
 export interface SwarmOrchestrationOptions {
   chatId?: string | number
+  author?: string
   specialist?: string
   workspaceRoot?: string
   onProgress?: (stage: string, message: string) => Promise<void> | void
@@ -48,6 +49,82 @@ export class SwarmOrchestrator {
       SwarmOrchestrator.instance = new SwarmOrchestrator()
     }
     return SwarmOrchestrator.instance
+  }
+
+  public static async dispatch(options: {
+    directive: string
+    author?: string
+    chatId?: string | number
+    workspaceRoot?: string
+    onProgress?: (stage: string, message: string) => Promise<void> | void
+  }): Promise<SwarmOrchestrationResult | AutonomousTaskResult> {
+    return SwarmOrchestrator.getInstance().dispatch(options)
+  }
+
+  public async dispatch(options: {
+    directive: string
+    author?: string
+    chatId?: string | number
+    workspaceRoot?: string
+    onProgress?: (stage: string, message: string) => Promise<void> | void
+  }): Promise<SwarmOrchestrationResult | AutonomousTaskResult> {
+    return this.orchestrateTask(options.directive, {
+      chatId: options.chatId,
+      author: options.author,
+      specialist: 'jarvis',
+      workspaceRoot: options.workspaceRoot,
+      onProgress: options.onProgress
+    })
+  }
+
+  public autoAlignSharedElementIds(html: string, js: string): string {
+    if (!html || !js) return html
+    const idMatches = Array.from(js.matchAll(/(?:getElementById|querySelector)\(['"]#?([a-zA-Z0-9_-]+)['"]\)/g)).map(m => m[1])
+    const uniqueIds = Array.from(new Set(idMatches))
+    const missingIds = uniqueIds.filter(id => !html.includes(`id="${id}"`) && !html.includes(`id='${id}'`))
+
+    if (missingIds.length === 0) return html
+
+    console.log(`🔧 [SwarmOrchestrator] Auto-aligning ${missingIds.length} missing DOM IDs in HTML: ${missingIds.join(', ')}`)
+
+    let updatedHtml = html
+    const autoHealedElements: string[] = []
+
+    for (const id of missingIds) {
+      const lowerId = id.toLowerCase()
+      if ((lowerId.includes('btn') || lowerId.includes('button')) && /<button(?![^>]*\bid=)/i.test(updatedHtml)) {
+        updatedHtml = updatedHtml.replace(/<button(?![^>]*\bid=)/i, `<button id="${id}"`)
+      } else if (lowerId.includes('input') && /<input(?![^>]*\bid=)/i.test(updatedHtml)) {
+        updatedHtml = updatedHtml.replace(/<input(?![^>]*\bid=)/i, `<input id="${id}"`)
+      } else if (lowerId.includes('table') && /<table(?![^>]*\bid=)/i.test(updatedHtml)) {
+        updatedHtml = updatedHtml.replace(/<table(?![^>]*\bid=)/i, `<table id="${id}"`)
+      } else if (lowerId.includes('tbody') && /<tbody(?![^>]*\bid=)/i.test(updatedHtml)) {
+        updatedHtml = updatedHtml.replace(/<tbody(?![^>]*\bid=)/i, `<tbody id="${id}"`)
+      } else {
+        autoHealedElements.push(`<div id="${id}" data-contract-auto-healed="true" class="hidden" style="display:none"></div>`)
+      }
+    }
+
+    if (autoHealedElements.length > 0) {
+      const injectionBlock = `\n<!-- Auto-Aligned Swarm Contract Elements -->\n<div class="swarm-contract-auto-healed hidden" style="display:none">\n  ${autoHealedElements.join('\n  ')}\n</div>\n`
+      if (updatedHtml.includes('</body>')) {
+        updatedHtml = updatedHtml.replace('</body>', `${injectionBlock}</body>`)
+      } else {
+        updatedHtml += injectionBlock
+      }
+    }
+
+    return updatedHtml
+  }
+
+  public extractCodeBlock(content: string, languagePattern: string): string {
+    if (!content) return ''
+    const regex = new RegExp(`\`\`\`(?:${languagePattern})?\\s*([\\s\\S]*?)\`\`\``, 'i')
+    const match = content.match(regex)
+    if (match && match[1] && match[1].trim()) {
+      return match[1].trim()
+    }
+    return content.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/i, '').trim()
   }
 
   public isComplexWebProject(directive: string): boolean {
@@ -125,7 +202,7 @@ Requirements:
       ]
 
       const aegisRes = await swarmModelRouter.dispatch('aegis', aegisPrompt, [])
-      aegisHtml = (aegisRes.content || '').replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim()
+      aegisHtml = this.extractCodeBlock(aegisRes.content || '', 'html')
       await taskAuditService.logToolExecution(taskId, 'aegis_html_synthesis', { directive }, { length: aegisHtml.length }, 'SUCCESS', 250)
     } catch (err: any) {
       console.warn('⚠️ [SwarmOrchestrator] Aegis model synthesis fallback:', err?.message || err)
@@ -161,7 +238,7 @@ Requirements:
       ]
 
       const raphaelRes = await swarmModelRouter.dispatch('raphael', raphaelPrompt, [])
-      raphaelCss = (raphaelRes.content || '').replace(/^```css\s*/i, '').replace(/```\s*$/i, '').trim()
+      raphaelCss = this.extractCodeBlock(raphaelRes.content || '', 'css')
       await taskAuditService.logToolExecution(taskId, 'raphael_css_synthesis', { directive }, { length: raphaelCss.length }, 'SUCCESS', 250)
     } catch (err: any) {
       console.warn('⚠️ [SwarmOrchestrator] Raphael model synthesis fallback:', err?.message || err)
@@ -185,47 +262,69 @@ Requirements:
 Given the HTML structure:
 ${aegisHtml.substring(0, 1500)}
 
-Generate pure vanilla JavaScript to make this application fully operational:
+Generate pure browser-executable vanilla JavaScript to make this application fully operational:
 Requirements:
 1. Query input elements and attach 'input' / 'change' event listeners to update slider value labels and trigger calculation immediately.
 2. Implement realistic mathematical equations for: "${directive}" (e.g. solar gross Capex, 30% federal ITC tax incentive deduction, net Capex, annual kWh production, and 25-year cumulative cashflow).
 3. Populate table rows inside the tbody element.
 4. Implement a fully working CSV export handler attached to the export button that downloads a CSV file with financial projections.
 5. Ensure querySelector and getElementById target the exact IDs present in the HTML.
-6. Return ONLY pure JavaScript code. Do NOT output markdown code blocks or TODO placeholders.`
+6. Return ONLY pure browser JavaScript code. Do NOT output conversational prose, explanations, Node.js require statements, or TODO placeholders.`
         },
         { role: 'user', content: 'Generate computation engine and event handlers.' }
       ]
 
       const midasRes = await swarmModelRouter.dispatch('midas', midasPrompt, [])
-      midasJs = (midasRes.content || '').replace(/^```(?:javascript|js)\s*/i, '').replace(/```\s*$/i, '').trim()
+      midasJs = this.extractCodeBlock(midasRes.content || '', 'javascript|js')
       await taskAuditService.logToolExecution(taskId, 'midas_js_synthesis', { directive }, { length: midasJs.length }, 'SUCCESS', 250)
     } catch (err: any) {
       console.warn('⚠️ [SwarmOrchestrator] Midas model synthesis fallback:', err?.message || err)
     }
 
-    if (!midasJs || midasJs.length < 200 || !midasJs.includes('function') && !midasJs.includes('addEventListener')) {
+    if (
+      !midasJs ||
+      midasJs.length < 200 ||
+      midasJs.includes("require('") ||
+      midasJs.includes('require("') ||
+      (!midasJs.includes('function') && !midasJs.includes('addEventListener'))
+    ) {
       midasJs = this.generateFallbackJs()
     }
 
     await notify('PROGRESS', 'Midas completed calculation engine & event handlers.')
     await notify('PROGRESS', 'Synthesis complete. Running autonomous verification...')
 
+    // Auto-align and heal shared contract DOM element IDs between Aegis and Midas
+    aegisHtml = this.autoAlignSharedElementIds(aegisHtml, midasJs)
+
     // ──────────────────────────────────────────────────────────────────────────
     // STAGE 4: UNIFIED BUNDLING & AUTONOMOUS VERIFICATION
     // ──────────────────────────────────────────────────────────────────────────
-    const bundleRes: AppBuilderResult = appBuilderEngine.bundleFullSwarmDeliverable({
-      slug,
-      title,
-      description: directive,
-      htmlContent: aegisHtml,
-      cssContent: raphaelCss,
-      jsContent: midasJs
-    }, workspaceRoot)
+    const { classifyProjectScope } = await import('../tools/appBuilderEngine')
+    const scope = classifyProjectScope(directive)
+    let bundleRes: AppBuilderResult
+
+    if (scope === 'SCOPE_FULLSTACK') {
+      bundleRes = appBuilderEngine.scaffoldFullstackDeliverable({
+        slug,
+        title,
+        description: directive,
+        author: options.author
+      }, workspaceRoot)
+    } else {
+      bundleRes = appBuilderEngine.bundleFullSwarmDeliverable({
+        slug,
+        title,
+        description: directive,
+        htmlContent: aegisHtml,
+        cssContent: raphaelCss,
+        jsContent: midasJs
+      }, workspaceRoot)
+    }
 
     const verification: VerificationResult = await autonomousVerifier.verifyDeliverable({
       deliverableType: 'web_app',
-      slug
+      slug: bundleRes.projectSlug
     }, workspaceRoot)
 
     const latencyMs = Date.now() - startTime

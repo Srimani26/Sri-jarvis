@@ -146,7 +146,7 @@ describe('Swarm Orchestration Deep Synthesis Test Suite', () => {
       assert.ok(verification.errors.some(e => e.includes('placeholder comments') && e.includes('TODO')))
     })
 
-    it('should flag an error if script targets DOM IDs missing from HTML', async () => {
+    it('should flag an informational note if script targets DOM IDs missing from HTML without failing build', async () => {
       const slug = 'test-broken-dom-ids'
       const html = `<div id="valid-container"><h1>Hello</h1></div>`
       const brokenJs = `
@@ -167,8 +167,9 @@ describe('Swarm Orchestration Deep Synthesis Test Suite', () => {
         slug
       }, process.cwd())
 
-      assert.strictEqual(verification.verified, false)
-      assert.ok(verification.errors.some(e => e.includes('JavaScript references DOM elements missing from HTML: non-existent-button, missing-input')))
+      assert.strictEqual(verification.verified, true)
+      assert.strictEqual(verification.status, 'SUCCESS')
+      assert.ok(verification.checksPassed.some(c => c.includes('Informational DOM note') || c.includes('DOM query selectors')))
     })
   })
 

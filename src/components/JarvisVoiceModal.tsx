@@ -662,6 +662,37 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }, [isOpen])
 
+  // Enterprise Voice WebSocket connection to /api/voice/session for Swarm progress & live preview
+  useEffect(() => {
+    if (!isOpen) return
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${proto}//${window.location.host}/api/voice/session`
+    let ws: WebSocket | null = null
+
+    try {
+      ws = new WebSocket(wsUrl)
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === 'SWARM_PROGRESS') {
+            setJarvisResponse(`### ⚙️ Swarm Progress: ${data.stage}\n*${data.message}*`)
+          } else if (data.type === 'OPEN_PREVIEW' && data.url) {
+            setJarvisResponse(`### 🌐 Application Mounted & Verified!\n*Live Preview:* [${data.url}](${data.url})\n\n${data.summary || ''}`)
+            window.open(data.url, '_blank')
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('[JarvisVoiceModal] Voice WebSocket session warning:', e)
+    }
+
+    return () => {
+      if (ws) {
+        try { ws.close() } catch {}
+      }
+    }
+  }, [isOpen])
+
   useEffect(() => {
     continuousModeRef.current = continuousMode
   }, [continuousMode])
@@ -1389,6 +1420,25 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     if (targetAgent.id !== activeAgentRef.current?.id) {
       setActiveAgent(targetAgent)
       activeAgentRef.current = targetAgent
+    }
+
+    // Direct Voice Trigger to Multi-Agent Swarm Orchestrator (Aegis + Raphael + Midas)
+    const isBuildDirective = /build|create|generate|develop|scaffold/i.test(cmd) &&
+      /app|system|saas|tool|calculator|dashboard|portal|platform/i.test(cmd)
+
+    if (isBuildDirective) {
+      const ack = 'Directive acknowledged, Master Sri. Initiating swarm decomposition across Aegis, Raphael, and Midas.'
+      setJarvisResponse(`### 🚀 Swarm Build Dispatched\n*${ack}*\n\nDecomposing across **Aegis** (Structure), **Raphael** (Styling), and **Midas** (Computation)...`)
+      speakVoice(ack, 'en-GB')
+
+      fetch('/api/voice/intent', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({ text: cmd, agent: targetAgent.id })
+      }).catch(() => {})
+
+      setIsProcessing(false)
+      return
     }
 
     // Direct Conversational Voice Turn: Real Human-Level Gemini Thinking

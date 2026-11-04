@@ -8325,6 +8325,21 @@ app.post('/voice/intent', async (c) => {
   }
 });
 
+// POST /api/webhooks/inbound/:source — Friday Heavy Webhook Ingestion Engine
+app.post('/webhooks/inbound/:source', async (c) => {
+  try {
+    const { fridaySpecialist } = await import('./src/swarm/specialists/FridaySpecialist');
+    const source = c.req.param('source');
+    const body = await c.req.json().catch(() => ({}));
+    const headers = c.req.header();
+
+    const result = await fridaySpecialist.processInboundWebhook(source, body, headers);
+    return c.json({ ok: true, source, status: 'PROCESSED_BY_FRIDAY', result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Webhook processing failed' }, 500);
+  }
+});
+
 app.all('*', (c) =>
   c.json(
     { error: 'Not found', detail: `No API route for ${c.req.method} ${c.req.path}` },

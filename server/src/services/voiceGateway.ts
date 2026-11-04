@@ -93,7 +93,7 @@ export function pcmToWav(pcmBuffer: Buffer, sampleRate = 16000): Buffer {
 
 // Semantic Intent Parser: Checks Navigation, Specialist Handoff, or Direct Query
 export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent): {
-  type: 'NAVIGATE' | 'HANDOFF' | 'QUERY' | 'SCHEDULE_MEETING' | 'GENERATE_PRESENTATION' | 'DEVICE_CONTROL'
+  type: 'NAVIGATE' | 'HANDOFF' | 'QUERY' | 'SCHEDULE_MEETING' | 'GENERATE_PRESENTATION' | 'DEVICE_CONTROL' | 'SWARM_BUILD'
   target?: string
   agent?: SpecialistAgent
   replyText?: string
@@ -102,6 +102,17 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
 } {
   const text = rawText.trim()
   const lower = text.toLowerCase()
+
+  // 1. Swarm Build Directive Extraction (Aegis + Raphael + Midas Multi-Agent Swarm)
+  const isBuild = /build|create|generate|develop|scaffold/i.test(text)
+  const isApp = /app|system|saas|tool|calculator|dashboard|portal|platform/i.test(text)
+  if (isBuild && isApp) {
+    return {
+      type: 'SWARM_BUILD',
+      target: text,
+      replyText: 'Directive acknowledged, Master Sri. Initiating swarm decomposition across Aegis, Raphael, and Midas.'
+    }
+  }
 
   // 1. Hands-Free Acoustic Status Check ("can you hear me")
   if (lower.includes('can you hear me') || lower.includes('you hear me') || lower.includes('mic check') || lower.includes('mic test')) {
@@ -555,6 +566,63 @@ export class VoiceGatewayService {
       }))
 
       await this.streamTTSResponse(session, spokenAck)
+      return
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // SWARM BUILD DIRECTIVE: Voice to Sovereign Multi-Agent Swarm Orchestrator
+    // ──────────────────────────────────────────────────────────────────────────
+    if (intent.type === 'SWARM_BUILD') {
+      const ack = intent.replyText || 'Directive acknowledged, Master Sri. Initiating swarm decomposition across Aegis, Raphael, and Midas.'
+
+      session.ws.send(JSON.stringify({
+        type: 'SWARM_BUILD_STARTED',
+        status: 'DISPATCHED',
+        agent: 'SWARM',
+        directive: transcript,
+        spokenAck: ack
+      }))
+
+      // 1. Immediately speak acknowledgment via Edge-TTS / Neural TTS
+      await this.streamTTSResponse(session, ack)
+
+      // 2. Dispatch task asynchronously into SwarmOrchestrator
+      ;(async () => {
+        try {
+          const { SwarmOrchestrator } = await import('../swarm/engine/SwarmOrchestrator')
+          const result = await SwarmOrchestrator.dispatch({
+            directive: transcript,
+            author: 'MASTER_SRI_VOICE',
+            onProgress: async (stage: string, message: string) => {
+              if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+                session.ws.send(JSON.stringify({
+                  type: 'SWARM_PROGRESS',
+                  stage,
+                  message
+                }))
+              }
+            }
+          })
+
+          if (result && 'previewPath' in result && result.success) {
+            if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+              session.ws.send(JSON.stringify({
+                type: 'OPEN_PREVIEW',
+                url: result.previewPath,
+                previewUrl: result.previewUrl,
+                slug: result.slug,
+                summary: result.summary
+              }))
+            }
+
+            const doneSpeech = 'Master Sri, your application has been compiled, verified, and mounted on the preview cluster.'
+            await this.streamTTSResponse(session, doneSpeech)
+          }
+        } catch (err: any) {
+          console.warn('[VoiceGateway] Swarm orchestration execution note:', err?.message || err)
+        }
+      })()
+
       return
     }
 
