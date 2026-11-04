@@ -46,6 +46,9 @@ export class TelegramBotListener {
 
     console.log(`🤖 [TelegramBotListener] Activated 24/7 command & callback listener for Master Sri (Chat ID: ${authorizedId})`);
 
+    // STEP 3: Clear stale webhook before polling to prevent 409 Conflict
+    TelegramNotifier.deleteWebhook().catch(() => {});
+
     // Launch background polling loop (unref'd / non-blocking)
     (async () => {
       while (this.pollingActive) {
@@ -114,14 +117,17 @@ export class TelegramBotListener {
         if (!message || !message.text) continue;
 
         const senderChatId = String(message.chat?.id || '');
-        const senderUsername = message.from?.username || 'Unknown';
+        const senderUsername = message.from?.username || message.chat?.username || 'Unknown';
         const text = message.text.trim();
 
-        // Security gate: strictly authorize Master Sri
+        // STEP 1: Structured entrypoint logging
+        console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
+
+        // STEP 1: Security gate strictly authorizing Master Sri (1377862282)
         if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
-          console.warn(`[TelegramBotListener] Unauthorized command attempt from ${senderUsername} (${senderChatId})`);
+          console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
           await TelegramNotifier.sendMessage(
-            '⛔ <b>Access Denied.</b> You are not authorized to command J.A.R.V.I.S.',
+            `⛔ Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
             { targetChatId: senderChatId }
           );
           continue;
@@ -350,9 +356,30 @@ export class TelegramBotListener {
       return;
     }
 
-    // 2. Direct URL or raw requirement text (un-prefixed by '/')
-    if (!trimmed.startsWith('/') || /^https?:\/\//i.test(trimmed)) {
+    // 3. Natural agent delegation or action directive (Hey Aegis..., build a web app...)
+    const agentPrefixMatch = trimmed.match(/^(?:hey\s+)?(jarvis|aegis|raphael|friday|cerebro|midas|vortex)[,:\s]+(.+)/i);
+    const isActionDirective = /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(trimmed);
+
+    if (agentPrefixMatch || isActionDirective) {
+      const { telegramNotifier } = await import('../services/telegramNotifier');
+      await telegramNotifier.handleInboundUpdate({ message: { chat: { id: chatId }, text: trimmed } });
+      return;
+    }
+
+    // 4. Direct URL or raw requirement text (un-prefixed by '/')
+    if (/^https?:\/\//i.test(trimmed)) {
       await this.generateOnDemandBid(trimmed, chatId);
+      return;
+    }
+
+    if (!trimmed.startsWith('/')) {
+      const isFreelanceJob = /(?:client|budget|hiring|proposal|need\s+a\s+developer|looking\s+for|shopify\s+store|fix\s+my)/i.test(trimmed);
+      if (isFreelanceJob) {
+        await this.generateOnDemandBid(trimmed, chatId);
+      } else {
+        const { telegramNotifier } = await import('../services/telegramNotifier');
+        await telegramNotifier.handleInboundUpdate({ message: { chat: { id: chatId }, text: trimmed } });
+      }
       return;
     }
 

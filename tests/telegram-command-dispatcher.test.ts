@@ -26,14 +26,19 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
         const res = await telegramNotifier.handleInboundUpdate(update)
         assert.strictEqual(res.handled, true)
         assert.strictEqual(res.command, '/run')
-        assert.ok(sentMessages.length >= 2, 'Expected at least dispatch ack + completion card')
+        assert.ok(sentMessages.length >= 1, 'Expected immediate dispatch ack (<500ms)')
 
         // 1. First message is immediate dispatch acknowledgement
-        assert.ok(sentMessages[0].includes('Autonomous Swarm Dispatch'))
+        assert.ok(sentMessages[0].includes('SWARM DISPATCHED') || sentMessages[0].includes('Autonomous Swarm Dispatch'))
         assert.ok(sentMessages[0].includes('AEGIS'))
         assert.ok(sentMessages[0].includes('audit git working tree'))
 
+        // Await background execution
+        if (res.taskPromise) await res.taskPromise
+        else if (telegramNotifier.lastTaskPromise) await telegramNotifier.lastTaskPromise
+
         // 2. Final message is formatted completion card with latency & verification
+        assert.ok(sentMessages.length >= 2, 'Expected at least dispatch ack + completion card')
         const completionMsg = sentMessages.find(m => m.includes('Task Completed by AEGIS')) || sentMessages[sentMessages.length - 1]
         assert.ok(completionMsg.includes('Task Completed by AEGIS'))
         assert.ok(completionMsg.includes('Execution Latency:'))
@@ -96,6 +101,10 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
         assert.strictEqual(res.handled, true)
         assert.strictEqual(res.command, 'NATURAL_DELEGATION')
         assert.ok(sentMessages[0].includes('FRIDAY'))
+
+        if (res.taskPromise) await res.taskPromise
+        else if (telegramNotifier.lastTaskPromise) await telegramNotifier.lastTaskPromise
+
         const completionMsg = sentMessages.find(m => m.includes('Task Completed by FRIDAY')) || sentMessages[sentMessages.length - 1]
         assert.ok(completionMsg.includes('Task Completed by FRIDAY'))
       } finally {
@@ -125,6 +134,9 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
         assert.strictEqual(res.handled, true)
         assert.strictEqual(res.command, 'NATURAL_DIRECTIVE')
         assert.ok(sentMessages[0].includes('AEGIS'))
+
+        if (res.taskPromise) await res.taskPromise
+        else if (telegramNotifier.lastTaskPromise) await telegramNotifier.lastTaskPromise
       } finally {
         telegramNotifier.sendMessage = origSend
       }
@@ -148,6 +160,11 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
         )
 
         assert.strictEqual(res.success, true)
+        assert.ok(sentMessages.length >= 1)
+
+        if (res.taskPromise) await res.taskPromise
+        else if (telegramNotifier.lastTaskPromise) await telegramNotifier.lastTaskPromise
+
         assert.ok(sentMessages.length >= 2)
         const finalCard = sentMessages.find(m => m.includes('Task Completed by')) || sentMessages[sentMessages.length - 1]
         assert.ok(finalCard.includes('Execution Latency:'))
@@ -160,7 +177,7 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
   })
 
   describe('Criterion 4: Security Perimeter & Access Control', () => {
-    it('should block unauthorized chat IDs and reject execution', async () => {
+    it('should block unauthorized chat IDs and reject execution with diagnostic chat ID', async () => {
       const sentMessages: string[] = []
       const origSend = telegramNotifier.sendMessage
       telegramNotifier.sendMessage = async (msg: string) => {
@@ -181,7 +198,8 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
         const res = await telegramNotifier.handleInboundUpdate(unauthorizedUpdate)
         assert.strictEqual(res.handled, false)
         assert.strictEqual(sentMessages.length, 1)
-        assert.ok(sentMessages[0].includes('ACCESS DENIED'))
+        assert.ok(sentMessages[0].toLowerCase().includes('access denied'))
+        assert.ok(sentMessages[0].includes('999999999'), 'Denial message must state the rejected chat ID for diagnostics')
       } finally {
         telegramNotifier.sendMessage = origSend
       }

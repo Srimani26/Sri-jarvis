@@ -11,6 +11,8 @@
 import { executeAutonomousTask } from '../swarm/engine/AgentLoop'
 import { swarmModelRouter, SwarmSpecialist } from '../swarm/engine/ModelRouter'
 
+export const MASTER_CHAT_ID = '1377862282'
+
 export interface TelegramMessagePayload {
   chat_id: string | number
   text: string
@@ -24,6 +26,7 @@ export class TelegramNotifierService {
   private isPollingActive = false
   private abortController: AbortController | null = null
   private lastUpdateId = 0
+  public lastTaskPromise: Promise<any> | null = null
 
   public static getInstance(): TelegramNotifierService {
     if (!TelegramNotifierService.instance) {
@@ -89,13 +92,14 @@ export class TelegramNotifierService {
   }
 
   /**
-   * Dispatches autonomous tasks to AutonomousAgentLoop with live telemetry and artifact streaming
+   * Dispatches autonomous tasks to AutonomousAgentLoop with live telemetry and artifact streaming.
+   * Splits dispatch into instant acknowledgment (<500ms) and asynchronous background execution.
    */
   public async handleAutonomousRun(
     chatId: string | number,
     agentName: string,
     directive: string
-  ): Promise<{ success: boolean; result?: any; summary: string }> {
+  ): Promise<{ success: boolean; result?: any; summary: string; taskPromise?: Promise<any> }> {
     const validSpecialists: Record<string, SwarmSpecialist> = {
       jarvis: 'jarvis',
       aegis: 'aegis',
@@ -108,111 +112,129 @@ export class TelegramNotifierService {
 
     const specialist: SwarmSpecialist = validSpecialists[agentName.toLowerCase()] || 'jarvis'
 
-    // Immediate dispatch acknowledgement
-    await this.sendMessage(
-      `🚀 *[Autonomous Swarm Dispatch]*\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `• *Specialist:* \`${specialist.toUpperCase()}\`\n` +
-      `• *Directive:* _${directive}_\n` +
-      `• *Engine:* Claude-Code & Groq ReAct Loop V2\n` +
-      `⏳ _Executing multi-step reasoning, surgical tools, and proof-of-work verification..._`,
-      chatId
-    )
+    // STEP 2.1: Immediate dispatch acknowledgement (<500ms)
+    const ackMessage = [
+      `🚀 *[J.A.R.V.I.S. SWARM DISPATCHED]*`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `• *Specialist:* \`${specialist.toUpperCase()}\``,
+      `• *Directive:* _${directive}_`,
+      `• *Engine:* Autonomous ReAct Loop V2`,
+      `⏳ *Executing architecture, coding, and verifier... I will post the preview link here once ready.*`
+    ].join('\n')
+
+    await this.sendMessage(ackMessage, chatId)
 
     const startTime = Date.now()
 
-    try {
-      const { executeAutonomousReAct } = await import('../swarm/engine/AutonomousAgentLoop')
+    // STEP 2.2: Execute Asynchronously in Background (Fire-and-Forget)
+    const taskPromise = (async () => {
+      try {
+        const { executeAutonomousReAct } = await import('../swarm/engine/AutonomousAgentLoop')
 
-      const lower = directive.toLowerCase()
-      const isWebApp = lower.includes('web') || lower.includes('app') || lower.includes('scaffold') || lower.includes('preview') || lower.includes('dashboard')
-      const isDoc = lower.includes('pdf') || lower.includes('document') || lower.includes('pptx') || lower.includes('excel') || lower.includes('report') || lower.includes('presentation')
-      const deliverableType = isWebApp ? 'web_app' : (isDoc ? 'document' : 'general')
+        const lower = directive.toLowerCase()
+        const isWebApp = lower.includes('web') || lower.includes('app') || lower.includes('scaffold') || lower.includes('preview') || lower.includes('dashboard')
+        const isDoc = lower.includes('pdf') || lower.includes('document') || lower.includes('pptx') || lower.includes('excel') || lower.includes('report') || lower.includes('presentation')
+        const deliverableType = isWebApp ? 'web_app' : (isDoc ? 'document' : 'general')
 
-      const result = await executeAutonomousReAct(directive, {
-        specialist,
-        maxSteps: 25,
-        requireVerification: true,
-        deliverableType
-      })
+        const result = await executeAutonomousReAct(directive, {
+          specialist,
+          maxSteps: 25,
+          requireVerification: true,
+          deliverableType
+        })
 
-      const latencyMs = Date.now() - startTime
+        const latencyMs = Date.now() - startTime
 
-      // Collect artifacts & format links
-      const allArtifacts = new Set<string>()
-      if (Array.isArray(result.artifacts)) {
-        result.artifacts.forEach(a => allArtifacts.add(a))
-      }
-      if (Array.isArray(result.toolCallHistory)) {
-        for (const tc of result.toolCallHistory) {
-          if (tc.output?.filePath) allArtifacts.add(tc.output.filePath)
-          if (tc.output?.previewUrl) allArtifacts.add(tc.output.previewUrl)
-          if (tc.output?.downloadUrl) allArtifacts.add(tc.output.downloadUrl)
-          if (Array.isArray(tc.output?.filesCreated)) {
-            tc.output.filesCreated.forEach((f: string) => allArtifacts.add(f))
+        // Collect artifacts & format links
+        const allArtifacts = new Set<string>()
+        if (Array.isArray(result.artifacts)) {
+          result.artifacts.forEach(a => allArtifacts.add(a))
+        }
+        if (Array.isArray(result.toolCallHistory)) {
+          for (const tc of result.toolCallHistory) {
+            if (tc.output?.filePath) allArtifacts.add(tc.output.filePath)
+            if (tc.output?.previewUrl) allArtifacts.add(tc.output.previewUrl)
+            if (tc.output?.downloadUrl) allArtifacts.add(tc.output.downloadUrl)
+            if (Array.isArray(tc.output?.filesCreated)) {
+              tc.output.filesCreated.forEach((f: string) => allArtifacts.add(f))
+            }
           }
         }
+
+        let artifactSection = ''
+        if (allArtifacts.size > 0) {
+          const artifactItems = Array.from(allArtifacts).map(a => {
+            if (a.startsWith('/preview/')) return `• 🌐 *Live Web Preview:* \`${a}\``
+            if (a.startsWith('/api/artifacts/download')) return `• 📥 *Download:* \`${a}\``
+            if (a.endsWith('.pdf') || a.endsWith('.pptx') || a.endsWith('.xlsx') || a.endsWith('.docx')) {
+              const fileName = a.split(/[/\\]/).pop()
+              return `• 📄 *Document:* \`${fileName}\` (\`/api/artifacts/download?file=${fileName}\`)`
+            }
+            return `• 📦 \`${a}\``
+          })
+          artifactSection = `\n\n📦 *Deliverables & Artifacts:*\n${artifactItems.join('\n')}`
+        }
+
+        const verifyStatus = result.verificationDetails
+          ? (result.verificationDetails.verified ? '✅ Verified (All proof checks passed)' : '⚠️ Verification Note')
+          : '✅ Verified'
+
+        const summary = [
+          `⚡ *[Task Completed by ${specialist.toUpperCase()}]*`,
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *Status:* ${result.success ? '✅ SUCCESS' : '❌ FAILED'}`,
+          `• *Execution Latency:* \`${latencyMs}ms\``,
+          `• *ReAct Turns:* \`${result.stepsExecuted}\` (Self-Healed: \`${result.selfHealed ? 'YES' : 'NO'}\`)`,
+          `• *Verification:* ${verifyStatus}`,
+          artifactSection,
+          '',
+          `📝 *Executive Summary:*`,
+          result.finalResponse.substring(0, 1000),
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+        ].filter(Boolean).join('\n')
+
+        await this.sendMessage(summary, chatId)
+        return { success: result.success, result, summary }
+      } catch (err: any) {
+        console.error('[Autonomous Execution Error]:', err)
+        const errReply = `⚠️ *[TASK FAILED]*\nSpecialist: \`${specialist.toUpperCase()}\`\nError: ${err?.message || 'Execution error'}`
+        await this.sendMessage(errReply, chatId)
+        return { success: false, summary: errReply }
       }
+    })()
 
-      let artifactSection = ''
-      if (allArtifacts.size > 0) {
-        const artifactItems = Array.from(allArtifacts).map(a => {
-          if (a.startsWith('/preview/')) return `• 🌐 *Live Web Preview:* \`${a}\``
-          if (a.startsWith('/api/artifacts/download')) return `• 📥 *Download:* \`${a}\``
-          if (a.endsWith('.pdf') || a.endsWith('.pptx') || a.endsWith('.xlsx') || a.endsWith('.docx')) {
-            const fileName = a.split(/[/\\]/).pop()
-            return `• 📄 *Document:* \`${fileName}\` (\`/api/artifacts/download?file=${fileName}\`)`
-          }
-          return `• 📦 \`${a}\``
-        })
-        artifactSection = `\n\n📦 *Deliverables & Artifacts:*\n${artifactItems.join('\n')}`
-      }
+    this.lastTaskPromise = taskPromise
 
-      const verifyStatus = result.verificationDetails
-        ? (result.verificationDetails.verified ? '✅ Verified (All proof checks passed)' : '⚠️ Verification Note')
-        : '✅ Verified'
-
-      const summary = [
-        `⚡ *[Task Completed by ${specialist.toUpperCase()}]*`,
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        `• *Status:* ${result.success ? '✅ SUCCESS' : '❌ FAILED'}`,
-        `• *Execution Latency:* \`${latencyMs}ms\``,
-        `• *ReAct Turns:* \`${result.stepsExecuted}\` (Self-Healed: \`${result.selfHealed ? 'YES' : 'NO'}\`)`,
-        `• *Verification:* ${verifyStatus}`,
-        artifactSection,
-        '',
-        `📝 *Executive Summary:*`,
-        result.finalResponse.substring(0, 1000),
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-      ].filter(Boolean).join('\n')
-
-      await this.sendMessage(summary, chatId)
-      return { success: result.success, result, summary }
-    } catch (err: any) {
-      const errReply = `❌ *[Task Error]* Execution failed: ${err?.message || err}`
-      await this.sendMessage(errReply, chatId)
-      return { success: false, summary: errReply }
+    return {
+      success: true,
+      summary: ackMessage,
+      taskPromise
     }
   }
 
   /**
    * Handle incoming webhook update from Telegram
    */
-  public async handleInboundUpdate(update: any): Promise<{ handled: boolean; reply?: string; command?: string }> {
+  public async handleInboundUpdate(update: any): Promise<{ handled: boolean; reply?: string; command?: string; taskPromise?: Promise<any> }> {
     const msg = update?.message || update?.edited_message
     if (!msg || !msg.text) return { handled: false }
 
     const senderChatId = String(msg.chat?.id || '')
+    const senderUsername = msg.from?.username || msg.chat?.username || 'Unknown'
+    const text = msg.text.trim()
+
+    // STEP 1: Structured entrypoint logging
+    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`)
+
     const authorizedChatId = String(this.getChatId())
 
-    // Security Gate: Ensure only Master Sri commands the core
+    // STEP 1: Audit Authorized Chat ID against MASTER_CHAT_ID (1377862282)
     if (authorizedChatId && senderChatId !== authorizedChatId) {
-      console.warn(`🛡️ [TelegramSecurity] Rejected unauthorized message from chat ID: ${senderChatId}`)
-      await this.sendMessage('🔒 *ACCESS DENIED:* Unauthorized command source. This incident has been logged.', senderChatId)
-      return { handled: false }
+      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`)
+      const denialMessage = `⛔ Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`
+      await this.sendMessage(denialMessage, senderChatId)
+      return { handled: false, reply: denialMessage }
     }
-
-    const text = msg.text.trim()
 
     // 1. /status command
     if (text === '/status' || text.startsWith('/status@')) {
@@ -247,7 +269,7 @@ export class TelegramNotifierService {
       }
 
       const runRes = await this.handleAutonomousRun(senderChatId, agentName, directive)
-      return { handled: true, command: '/run', reply: runRes.summary }
+      return { handled: true, command: '/run', reply: runRes.summary, taskPromise: runRes.taskPromise }
     }
 
     // 3. Freeform Natural Language Commands & Specialist Delegations
@@ -258,7 +280,7 @@ export class TelegramNotifierService {
       const targetAgent = agentPrefixMatch[1].toLowerCase()
       const directive = agentPrefixMatch[2].trim()
       const runRes = await this.handleAutonomousRun(senderChatId, targetAgent, directive)
-      return { handled: true, command: 'NATURAL_DELEGATION', reply: runRes.summary }
+      return { handled: true, command: 'NATURAL_DELEGATION', reply: runRes.summary, taskPromise: runRes.taskPromise }
     }
 
     if (isActionDirective) {
@@ -275,7 +297,7 @@ export class TelegramNotifierService {
       }
 
       const runRes = await this.handleAutonomousRun(senderChatId, inferredAgent, text)
-      return { handled: true, command: 'NATURAL_DIRECTIVE', reply: runRes.summary }
+      return { handled: true, command: 'NATURAL_DIRECTIVE', reply: runRes.summary, taskPromise: runRes.taskPromise }
     }
 
     // 4. Plain text conversational message
@@ -299,12 +321,35 @@ export class TelegramNotifierService {
   }
 
   /**
+   * Delete any registered webhook to prevent 409 Conflict when long polling
+   */
+  public async deleteWebhook(): Promise<boolean> {
+    const token = this.getBotToken()
+    if (!token) return false
+    try {
+      console.log('🔄 [TelegramNotifier] Clearing stale webhook before polling...')
+      const res = await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=false`, {
+        signal: AbortSignal.timeout(5000)
+      })
+      const data = await res.json() as any
+      console.log(`📡 [TelegramNotifier] deleteWebhook result: ${data.ok ? 'SUCCESS' : data.description || 'FAILED'}`)
+      return Boolean(data.ok)
+    } catch (err: any) {
+      console.warn('⚠️ [TelegramNotifier] Failed to clear webhook:', err?.message || err)
+      return false
+    }
+  }
+
+  /**
    * Start background long-polling for development / instances without public webhooks
    */
-  public startPolling(): void {
+  public async startPolling(): Promise<void> {
     if (this.isPollingActive) return
     const token = this.getBotToken()
     if (!token) return
+
+    // Clear stale webhook before polling to prevent 409 Conflict
+    await this.deleteWebhook()
 
     this.isPollingActive = true
     this.abortController = new AbortController()

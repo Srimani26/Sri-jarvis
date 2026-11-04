@@ -152,10 +152,7 @@ swarmModelRouter.runStartupHandshake().then((report) => {
   console.warn('⚠️ [ModelRouter] Handshake warning:', err?.message || err)
 })
 
-// 24/7 Interactive Mobile Control: Mount TelegramBotListener for Master Sri & Swarm Poller
-try {
-  telegramNotifier.startPolling()
-} catch {}
+// 24/7 Interactive Mobile Control: Mount TelegramBotListener for Master Sri (clears webhook & handles bidirectional commands)
 
 try {
   startTelegramBotListener()

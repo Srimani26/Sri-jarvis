@@ -52,6 +52,26 @@ export class TelegramNotifier {
   }
 
   /**
+   * Delete any active webhook to prevent 409 Conflict during long polling
+   */
+  public static async deleteWebhook(): Promise<boolean> {
+    const { botToken } = this.getCredentials();
+    if (!botToken) return false;
+    try {
+      console.log('🔄 [TelegramNotifier] Clearing stale webhook before polling...');
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook?drop_pending_updates=false`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      const data = (await res.json()) as any;
+      console.log(`📡 [TelegramNotifier] deleteWebhook result: ${data.ok ? 'SUCCESS' : data.description || 'FAILED'}`);
+      return Boolean(data.ok);
+    } catch (err: any) {
+      console.warn('⚠️ [TelegramNotifier] Failed to clear webhook:', err?.message || err);
+      return false;
+    }
+  }
+
+  /**
    * Send arbitrary message (HTML or plain text) to configured or targeted chat
    */
   public static async sendMessage(

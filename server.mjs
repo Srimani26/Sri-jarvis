@@ -9488,6 +9488,25 @@ var init_TelegramNotifier = __esm({
         return Boolean(botToken && chatId);
       }
       /**
+       * Delete any active webhook to prevent 409 Conflict during long polling
+       */
+      static async deleteWebhook() {
+        const { botToken } = this.getCredentials();
+        if (!botToken) return false;
+        try {
+          console.log("\u{1F504} [TelegramNotifier] Clearing stale webhook before polling...");
+          const res = await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook?drop_pending_updates=false`, {
+            signal: AbortSignal.timeout(5e3)
+          });
+          const data = await res.json();
+          console.log(`\u{1F4E1} [TelegramNotifier] deleteWebhook result: ${data.ok ? "SUCCESS" : data.description || "FAILED"}`);
+          return Boolean(data.ok);
+        } catch (err) {
+          console.warn("\u26A0\uFE0F [TelegramNotifier] Failed to clear webhook:", err?.message || err);
+          return false;
+        }
+      }
+      /**
        * Send arbitrary message (HTML or plain text) to configured or targeted chat
        */
       static async sendMessage(textOrHtml, options) {
@@ -14313,14 +14332,16 @@ var init_AutonomousAgentLoop = __esm({
 // src/services/telegramNotifier.ts
 var telegramNotifier_exports = {};
 __export(telegramNotifier_exports, {
+  MASTER_CHAT_ID: () => MASTER_CHAT_ID,
   TelegramNotifierService: () => TelegramNotifierService,
   telegramNotifier: () => telegramNotifier
 });
-var TelegramNotifierService, telegramNotifier;
+var MASTER_CHAT_ID, TelegramNotifierService, telegramNotifier;
 var init_telegramNotifier = __esm({
   "src/services/telegramNotifier.ts"() {
     "use strict";
     init_ModelRouter();
+    MASTER_CHAT_ID = "1377862282";
     TelegramNotifierService = class _TelegramNotifierService {
       static instance;
       botToken = process.env.TELEGRAM_BOT_TOKEN || "8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI";
@@ -14328,6 +14349,7 @@ var init_telegramNotifier = __esm({
       isPollingActive = false;
       abortController = null;
       lastUpdateId = 0;
+      lastTaskPromise = null;
       static getInstance() {
         if (!_TelegramNotifierService.instance) {
           _TelegramNotifierService.instance = new _TelegramNotifierService();
@@ -14379,7 +14401,8 @@ var init_telegramNotifier = __esm({
         return this.sendMessage(message);
       }
       /**
-       * Dispatches autonomous tasks to AutonomousAgentLoop with live telemetry and artifact streaming
+       * Dispatches autonomous tasks to AutonomousAgentLoop with live telemetry and artifact streaming.
+       * Splits dispatch into instant acknowledgment (<500ms) and asynchronous background execution.
        */
       async handleAutonomousRun(chatId, agentName, directive) {
         const validSpecialists = {
@@ -14392,80 +14415,91 @@ var init_telegramNotifier = __esm({
           vortex: "vortex"
         };
         const specialist = validSpecialists[agentName.toLowerCase()] || "jarvis";
-        await this.sendMessage(
-          `\u{1F680} *[Autonomous Swarm Dispatch]*
-\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
-\u2022 *Specialist:* \`${specialist.toUpperCase()}\`
-\u2022 *Directive:* _${directive}_
-\u2022 *Engine:* Claude-Code & Groq ReAct Loop V2
-\u23F3 _Executing multi-step reasoning, surgical tools, and proof-of-work verification..._`,
-          chatId
-        );
+        const ackMessage = [
+          `\u{1F680} *[J.A.R.V.I.S. SWARM DISPATCHED]*`,
+          `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
+          `\u2022 *Specialist:* \`${specialist.toUpperCase()}\``,
+          `\u2022 *Directive:* _${directive}_`,
+          `\u2022 *Engine:* Autonomous ReAct Loop V2`,
+          `\u23F3 *Executing architecture, coding, and verifier... I will post the preview link here once ready.*`
+        ].join("\n");
+        await this.sendMessage(ackMessage, chatId);
         const startTime = Date.now();
-        try {
-          const { executeAutonomousReAct: executeAutonomousReAct2 } = await Promise.resolve().then(() => (init_AutonomousAgentLoop(), AutonomousAgentLoop_exports));
-          const lower = directive.toLowerCase();
-          const isWebApp = lower.includes("web") || lower.includes("app") || lower.includes("scaffold") || lower.includes("preview") || lower.includes("dashboard");
-          const isDoc = lower.includes("pdf") || lower.includes("document") || lower.includes("pptx") || lower.includes("excel") || lower.includes("report") || lower.includes("presentation");
-          const deliverableType = isWebApp ? "web_app" : isDoc ? "document" : "general";
-          const result = await executeAutonomousReAct2(directive, {
-            specialist,
-            maxSteps: 25,
-            requireVerification: true,
-            deliverableType
-          });
-          const latencyMs = Date.now() - startTime;
-          const allArtifacts = /* @__PURE__ */ new Set();
-          if (Array.isArray(result.artifacts)) {
-            result.artifacts.forEach((a) => allArtifacts.add(a));
-          }
-          if (Array.isArray(result.toolCallHistory)) {
-            for (const tc of result.toolCallHistory) {
-              if (tc.output?.filePath) allArtifacts.add(tc.output.filePath);
-              if (tc.output?.previewUrl) allArtifacts.add(tc.output.previewUrl);
-              if (tc.output?.downloadUrl) allArtifacts.add(tc.output.downloadUrl);
-              if (Array.isArray(tc.output?.filesCreated)) {
-                tc.output.filesCreated.forEach((f) => allArtifacts.add(f));
+        const taskPromise = (async () => {
+          try {
+            const { executeAutonomousReAct: executeAutonomousReAct2 } = await Promise.resolve().then(() => (init_AutonomousAgentLoop(), AutonomousAgentLoop_exports));
+            const lower = directive.toLowerCase();
+            const isWebApp = lower.includes("web") || lower.includes("app") || lower.includes("scaffold") || lower.includes("preview") || lower.includes("dashboard");
+            const isDoc = lower.includes("pdf") || lower.includes("document") || lower.includes("pptx") || lower.includes("excel") || lower.includes("report") || lower.includes("presentation");
+            const deliverableType = isWebApp ? "web_app" : isDoc ? "document" : "general";
+            const result = await executeAutonomousReAct2(directive, {
+              specialist,
+              maxSteps: 25,
+              requireVerification: true,
+              deliverableType
+            });
+            const latencyMs = Date.now() - startTime;
+            const allArtifacts = /* @__PURE__ */ new Set();
+            if (Array.isArray(result.artifacts)) {
+              result.artifacts.forEach((a) => allArtifacts.add(a));
+            }
+            if (Array.isArray(result.toolCallHistory)) {
+              for (const tc of result.toolCallHistory) {
+                if (tc.output?.filePath) allArtifacts.add(tc.output.filePath);
+                if (tc.output?.previewUrl) allArtifacts.add(tc.output.previewUrl);
+                if (tc.output?.downloadUrl) allArtifacts.add(tc.output.downloadUrl);
+                if (Array.isArray(tc.output?.filesCreated)) {
+                  tc.output.filesCreated.forEach((f) => allArtifacts.add(f));
+                }
               }
             }
-          }
-          let artifactSection = "";
-          if (allArtifacts.size > 0) {
-            const artifactItems = Array.from(allArtifacts).map((a) => {
-              if (a.startsWith("/preview/")) return `\u2022 \u{1F310} *Live Web Preview:* \`${a}\``;
-              if (a.startsWith("/api/artifacts/download")) return `\u2022 \u{1F4E5} *Download:* \`${a}\``;
-              if (a.endsWith(".pdf") || a.endsWith(".pptx") || a.endsWith(".xlsx") || a.endsWith(".docx")) {
-                const fileName = a.split(/[/\\]/).pop();
-                return `\u2022 \u{1F4C4} *Document:* \`${fileName}\` (\`/api/artifacts/download?file=${fileName}\`)`;
-              }
-              return `\u2022 \u{1F4E6} \`${a}\``;
-            });
-            artifactSection = `
+            let artifactSection = "";
+            if (allArtifacts.size > 0) {
+              const artifactItems = Array.from(allArtifacts).map((a) => {
+                if (a.startsWith("/preview/")) return `\u2022 \u{1F310} *Live Web Preview:* \`${a}\``;
+                if (a.startsWith("/api/artifacts/download")) return `\u2022 \u{1F4E5} *Download:* \`${a}\``;
+                if (a.endsWith(".pdf") || a.endsWith(".pptx") || a.endsWith(".xlsx") || a.endsWith(".docx")) {
+                  const fileName = a.split(/[/\\]/).pop();
+                  return `\u2022 \u{1F4C4} *Document:* \`${fileName}\` (\`/api/artifacts/download?file=${fileName}\`)`;
+                }
+                return `\u2022 \u{1F4E6} \`${a}\``;
+              });
+              artifactSection = `
 
 \u{1F4E6} *Deliverables & Artifacts:*
 ${artifactItems.join("\n")}`;
+            }
+            const verifyStatus = result.verificationDetails ? result.verificationDetails.verified ? "\u2705 Verified (All proof checks passed)" : "\u26A0\uFE0F Verification Note" : "\u2705 Verified";
+            const summary = [
+              `\u26A1 *[Task Completed by ${specialist.toUpperCase()}]*`,
+              `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
+              `\u2022 *Status:* ${result.success ? "\u2705 SUCCESS" : "\u274C FAILED"}`,
+              `\u2022 *Execution Latency:* \`${latencyMs}ms\``,
+              `\u2022 *ReAct Turns:* \`${result.stepsExecuted}\` (Self-Healed: \`${result.selfHealed ? "YES" : "NO"}\`)`,
+              `\u2022 *Verification:* ${verifyStatus}`,
+              artifactSection,
+              "",
+              `\u{1F4DD} *Executive Summary:*`,
+              result.finalResponse.substring(0, 1e3),
+              `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`
+            ].filter(Boolean).join("\n");
+            await this.sendMessage(summary, chatId);
+            return { success: result.success, result, summary };
+          } catch (err) {
+            console.error("[Autonomous Execution Error]:", err);
+            const errReply = `\u26A0\uFE0F *[TASK FAILED]*
+Specialist: \`${specialist.toUpperCase()}\`
+Error: ${err?.message || "Execution error"}`;
+            await this.sendMessage(errReply, chatId);
+            return { success: false, summary: errReply };
           }
-          const verifyStatus = result.verificationDetails ? result.verificationDetails.verified ? "\u2705 Verified (All proof checks passed)" : "\u26A0\uFE0F Verification Note" : "\u2705 Verified";
-          const summary = [
-            `\u26A1 *[Task Completed by ${specialist.toUpperCase()}]*`,
-            `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
-            `\u2022 *Status:* ${result.success ? "\u2705 SUCCESS" : "\u274C FAILED"}`,
-            `\u2022 *Execution Latency:* \`${latencyMs}ms\``,
-            `\u2022 *ReAct Turns:* \`${result.stepsExecuted}\` (Self-Healed: \`${result.selfHealed ? "YES" : "NO"}\`)`,
-            `\u2022 *Verification:* ${verifyStatus}`,
-            artifactSection,
-            "",
-            `\u{1F4DD} *Executive Summary:*`,
-            result.finalResponse.substring(0, 1e3),
-            `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`
-          ].filter(Boolean).join("\n");
-          await this.sendMessage(summary, chatId);
-          return { success: result.success, result, summary };
-        } catch (err) {
-          const errReply = `\u274C *[Task Error]* Execution failed: ${err?.message || err}`;
-          await this.sendMessage(errReply, chatId);
-          return { success: false, summary: errReply };
-        }
+        })();
+        this.lastTaskPromise = taskPromise;
+        return {
+          success: true,
+          summary: ackMessage,
+          taskPromise
+        };
       }
       /**
        * Handle incoming webhook update from Telegram
@@ -14474,13 +14508,16 @@ ${artifactItems.join("\n")}`;
         const msg = update?.message || update?.edited_message;
         if (!msg || !msg.text) return { handled: false };
         const senderChatId = String(msg.chat?.id || "");
+        const senderUsername = msg.from?.username || msg.chat?.username || "Unknown";
+        const text = msg.text.trim();
+        console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
         const authorizedChatId = String(this.getChatId());
         if (authorizedChatId && senderChatId !== authorizedChatId) {
-          console.warn(`\u{1F6E1}\uFE0F [TelegramSecurity] Rejected unauthorized message from chat ID: ${senderChatId}`);
-          await this.sendMessage("\u{1F512} *ACCESS DENIED:* Unauthorized command source. This incident has been logged.", senderChatId);
-          return { handled: false };
+          console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
+          const denialMessage = `\u26D4 Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`;
+          await this.sendMessage(denialMessage, senderChatId);
+          return { handled: false, reply: denialMessage };
         }
-        const text = msg.text.trim();
         if (text === "/status" || text.startsWith("/status@")) {
           const providers = swarmModelRouter.getActiveProviders();
           const providerLines = Object.entries(providers).map(([k, v]) => `\u2022 *${k.toUpperCase()}:* Tier ${v.tier} (${v.status})`);
@@ -14508,7 +14545,7 @@ ${artifactItems.join("\n")}`;
             return { handled: true, command: "/run", reply: usage };
           }
           const runRes = await this.handleAutonomousRun(senderChatId, agentName, directive);
-          return { handled: true, command: "/run", reply: runRes.summary };
+          return { handled: true, command: "/run", reply: runRes.summary, taskPromise: runRes.taskPromise };
         }
         const agentPrefixMatch = text.match(/^(?:hey\s+)?(jarvis|aegis|raphael|friday|cerebro|midas|vortex)[,:\s]+(.+)/i);
         const isActionDirective = /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(text);
@@ -14516,7 +14553,7 @@ ${artifactItems.join("\n")}`;
           const targetAgent = agentPrefixMatch[1].toLowerCase();
           const directive = agentPrefixMatch[2].trim();
           const runRes = await this.handleAutonomousRun(senderChatId, targetAgent, directive);
-          return { handled: true, command: "NATURAL_DELEGATION", reply: runRes.summary };
+          return { handled: true, command: "NATURAL_DELEGATION", reply: runRes.summary, taskPromise: runRes.taskPromise };
         }
         if (isActionDirective) {
           const lower = text.toLowerCase();
@@ -14531,7 +14568,7 @@ ${artifactItems.join("\n")}`;
             inferredAgent = "cerebro";
           }
           const runRes = await this.handleAutonomousRun(senderChatId, inferredAgent, text);
-          return { handled: true, command: "NATURAL_DIRECTIVE", reply: runRes.summary };
+          return { handled: true, command: "NATURAL_DIRECTIVE", reply: runRes.summary, taskPromise: runRes.taskPromise };
         }
         try {
           const response = await swarmModelRouter.dispatch("jarvis", [
@@ -14551,12 +14588,32 @@ ${artifactItems.join("\n")}`;
         }
       }
       /**
+       * Delete any registered webhook to prevent 409 Conflict when long polling
+       */
+      async deleteWebhook() {
+        const token = this.getBotToken();
+        if (!token) return false;
+        try {
+          console.log("\u{1F504} [TelegramNotifier] Clearing stale webhook before polling...");
+          const res = await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=false`, {
+            signal: AbortSignal.timeout(5e3)
+          });
+          const data = await res.json();
+          console.log(`\u{1F4E1} [TelegramNotifier] deleteWebhook result: ${data.ok ? "SUCCESS" : data.description || "FAILED"}`);
+          return Boolean(data.ok);
+        } catch (err) {
+          console.warn("\u26A0\uFE0F [TelegramNotifier] Failed to clear webhook:", err?.message || err);
+          return false;
+        }
+      }
+      /**
        * Start background long-polling for development / instances without public webhooks
        */
-      startPolling() {
+      async startPolling() {
         if (this.isPollingActive) return;
         const token = this.getBotToken();
         if (!token) return;
+        await this.deleteWebhook();
         this.isPollingActive = true;
         this.abortController = new AbortController();
         (async () => {
@@ -31582,6 +31639,8 @@ var TelegramBotListener = class {
     this.abortController = new AbortController();
     const authorizedId = chatId || this.AUTHORIZED_CHAT_ID;
     console.log(`\u{1F916} [TelegramBotListener] Activated 24/7 command & callback listener for Master Sri (Chat ID: ${authorizedId})`);
+    TelegramNotifier.deleteWebhook().catch(() => {
+    });
     (async () => {
       while (this.pollingActive) {
         try {
@@ -31636,12 +31695,13 @@ var TelegramBotListener = class {
         const message = update.message;
         if (!message || !message.text) continue;
         const senderChatId = String(message.chat?.id || "");
-        const senderUsername = message.from?.username || "Unknown";
+        const senderUsername = message.from?.username || message.chat?.username || "Unknown";
         const text = message.text.trim();
+        console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
         if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
-          console.warn(`[TelegramBotListener] Unauthorized command attempt from ${senderUsername} (${senderChatId})`);
+          console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
           await TelegramNotifier.sendMessage(
-            "\u26D4 <b>Access Denied.</b> You are not authorized to command J.A.R.V.I.S.",
+            `\u26D4 Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
             { targetChatId: senderChatId }
           );
           continue;
@@ -31823,8 +31883,25 @@ Task ID: ${analysis.taskId}`,
       await this.generateOnDemandBid(brief, chatId);
       return;
     }
-    if (!trimmed.startsWith("/") || /^https?:\/\//i.test(trimmed)) {
+    const agentPrefixMatch = trimmed.match(/^(?:hey\s+)?(jarvis|aegis|raphael|friday|cerebro|midas|vortex)[,:\s]+(.+)/i);
+    const isActionDirective = /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(trimmed);
+    if (agentPrefixMatch || isActionDirective) {
+      const { telegramNotifier: telegramNotifier2 } = await Promise.resolve().then(() => (init_telegramNotifier(), telegramNotifier_exports));
+      await telegramNotifier2.handleInboundUpdate({ message: { chat: { id: chatId }, text: trimmed } });
+      return;
+    }
+    if (/^https?:\/\//i.test(trimmed)) {
       await this.generateOnDemandBid(trimmed, chatId);
+      return;
+    }
+    if (!trimmed.startsWith("/")) {
+      const isFreelanceJob = /(?:client|budget|hiring|proposal|need\s+a\s+developer|looking\s+for|shopify\s+store|fix\s+my)/i.test(trimmed);
+      if (isFreelanceJob) {
+        await this.generateOnDemandBid(trimmed, chatId);
+      } else {
+        const { telegramNotifier: telegramNotifier2 } = await Promise.resolve().then(() => (init_telegramNotifier(), telegramNotifier_exports));
+        await telegramNotifier2.handleInboundUpdate({ message: { chat: { id: chatId }, text: trimmed } });
+      }
       return;
     }
     try {
@@ -32215,10 +32292,6 @@ swarmModelRouter.runStartupHandshake().then((report) => {
 }).catch((err) => {
   console.warn("\u26A0\uFE0F [ModelRouter] Handshake warning:", err?.message || err);
 });
-try {
-  telegramNotifier.startPolling();
-} catch {
-}
 try {
   startTelegramBotListener();
 } catch (botErr) {
