@@ -60,9 +60,22 @@ export class TelegramNotifierService {
           text,
           parse_mode: 'Markdown'
         }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(3000)
       })
-      return res.ok
+
+      if (res.ok) return true
+
+      // Fallback retry without parse_mode if markdown parsing failed
+      const retryRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chat,
+          text
+        }),
+        signal: AbortSignal.timeout(3000)
+      })
+      return retryRes.ok
     } catch (err: any) {
       console.warn('⚠️ [TelegramNotifier] Send error (offline or unreached):', err?.message || err)
       return false
@@ -112,7 +125,8 @@ export class TelegramNotifierService {
 
     const specialist: SwarmSpecialist = validSpecialists[agentName.toLowerCase()] || 'jarvis'
 
-    // STEP 2.1: Immediate dispatch acknowledgement (<500ms)
+    // STEP 2.1: Immediate dispatch acknowledgement (<300ms)
+    const ackStart = Date.now()
     const ackMessage = [
       `🚀 *[J.A.R.V.I.S. SWARM DISPATCHED]*`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
@@ -123,6 +137,7 @@ export class TelegramNotifierService {
     ].join('\n')
 
     await this.sendMessage(ackMessage, chatId)
+    console.log(`⚡ [TelegramNotifier] Instant acknowledgment card dispatched in ${Date.now() - ackStart}ms`)
 
     const startTime = Date.now()
 

@@ -118,10 +118,10 @@ export class TelegramBotListener {
 
       while (this.isRunning) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 35000);
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
         try {
           console.log(`📡 [TelegramPolling] Checking for updates (offset: ${this.offset})...`);
-          const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=25`, {
+          const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=2`, {
             signal: controller.signal,
             headers: { 'Connection': 'keep-alive' },
           });
@@ -131,24 +131,26 @@ export class TelegramBotListener {
 
           if (res.ok && data.ok && Array.isArray(data.result)) {
             if (data.result.length === 0) {
-              // Idle interval to prevent busy-looping if connection returns immediately with empty updates
-              await new Promise((r) => setTimeout(r, 1000));
-            }
-            for (const update of data.result) {
-              this.offset = update.update_id + 1;
-              this.lastUpdateId = update.update_id;
-              console.log(`📥 [TelegramInbound] Processing update ID: ${update.update_id}`);
-              await this.handleUpdate(update, authorizedId);
+              // Short idle interval to keep listener hyper-responsive while avoiding spin-lock
+              await new Promise((r) => setTimeout(r, 200));
+            } else {
+              for (const update of data.result) {
+                this.offset = update.update_id + 1;
+                this.lastUpdateId = update.update_id;
+                console.log(`📥 [TelegramInbound] Processing update ID: ${update.update_id}`);
+                await this.handleUpdate(update, authorizedId);
+              }
+              // Immediate next iteration without delay
             }
           } else {
             console.error(`❌ [TelegramPolling] getUpdates returned non-ok:`, data);
-            await new Promise((r) => setTimeout(r, 3000));
+            await new Promise((r) => setTimeout(r, 1500));
           }
         } catch (err: any) {
           clearTimeout(timeoutId);
           if (!this.isRunning || (err?.name === 'AbortError' && !this.pollingActive)) break;
           console.error(`⚠️ [TelegramPolling Error]:`, err?.message, 'Cause:', err?.cause);
-          await new Promise((r) => setTimeout(r, 4000));
+          await new Promise((r) => setTimeout(r, 2000));
         }
       }
     })().catch((err) => {

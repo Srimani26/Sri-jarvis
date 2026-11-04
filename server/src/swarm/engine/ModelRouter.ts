@@ -189,7 +189,7 @@ export class SwarmModelRouter {
               tool_choice: tools && tools.length > 0 ? 'auto' : undefined,
               temperature: 0.1
             }),
-            signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout(1500)
           })
           if (res.ok) {
             const json = await res.json() as any
@@ -230,7 +230,7 @@ export class SwarmModelRouter {
               tools: functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined,
               generationConfig: { temperature: 0.2 }
             }),
-            signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout(1500)
           })
           if (res.ok) {
             const json = await res.json() as any
@@ -264,6 +264,7 @@ export class SwarmModelRouter {
     if (groqKey) {
       try {
         const model = specialist === 'raphael' ? 'deepseek-r1-distill-llama-70b' : 'llama-3.3-70b-versatile'
+        // STEP 2: Fast-fail gateway timeout (1,500ms max) to prevent stalling
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -277,7 +278,7 @@ export class SwarmModelRouter {
             tool_choice: tools && tools.length > 0 ? 'auto' : undefined,
             temperature: 0.2
           }),
-          signal: AbortSignal.timeout(8000)
+          signal: AbortSignal.timeout(1500)
         })
 
         if (res.status === 429 || res.status === 503) {
@@ -577,7 +578,7 @@ export class SwarmModelRouter {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
-          signal: AbortSignal.timeout(4000)
+          signal: AbortSignal.timeout(1500)
         })
         const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
         report.groq = {
@@ -600,7 +601,7 @@ export class SwarmModelRouter {
       try {
         const res = await fetch('https://api.openai.com/v1/models', {
           headers: { 'Authorization': `Bearer ${openaiKey}` },
-          signal: AbortSignal.timeout(4000)
+          signal: AbortSignal.timeout(1500)
         })
         const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
         report.openai = {
@@ -621,7 +622,7 @@ export class SwarmModelRouter {
       try {
         const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
           headers: { 'Authorization': `Bearer ${openrouterKey}` },
-          signal: AbortSignal.timeout(4000)
+          signal: AbortSignal.timeout(1500)
         })
         const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
         report.openrouter = {
@@ -642,7 +643,7 @@ export class SwarmModelRouter {
     if (geminiKey) {
       const start = Date.now()
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`, { signal: AbortSignal.timeout(4000) })
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`, { signal: AbortSignal.timeout(1500) })
         const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
         report.gemini = {
           tier: 3,
@@ -664,7 +665,7 @@ export class SwarmModelRouter {
       try {
         const res = await fetch('https://api.github.com/user', {
           headers: { 'Authorization': `Bearer ${githubToken}`, 'User-Agent': 'JARVIS-ModelRouter' },
-          signal: AbortSignal.timeout(4000)
+          signal: AbortSignal.timeout(1500)
         })
         report.github = { tier: 0, models: ['github/git-automation'], status: res.ok ? 'ONLINE' : 'UNAVAILABLE', latencyMs: Date.now() - start }
       } catch {

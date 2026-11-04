@@ -13224,7 +13224,7 @@ var init_ModelRouter = __esm({
                   tool_choice: tools2 && tools2.length > 0 ? "auto" : void 0,
                   temperature: 0.1
                 }),
-                signal: AbortSignal.timeout(8e3)
+                signal: AbortSignal.timeout(1500)
               });
               if (res.ok) {
                 const json = await res.json();
@@ -13261,7 +13261,7 @@ var init_ModelRouter = __esm({
                   tools: functionDeclarations.length > 0 ? [{ functionDeclarations }] : void 0,
                   generationConfig: { temperature: 0.2 }
                 }),
-                signal: AbortSignal.timeout(8e3)
+                signal: AbortSignal.timeout(1500)
               });
               if (res.ok) {
                 const json = await res.json();
@@ -13304,7 +13304,7 @@ var init_ModelRouter = __esm({
                 tool_choice: tools2 && tools2.length > 0 ? "auto" : void 0,
                 temperature: 0.2
               }),
-              signal: AbortSignal.timeout(8e3)
+              signal: AbortSignal.timeout(1500)
             });
             if (res.status === 429 || res.status === 503) {
               virtualKeyVault.markRateLimited("groq", groqKey, 6e4);
@@ -13561,7 +13561,7 @@ var init_ModelRouter = __esm({
               method: "POST",
               headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
-              signal: AbortSignal.timeout(4e3)
+              signal: AbortSignal.timeout(1500)
             });
             const status = res.ok ? "ONLINE" : res.status === 429 ? "THROTTLED" : "UNAVAILABLE";
             report.groq = {
@@ -13582,7 +13582,7 @@ var init_ModelRouter = __esm({
           try {
             const res = await fetch("https://api.openai.com/v1/models", {
               headers: { "Authorization": `Bearer ${openaiKey}` },
-              signal: AbortSignal.timeout(4e3)
+              signal: AbortSignal.timeout(1500)
             });
             const status = res.ok ? "ONLINE" : res.status === 429 ? "THROTTLED" : "UNAVAILABLE";
             report.openai = {
@@ -13601,7 +13601,7 @@ var init_ModelRouter = __esm({
           try {
             const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
               headers: { "Authorization": `Bearer ${openrouterKey}` },
-              signal: AbortSignal.timeout(4e3)
+              signal: AbortSignal.timeout(1500)
             });
             const status = res.ok ? "ONLINE" : res.status === 429 ? "THROTTLED" : "UNAVAILABLE";
             report.openrouter = {
@@ -13620,7 +13620,7 @@ var init_ModelRouter = __esm({
         if (geminiKey) {
           const start = Date.now();
           try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`, { signal: AbortSignal.timeout(4e3) });
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`, { signal: AbortSignal.timeout(1500) });
             const status = res.ok ? "ONLINE" : res.status === 429 ? "THROTTLED" : "UNAVAILABLE";
             report.gemini = {
               tier: 3,
@@ -13640,7 +13640,7 @@ var init_ModelRouter = __esm({
           try {
             const res = await fetch("https://api.github.com/user", {
               headers: { "Authorization": `Bearer ${githubToken}`, "User-Agent": "JARVIS-ModelRouter" },
-              signal: AbortSignal.timeout(4e3)
+              signal: AbortSignal.timeout(1500)
             });
             report.github = { tier: 0, models: ["github/git-automation"], status: res.ok ? "ONLINE" : "UNAVAILABLE", latencyMs: Date.now() - start };
           } catch {
@@ -14378,9 +14378,19 @@ var init_telegramNotifier = __esm({
               text,
               parse_mode: "Markdown"
             }),
-            signal: AbortSignal.timeout(5e3)
+            signal: AbortSignal.timeout(3e3)
           });
-          return res.ok;
+          if (res.ok) return true;
+          const retryRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chat,
+              text
+            }),
+            signal: AbortSignal.timeout(3e3)
+          });
+          return retryRes.ok;
         } catch (err) {
           console.warn("\u26A0\uFE0F [TelegramNotifier] Send error (offline or unreached):", err?.message || err);
           return false;
@@ -14415,6 +14425,7 @@ var init_telegramNotifier = __esm({
           vortex: "vortex"
         };
         const specialist = validSpecialists[agentName.toLowerCase()] || "jarvis";
+        const ackStart = Date.now();
         const ackMessage = [
           `\u{1F680} *[J.A.R.V.I.S. SWARM DISPATCHED]*`,
           `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
@@ -14424,6 +14435,7 @@ var init_telegramNotifier = __esm({
           `\u23F3 *Executing architecture, coding, and verifier... I will post the preview link here once ready.*`
         ].join("\n");
         await this.sendMessage(ackMessage, chatId);
+        console.log(`\u26A1 [TelegramNotifier] Instant acknowledgment card dispatched in ${Date.now() - ackStart}ms`);
         const startTime = Date.now();
         const taskPromise = (async () => {
           try {
@@ -31697,10 +31709,10 @@ var TelegramBotListener = class {
       console.log(`\u{1F680} [TelegramBotListener] Polling loop engaged. Listening for Master Sri updates...`);
       while (this.isRunning) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 35e3);
+        const timeoutId = setTimeout(() => controller.abort(), 6e3);
         try {
           console.log(`\u{1F4E1} [TelegramPolling] Checking for updates (offset: ${this.offset})...`);
-          const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=25`, {
+          const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=2`, {
             signal: controller.signal,
             headers: { "Connection": "keep-alive" }
           });
@@ -31708,23 +31720,24 @@ var TelegramBotListener = class {
           const data = await res.json();
           if (res.ok && data.ok && Array.isArray(data.result)) {
             if (data.result.length === 0) {
-              await new Promise((r) => setTimeout(r, 1e3));
-            }
-            for (const update of data.result) {
-              this.offset = update.update_id + 1;
-              this.lastUpdateId = update.update_id;
-              console.log(`\u{1F4E5} [TelegramInbound] Processing update ID: ${update.update_id}`);
-              await this.handleUpdate(update, authorizedId);
+              await new Promise((r) => setTimeout(r, 200));
+            } else {
+              for (const update of data.result) {
+                this.offset = update.update_id + 1;
+                this.lastUpdateId = update.update_id;
+                console.log(`\u{1F4E5} [TelegramInbound] Processing update ID: ${update.update_id}`);
+                await this.handleUpdate(update, authorizedId);
+              }
             }
           } else {
             console.error(`\u274C [TelegramPolling] getUpdates returned non-ok:`, data);
-            await new Promise((r) => setTimeout(r, 3e3));
+            await new Promise((r) => setTimeout(r, 1500));
           }
         } catch (err) {
           clearTimeout(timeoutId);
           if (!this.isRunning || err?.name === "AbortError" && !this.pollingActive) break;
           console.error(`\u26A0\uFE0F [TelegramPolling Error]:`, err?.message, "Cause:", err?.cause);
-          await new Promise((r) => setTimeout(r, 4e3));
+          await new Promise((r) => setTimeout(r, 2e3));
         }
       }
     })().catch((err) => {
