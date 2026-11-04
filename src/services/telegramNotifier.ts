@@ -150,10 +150,12 @@ export class TelegramNotifierService {
         const isWebApp = lower.includes('web') || lower.includes('app') || lower.includes('scaffold') || lower.includes('preview') || lower.includes('dashboard')
         const isDoc = lower.includes('pdf') || lower.includes('document') || lower.includes('pptx') || lower.includes('excel') || lower.includes('report') || lower.includes('presentation')
         const deliverableType = isWebApp ? 'web_app' : (isDoc ? 'document' : 'general')
+        const isCodingTask = specialist === 'aegis' || isWebApp || lower.includes('code') || lower.includes('build')
+        const maxSteps = isCodingTask ? 35 : 25
 
         const result = await executeAutonomousReAct(directive, {
           specialist,
-          maxSteps: 25,
+          maxSteps,
           requireVerification: true,
           deliverableType
         })

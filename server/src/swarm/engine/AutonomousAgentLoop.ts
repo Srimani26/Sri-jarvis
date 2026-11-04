@@ -10,12 +10,15 @@
  * 5. Telemetry and audit logging persisted to Neon PostgreSQL.
  */
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { SWARM_TOOL_SCHEMAS, dispatchToolCall } from '../tools/toolRegistry'
 import { swarmModelRouter, SwarmSpecialist } from './ModelRouter'
 import { autonomousVerifier, VerificationRequest } from './AutonomousVerifier'
 import { taskAuditService } from '../../services/taskAuditService'
 import { telegramNotifier } from '../../services/telegramNotifier'
+import { AEGIS_SYSTEM_PROMPT } from '../specialists/AegisSpecialist'
 
 export interface ToolCallRecord {
   id: string
@@ -114,13 +117,28 @@ export async function executeAutonomousReAct(
 ): Promise<AutonomousTaskResult> {
   // Enforce RFC 4122 UUID format across all tasks
   const taskId = randomUUID()
-  const maxSteps = options.maxSteps || 25
-  const specialist: SwarmSpecialist = options.specialist || 'jarvis'
+
+  const lowerDirective = directive.toLowerCase()
+  const isCodingTask = options.specialist === 'aegis' ||
+    options.deliverableType === 'web_app' ||
+    options.deliverableType === 'logic_backend' ||
+    lowerDirective.includes('build') ||
+    lowerDirective.includes('create') ||
+    lowerDirective.includes('app') ||
+    lowerDirective.includes('web') ||
+    lowerDirective.includes('code') ||
+    lowerDirective.includes('scaffold') ||
+    lowerDirective.includes('dashboard') ||
+    lowerDirective.includes('refactor')
+
+  const taskType = isCodingTask ? 'coding' : 'general'
+  const maxSteps = options.maxSteps || (taskType === 'coding' ? 35 : 25)
+  const specialist: SwarmSpecialist = options.specialist || (isCodingTask ? 'aegis' : 'jarvis')
   const workspaceRoot = options.workspaceRoot || process.cwd()
 
   await taskAuditService.createTask(directive, specialist, taskId)
 
-  const systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
+  let systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
 You operate under the High Command of Master Sri with autonomous self-healing authorization.
 
 OPERATIONAL INVARIANTS:
@@ -137,7 +155,11 @@ OPERATIONAL INVARIANTS:
    - Apply a surgical patch using workspace_patch_file.
    - Re-run the terminal command to verify it passes cleanly.
    - Do NOT quit or report failure when self-healing is possible.
-4. PROOF-OF-WORK VERIFICATION: Terminate only by calling 'finish_task' with summary and artifacts once all tests pass.`
+4. PROOF-OF-WORK VERIFICATION: Terminate only by calling 'finish_task' (or 'complete_task') with summary and artifacts once all tests pass.`
+
+  if (specialist === 'aegis' || taskType === 'coding') {
+    systemPrompt = `${AEGIS_SYSTEM_PROMPT}\n\n${systemPrompt}`
+  }
 
   let messages: any[] = [
     { role: 'system', content: systemPrompt },
@@ -150,6 +172,8 @@ OPERATIONAL INVARIANTS:
   let success = false
   let selfHealed = false
   let verificationDetails: any = null
+  let discoveredSlug = options.slug || ''
+  const filesWritten: string[] = []
 
   for (let step = 1; step <= maxSteps; step++) {
     // 1. Context Window Rolling Compaction
@@ -219,18 +243,38 @@ OPERATIONAL INVARIANTS:
         options.onStepProgress(step, modelContent, toolName, output)
       }
 
+      // Track created artifacts, slugs, and files
+      if (output?.previewUrl && typeof output.previewUrl === 'string') {
+        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl)
+        const m = output.previewUrl.match(/\/preview\/([a-zA-Z0-9_-]+)/)
+        if (m) discoveredSlug = m[1]
+      }
+      if (output?.filePath && typeof output.filePath === 'string') {
+        if (!artifacts.includes(output.filePath)) artifacts.push(output.filePath)
+        filesWritten.push(output.filePath)
+      }
+      if (args?.filePath && typeof args.filePath === 'string') {
+        filesWritten.push(args.filePath)
+        const m = args.filePath.match(/artifacts[/\\]builds[/\\]([^/\\]+)/)
+        if (m) discoveredSlug = m[1]
+      }
+      if (args?.projectSlug && typeof args.projectSlug === 'string') {
+        discoveredSlug = args.projectSlug
+      }
+
       // Check for self-healing indicator
       if ((toolName === 'terminal_run_command' || toolName === 'sandbox_terminal_execute') && output?.exitCode !== undefined && output.exitCode !== 0) {
         selfHealed = true
       }
 
-      // Finish Task Inspection & Automated Proof-of-Work Verification
-      if (toolName === 'finish_task') {
+      // Finish Task Inspection & Automated Proof-of-Work Verification (supports finish_task & complete_task)
+      if (toolName === 'finish_task' || toolName === 'complete_task') {
+        const targetSlug = discoveredSlug || options.slug || 'app-preview'
         if (options.requireVerification) {
           const req: VerificationRequest = {
             deliverableType: options.deliverableType || 'general',
             targetPath: options.verificationTarget,
-            slug: options.slug,
+            slug: targetSlug,
             testCommand: options.testCommand
           }
 
@@ -255,8 +299,40 @@ OPERATIONAL INVARIANTS:
         finishTaskEncountered = true
         success = true
         finalResponse = args.summary || output?.summary || 'Task completed and verified.'
-        artifacts = args.artifacts || output?.artifacts || []
+        if (Array.isArray(args.artifacts)) artifacts.push(...args.artifacts)
+        if (args.previewUrl && !artifacts.includes(args.previewUrl)) artifacts.push(args.previewUrl)
+        if (targetSlug && options.deliverableType === 'web_app' && !artifacts.includes(`/preview/${targetSlug}`)) {
+          artifacts.push(`/preview/${targetSlug}`)
+        }
         break
+      }
+
+      // AUTO-COMPLETION GATE 1: If aegis_scaffold_and_deploy_web succeeded, app is complete and mounted
+      if (toolName === 'aegis_scaffold_and_deploy_web' && output?.success && output?.previewUrl) {
+        finishTaskEncountered = true
+        success = true
+        finalResponse = `Web application successfully scaffolded and mounted at ${output.previewUrl}.`
+        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl)
+        break
+      }
+
+      // AUTO-COMPLETION GATE 2: Once web app files (index.html + styles/js) exist on disk, auto-complete
+      if ((options.deliverableType === 'web_app' || isCodingTask) && discoveredSlug) {
+        const buildDir = join(workspaceRoot, 'artifacts', 'builds', discoveredSlug)
+        const hasHtml = existsSync(join(buildDir, 'index.html'))
+        const hasJsOrCss = existsSync(join(buildDir, 'app.js')) || existsSync(join(buildDir, 'styles.css'))
+        if (hasHtml && hasJsOrCss && step >= 2) {
+          const verifyRes = await autonomousVerifier.verifyDeliverable({ deliverableType: 'web_app', slug: discoveredSlug }, workspaceRoot)
+          if (verifyRes.verified) {
+            verificationDetails = verifyRes
+            finishTaskEncountered = true
+            success = true
+            finalResponse = `Web application successfully built and verified at /preview/${discoveredSlug}.`
+            const previewUrl = `/preview/${discoveredSlug}`
+            if (!artifacts.includes(previewUrl)) artifacts.push(previewUrl)
+            break
+          }
+        }
       }
 
       // Append Observation to context with structured self-healing feedback on command failure
@@ -287,15 +363,22 @@ OPERATIONAL INVARIANTS:
 
   // Final Proof-of-Work Verification gate if required and not already verified
   if (options.requireVerification && !verificationDetails) {
+    const targetSlug = discoveredSlug || options.slug || 'app-preview'
     const req: VerificationRequest = {
       deliverableType: options.deliverableType || 'general',
       targetPath: options.verificationTarget,
-      slug: options.slug,
+      slug: targetSlug,
       testCommand: options.testCommand
     }
     verificationDetails = await autonomousVerifier.verifyDeliverable(req, workspaceRoot)
     if (!verificationDetails.verified) {
       success = false
+    } else {
+      success = true
+      if (options.deliverableType === 'web_app') {
+        const previewPath = `/preview/${targetSlug}`
+        if (!artifacts.includes(previewPath)) artifacts.push(previewPath)
+      }
     }
   }
 

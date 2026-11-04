@@ -1882,13 +1882,13 @@ var init_AgentRegistry = __esm({
             codename: "DEFENSE // STAFF FULL-STACK & DEVOPS ENGINEER",
             role: "software_engineer",
             description: "Staff Full-Stack & DevOps Engineer. Writing frontend/backend code from scratch, surgical diff patching, sandbox terminal execution, and verified deployment.",
-            allowedTools: ["workspace_view_tree", "workspace_read_file", "workspace_patch_file", "workspace_write_file", "workspace_grep", "terminal_run_command", "execute_sandbox_command", "github_manage_file", "neon_sql_query", "aegis_scaffold_and_deploy_web", "finish_task"],
+            allowedTools: ["workspace_view_tree", "workspace_read_file", "workspace_patch_file", "workspace_write_file", "workspace_grep", "terminal_run_command", "execute_sandbox_command", "github_manage_file", "neon_sql_query", "aegis_scaffold_and_deploy_web", "finish_task", "complete_task"],
             maxPermission: "PROJECT_WRITE",
             preferredModels: ["openrouter/qwen/qwen-2.5-coder-32b-instruct", "groq/llama-3.3-70b-versatile", "github/gpt-4o"],
             timeoutMs: 12e4,
             retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
             memoryScope: "PROJECT",
-            systemPrompt: "You are Aegis, Staff Full-Stack and DevOps Engineer for Master Sri. Specialize in writing robust production code from scratch, surgical diff patching, and test-driven self-healing. Never emit static pre-baked fixtures; all deliverables must be dynamically generated and verified on disk.",
+            systemPrompt: "You are Aegis, Staff Full-Stack and DevOps Engineer for Master Sri. Specialize in writing robust production code from scratch, surgical diff patching, and test-driven self-healing. When building web apps or dashboards: Do NOT call exploratory read/search tools across multiple turns. Turn 1: Write index.html (including all DOM elements & styles.css). Turn 2: Write app.js (complete functional logic & event listeners). Turn 3: Call finish_task/complete_task with the live preview mount path. Do not exceed 5 tool calls for standard single-page applications.",
             verificationChecklist: ["Responsive UI layout verified", "Interactive JavaScript logic operating", "Zero placeholder mocks"],
             health: "HEALTHY",
             telemetry: this.createDefaultTelemetry()
@@ -12495,10 +12495,11 @@ async function dispatchToolCall(name, args) {
     case "execute_sandbox_command":
       return await executeSandboxCommand(args.command, args.timeoutMs || 1e4);
     case "finish_task":
+    case "complete_task":
       return {
         completed: true,
-        summary: args.summary,
-        artifacts: args.artifacts || []
+        summary: args.summary || args.message || "Task completed successfully.",
+        artifacts: args.artifacts || (args.previewUrl ? [args.previewUrl] : [])
       };
     case "query_public_service": {
       const { executeQueryPublicService: executeQueryPublicService2 } = await Promise.resolve().then(() => (init_publicApiDirectory(), publicApiDirectory_exports));
@@ -12656,6 +12657,22 @@ var init_toolRegistry = __esm({
             properties: {
               summary: { type: "string", description: "Complete executive summary of the task execution and deliverables" },
               artifacts: { type: "array", items: { type: "string" }, description: "List of files modified, created, or relevant links" }
+            },
+            required: ["summary"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "complete_task",
+          description: "Alias for finish_task: signals completion and returns the live preview mount path or artifacts.",
+          parameters: {
+            type: "object",
+            properties: {
+              summary: { type: "string", description: "Summary of completed deliverable" },
+              previewUrl: { type: "string", description: "Live preview mount path (e.g. /preview/<slug>)" },
+              artifacts: { type: "array", items: { type: "string" }, description: "List of artifact files or paths" }
             },
             required: ["summary"]
           }
@@ -14128,11 +14145,31 @@ var init_taskAuditService = __esm({
   }
 });
 
+// src/swarm/specialists/AegisSpecialist.ts
+var AEGIS_SYSTEM_PROMPT;
+var init_AegisSpecialist = __esm({
+  "src/swarm/specialists/AegisSpecialist.ts"() {
+    "use strict";
+    AEGIS_SYSTEM_PROMPT = `You are Aegis, Master Software Architect, Staff Full-Stack Engineer, and Cyber Defense specialist for Master Sri.
+You write robust production code, surgical diff patches, and verified web deliverables.
+
+CRITICAL OPERATIONAL DIRECTIVE (BATCHED WRITING & ZERO CHATTER):
+- When building a web app, tool, or dashboard: Do NOT call exploratory read/search tools across multiple turns.
+- Turn 1: Write 'index.html' (including all necessary DOM elements and styling or styles.css) using 'workspace_write_file' or scaffold the entire application with 'aegis_scaffold_and_deploy_web'.
+- Turn 2: Write 'app.js' (complete functional logic, calculation math, and event listeners) using 'workspace_write_file'.
+- Turn 3: Call 'finish_task' (or 'complete_task') with the live preview mount path (e.g. '/preview/<slug>') and artifacts.
+- NEVER exceed 5 tool calls for standard single-page applications or dashboards.
+- Never emit static placeholders or canned strings; implement real functional UI with responsive CSS and active JavaScript event listeners.`;
+  }
+});
+
 // src/swarm/engine/AutonomousAgentLoop.ts
 var AutonomousAgentLoop_exports = {};
 __export(AutonomousAgentLoop_exports, {
   executeAutonomousReAct: () => executeAutonomousReAct
 });
+import { existsSync as existsSync13 } from "node:fs";
+import { join as join10 } from "node:path";
 import { randomUUID as randomUUID2 } from "node:crypto";
 function compactContextWindow(messages) {
   const totalLength = messages.reduce((acc, m) => acc + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content || "").length), 0);
@@ -14184,11 +14221,14 @@ Retaining original directive and recent turns.]`;
 }
 async function executeAutonomousReAct(directive, options = {}) {
   const taskId = randomUUID2();
-  const maxSteps = options.maxSteps || 25;
-  const specialist = options.specialist || "jarvis";
+  const lowerDirective = directive.toLowerCase();
+  const isCodingTask = options.specialist === "aegis" || options.deliverableType === "web_app" || options.deliverableType === "logic_backend" || lowerDirective.includes("build") || lowerDirective.includes("create") || lowerDirective.includes("app") || lowerDirective.includes("web") || lowerDirective.includes("code") || lowerDirective.includes("scaffold") || lowerDirective.includes("dashboard") || lowerDirective.includes("refactor");
+  const taskType = isCodingTask ? "coding" : "general";
+  const maxSteps = options.maxSteps || (taskType === "coding" ? 35 : 25);
+  const specialist = options.specialist || (isCodingTask ? "aegis" : "jarvis");
   const workspaceRoot = options.workspaceRoot || process.cwd();
   await taskAuditService.createTask(directive, specialist, taskId);
-  const systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
+  let systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
 You operate under the High Command of Master Sri with autonomous self-healing authorization.
 
 OPERATIONAL INVARIANTS:
@@ -14205,7 +14245,12 @@ OPERATIONAL INVARIANTS:
    - Apply a surgical patch using workspace_patch_file.
    - Re-run the terminal command to verify it passes cleanly.
    - Do NOT quit or report failure when self-healing is possible.
-4. PROOF-OF-WORK VERIFICATION: Terminate only by calling 'finish_task' with summary and artifacts once all tests pass.`;
+4. PROOF-OF-WORK VERIFICATION: Terminate only by calling 'finish_task' (or 'complete_task') with summary and artifacts once all tests pass.`;
+  if (specialist === "aegis" || taskType === "coding") {
+    systemPrompt = `${AEGIS_SYSTEM_PROMPT}
+
+${systemPrompt}`;
+  }
   let messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: directive }
@@ -14216,6 +14261,8 @@ OPERATIONAL INVARIANTS:
   let success = false;
   let selfHealed = false;
   let verificationDetails = null;
+  let discoveredSlug = options.slug || "";
+  const filesWritten = [];
   for (let step = 1; step <= maxSteps; step++) {
     messages = compactContextWindow(messages);
     const completion = await swarmModelRouter.dispatch(specialist, messages, SWARM_TOOL_SCHEMAS);
@@ -14266,15 +14313,33 @@ OPERATIONAL INVARIANTS:
       if (options.onStepProgress) {
         options.onStepProgress(step, modelContent, toolName, output);
       }
+      if (output?.previewUrl && typeof output.previewUrl === "string") {
+        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl);
+        const m = output.previewUrl.match(/\/preview\/([a-zA-Z0-9_-]+)/);
+        if (m) discoveredSlug = m[1];
+      }
+      if (output?.filePath && typeof output.filePath === "string") {
+        if (!artifacts.includes(output.filePath)) artifacts.push(output.filePath);
+        filesWritten.push(output.filePath);
+      }
+      if (args?.filePath && typeof args.filePath === "string") {
+        filesWritten.push(args.filePath);
+        const m = args.filePath.match(/artifacts[/\\]builds[/\\]([^/\\]+)/);
+        if (m) discoveredSlug = m[1];
+      }
+      if (args?.projectSlug && typeof args.projectSlug === "string") {
+        discoveredSlug = args.projectSlug;
+      }
       if ((toolName === "terminal_run_command" || toolName === "sandbox_terminal_execute") && output?.exitCode !== void 0 && output.exitCode !== 0) {
         selfHealed = true;
       }
-      if (toolName === "finish_task") {
+      if (toolName === "finish_task" || toolName === "complete_task") {
+        const targetSlug = discoveredSlug || options.slug || "app-preview";
         if (options.requireVerification) {
           const req = {
             deliverableType: options.deliverableType || "general",
             targetPath: options.verificationTarget,
-            slug: options.slug,
+            slug: targetSlug,
             testCommand: options.testCommand
           };
           const verifyRes = await autonomousVerifier.verifyDeliverable(req, workspaceRoot);
@@ -14295,8 +14360,36 @@ OPERATIONAL INVARIANTS:
         finishTaskEncountered = true;
         success = true;
         finalResponse = args.summary || output?.summary || "Task completed and verified.";
-        artifacts = args.artifacts || output?.artifacts || [];
+        if (Array.isArray(args.artifacts)) artifacts.push(...args.artifacts);
+        if (args.previewUrl && !artifacts.includes(args.previewUrl)) artifacts.push(args.previewUrl);
+        if (targetSlug && options.deliverableType === "web_app" && !artifacts.includes(`/preview/${targetSlug}`)) {
+          artifacts.push(`/preview/${targetSlug}`);
+        }
         break;
+      }
+      if (toolName === "aegis_scaffold_and_deploy_web" && output?.success && output?.previewUrl) {
+        finishTaskEncountered = true;
+        success = true;
+        finalResponse = `Web application successfully scaffolded and mounted at ${output.previewUrl}.`;
+        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl);
+        break;
+      }
+      if ((options.deliverableType === "web_app" || isCodingTask) && discoveredSlug) {
+        const buildDir = join10(workspaceRoot, "artifacts", "builds", discoveredSlug);
+        const hasHtml = existsSync13(join10(buildDir, "index.html"));
+        const hasJsOrCss = existsSync13(join10(buildDir, "app.js")) || existsSync13(join10(buildDir, "styles.css"));
+        if (hasHtml && hasJsOrCss && step >= 2) {
+          const verifyRes = await autonomousVerifier.verifyDeliverable({ deliverableType: "web_app", slug: discoveredSlug }, workspaceRoot);
+          if (verifyRes.verified) {
+            verificationDetails = verifyRes;
+            finishTaskEncountered = true;
+            success = true;
+            finalResponse = `Web application successfully built and verified at /preview/${discoveredSlug}.`;
+            const previewUrl = `/preview/${discoveredSlug}`;
+            if (!artifacts.includes(previewUrl)) artifacts.push(previewUrl);
+            break;
+          }
+        }
       }
       if ((toolName === "terminal_run_command" || toolName === "sandbox_terminal_execute") && output?.exitCode !== void 0 && output.exitCode !== 0) {
         messages.push({
@@ -14326,15 +14419,22 @@ Analyze the error, patch the target file using workspace_patch_file, and re-exec
     success = true;
   }
   if (options.requireVerification && !verificationDetails) {
+    const targetSlug = discoveredSlug || options.slug || "app-preview";
     const req = {
       deliverableType: options.deliverableType || "general",
       targetPath: options.verificationTarget,
-      slug: options.slug,
+      slug: targetSlug,
       testCommand: options.testCommand
     };
     verificationDetails = await autonomousVerifier.verifyDeliverable(req, workspaceRoot);
     if (!verificationDetails.verified) {
       success = false;
+    } else {
+      success = true;
+      if (options.deliverableType === "web_app") {
+        const previewPath = `/preview/${targetSlug}`;
+        if (!artifacts.includes(previewPath)) artifacts.push(previewPath);
+      }
     }
   }
   await taskAuditService.completeTask(taskId, success ? "COMPLETED" : "FAILED", finalResponse);
@@ -14369,6 +14469,7 @@ var init_AutonomousAgentLoop = __esm({
     init_AutonomousVerifier();
     init_taskAuditService();
     init_telegramNotifier();
+    init_AegisSpecialist();
     MAX_CONTEXT_CHARS = 12e4;
   }
 });
@@ -14488,9 +14589,11 @@ var init_telegramNotifier = __esm({
             const isWebApp = lower.includes("web") || lower.includes("app") || lower.includes("scaffold") || lower.includes("preview") || lower.includes("dashboard");
             const isDoc = lower.includes("pdf") || lower.includes("document") || lower.includes("pptx") || lower.includes("excel") || lower.includes("report") || lower.includes("presentation");
             const deliverableType = isWebApp ? "web_app" : isDoc ? "document" : "general";
+            const isCodingTask = specialist === "aegis" || isWebApp || lower.includes("code") || lower.includes("build");
+            const maxSteps = isCodingTask ? 35 : 25;
             const result = await executeAutonomousReAct2(directive, {
               specialist,
-              maxSteps: 25,
+              maxSteps,
               requireVerification: true,
               deliverableType
             });
@@ -15437,8 +15540,8 @@ var RevenueHunterEngine_exports = {};
 __export(RevenueHunterEngine_exports, {
   RevenueHunterEngine: () => RevenueHunterEngine
 });
-import { existsSync as existsSync16, mkdirSync as mkdirSync10, writeFileSync as writeFileSync12, readFileSync as readFileSync13 } from "fs";
-import { resolve as resolve11, join as join13 } from "path";
+import { existsSync as existsSync17, mkdirSync as mkdirSync10, writeFileSync as writeFileSync12, readFileSync as readFileSync13 } from "fs";
+import { resolve as resolve11, join as join14 } from "path";
 var RevenueHunterEngine;
 var init_RevenueHunterEngine = __esm({
   "src/agents/RevenueHunterEngine.ts"() {
@@ -15448,8 +15551,8 @@ var init_RevenueHunterEngine = __esm({
     init_OpenQodexReviewEngine();
     RevenueHunterEngine = class _RevenueHunterEngine {
       static dataDir = resolve11(process.cwd(), "data");
-      static opportunitiesFile = join13(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
-      static settingsFile = join13(_RevenueHunterEngine.dataDir, "payout_settings.json");
+      static opportunitiesFile = join14(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
+      static settingsFile = join14(_RevenueHunterEngine.dataDir, "payout_settings.json");
       // Real opportunities are ingested dynamically via JobScoutTool / incoming client feeds.
       static defaultOpportunities = [];
       static defaultSettings = {
@@ -15463,13 +15566,13 @@ var init_RevenueHunterEngine = __esm({
         autoWithdrawThresholdINR: 1e4
       };
       static ensureDataDir() {
-        if (!existsSync16(this.dataDir)) {
+        if (!existsSync17(this.dataDir)) {
           mkdirSync10(this.dataDir, { recursive: true });
         }
-        if (!existsSync16(this.opportunitiesFile)) {
+        if (!existsSync17(this.opportunitiesFile)) {
           writeFileSync12(this.opportunitiesFile, JSON.stringify(this.defaultOpportunities, null, 2), "utf-8");
         }
-        if (!existsSync16(this.settingsFile)) {
+        if (!existsSync17(this.settingsFile)) {
           writeFileSync12(this.settingsFile, JSON.stringify(this.defaultSettings, null, 2), "utf-8");
         }
       }
@@ -15675,8 +15778,8 @@ var PersonalKnowledgeEngine_exports = {};
 __export(PersonalKnowledgeEngine_exports, {
   PersonalKnowledgeEngine: () => PersonalKnowledgeEngine
 });
-import { existsSync as existsSync18, mkdirSync as mkdirSync12, readFileSync as readFileSync14, writeFileSync as writeFileSync14 } from "fs";
-import { resolve as resolve14, join as join15 } from "path";
+import { existsSync as existsSync19, mkdirSync as mkdirSync12, readFileSync as readFileSync14, writeFileSync as writeFileSync14 } from "fs";
+import { resolve as resolve14, join as join16 } from "path";
 var PersonalKnowledgeEngine;
 var init_PersonalKnowledgeEngine = __esm({
   "src/memory/PersonalKnowledgeEngine.ts"() {
@@ -15684,18 +15787,18 @@ var init_PersonalKnowledgeEngine = __esm({
     PersonalKnowledgeEngine = class _PersonalKnowledgeEngine {
       static knowledgeBase = /* @__PURE__ */ new Map();
       static dataDir = resolve14(process.cwd(), "data");
-      static storageFile = join15(_PersonalKnowledgeEngine.dataDir, "personal_knowledge.json");
+      static storageFile = join16(_PersonalKnowledgeEngine.dataDir, "personal_knowledge.json");
       static {
         this.bootstrapMasterProfile();
       }
       static ensureStorage() {
-        if (!existsSync18(this.dataDir)) {
+        if (!existsSync19(this.dataDir)) {
           mkdirSync12(this.dataDir, { recursive: true });
         }
       }
       static bootstrapMasterProfile() {
         this.ensureStorage();
-        if (existsSync18(this.storageFile)) {
+        if (existsSync19(this.storageFile)) {
           try {
             const raw2 = readFileSync14(this.storageFile, "utf-8");
             const entries = JSON.parse(raw2);
@@ -15807,25 +15910,25 @@ var EnterpriseTreasuryEngine_exports = {};
 __export(EnterpriseTreasuryEngine_exports, {
   EnterpriseTreasuryEngine: () => EnterpriseTreasuryEngine
 });
-import { existsSync as existsSync24, mkdirSync as mkdirSync17, writeFileSync as writeFileSync20, readFileSync as readFileSync17 } from "fs";
-import { resolve as resolve18, join as join21 } from "path";
+import { existsSync as existsSync25, mkdirSync as mkdirSync17, writeFileSync as writeFileSync20, readFileSync as readFileSync17 } from "fs";
+import { resolve as resolve18, join as join22 } from "path";
 var EnterpriseTreasuryEngine;
 var init_EnterpriseTreasuryEngine = __esm({
   "src/treasury/EnterpriseTreasuryEngine.ts"() {
     "use strict";
     EnterpriseTreasuryEngine = class _EnterpriseTreasuryEngine {
       static dataDir = resolve18(process.cwd(), "data");
-      static invoicesFile = join21(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
-      static contractsFile = join21(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
+      static invoicesFile = join22(_EnterpriseTreasuryEngine.dataDir, "enterprise_invoices.json");
+      static contractsFile = join22(_EnterpriseTreasuryEngine.dataDir, "enterprise_contracts.json");
       static USD_TO_INR = 84;
       static ensureStorage() {
-        if (!existsSync24(this.dataDir)) {
+        if (!existsSync25(this.dataDir)) {
           mkdirSync17(this.dataDir, { recursive: true });
         }
-        if (!existsSync24(this.invoicesFile)) {
+        if (!existsSync25(this.invoicesFile)) {
           writeFileSync20(this.invoicesFile, JSON.stringify([], null, 2), "utf-8");
         }
-        if (!existsSync24(this.contractsFile)) {
+        if (!existsSync25(this.contractsFile)) {
           writeFileSync20(this.contractsFile, JSON.stringify([], null, 2), "utf-8");
         }
       }
@@ -17080,8 +17183,8 @@ import "dotenv/config";
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync as existsSync26, readFileSync as readFileSync19 } from "node:fs";
-import { join as join23 } from "node:path";
+import { existsSync as existsSync27, readFileSync as readFileSync19 } from "node:fs";
+import { join as join24 } from "node:path";
 
 // custom-routes.ts
 import "dotenv/config";
@@ -18887,8 +18990,8 @@ var pipelineManager = PipelineManager.getInstance();
 init_appBuilderEngine();
 
 // src/swarm/memory/ObsidianVaultManager.ts
-import { existsSync as existsSync13, mkdirSync as mkdirSync7, writeFileSync as writeFileSync9, readFileSync as readFileSync10, readdirSync as readdirSync4 } from "node:fs";
-import { join as join10 } from "node:path";
+import { existsSync as existsSync14, mkdirSync as mkdirSync7, writeFileSync as writeFileSync9, readFileSync as readFileSync10, readdirSync as readdirSync4 } from "node:fs";
+import { join as join11 } from "node:path";
 var ObsidianVaultManager = class _ObsidianVaultManager {
   static instance;
   vaultRoot;
@@ -18899,7 +19002,7 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
     return _ObsidianVaultManager.instance;
   }
   constructor(customPath) {
-    this.vaultRoot = customPath || process.env.OBSIDIAN_VAULT_PATH || join10(process.cwd(), "vault");
+    this.vaultRoot = customPath || process.env.OBSIDIAN_VAULT_PATH || join11(process.cwd(), "vault");
     this.ensureVaultStructure();
   }
   getVaultRoot() {
@@ -18910,12 +19013,12 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
    */
   ensureVaultStructure() {
     const categories = ["DailyBriefs", "Pipelines", "Specialists", "Memory", "Tasks"];
-    if (!existsSync13(this.vaultRoot)) {
+    if (!existsSync14(this.vaultRoot)) {
       mkdirSync7(this.vaultRoot, { recursive: true });
     }
     for (const cat of categories) {
-      const catDir = join10(this.vaultRoot, cat);
-      if (!existsSync13(catDir)) {
+      const catDir = join11(this.vaultRoot, cat);
+      if (!existsSync14(catDir)) {
         mkdirSync7(catDir, { recursive: true });
       }
     }
@@ -18927,11 +19030,11 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
     this.ensureVaultStructure();
     const safeTitle = title.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim();
     const fileName = `${safeTitle.replace(/\s+/g, "_")}.md`;
-    const targetDir = join10(this.vaultRoot, category);
-    if (!existsSync13(targetDir)) {
+    const targetDir = join11(this.vaultRoot, category);
+    if (!existsSync14(targetDir)) {
       mkdirSync7(targetDir, { recursive: true });
     }
-    const fullPath = join10(targetDir, fileName);
+    const fullPath = join11(targetDir, fileName);
     const fullMeta = {
       title,
       date: (/* @__PURE__ */ new Date()).toISOString(),
@@ -18980,8 +19083,8 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
    * Read note from vault
    */
   readNote(category, fileName) {
-    const fullPath = join10(this.vaultRoot, category, fileName.endsWith(".md") ? fileName : `${fileName}.md`);
-    if (!existsSync13(fullPath)) return null;
+    const fullPath = join11(this.vaultRoot, category, fileName.endsWith(".md") ? fileName : `${fileName}.md`);
+    if (!existsSync14(fullPath)) return null;
     return readFileSync10(fullPath, "utf-8");
   }
   /**
@@ -18990,13 +19093,13 @@ var ObsidianVaultManager = class _ObsidianVaultManager {
   searchVault(query) {
     const q = query.toLowerCase();
     const results = [];
-    if (!existsSync13(this.vaultRoot)) return results;
+    if (!existsSync14(this.vaultRoot)) return results;
     const categories = readdirSync4(this.vaultRoot, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
     for (const cat of categories) {
-      const catPath = join10(this.vaultRoot, cat);
+      const catPath = join11(this.vaultRoot, cat);
       const files = readdirSync4(catPath).filter((f) => f.endsWith(".md"));
       for (const file of files) {
-        const filePath = join10(catPath, file);
+        const filePath = join11(catPath, file);
         try {
           const raw2 = readFileSync10(filePath, "utf-8");
           if (raw2.toLowerCase().includes(q)) {
@@ -19216,12 +19319,12 @@ var AgentRuntime = class {
       if (!outputResult) {
         verificationFailures.push("No execution output or artifact was generated");
       }
-      const { existsSync: existsSync27, readFileSync: readFileSync20 } = await import("node:fs");
+      const { existsSync: existsSync28, readFileSync: readFileSync20 } = await import("node:fs");
       const { resolve: resolve20 } = await import("node:path");
       if (inputData?.filesToVerify && Array.isArray(inputData.filesToVerify)) {
         for (const f of inputData.filesToVerify) {
           const resolvedPath = resolve20(process.cwd(), f);
-          if (!existsSync27(resolvedPath)) {
+          if (!existsSync28(resolvedPath)) {
             verificationFailures.push(`Verification failure: Deliverable file "${f}" does not exist on disk`);
           } else {
             if (f.endsWith(".json")) {
@@ -20710,18 +20813,18 @@ init_TelegramNotifier();
 
 // src/services/LeadDeduplicationService.ts
 init_db();
-import { existsSync as existsSync14, mkdirSync as mkdirSync8, readFileSync as readFileSync11, writeFileSync as writeFileSync10 } from "node:fs";
-import { resolve as resolve9, join as join11 } from "node:path";
+import { existsSync as existsSync15, mkdirSync as mkdirSync8, readFileSync as readFileSync11, writeFileSync as writeFileSync10 } from "node:fs";
+import { resolve as resolve9, join as join12 } from "node:path";
 var LeadDeduplicationService = class _LeadDeduplicationService {
   static dataDir = resolve9(process.cwd(), "data");
-  static leadsFile = join11(_LeadDeduplicationService.dataDir, "processed_leads.json");
+  static leadsFile = join12(_LeadDeduplicationService.dataDir, "processed_leads.json");
   static cache = /* @__PURE__ */ new Map();
   static dbInitialized = false;
   static ensureDataDir() {
-    if (!existsSync14(this.dataDir)) {
+    if (!existsSync15(this.dataDir)) {
       mkdirSync8(this.dataDir, { recursive: true });
     }
-    if (!existsSync14(this.leadsFile)) {
+    if (!existsSync15(this.leadsFile)) {
       writeFileSync10(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
     }
   }
@@ -20851,18 +20954,18 @@ var LeadDeduplicationService = class _LeadDeduplicationService {
 
 // src/services/RealizedEarningsService.ts
 init_db();
-import { existsSync as existsSync15, mkdirSync as mkdirSync9, readFileSync as readFileSync12, writeFileSync as writeFileSync11 } from "node:fs";
-import { resolve as resolve10, join as join12 } from "node:path";
+import { existsSync as existsSync16, mkdirSync as mkdirSync9, readFileSync as readFileSync12, writeFileSync as writeFileSync11 } from "node:fs";
+import { resolve as resolve10, join as join13 } from "node:path";
 var RealizedEarningsService = class _RealizedEarningsService {
   static dataDir = resolve10(process.cwd(), "data");
-  static ledgerFile = join12(_RealizedEarningsService.dataDir, "realized_earnings.json");
+  static ledgerFile = join13(_RealizedEarningsService.dataDir, "realized_earnings.json");
   static cache = /* @__PURE__ */ new Map();
   static dbInitialized = false;
   static ensureDataDir() {
-    if (!existsSync15(this.dataDir)) {
+    if (!existsSync16(this.dataDir)) {
       mkdirSync9(this.dataDir, { recursive: true });
     }
-    if (!existsSync15(this.ledgerFile)) {
+    if (!existsSync16(this.ledgerFile)) {
       writeFileSync11(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
     }
   }
@@ -23072,13 +23175,13 @@ var DisasterRecoveryManager = class {
 };
 
 // custom-routes.ts
-import { readFileSync as readFileSync18, writeFileSync as writeFileSync21, existsSync as existsSync25, chmodSync as chmodSync2, mkdirSync as mkdirSync18, readdirSync as readdirSync6, statSync as statSync6 } from "fs";
-import { join as join22, resolve as resolve19, extname } from "path";
+import { readFileSync as readFileSync18, writeFileSync as writeFileSync21, existsSync as existsSync26, chmodSync as chmodSync2, mkdirSync as mkdirSync18, readdirSync as readdirSync6, statSync as statSync6 } from "fs";
+import { join as join23, resolve as resolve19, extname } from "path";
 import { randomBytes as randomBytes2 } from "crypto";
 
 // src/security/SovereignGate.ts
-import { readFileSync as readFileSync15, writeFileSync as writeFileSync16, existsSync as existsSync20, chmodSync } from "fs";
-import { join as join17 } from "path";
+import { readFileSync as readFileSync15, writeFileSync as writeFileSync16, existsSync as existsSync21, chmodSync } from "fs";
+import { join as join18 } from "path";
 import { randomBytes } from "crypto";
 import jwt from "jsonwebtoken";
 var SovereignGate = class {
@@ -23101,9 +23204,9 @@ var SovereignGate = class {
       this.cachedSecret = process.env.RUNTIME_AUTH_SECRET.trim();
       return this.cachedSecret;
     }
-    const secretFile = join17(process.cwd(), ".jarvis-secret");
+    const secretFile = join18(process.cwd(), ".jarvis-secret");
     try {
-      if (existsSync20(secretFile)) {
+      if (existsSync21(secretFile)) {
         const stored = readFileSync15(secretFile, "utf8").trim();
         if (stored.length >= 32) {
           this.cachedSecret = stored;
@@ -24060,12 +24163,12 @@ ${systemPrompt}` }] });
 };
 
 // src/services/HermesDocumentService.ts
-import { existsSync as existsSync21, mkdirSync as mkdirSync14, writeFileSync as writeFileSync17, statSync as statSync4 } from "fs";
-import { resolve as resolve16, join as join18 } from "path";
+import { existsSync as existsSync22, mkdirSync as mkdirSync14, writeFileSync as writeFileSync17, statSync as statSync4 } from "fs";
+import { resolve as resolve16, join as join19 } from "path";
 var HermesDocumentService = class {
   static storageDir = resolve16(process.cwd(), "artifacts", "storage");
   static ensureStorageDir() {
-    if (!existsSync21(this.storageDir)) {
+    if (!existsSync22(this.storageDir)) {
       mkdirSync14(this.storageDir, { recursive: true });
     }
   }
@@ -24140,7 +24243,7 @@ var HermesDocumentService = class {
         content: options.content
       });
     }
-    const targetPath = join18(this.storageDir, filename);
+    const targetPath = join19(this.storageDir, filename);
     writeFileSync17(targetPath, fileBuffer);
     const stats = statSync4(targetPath);
     return {
@@ -24333,11 +24436,11 @@ var DailyBriefingEngine = class {
 };
 
 // src/agents/SkillCreationEngine.ts
-import { existsSync as existsSync22, mkdirSync as mkdirSync15, writeFileSync as writeFileSync18, readFileSync as readFileSync16 } from "fs";
-import { resolve as resolve17, join as join19 } from "path";
+import { existsSync as existsSync23, mkdirSync as mkdirSync15, writeFileSync as writeFileSync18, readFileSync as readFileSync16 } from "fs";
+import { resolve as resolve17, join as join20 } from "path";
 var SkillCreationEngine = class _SkillCreationEngine {
   static dataDir = resolve17(process.cwd(), "data");
-  static skillsFile = join19(_SkillCreationEngine.dataDir, "custom_skills.json");
+  static skillsFile = join20(_SkillCreationEngine.dataDir, "custom_skills.json");
   static defaultSkills = [
     {
       id: "SKILL-GROCERY-AI",
@@ -24380,10 +24483,10 @@ var SkillCreationEngine = class _SkillCreationEngine {
     }
   ];
   static ensureDataDir() {
-    if (!existsSync22(this.dataDir)) {
+    if (!existsSync23(this.dataDir)) {
       mkdirSync15(this.dataDir, { recursive: true });
     }
-    if (!existsSync22(this.skillsFile)) {
+    if (!existsSync23(this.skillsFile)) {
       writeFileSync18(this.skillsFile, JSON.stringify(this.defaultSkills, null, 2), "utf-8");
     }
   }
@@ -24874,16 +24977,16 @@ var FrontierModelVault = class {
 };
 
 // src/services/JioCloudVaultService.ts
-import { existsSync as existsSync23, mkdirSync as mkdirSync16, writeFileSync as writeFileSync19 } from "fs";
-import { join as join20 } from "path";
+import { existsSync as existsSync24, mkdirSync as mkdirSync16, writeFileSync as writeFileSync19 } from "fs";
+import { join as join21 } from "path";
 var JioCloudVaultService = class {
   static defaultMountPath = process.env.JIO_MOUNT_PATH || "J:\\JIO-VAULT";
-  static localStagingPath = join20(process.cwd(), "artifacts", "storage", "jio-vault");
+  static localStagingPath = join21(process.cwd(), "artifacts", "storage", "jio-vault");
   /**
    * Returns current connection status of the 5,000 GB JioCloud storage
    */
   static getConnectionStatus() {
-    const isVirtualMounted = existsSync23(this.defaultMountPath);
+    const isVirtualMounted = existsSync24(this.defaultMountPath);
     return {
       connected: isVirtualMounted,
       mountType: isVirtualMounted ? "RCLONE_VIRTUAL_DRIVE" : "CLOUD_STAGING_MODE",
@@ -24899,15 +25002,15 @@ var JioCloudVaultService = class {
    * Creates an automated backup snapshot directly into the JioCloud vault
    */
   static createSnapshot(snapshotName = "master-sri-sovereign-snapshot") {
-    const targetDir = existsSync23(this.defaultMountPath) ? join20(this.defaultMountPath, "backups") : join20(this.localStagingPath, "backups");
-    if (!existsSync23(targetDir)) {
+    const targetDir = existsSync24(this.defaultMountPath) ? join21(this.defaultMountPath, "backups") : join21(this.localStagingPath, "backups");
+    if (!existsSync24(targetDir)) {
       try {
         mkdirSync16(targetDir, { recursive: true });
       } catch {
       }
     }
     const filename = `${snapshotName}_${Date.now()}.json`;
-    const targetFile = join20(targetDir, filename);
+    const targetFile = join21(targetDir, filename);
     const snapshotPayload = {
       commander: "Master Sri",
       system: "J.A.R.V.I.S. Mark-V Sovereign Kernel",
@@ -25045,9 +25148,9 @@ async function ensureDatabaseSchema() {
     console.error("[jarvis] database schema missing, repairing:", msg);
     try {
       const { readFileSync: readFileSync20, writeFileSync: writeFileSync22 } = await import("node:fs");
-      const { join: join24 } = await import("node:path");
+      const { join: join25 } = await import("node:path");
       const { execFileSync } = await import("node:child_process");
-      const schemaPath = join24(process.cwd(), "prisma", "schema.prisma");
+      const schemaPath = join25(process.cwd(), "prisma", "schema.prisma");
       const rawDbUrl2 = process.env.DATABASE_URL || "";
       const isPg = rawDbUrl2.startsWith("postgres://") || rawDbUrl2.startsWith("postgresql://");
       const targetProvider = isPg ? "postgresql" : "sqlite";
@@ -25100,9 +25203,9 @@ var JWT_SECRET = loadJwtSecret();
 var BCRYPT_ROUNDS = 12;
 function loadInviteCode() {
   if (process.env.JARVIS_INVITE_CODE) return process.env.JARVIS_INVITE_CODE;
-  const inviteFile = join22(process.cwd(), ".jarvis-invite");
+  const inviteFile = join23(process.cwd(), ".jarvis-invite");
   try {
-    if (existsSync25(inviteFile)) {
+    if (existsSync26(inviteFile)) {
       const stored = readFileSync18(inviteFile, "utf8").trim();
       if (stored.length >= 8) return stored;
     }
@@ -25704,9 +25807,9 @@ function isModelReady(model) {
   return false;
 }
 var runtimeKeyOverrides = {};
-var KEYS_FILE = join22(process.cwd(), ".jarvis-keys.json");
+var KEYS_FILE = join23(process.cwd(), ".jarvis-keys.json");
 function loadKeys() {
-  if (existsSync25(KEYS_FILE)) {
+  if (existsSync26(KEYS_FILE)) {
     try {
       const diskKeys = JSON.parse(readFileSync18(KEYS_FILE, "utf8"));
       Object.assign(runtimeKeyOverrides, diskKeys);
@@ -25996,9 +26099,9 @@ ${JSON.stringify(audit.output, null, 2)}
       let fullPath = resolve19(process.cwd(), cleanPath);
       if (cleanPath.startsWith("assets/") || cleanPath.startsWith("sections/") || cleanPath.startsWith("snippets/") || cleanPath.startsWith("layout/")) {
         const inviCandidate = resolve19("c:/Users/hp/invi-theme", cleanPath);
-        if (existsSync25(inviCandidate)) fullPath = inviCandidate;
+        if (existsSync26(inviCandidate)) fullPath = inviCandidate;
       }
-      if (existsSync25(fullPath) && statSync6(fullPath).isFile()) {
+      if (existsSync26(fullPath) && statSync6(fullPath).isFile()) {
         const content = readFileSync18(fullPath, "utf-8");
         context += `
 
@@ -26983,9 +27086,9 @@ app.get("/storage/download-custom/:filename", async (c) => {
   try {
     const filename = c.req.param("filename");
     const { resolve: resolve20 } = await import("node:path");
-    const { existsSync: existsSync27, readFileSync: readFileSync20 } = await import("node:fs");
+    const { existsSync: existsSync28, readFileSync: readFileSync20 } = await import("node:fs");
     const filePath = resolve20(process.cwd(), "artifacts", "storage", filename);
-    if (!existsSync27(filePath)) {
+    if (!existsSync28(filePath)) {
       return c.text("Custom document not found", 404);
     }
     const fileBytes = readFileSync20(filePath);
@@ -27227,11 +27330,11 @@ app.get("/preview/:slug/:file", (c) => {
 app.get("/artifacts/download", (c) => {
   const fileParam = c.req.query("file");
   if (!fileParam) return c.text("Missing file parameter", 400);
-  const { existsSync: existsSync27, readFileSync: readFileSync20 } = __require("node:fs");
-  const { join: join24 } = __require("node:path");
+  const { existsSync: existsSync28, readFileSync: readFileSync20 } = __require("node:fs");
+  const { join: join25 } = __require("node:path");
   const safeName = fileParam.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const filePath = join24(process.cwd(), "artifacts", "documents", safeName);
-  if (!existsSync27(filePath)) {
+  const filePath = join25(process.cwd(), "artifacts", "documents", safeName);
+  if (!existsSync28(filePath)) {
     return c.text("File not found", 404);
   }
   const content = readFileSync20(filePath);
@@ -30502,10 +30605,10 @@ app.post("/workspace/execute", async (c) => {
 app.get("/workspaces", requireAuth, async (c) => {
   try {
     const baseDir = resolve19(process.cwd(), "workspaces");
-    if (!existsSync25(baseDir)) mkdirSync18(baseDir, { recursive: true });
+    if (!existsSync26(baseDir)) mkdirSync18(baseDir, { recursive: true });
     const items = readdirSync6(baseDir, { withFileTypes: true });
     const projects = items.filter((item) => item.isDirectory()).map((dir) => {
-      const pPath = join22(baseDir, dir.name);
+      const pPath = join23(baseDir, dir.name);
       const files = WorkspaceManager.listFiles(dir.name);
       const stats = statSync6(pPath);
       return {
@@ -30514,7 +30617,7 @@ app.get("/workspaces", requireAuth, async (c) => {
         filesCount: files.length,
         updatedAt: stats.mtime.toISOString(),
         previewUrl: `/api/workspaces/preview/${dir.name}`,
-        hasIndexHtml: existsSync25(join22(pPath, "index.html"))
+        hasIndexHtml: existsSync26(join23(pPath, "index.html"))
       };
     }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     return c.json({ ok: true, projects });
@@ -30563,7 +30666,7 @@ var MIME_MAP = {
 var ensureDefaultWorkspaceExists = (targetProject = "swarm_can_you_create_a_todo_li") => {
   const projectPath = WorkspaceManager.getProjectPath(targetProject);
   const indexPath = resolve19(projectPath, "index.html");
-  if (existsSync25(indexPath)) return projectPath;
+  if (existsSync26(indexPath)) return projectPath;
   WorkspaceManager.initProject(targetProject);
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -30837,19 +30940,19 @@ document.addEventListener('DOMContentLoaded', () => {
 var serveWorkspaceFile = (projectName, subPath) => {
   let projectPath = WorkspaceManager.getProjectPath(projectName);
   let filePath = subPath ? resolve19(projectPath, subPath) : resolve19(projectPath, "index.html");
-  if (!existsSync25(projectPath) || !existsSync25(filePath) && (!subPath || subPath === "index.html")) {
+  if (!existsSync26(projectPath) || !existsSync26(filePath) && (!subPath || subPath === "index.html")) {
     projectPath = ensureDefaultWorkspaceExists(projectName);
     filePath = subPath ? resolve19(projectPath, subPath) : resolve19(projectPath, "index.html");
   }
   if (!filePath.startsWith(projectPath)) {
     return { status: 403, error: "Path traversal denied" };
   }
-  if (existsSync25(filePath) && statSync6(filePath).isDirectory()) {
+  if (existsSync26(filePath) && statSync6(filePath).isDirectory()) {
     filePath = resolve19(filePath, "index.html");
   }
-  if (!existsSync25(filePath)) {
+  if (!existsSync26(filePath)) {
     const rootIndex = resolve19(projectPath, "index.html");
-    if (existsSync25(rootIndex)) {
+    if (existsSync26(rootIndex)) {
       filePath = rootIndex;
     } else {
       ensureDefaultWorkspaceExists(projectName);
@@ -30866,8 +30969,8 @@ app.get("/workspaces/preview/:projectName", async (c) => {
     const projectName = c.req.param("projectName");
     if (projectName.includes(".")) {
       const workspacesDir = WorkspaceManager.WORKSPACES_ROOT || resolve19(process.cwd(), "workspaces");
-      if (existsSync25(workspacesDir)) {
-        const entries = readdirSync6(workspacesDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => ({ name: d.name, time: statSync6(join22(workspacesDir, d.name)).mtimeMs })).sort((a, b) => b.time - a.time);
+      if (existsSync26(workspacesDir)) {
+        const entries = readdirSync6(workspacesDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => ({ name: d.name, time: statSync6(join23(workspacesDir, d.name)).mtimeMs })).sort((a, b) => b.time - a.time);
         for (const entry of entries) {
           const candidate = serveWorkspaceFile(entry.name, projectName);
           if (candidate.status === 200 && candidate.content) {
@@ -31103,8 +31206,8 @@ app.post("/docs/generate", requireAuth, async (c) => {
 app.get("/docs/download/:filename", async (c) => {
   try {
     const filename = c.req.param("filename");
-    const safePath = join22(process.cwd(), "artifacts", "storage", filename.replace(/[^a-zA-Z0-9_.-]/g, ""));
-    if (!existsSync25(safePath)) {
+    const safePath = join23(process.cwd(), "artifacts", "storage", filename.replace(/[^a-zA-Z0-9_.-]/g, ""));
+    if (!existsSync26(safePath)) {
       return c.json({ error: "File not found" }, 404);
     }
     const fileBytes = readFileSync18(safePath);
@@ -32397,8 +32500,8 @@ app2.post("/api/tools/execute", (c) => tools.execute(c.req.raw));
 app2.get("/api/tools/schemas", (c) => tools.list(c.req.raw));
 app2.use("/*", serveStatic({ root: "./dist" }));
 app2.get("*", (c) => {
-  const indexPath = join23(process.cwd(), "dist", "index.html");
-  if (existsSync26(indexPath)) {
+  const indexPath = join24(process.cwd(), "dist", "index.html");
+  if (existsSync27(indexPath)) {
     return c.html(readFileSync19(indexPath, "utf-8"));
   }
   return c.text("J.A.R.V.I.S. Sovereign Cloud Engine Active", 200);

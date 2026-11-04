@@ -94,6 +94,22 @@ export const SWARM_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'complete_task',
+      description: 'Alias for finish_task: signals completion and returns the live preview mount path or artifacts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string', description: 'Summary of completed deliverable' },
+          previewUrl: { type: 'string', description: 'Live preview mount path (e.g. /preview/<slug>)' },
+          artifacts: { type: 'array', items: { type: 'string' }, description: 'List of artifact files or paths' }
+        },
+        required: ['summary']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'query_public_service',
       description: 'Query verified free public APIs (weather, currency rates, crypto prices, geolocation, Wikipedia summary) without authentication.',
       parameters: {
@@ -637,10 +653,11 @@ export async function dispatchToolCall(name: string, args: Record<string, any>):
       return await executeSandboxCommand(args.command, args.timeoutMs || 10000)
 
     case 'finish_task':
+    case 'complete_task':
       return {
         completed: true,
-        summary: args.summary,
-        artifacts: args.artifacts || []
+        summary: args.summary || args.message || 'Task completed successfully.',
+        artifacts: args.artifacts || (args.previewUrl ? [args.previewUrl] : [])
       }
 
     case 'query_public_service': {
