@@ -9477,8 +9477,8 @@ var init_TelegramNotifier = __esm({
       }
       static getCredentials() {
         this.loadEnvFile();
-        let botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
-        let chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
+        let botToken = (process.env.TELEGRAM_BOT_TOKEN || "8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI").trim();
+        let chatId = (process.env.TELEGRAM_CHAT_ID || "1377862282").trim();
         botToken = botToken.replace(/^[<"']+|[>"']+$/g, "");
         chatId = chatId.replace(/^[<"']+|[>"']+$/g, "");
         return { botToken, chatId };
@@ -31621,33 +31621,77 @@ init_TaskStore();
 init_db();
 var TelegramBotListener = class {
   static AUTHORIZED_CHAT_ID = "1377862282";
+  static isRunning = false;
   static pollingActive = false;
   static abortController = null;
+  static offset = 0;
   static lastUpdateId = 0;
+  static botToken = "";
   static startTime = Date.now();
+  static start() {
+    this.startPolling();
+  }
+  static stop() {
+    this.stopPolling();
+  }
+  static getOffset() {
+    return this.offset;
+  }
+  static setOffset(val) {
+    this.offset = val;
+    this.lastUpdateId = Math.max(0, val - 1);
+  }
+  static getBotToken() {
+    return this.botToken;
+  }
+  static setBotToken(token) {
+    this.botToken = token;
+  }
   /**
-   * Start long-polling in the background without blocking the main event loop
+   * Start continuous long-polling in the background without blocking the main event loop
    */
   static startPolling() {
-    if (this.pollingActive) return;
+    if (this.isRunning || this.pollingActive) return;
     const { botToken, chatId } = TelegramNotifier.getCredentials();
-    if (!botToken) {
-      console.warn("\u26A0\uFE0F [TelegramBotListener] Missing TELEGRAM_BOT_TOKEN. Listener disabled.");
-      return;
-    }
+    this.botToken = botToken || "8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI";
+    const authorizedId = chatId || this.AUTHORIZED_CHAT_ID;
+    this.isRunning = true;
     this.pollingActive = true;
     this.abortController = new AbortController();
-    const authorizedId = chatId || this.AUTHORIZED_CHAT_ID;
     console.log(`\u{1F916} [TelegramBotListener] Activated 24/7 command & callback listener for Master Sri (Chat ID: ${authorizedId})`);
-    TelegramNotifier.deleteWebhook().catch(() => {
-    });
     (async () => {
-      while (this.pollingActive) {
+      try {
+        console.log(`\u{1F504} [TelegramPolling] Clearing stale webhook before polling...`);
+        await TelegramNotifier.deleteWebhook();
+      } catch (e) {
+        console.warn("\u26A0\uFE0F [TelegramBotListener] Webhook cleanup note:", e?.message || e);
+      }
+      console.log(`\u{1F680} [TelegramBotListener] Polling loop engaged. Listening for Master Sri updates...`);
+      while (this.isRunning) {
         try {
-          await this.pollUpdates(botToken, authorizedId);
+          console.log(`\u{1F4E1} [TelegramPolling] Checking for updates (offset: ${this.offset})...`);
+          const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=25`, {
+            signal: this.abortController?.signal || AbortSignal.timeout(3e4)
+          });
+          const data = await res.json();
+          if (res.ok && data.ok && Array.isArray(data.result)) {
+            if (data.result.length === 0) {
+              await new Promise((r) => setTimeout(r, 1e3));
+            }
+            for (const update of data.result) {
+              this.offset = update.update_id + 1;
+              this.lastUpdateId = update.update_id;
+              console.log(`\u{1F4E5} [TelegramInbound] Processing update ID: ${update.update_id}`);
+              await this.handleUpdate(update, authorizedId);
+            }
+          } else {
+            console.error(`\u274C [TelegramPolling] getUpdates returned non-ok:`, data);
+            await new Promise((r) => setTimeout(r, 3e3));
+          }
         } catch (err) {
-          if (!this.pollingActive) break;
-          await new Promise((resolve20) => setTimeout(resolve20, 3e3));
+          if (!this.isRunning || err?.name === "AbortError") break;
+          console.error(`\u26A0\uFE0F [TelegramPolling Error]:`, err?.message || err);
+          await new Promise((r) => setTimeout(r, 3e3));
         }
       }
     })().catch((err) => {
@@ -31658,6 +31702,7 @@ var TelegramBotListener = class {
    * Stop the polling loop
    */
   static stopPolling() {
+    this.isRunning = false;
     this.pollingActive = false;
     if (this.abortController) {
       this.abortController.abort();
@@ -31666,51 +31711,35 @@ var TelegramBotListener = class {
     console.log("\u{1F6D1} [TelegramBotListener] Polling stopped.");
   }
   static isPolling() {
-    return this.pollingActive;
+    return this.isRunning || this.pollingActive;
   }
   /**
-   * Execute single long-poll request to Telegram getUpdates
+   * Process incoming update from Telegram (callback queries or text commands)
    */
-  static async pollUpdates(botToken, authorizedChatId) {
-    const url = `https://api.telegram.org/bot${botToken}/getUpdates?offset=${this.lastUpdateId + 1}&timeout=15`;
-    try {
-      const res = await fetch(url, {
-        signal: this.abortController?.signal || AbortSignal.timeout(2e4)
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data.ok || !Array.isArray(data.result)) return;
-      for (const update of data.result) {
-        if (update.update_id > this.lastUpdateId) {
-          this.lastUpdateId = update.update_id;
-        }
-        if (update.callback_query) {
-          const query = update.callback_query;
-          const senderChatId2 = String(query.message?.chat?.id || query.from?.id || "");
-          if (senderChatId2 === authorizedChatId || senderChatId2 === this.AUTHORIZED_CHAT_ID) {
-            await this.handleCallbackQuery(query);
-          }
-          continue;
-        }
-        const message = update.message;
-        if (!message || !message.text) continue;
-        const senderChatId = String(message.chat?.id || "");
-        const senderUsername = message.from?.username || message.chat?.username || "Unknown";
-        const text = message.text.trim();
-        console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
-        if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
-          console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
-          await TelegramNotifier.sendMessage(
-            `\u26D4 Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
-            { targetChatId: senderChatId }
-          );
-          continue;
-        }
-        await this.handleIncomingMessage(text, senderChatId);
+  static async handleUpdate(update, authorizedChatId = this.AUTHORIZED_CHAT_ID) {
+    if (update.callback_query) {
+      const query = update.callback_query;
+      const senderChatId2 = String(query.message?.chat?.id || query.from?.id || "");
+      if (senderChatId2 === authorizedChatId || senderChatId2 === this.AUTHORIZED_CHAT_ID) {
+        await this.handleCallbackQuery(query);
       }
-    } catch (err) {
-      if (err.name === "AbortError") return;
+      return;
     }
+    const message = update.message || update.edited_message;
+    if (!message || !message.text) return;
+    const senderChatId = String(message.chat?.id || "");
+    const senderUsername = message.from?.username || message.chat?.username || "Unknown";
+    const text = message.text.trim();
+    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
+    if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
+      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
+      await TelegramNotifier.sendMessage(
+        `\u26D4 Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
+        { targetChatId: senderChatId }
+      );
+      return;
+    }
+    await this.handleIncomingMessage(text, senderChatId);
   }
   /**
    * Handle interactive inline button taps (Won ($) / Dismiss)

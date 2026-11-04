@@ -36,8 +36,8 @@ export class TelegramNotifier {
 
   public static getCredentials(): { botToken: string; chatId: string } {
     this.loadEnvFile();
-    let botToken = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
-    let chatId = (process.env.TELEGRAM_CHAT_ID || '').trim();
+    let botToken = (process.env.TELEGRAM_BOT_TOKEN || '8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI').trim();
+    let chatId = (process.env.TELEGRAM_CHAT_ID || '1377862282').trim();
 
     // Clean angle brackets or quotes if present
     botToken = botToken.replace(/^[<"']+|[>"']+$/g, '');

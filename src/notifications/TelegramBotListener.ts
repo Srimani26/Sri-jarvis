@@ -23,41 +23,95 @@ import { prisma } from '../lib/db';
 
 export class TelegramBotListener {
   public static readonly AUTHORIZED_CHAT_ID = '1377862282';
+  private static isRunning = false;
   private static pollingActive = false;
   private static abortController: AbortController | null = null;
+  private static offset = 0;
   private static lastUpdateId = 0;
+  private static botToken = '';
   private static startTime = Date.now();
 
+  public static start(): void {
+    this.startPolling();
+  }
+
+  public static stop(): void {
+    this.stopPolling();
+  }
+
+  public static getOffset(): number {
+    return this.offset;
+  }
+
+  public static setOffset(val: number): void {
+    this.offset = val;
+    this.lastUpdateId = Math.max(0, val - 1);
+  }
+
+  public static getBotToken(): string {
+    return this.botToken;
+  }
+
+  public static setBotToken(token: string): void {
+    this.botToken = token;
+  }
+
   /**
-   * Start long-polling in the background without blocking the main event loop
+   * Start continuous long-polling in the background without blocking the main event loop
    */
   public static startPolling(): void {
-    if (this.pollingActive) return;
+    if (this.isRunning || this.pollingActive) return;
 
     const { botToken, chatId } = TelegramNotifier.getCredentials();
-    if (!botToken) {
-      console.warn('⚠️ [TelegramBotListener] Missing TELEGRAM_BOT_TOKEN. Listener disabled.');
-      return;
-    }
+    this.botToken = botToken || '8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI';
+    const authorizedId = chatId || this.AUTHORIZED_CHAT_ID;
 
+    this.isRunning = true;
     this.pollingActive = true;
     this.abortController = new AbortController();
-    const authorizedId = chatId || this.AUTHORIZED_CHAT_ID;
 
     console.log(`🤖 [TelegramBotListener] Activated 24/7 command & callback listener for Master Sri (Chat ID: ${authorizedId})`);
 
-    // STEP 3: Clear stale webhook before polling to prevent 409 Conflict
-    TelegramNotifier.deleteWebhook().catch(() => {});
-
-    // Launch background polling loop (unref'd / non-blocking)
+    // Launch continuous background polling loop
     (async () => {
-      while (this.pollingActive) {
+      // Step 0: Ensure stale webhook is cleanly deleted before getUpdates starts
+      try {
+        console.log(`🔄 [TelegramPolling] Clearing stale webhook before polling...`);
+        await TelegramNotifier.deleteWebhook();
+      } catch (e: any) {
+        console.warn('⚠️ [TelegramBotListener] Webhook cleanup note:', e?.message || e);
+      }
+
+      console.log(`🚀 [TelegramBotListener] Polling loop engaged. Listening for Master Sri updates...`);
+
+      while (this.isRunning) {
         try {
-          await this.pollUpdates(botToken, authorizedId);
+          console.log(`📡 [TelegramPolling] Checking for updates (offset: ${this.offset})...`);
+          const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=25`, {
+            signal: this.abortController?.signal || AbortSignal.timeout(30000),
+          });
+
+          const data: any = await res.json();
+
+          if (res.ok && data.ok && Array.isArray(data.result)) {
+            if (data.result.length === 0) {
+              // Idle interval to prevent busy-looping if connection returns immediately with empty updates
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+            for (const update of data.result) {
+              this.offset = update.update_id + 1;
+              this.lastUpdateId = update.update_id;
+              console.log(`📥 [TelegramInbound] Processing update ID: ${update.update_id}`);
+              await this.handleUpdate(update, authorizedId);
+            }
+          } else {
+            console.error(`❌ [TelegramPolling] getUpdates returned non-ok:`, data);
+            await new Promise((r) => setTimeout(r, 3000));
+          }
         } catch (err: any) {
-          if (!this.pollingActive) break;
-          // Graceful backoff on connection drops
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          if (!this.isRunning || err?.name === 'AbortError') break;
+          console.error(`⚠️ [TelegramPolling Error]:`, err?.message || err);
+          await new Promise((r) => setTimeout(r, 3000));
         }
       }
     })().catch((err) => {
@@ -69,6 +123,7 @@ export class TelegramBotListener {
    * Stop the polling loop
    */
   public static stopPolling(): void {
+    this.isRunning = false;
     this.pollingActive = false;
     if (this.abortController) {
       this.abortController.abort();
@@ -78,67 +133,46 @@ export class TelegramBotListener {
   }
 
   public static isPolling(): boolean {
-    return this.pollingActive;
+    return this.isRunning || this.pollingActive;
   }
 
   /**
-   * Execute single long-poll request to Telegram getUpdates
+   * Process incoming update from Telegram (callback queries or text commands)
    */
-  private static async pollUpdates(botToken: string, authorizedChatId: string): Promise<void> {
-    const url = `https://api.telegram.org/bot${botToken}/getUpdates?offset=${this.lastUpdateId + 1}&timeout=15`;
-
-    try {
-      const res = await fetch(url, {
-        signal: this.abortController?.signal || AbortSignal.timeout(20000),
-      });
-
-      if (!res.ok) return;
-
-      const data: any = await res.json();
-      if (!data.ok || !Array.isArray(data.result)) return;
-
-      for (const update of data.result) {
-        if (update.update_id > this.lastUpdateId) {
-          this.lastUpdateId = update.update_id;
-        }
-
-        // 1. Handle Interactive Inline Button Callback Queries
-        if (update.callback_query) {
-          const query = update.callback_query;
-          const senderChatId = String(query.message?.chat?.id || query.from?.id || '');
-          if (senderChatId === authorizedChatId || senderChatId === this.AUTHORIZED_CHAT_ID) {
-            await this.handleCallbackQuery(query);
-          }
-          continue;
-        }
-
-        // 2. Handle Text Commands
-        const message = update.message;
-        if (!message || !message.text) continue;
-
-        const senderChatId = String(message.chat?.id || '');
-        const senderUsername = message.from?.username || message.chat?.username || 'Unknown';
-        const text = message.text.trim();
-
-        // STEP 1: Structured entrypoint logging
-        console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
-
-        // STEP 1: Security gate strictly authorizing Master Sri (1377862282)
-        if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
-          console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
-          await TelegramNotifier.sendMessage(
-            `⛔ Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
-            { targetChatId: senderChatId }
-          );
-          continue;
-        }
-
-        // Process authorized command
-        await this.handleIncomingMessage(text, senderChatId);
+  public static async handleUpdate(update: any, authorizedChatId: string = this.AUTHORIZED_CHAT_ID): Promise<void> {
+    // 1. Handle Interactive Inline Button Callback Queries
+    if (update.callback_query) {
+      const query = update.callback_query;
+      const senderChatId = String(query.message?.chat?.id || query.from?.id || '');
+      if (senderChatId === authorizedChatId || senderChatId === this.AUTHORIZED_CHAT_ID) {
+        await this.handleCallbackQuery(query);
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError') return;
+      return;
     }
+
+    // 2. Handle Text Commands
+    const message = update.message || update.edited_message;
+    if (!message || !message.text) return;
+
+    const senderChatId = String(message.chat?.id || '');
+    const senderUsername = message.from?.username || message.chat?.username || 'Unknown';
+    const text = message.text.trim();
+
+    // STEP 1: Structured entrypoint logging
+    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
+
+    // STEP 1: Security gate strictly authorizing Master Sri (1377862282)
+    if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
+      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
+      await TelegramNotifier.sendMessage(
+        `⛔ Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
+        { targetChatId: senderChatId }
+      );
+      return;
+    }
+
+    // Process authorized command
+    await this.handleIncomingMessage(text, senderChatId);
   }
 
   /**
