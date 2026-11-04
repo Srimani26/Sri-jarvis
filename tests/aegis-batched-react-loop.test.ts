@@ -56,3 +56,4 @@ describe('Aegis Batched ReAct Loop & Auto-Completion Gate Suite', () => {
     })
   })
 })
+

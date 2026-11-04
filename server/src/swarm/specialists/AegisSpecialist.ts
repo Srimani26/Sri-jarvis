@@ -17,3 +17,4 @@ CRITICAL OPERATIONAL DIRECTIVE (BATCHED WRITING & ZERO CHATTER):
 export function getAegisSystemPrompt(): string {
   return AEGIS_SYSTEM_PROMPT
 }
+

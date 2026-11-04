@@ -338,3 +338,22 @@ calculate();
 }
 
 export const appBuilderEngine = AppBuilderEngine.getInstance()
+
+export async function scaffoldAndDeployWeb(params: {
+  directive?: string
+  slug?: string
+  projectSlug?: string
+  author?: string
+  appType?: 'react_spa' | 'landing_page' | 'fullstack'
+  specification?: any
+}, workspaceRoot = process.cwd()): Promise<AppBuilderResult> {
+  const slug = params.projectSlug || params.slug || 'web_app'
+  return await appBuilderEngine.scaffoldAndDeployWeb({
+    projectSlug: slug,
+    appType: params.appType || 'landing_page',
+    specification: params.specification || {
+      title: (params.directive || slug).slice(0, 60),
+      description: params.directive || 'Autonomous Web Application Deliverable'
+    }
+  }, workspaceRoot)
+}
