@@ -1,3 +1,8 @@
+import dns from 'node:dns'
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first')
+}
+
 // SOVEREIGN ZERO-CRASH SHIELD: Intercept all uncaught exceptions & unhandled rejections
 // Ensures J.A.R.V.I.S. server runtime NEVER shuts down or terminates under any circumstance
 process.on('uncaughtException', (err) => {

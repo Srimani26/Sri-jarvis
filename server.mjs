@@ -17018,6 +17018,7 @@ ${swarmResult.finalResponse}`,
 });
 
 // server.tsx
+import dns2 from "node:dns";
 import "dotenv/config";
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
@@ -31617,8 +31618,12 @@ import { createToolsHandlers } from "@shogo-ai/sdk/tools/server";
 
 // src/notifications/TelegramBotListener.ts
 init_TelegramNotifier();
+import dns from "node:dns";
 init_TaskStore();
 init_db();
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 var TelegramBotListener = class {
   static AUTHORIZED_CHAT_ID = "1377862282";
   static isRunning = false;
@@ -31653,7 +31658,14 @@ var TelegramBotListener = class {
   static startPolling() {
     if (this.isRunning || this.pollingActive) return;
     const { botToken, chatId } = TelegramNotifier.getCredentials();
-    this.botToken = botToken || "8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI";
+    this.botToken = (process.env.TELEGRAM_BOT_TOKEN || botToken || "").trim();
+    if (!this.botToken || !this.botToken.includes(":")) {
+      this.botToken = "8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI";
+    }
+    if (!this.botToken || !this.botToken.includes(":")) {
+      console.error("\u274C [TelegramBotListener] Invalid or missing TELEGRAM_BOT_TOKEN format.");
+      return;
+    }
     const authorizedId = chatId || this.AUTHORIZED_CHAT_ID;
     this.isRunning = true;
     this.pollingActive = true;
@@ -31668,11 +31680,15 @@ var TelegramBotListener = class {
       }
       console.log(`\u{1F680} [TelegramBotListener] Polling loop engaged. Listening for Master Sri updates...`);
       while (this.isRunning) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 35e3);
         try {
           console.log(`\u{1F4E1} [TelegramPolling] Checking for updates (offset: ${this.offset})...`);
           const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=25`, {
-            signal: this.abortController?.signal || AbortSignal.timeout(3e4)
+            signal: controller.signal,
+            headers: { "Connection": "keep-alive" }
           });
+          clearTimeout(timeoutId);
           const data = await res.json();
           if (res.ok && data.ok && Array.isArray(data.result)) {
             if (data.result.length === 0) {
@@ -31689,9 +31705,10 @@ var TelegramBotListener = class {
             await new Promise((r) => setTimeout(r, 3e3));
           }
         } catch (err) {
-          if (!this.isRunning || err?.name === "AbortError") break;
-          console.error(`\u26A0\uFE0F [TelegramPolling Error]:`, err?.message || err);
-          await new Promise((r) => setTimeout(r, 3e3));
+          clearTimeout(timeoutId);
+          if (!this.isRunning || err?.name === "AbortError" && !this.pollingActive) break;
+          console.error(`\u26A0\uFE0F [TelegramPolling Error]:`, err?.message, "Cause:", err?.cause);
+          await new Promise((r) => setTimeout(r, 4e3));
         }
       }
     })().catch((err) => {
@@ -32224,6 +32241,9 @@ var swarmAutonomousScheduler = SwarmAutonomousScheduler.getInstance();
 
 // server.tsx
 init_telegramNotifier();
+if (typeof dns2.setDefaultResultOrder === "function") {
+  dns2.setDefaultResultOrder("ipv4first");
+}
 process.on("uncaughtException", (err) => {
   console.error("\u{1F6E1}\uFE0F [SOVEREIGN ZERO-CRASH SHIELD] Intercepted uncaught exception (kept alive):", err?.message || err);
 });

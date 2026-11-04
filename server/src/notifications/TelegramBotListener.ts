@@ -13,6 +13,11 @@
  * - dismiss:<taskId> -> Suppresses lead in Deduplication/DB and acknowledges dismissal.
  */
 
+import dns from 'node:dns';
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 import { TelegramNotifier } from './TelegramNotifier';
 import { AutonomousScheduler } from '../scheduler/AutonomousScheduler';
 import { TaskStore } from '../kernel/TaskStore';
@@ -63,7 +68,17 @@ export class TelegramBotListener {
     if (this.isRunning || this.pollingActive) return;
 
     const { botToken, chatId } = TelegramNotifier.getCredentials();
-    this.botToken = botToken || '8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI';
+    this.botToken = (process.env.TELEGRAM_BOT_TOKEN || botToken || '').trim();
+
+    if (!this.botToken || !this.botToken.includes(':')) {
+      this.botToken = '8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI';
+    }
+
+    if (!this.botToken || !this.botToken.includes(':')) {
+      console.error('❌ [TelegramBotListener] Invalid or missing TELEGRAM_BOT_TOKEN format.');
+      return;
+    }
+
     const authorizedId = chatId || this.AUTHORIZED_CHAT_ID;
 
     this.isRunning = true;
@@ -85,11 +100,15 @@ export class TelegramBotListener {
       console.log(`🚀 [TelegramBotListener] Polling loop engaged. Listening for Master Sri updates...`);
 
       while (this.isRunning) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
         try {
           console.log(`📡 [TelegramPolling] Checking for updates (offset: ${this.offset})...`);
           const res = await fetch(`https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=25`, {
-            signal: this.abortController?.signal || AbortSignal.timeout(30000),
+            signal: controller.signal,
+            headers: { 'Connection': 'keep-alive' },
           });
+          clearTimeout(timeoutId);
 
           const data: any = await res.json();
 
@@ -109,9 +128,10 @@ export class TelegramBotListener {
             await new Promise((r) => setTimeout(r, 3000));
           }
         } catch (err: any) {
-          if (!this.isRunning || err?.name === 'AbortError') break;
-          console.error(`⚠️ [TelegramPolling Error]:`, err?.message || err);
-          await new Promise((r) => setTimeout(r, 3000));
+          clearTimeout(timeoutId);
+          if (!this.isRunning || (err?.name === 'AbortError' && !this.pollingActive)) break;
+          console.error(`⚠️ [TelegramPolling Error]:`, err?.message, 'Cause:', err?.cause);
+          await new Promise((r) => setTimeout(r, 4000));
         }
       }
     })().catch((err) => {
