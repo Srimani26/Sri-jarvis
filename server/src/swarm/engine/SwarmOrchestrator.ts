@@ -310,7 +310,7 @@ export class SwarmOrchestrator {
   public isComplexWebProject(directive: string): boolean {
     const lower = directive.toLowerCase()
     const isBuild = /build|create|generate|make|develop|implement|scaffold/i.test(lower)
-    const isApp = /app|calculator|dashboard|tool|interface|page|system|portal|widget|view/i.test(lower)
+    const isApp = /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(lower)
     return isBuild && isApp
   }
 

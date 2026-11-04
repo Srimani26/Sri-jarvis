@@ -145,13 +145,13 @@ export class TelegramNotifierService {
     const taskPromise = (async () => {
       try {
         const lower = directive.toLowerCase()
-        const isWebApp = /build|create|generate|make/i.test(directive) && 
-                         /app|calculator|dashboard|tool|interface|page|system/i.test(directive)
+        const isAppDirective = /build|create|generate|develop|scaffold|make|implement/i.test(directive) && 
+                               /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(directive)
 
-        // STEP 1: DEEP SWARM MULTI-AGENT ORCHESTRATION FOR COMPLEX WEB APPS
+        // STEP 1: DEEP SWARM MULTI-AGENT ORCHESTRATION FOR ALL BUILD & SCAFFOLD DIRECTIVES
         const { swarmOrchestrator } = await import('../swarm/engine/SwarmOrchestrator')
-        if (swarmOrchestrator.isComplexWebProject(directive) || isWebApp) {
-          console.log('⚡ [SwarmOrchestrator] Decomposing directive across Aegis, Raphael, and Midas...')
+        if (isAppDirective || swarmOrchestrator.isComplexWebProject(directive)) {
+          console.log('⚡ [SwarmOrchestrator] Intercepted app/scaffold directive; decomposing across Aegis, Raphael, and Midas...')
           try {
             const result = await swarmOrchestrator.orchestrateTask(directive, {
               chatId,
@@ -170,6 +170,7 @@ export class TelegramNotifierService {
                 : '⚠️ Verification Note'
 
               const fileList = (result.filesCreated || []).map((f: string) => `• 📄 \`${f}\``).join('\n')
+              const zipLine = result.zipPath ? `• 📦 *Package Archive:* \`${result.zipPath}\`` : null
 
               const completionMsg = [
                 `⚡ *[Task Completed by SWARM (Aegis + Raphael + Midas)]*`,
@@ -181,6 +182,7 @@ export class TelegramNotifierService {
                 `\n📦 *Deliverables & Artifacts:*`,
                 `• 🌐 *Live Web Preview:* \`${result.previewPath}\``,
                 `• 🔗 *Render URL:* \`${result.previewUrl}\``,
+                zipLine,
                 fileList,
                 '',
                 `📝 *Executive Summary:*`,
@@ -198,6 +200,7 @@ export class TelegramNotifierService {
 
         const { executeAutonomousReAct } = await import('../swarm/engine/AutonomousAgentLoop')
 
+        const isWebApp = isAppDirective
         const isDoc = lower.includes('pdf') || lower.includes('document') || lower.includes('pptx') || lower.includes('excel') || lower.includes('report') || lower.includes('presentation')
         const deliverableType = isWebApp ? 'web_app' : (isDoc ? 'document' : 'general')
         const isCodingTask = specialist === 'aegis' || isWebApp || lower.includes('code') || lower.includes('build')
@@ -355,7 +358,7 @@ export class TelegramNotifierService {
       let inferredAgent: SwarmSpecialist = 'jarvis'
       if (lower.includes('pdf') || lower.includes('excel') || lower.includes('pptx') || lower.includes('report') || lower.includes('email') || lower.includes('meeting')) {
         inferredAgent = 'friday'
-      } else if (lower.includes('code') || lower.includes('build') || lower.includes('scaffold') || lower.includes('refactor') || lower.includes('patch') || lower.includes('web') || lower.includes('app') || lower.includes('test')) {
+      } else if (lower.includes('code') || lower.includes('build') || lower.includes('scaffold') || lower.includes('refactor') || lower.includes('patch') || lower.includes('web') || lower.includes('app') || lower.includes('test') || lower.includes('saas') || lower.includes('dashboard') || lower.includes('platform') || lower.includes('tool') || lower.includes('portal')) {
         inferredAgent = 'aegis'
       } else if (lower.includes('schema') || lower.includes('sql') || lower.includes('math') || lower.includes('security') || lower.includes('database')) {
         inferredAgent = 'raphael'

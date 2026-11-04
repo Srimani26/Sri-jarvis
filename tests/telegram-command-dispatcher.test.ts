@@ -144,6 +144,41 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
   })
 
   describe('Criterion 3: Live Telemetry & Artifact Links in Output', () => {
+    it('should route build/scaffold directives directly to SwarmOrchestrator with live preview and ZIP archive', async () => {
+      const sentMessages: string[] = []
+      const origSend = telegramNotifier.sendMessage
+      telegramNotifier.sendMessage = async (msg: string) => {
+        sentMessages.push(msg)
+        return true
+      }
+
+      try {
+        const update = {
+          update_id: 1005,
+          message: {
+            message_id: 54,
+            chat: { id: '1377862282' },
+            text: '/run aegis scaffold multi-tenant enterprise saas portal'
+          }
+        }
+
+        const res = await telegramNotifier.handleInboundUpdate(update)
+        assert.strictEqual(res.handled, true)
+
+        if (res.taskPromise) await res.taskPromise
+        else if (telegramNotifier.lastTaskPromise) await telegramNotifier.lastTaskPromise
+
+        const finalCard = sentMessages.find(m => m.includes('Task Completed by SWARM')) || sentMessages[sentMessages.length - 1]
+        assert.ok(finalCard.includes('Task Completed by SWARM'))
+        assert.ok(finalCard.includes('Live Web Preview:'))
+        assert.ok(finalCard.includes('/preview/'))
+        assert.ok(finalCard.includes('Package Archive:') || finalCard.includes('.zip'))
+        assert.ok(!finalCard.includes('Deliverables: N/A'))
+      } finally {
+        telegramNotifier.sendMessage = origSend
+      }
+    })
+
     it('should format artifact download links and preview URLs in completion card', async () => {
       const sentMessages: string[] = []
       const origSend = telegramNotifier.sendMessage

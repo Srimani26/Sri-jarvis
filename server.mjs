@@ -19855,7 +19855,7 @@ var init_SwarmOrchestrator = __esm({
       isComplexWebProject(directive) {
         const lower = directive.toLowerCase();
         const isBuild = /build|create|generate|make|develop|implement|scaffold/i.test(lower);
-        const isApp = /app|calculator|dashboard|tool|interface|page|system|portal|widget|view/i.test(lower);
+        const isApp = /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(lower);
         return isBuild && isApp;
       }
       deriveCleanSlug(directive) {
@@ -20162,10 +20162,10 @@ var init_telegramNotifier = __esm({
         const taskPromise = (async () => {
           try {
             const lower = directive.toLowerCase();
-            const isWebApp = /build|create|generate|make/i.test(directive) && /app|calculator|dashboard|tool|interface|page|system/i.test(directive);
+            const isAppDirective = /build|create|generate|develop|scaffold|make|implement/i.test(directive) && /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(directive);
             const { swarmOrchestrator: swarmOrchestrator2 } = await Promise.resolve().then(() => (init_SwarmOrchestrator(), SwarmOrchestrator_exports));
-            if (swarmOrchestrator2.isComplexWebProject(directive) || isWebApp) {
-              console.log("\u26A1 [SwarmOrchestrator] Decomposing directive across Aegis, Raphael, and Midas...");
+            if (isAppDirective || swarmOrchestrator2.isComplexWebProject(directive)) {
+              console.log("\u26A1 [SwarmOrchestrator] Intercepted app/scaffold directive; decomposing across Aegis, Raphael, and Midas...");
               try {
                 const result2 = await swarmOrchestrator2.orchestrateTask(directive, {
                   chatId,
@@ -20181,6 +20181,7 @@ var init_telegramNotifier = __esm({
                   const latencyMs2 = Date.now() - startTime;
                   const verifyStatus2 = result2.verificationDetails?.verified ? "\u2705 Verified (All proof checks passed, zero placeholders)" : "\u26A0\uFE0F Verification Note";
                   const fileList = (result2.filesCreated || []).map((f) => `\u2022 \u{1F4C4} \`${f}\``).join("\n");
+                  const zipLine = result2.zipPath ? `\u2022 \u{1F4E6} *Package Archive:* \`${result2.zipPath}\`` : null;
                   const completionMsg = [
                     `\u26A1 *[Task Completed by SWARM (Aegis + Raphael + Midas)]*`,
                     `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
@@ -20192,6 +20193,7 @@ var init_telegramNotifier = __esm({
 \u{1F4E6} *Deliverables & Artifacts:*`,
                     `\u2022 \u{1F310} *Live Web Preview:* \`${result2.previewPath}\``,
                     `\u2022 \u{1F517} *Render URL:* \`${result2.previewUrl}\``,
+                    zipLine,
                     fileList,
                     "",
                     `\u{1F4DD} *Executive Summary:*`,
@@ -20206,6 +20208,7 @@ var init_telegramNotifier = __esm({
               }
             }
             const { executeAutonomousReAct: executeAutonomousReAct2 } = await Promise.resolve().then(() => (init_AutonomousAgentLoop(), AutonomousAgentLoop_exports));
+            const isWebApp = isAppDirective;
             const isDoc = lower.includes("pdf") || lower.includes("document") || lower.includes("pptx") || lower.includes("excel") || lower.includes("report") || lower.includes("presentation");
             const deliverableType = isWebApp ? "web_app" : isDoc ? "document" : "general";
             const isCodingTask = specialist === "aegis" || isWebApp || lower.includes("code") || lower.includes("build");
@@ -20338,7 +20341,7 @@ Error: ${err?.message || "Execution error"}`;
           let inferredAgent = "jarvis";
           if (lower.includes("pdf") || lower.includes("excel") || lower.includes("pptx") || lower.includes("report") || lower.includes("email") || lower.includes("meeting")) {
             inferredAgent = "friday";
-          } else if (lower.includes("code") || lower.includes("build") || lower.includes("scaffold") || lower.includes("refactor") || lower.includes("patch") || lower.includes("web") || lower.includes("app") || lower.includes("test")) {
+          } else if (lower.includes("code") || lower.includes("build") || lower.includes("scaffold") || lower.includes("refactor") || lower.includes("patch") || lower.includes("web") || lower.includes("app") || lower.includes("test") || lower.includes("saas") || lower.includes("dashboard") || lower.includes("platform") || lower.includes("tool") || lower.includes("portal")) {
             inferredAgent = "aegis";
           } else if (lower.includes("schema") || lower.includes("sql") || lower.includes("math") || lower.includes("security") || lower.includes("database")) {
             inferredAgent = "raphael";
