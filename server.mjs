@@ -17019,6 +17019,7 @@ ${swarmResult.finalResponse}`,
 
 // server.tsx
 import dns2 from "node:dns";
+import { setGlobalDispatcher as setGlobalDispatcher2, Agent as Agent2 } from "undici";
 import "dotenv/config";
 import { Hono as Hono2 } from "hono";
 import { serve } from "@hono/node-server";
@@ -31619,10 +31620,25 @@ import { createToolsHandlers } from "@shogo-ai/sdk/tools/server";
 // src/notifications/TelegramBotListener.ts
 init_TelegramNotifier();
 import dns from "node:dns";
+import { setGlobalDispatcher, Agent } from "undici";
 init_TaskStore();
 init_db();
 if (typeof dns.setDefaultResultOrder === "function") {
   dns.setDefaultResultOrder("ipv4first");
+}
+try {
+  setGlobalDispatcher(new Agent({
+    connect: {
+      family: 4,
+      // 4 = IPv4 only, skips IPv6 completely
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4, all: false }, callback);
+      }
+    }
+  }));
+  console.log("\u{1F310} [Network] Undici global dispatcher configured for strict IPv4 (family: 4)");
+} catch (e) {
+  console.warn("\u26A0\uFE0F [Network] Could not set undici dispatcher:", e);
 }
 var TelegramBotListener = class {
   static AUTHORIZED_CHAT_ID = "1377862282";
@@ -32243,6 +32259,20 @@ var swarmAutonomousScheduler = SwarmAutonomousScheduler.getInstance();
 init_telegramNotifier();
 if (typeof dns2.setDefaultResultOrder === "function") {
   dns2.setDefaultResultOrder("ipv4first");
+}
+try {
+  setGlobalDispatcher2(new Agent2({
+    connect: {
+      family: 4,
+      // 4 = IPv4 only, skips IPv6 completely
+      lookup: (hostname, options, callback) => {
+        dns2.lookup(hostname, { family: 4, all: false }, callback);
+      }
+    }
+  }));
+  console.log("\u{1F310} [Network] Undici global dispatcher configured for strict IPv4 (family: 4)");
+} catch (e) {
+  console.warn("\u26A0\uFE0F [Network] Could not set undici dispatcher:", e);
 }
 process.on("uncaughtException", (err) => {
   console.error("\u{1F6E1}\uFE0F [SOVEREIGN ZERO-CRASH SHIELD] Intercepted uncaught exception (kept alive):", err?.message || err);

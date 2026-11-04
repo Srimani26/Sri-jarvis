@@ -14,8 +14,25 @@
  */
 
 import dns from 'node:dns';
+import { setGlobalDispatcher, Agent } from 'undici';
+
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
+}
+
+// Force all undici/fetch requests to use strictly IPv4 (fixes ENETUNREACH on Render)
+try {
+  setGlobalDispatcher(new Agent({
+    connect: {
+      family: 4, // 4 = IPv4 only, skips IPv6 completely
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4, all: false }, callback);
+      }
+    }
+  }));
+  console.log('🌐 [Network] Undici global dispatcher configured for strict IPv4 (family: 4)');
+} catch (e) {
+  console.warn('⚠️ [Network] Could not set undici dispatcher:', e);
 }
 
 import { TelegramNotifier } from './TelegramNotifier';
