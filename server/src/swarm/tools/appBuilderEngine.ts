@@ -424,6 +424,11 @@ calculate();
     writeFileSync(join(buildDir, 'app.js'), cleanJs, 'utf-8')
     filesCreated.push('app.js')
 
+    if ((params as any).blueprint) {
+      writeFileSync(join(buildDir, 'blueprint.json'), JSON.stringify((params as any).blueprint, null, 2), 'utf-8')
+      filesCreated.push('blueprint.json')
+    }
+
     const previewUrl = `/preview/${safeSlug}`
 
     return {
@@ -445,6 +450,18 @@ calculate();
     title?: string
     description?: string
     author?: string
+    prismaSchema?: string
+    seedTs?: string
+    mockJson?: string
+    serverJs?: string
+    routesJs?: string
+    authJs?: string
+    htmlContent?: string
+    cssContent?: string
+    reactAppJsx?: string
+    dashboardJsx?: string
+    jsContent?: string
+    blueprint?: any
   }, workspaceRoot = process.cwd()): AppBuilderResult {
     const rawSlug = params.slug.toLowerCase().trim()
     const safeSlug = rawSlug.replace(/[^a-z0-9_-]/g, '_').substring(0, 50)
@@ -460,7 +477,8 @@ calculate();
       join(buildDir, 'backend'),
       join(buildDir, 'backend', 'routes'),
       join(buildDir, 'backend', 'middleware'),
-      join(buildDir, 'prisma')
+      join(buildDir, 'prisma'),
+      join(buildDir, 'seeds')
     ]
     for (const d of dirs) {
       if (!existsSync(d)) mkdirSync(d, { recursive: true })
@@ -472,7 +490,7 @@ calculate();
     const filesCreated: string[] = []
 
     // 1. frontend/index.html & root index.html
-    const frontendIndex = `<!DOCTYPE html>
+    const frontendIndex = params.htmlContent || `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -529,7 +547,7 @@ calculate();
     writeFileSync(join(buildDir, 'index.html'), frontendIndex, 'utf-8')
     filesCreated.push('index.html')
 
-    const stylesCss = `@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    const stylesCss = params.cssContent || `@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 :root { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
 body { margin: 0; background-color: #020617; color: #f8fafc; }
 `
@@ -539,7 +557,7 @@ body { margin: 0; background-color: #020617; color: #f8fafc; }
     filesCreated.push('styles.css')
 
     // 2. frontend/src/App.jsx
-    const appJsx = `import React, { useState } from 'react';
+    const appJsx = params.reactAppJsx || `import React, { useState } from 'react';
 import { Dashboard } from './components/Dashboard';
 
 export default function App() {
@@ -557,7 +575,7 @@ export default function App() {
     filesCreated.push('frontend/src/App.jsx')
 
     // 3. frontend/src/components/Dashboard.jsx
-    const dashboardJsx = `import React from 'react';
+    const dashboardJsx = params.dashboardJsx || `import React from 'react';
 
 export function Dashboard({ tenant, metrics }) {
   return (
@@ -565,15 +583,15 @@ export function Dashboard({ tenant, metrics }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <p className="text-xs uppercase font-mono text-slate-500">Active Tenant</p>
-          <p className="text-2xl font-bold text-sky-400 mt-2">{tenant.name}</p>
+          <p className="text-2xl font-bold text-sky-400 mt-2">{tenant?.name || 'Enterprise'}</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <p className="text-xs uppercase font-mono text-slate-500">Annual Revenue Run-Rate</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-2">\${metrics.revenue.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-emerald-400 mt-2">\${(metrics?.revenue || 84500).toLocaleString()}</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <p className="text-xs uppercase font-mono text-slate-500">Active Deployments</p>
-          <p className="text-2xl font-bold text-purple-400 mt-2">{metrics.activeJobs} Clusters</p>
+          <p className="text-2xl font-bold text-purple-400 mt-2">{metrics?.activeJobs || 28} Clusters</p>
         </div>
       </div>
     </div>
@@ -583,7 +601,7 @@ export function Dashboard({ tenant, metrics }) {
     writeFileSync(join(buildDir, 'frontend', 'src', 'components', 'Dashboard.jsx'), dashboardJsx, 'utf-8')
     filesCreated.push('frontend/src/components/Dashboard.jsx')
 
-    const appJs = `// Client runtime initialization
+    const appJs = params.jsContent || `// Client runtime initialization
 document.addEventListener('DOMContentLoaded', () => {
   console.log('⚡ [Fullstack Deliverable] Client runtime mounted for ${safeSlug}');
   const authBtn = document.getElementById('auth-btn');
@@ -597,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     filesCreated.push('app.js')
 
     // 4. backend/server.js
-    const backendServer = `const express = require('express');
+    const backendServer = params.serverJs || `const express = require('express');
 const cors = require('cors');
 const apiRoutes = require('./routes/api');
 const { authMiddleware } = require('./middleware/auth');
@@ -626,7 +644,7 @@ module.exports = app;
     filesCreated.push('backend/server.js')
 
     // 5. backend/routes/api.js
-    const apiRoutes = `const express = require('express');
+    const apiRoutes = params.routesJs || `const express = require('express');
 const router = express.Router();
 
 router.get('/tenant', (req, res) => {
@@ -653,7 +671,7 @@ module.exports = router;
     filesCreated.push('backend/routes/api.js')
 
     // 6. backend/middleware/auth.js
-    const authMiddleware = `function authMiddleware(req, res, next) {
+    const authMiddleware = params.authJs || `function authMiddleware(req, res, next) {
   req.user = {
     id: 'usr_master_sri_001',
     name: 'Master Sri',
@@ -668,8 +686,8 @@ module.exports = { authMiddleware };
     writeFileSync(join(buildDir, 'backend', 'middleware', 'auth.js'), authMiddleware, 'utf-8')
     filesCreated.push('backend/middleware/auth.js')
 
-    // 7. prisma/schema.prisma
-    const prismaSchema = `datasource db {
+    // 7. prisma/schema.prisma & seeds
+    const prismaSchema = params.prismaSchema || `datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
@@ -709,6 +727,21 @@ model Job {
 `
     writeFileSync(join(buildDir, 'prisma', 'schema.prisma'), prismaSchema, 'utf-8')
     filesCreated.push('prisma/schema.prisma')
+
+    if (params.seedTs) {
+      writeFileSync(join(buildDir, 'prisma', 'seed.ts'), params.seedTs, 'utf-8')
+      filesCreated.push('prisma/seed.ts')
+    }
+
+    if (params.mockJson) {
+      writeFileSync(join(buildDir, 'seeds', 'mock_data.json'), params.mockJson, 'utf-8')
+      filesCreated.push('seeds/mock_data.json')
+    }
+
+    if (params.blueprint) {
+      writeFileSync(join(buildDir, 'blueprint.json'), JSON.stringify(params.blueprint, null, 2), 'utf-8')
+      filesCreated.push('blueprint.json')
+    }
 
     // 8. README.md
     const readme = `# ${title}
