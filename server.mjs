@@ -9759,13 +9759,18 @@ var init_SecretSanitizer = __esm({
         const now = Date.now();
         const healthyKeys = pool.filter((k) => k.rateLimitedUntil <= now);
         if (healthyKeys.length === 0) {
-          pool.sort((a, b) => a.rateLimitedUntil - b.rateLimitedUntil);
-          return pool[0].rawKey;
+          return null;
         }
         healthyKeys.sort((a, b) => a.usageCount - b.usageCount);
         const selected = healthyKeys[0];
         selected.usageCount += 1;
         return selected.rawKey;
+      }
+      isProviderThrottled(provider) {
+        const pool = this.keyPools.get(provider);
+        if (!pool || pool.length === 0) return false;
+        const now = Date.now();
+        return pool.every((k) => k.rateLimitedUntil > now);
       }
       markRateLimited(provider, rawKey, cooldownMs = 6e4) {
         const pool = this.keyPools.get(provider);
@@ -13208,7 +13213,8 @@ var init_ModelRouter = __esm({
         const failedTiers = [];
         const specLower = (specialist || "jarvis").toLowerCase().trim();
         if (specLower === "aegis") {
-          const openrouterKey2 = virtualKeyVault.getActiveKey("openrouter") || process.env.OPENROUTER_API_KEY;
+          const isThrottled = virtualKeyVault.isProviderThrottled("openrouter");
+          const openrouterKey2 = isThrottled ? null : virtualKeyVault.getActiveKey("openrouter") || process.env.OPENROUTER_API_KEY;
           if (openrouterKey2) {
             try {
               const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -13226,7 +13232,10 @@ var init_ModelRouter = __esm({
                 }),
                 signal: AbortSignal.timeout(1500)
               });
-              if (res.ok) {
+              if (res.status === 429 || res.status === 503) {
+                virtualKeyVault.markRateLimited("openrouter", openrouterKey2, 6e4);
+                console.warn(`\u{1F504} [ModelRouter] Aegis OpenRouter returned HTTP ${res.status}. Falling back to waterfall...`);
+              } else if (res.ok) {
                 const json = await res.json();
                 const choice = json.choices?.[0]?.message;
                 if (choice) {
@@ -13244,7 +13253,8 @@ var init_ModelRouter = __esm({
           }
         }
         if (specLower === "friday") {
-          const geminiKey2 = virtualKeyVault.getActiveKey("gemini") || process.env.GEMINI_API_KEY;
+          const isThrottled = virtualKeyVault.isProviderThrottled("gemini");
+          const geminiKey2 = isThrottled ? null : virtualKeyVault.getActiveKey("gemini") || process.env.GEMINI_API_KEY;
           if (geminiKey2) {
             try {
               const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey2}`;
@@ -13263,7 +13273,10 @@ var init_ModelRouter = __esm({
                 }),
                 signal: AbortSignal.timeout(1500)
               });
-              if (res.ok) {
+              if (res.status === 429 || res.status === 503) {
+                virtualKeyVault.markRateLimited("gemini", geminiKey2, 6e4);
+                console.warn(`\u{1F504} [ModelRouter] Friday Gemini returned HTTP ${res.status}. Falling back to waterfall...`);
+              } else if (res.ok) {
                 const json = await res.json();
                 const part = json.candidates?.[0]?.content?.parts?.[0];
                 if (part) {
@@ -13287,7 +13300,8 @@ var init_ModelRouter = __esm({
             }
           }
         }
-        const groqKey = virtualKeyVault.getActiveKey("groq") || process.env.GROQ_API_KEY;
+        const isGroqThrottled = virtualKeyVault.isProviderThrottled("groq");
+        const groqKey = isGroqThrottled ? null : virtualKeyVault.getActiveKey("groq") || process.env.GROQ_API_KEY;
         if (groqKey) {
           try {
             const model = specialist === "raphael" ? "deepseek-r1-distill-llama-70b" : "llama-3.3-70b-versatile";
@@ -13308,7 +13322,11 @@ var init_ModelRouter = __esm({
             });
             if (res.status === 429 || res.status === 503) {
               virtualKeyVault.markRateLimited("groq", groqKey, 6e4);
-              console.warn(`\u{1F504} [ModelRouter] Tier 1 Groq returned HTTP ${res.status}. Failing over to Tier 2...`);
+              console.warn(`\u{1F504} [ModelRouter] Tier 1 Groq returned HTTP ${res.status}. Throttled for 60s, failing over to Tier 2/Tier 3...`);
+              failedTiers.push(1);
+            } else if (res.status === 401) {
+              virtualKeyVault.markRateLimited("groq", groqKey, 3e5);
+              console.warn(`\u26A0\uFE0F [ModelRouter] Tier 1 Groq returned HTTP 401. Key unauthorized, failing over to Tier 2/Tier 3...`);
               failedTiers.push(1);
             } else if (res.ok) {
               const json = await res.json();
@@ -13321,6 +13339,8 @@ var init_ModelRouter = __esm({
                   tier: 1
                 };
               }
+            } else {
+              failedTiers.push(1);
             }
           } catch (err) {
             console.warn("\u{1F504} [ModelRouter] Tier 1 fetch error, failing over to Tier 2:", err?.message || err);
@@ -13329,7 +13349,8 @@ var init_ModelRouter = __esm({
         } else {
           failedTiers.push(1);
         }
-        const openaiKey = virtualKeyVault.getActiveKey("openai") || process.env.OPENAI_API_KEY;
+        const isOpenAiThrottled = virtualKeyVault.isProviderThrottled("openai");
+        const openaiKey = isOpenAiThrottled ? null : virtualKeyVault.getActiveKey("openai") || process.env.OPENAI_API_KEY;
         if (openaiKey) {
           try {
             const model = specialist === "jarvis" || specialist === "raphael" ? "gpt-4o" : "gpt-4o-mini";
@@ -13374,7 +13395,8 @@ var init_ModelRouter = __esm({
         } else {
           failedTiers.push(2);
         }
-        const openrouterKey = virtualKeyVault.getActiveKey("openrouter") || process.env.OPENROUTER_API_KEY;
+        const isOpenRouterThrottled = virtualKeyVault.isProviderThrottled("openrouter");
+        const openrouterKey = isOpenRouterThrottled ? null : virtualKeyVault.getActiveKey("openrouter") || process.env.OPENROUTER_API_KEY;
         const tier2Candidates = [
           { url: "https://openrouter.ai/api/v1/chat/completions", key: openrouterKey, model: "deepseek/deepseek-r1:free" },
           { url: this.reverseProxyEndpoints[0], key: "free-tier", model: "deepseek-r1" }
@@ -13416,7 +13438,8 @@ var init_ModelRouter = __esm({
           }
         }
         failedTiers.push(3);
-        const geminiKey = virtualKeyVault.getActiveKey("gemini") || process.env.GEMINI_API_KEY;
+        const isGeminiThrottled = virtualKeyVault.isProviderThrottled("gemini");
+        const geminiKey = isGeminiThrottled ? null : virtualKeyVault.getActiveKey("gemini") || process.env.GEMINI_API_KEY;
         if (geminiKey) {
           try {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`;
@@ -13435,7 +13458,11 @@ var init_ModelRouter = __esm({
               }),
               signal: AbortSignal.timeout(8e3)
             });
-            if (res.ok) {
+            if (res.status === 429 || res.status === 503) {
+              virtualKeyVault.markRateLimited("gemini", geminiKey, 6e4);
+              console.warn(`\u{1F504} [ModelRouter] Tier 4 Gemini throttled (${res.status}). Failing over...`);
+              failedTiers.push(4);
+            } else if (res.ok) {
               const json = await res.json();
               const candidate = json.candidates?.[0];
               const parts = candidate?.content?.parts || [];
@@ -13909,11 +13936,25 @@ var init_taskAuditService = __esm({
       initialized = false;
       inMemoryTasks = /* @__PURE__ */ new Map();
       inMemoryExecutions = [];
+      legacyIdToUuidMap = /* @__PURE__ */ new Map();
       static getInstance() {
         if (!_TaskAuditService.instance) {
           _TaskAuditService.instance = new _TaskAuditService();
         }
         return _TaskAuditService.instance;
+      }
+      isValidUUID(str) {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+      }
+      ensureValidUUID(id) {
+        if (!id) return randomUUID();
+        if (this.isValidUUID(id)) return id;
+        let mapped = this.legacyIdToUuidMap.get(id);
+        if (!mapped) {
+          mapped = randomUUID();
+          this.legacyIdToUuidMap.set(id, mapped);
+        }
+        return mapped;
       }
       async getPool() {
         const rawDbUrl2 = process.env.DATABASE_URL;
@@ -13972,9 +14013,9 @@ var init_taskAuditService = __esm({
       /**
        * Record task initiation
        */
-      async createTask(directive, specialist) {
+      async createTask(directive, specialist, customTaskId) {
         await this.initSchema();
-        const taskId = randomUUID();
+        const taskId = customTaskId ? this.ensureValidUUID(customTaskId) : randomUUID();
         const cleanDirective = sanitizeString(directive);
         const task = {
           id: taskId,
@@ -13987,10 +14028,11 @@ var init_taskAuditService = __esm({
         const pool = await this.getPool();
         if (pool) {
           try {
+            const dbTaskId = this.ensureValidUUID(taskId);
             await pool.query(
               `INSERT INTO swarm_tasks (id, directive, specialist, status, created_at)
            VALUES ($1, $2, $3, $4, $5)`,
-              [taskId, cleanDirective, specialist, "RUNNING", task.createdAt]
+              [dbTaskId, cleanDirective, specialist, "RUNNING", task.createdAt]
             );
           } catch (err) {
             console.warn("[TaskAuditService] Database insert fallback to in-memory:", err?.message || err);
@@ -14020,12 +14062,13 @@ var init_taskAuditService = __esm({
         const pool = await this.getPool();
         if (pool) {
           try {
+            const dbTaskId = this.ensureValidUUID(taskId);
             await pool.query(
               `INSERT INTO swarm_tool_executions (id, task_id, tool_name, arguments, output, status, latency_ms, executed_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
               [
                 execId,
-                taskId,
+                dbTaskId,
                 toolName,
                 JSON.stringify(cleanArgs || {}),
                 JSON.stringify(cleanOutput || {}),
@@ -14055,9 +14098,10 @@ var init_taskAuditService = __esm({
         const pool = await this.getPool();
         if (pool) {
           try {
+            const dbTaskId = this.ensureValidUUID(taskId);
             await pool.query(
               `UPDATE swarm_tasks SET status = $1, result = $2, completed_at = $3 WHERE id = $4`,
-              [status, cleanResult, completedAt, taskId]
+              [status, cleanResult, completedAt, dbTaskId]
             );
           } catch (err) {
             console.warn("[TaskAuditService] Database update note:", err?.message || err);
@@ -14139,11 +14183,11 @@ Retaining original directive and recent turns.]`;
   ];
 }
 async function executeAutonomousReAct(directive, options = {}) {
-  const taskId = `task_${Date.now()}_${randomUUID2().substring(0, 8)}`;
+  const taskId = randomUUID2();
   const maxSteps = options.maxSteps || 25;
   const specialist = options.specialist || "jarvis";
   const workspaceRoot = options.workspaceRoot || process.cwd();
-  await taskAuditService.createTask(directive, specialist);
+  await taskAuditService.createTask(directive, specialist, taskId);
   const systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
 You operate under the High Command of Master Sri with autonomous self-healing authorization.
 

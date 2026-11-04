@@ -167,7 +167,8 @@ describe('Claude-Code & Groq-Grade Autonomous Runtime Engine', () => {
         requireVerification: false
       })
 
-      assert.ok(result.taskId.startsWith('task_'))
+      // Assert valid RFC 4122 UUID
+      assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(result.taskId))
       assert.strictEqual(result.success, true)
       assert.ok(result.stepsExecuted >= 1)
       assert.ok(result.finalResponse.length > 0)

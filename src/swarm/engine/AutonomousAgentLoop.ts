@@ -112,12 +112,13 @@ export async function executeAutonomousReAct(
   directive: string,
   options: AutonomousLoopOptions = {}
 ): Promise<AutonomousTaskResult> {
-  const taskId = `task_${Date.now()}_${randomUUID().substring(0, 8)}`
+  // Enforce RFC 4122 UUID format across all tasks
+  const taskId = randomUUID()
   const maxSteps = options.maxSteps || 25
   const specialist: SwarmSpecialist = options.specialist || 'jarvis'
   const workspaceRoot = options.workspaceRoot || process.cwd()
 
-  await taskAuditService.createTask(directive, specialist)
+  await taskAuditService.createTask(directive, specialist, taskId)
 
   const systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
 You operate under the High Command of Master Sri with autonomous self-healing authorization.

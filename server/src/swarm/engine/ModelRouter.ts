@@ -173,7 +173,8 @@ export class SwarmModelRouter {
     // Friday: gemini-flash-lite-latest / gemini-2.5-flash
     // ──────────────────────────────────────────────────────────────────────────
     if (specLower === 'aegis') {
-      const openrouterKey = virtualKeyVault.getActiveKey('openrouter') || process.env.OPENROUTER_API_KEY
+      const isThrottled = virtualKeyVault.isProviderThrottled('openrouter')
+      const openrouterKey = isThrottled ? null : (virtualKeyVault.getActiveKey('openrouter') || process.env.OPENROUTER_API_KEY)
       if (openrouterKey) {
         try {
           const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -191,7 +192,10 @@ export class SwarmModelRouter {
             }),
             signal: AbortSignal.timeout(1500)
           })
-          if (res.ok) {
+          if (res.status === 429 || res.status === 503) {
+            virtualKeyVault.markRateLimited('openrouter', openrouterKey, 60000)
+            console.warn(`🔄 [ModelRouter] Aegis OpenRouter returned HTTP ${res.status}. Falling back to waterfall...`)
+          } else if (res.ok) {
             const json = await res.json() as any
             const choice = json.choices?.[0]?.message
             if (choice) {
@@ -210,7 +214,8 @@ export class SwarmModelRouter {
     }
 
     if (specLower === 'friday') {
-      const geminiKey = virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY
+      const isThrottled = virtualKeyVault.isProviderThrottled('gemini')
+      const geminiKey = isThrottled ? null : (virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY)
       if (geminiKey) {
         try {
           const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`
@@ -232,7 +237,10 @@ export class SwarmModelRouter {
             }),
             signal: AbortSignal.timeout(1500)
           })
-          if (res.ok) {
+          if (res.status === 429 || res.status === 503) {
+            virtualKeyVault.markRateLimited('gemini', geminiKey, 60000)
+            console.warn(`🔄 [ModelRouter] Friday Gemini returned HTTP ${res.status}. Falling back to waterfall...`)
+          } else if (res.ok) {
             const json = await res.json() as any
             const part = json.candidates?.[0]?.content?.parts?.[0]
             if (part) {
@@ -260,7 +268,8 @@ export class SwarmModelRouter {
     // ──────────────────────────────────────────────────────────────────────────
     // TIER 1: Primary High-Speed (Groq LLaMA 3.3 70B / DeepSeek-R1)
     // ──────────────────────────────────────────────────────────────────────────
-    const groqKey = virtualKeyVault.getActiveKey('groq') || process.env.GROQ_API_KEY
+    const isGroqThrottled = virtualKeyVault.isProviderThrottled('groq')
+    const groqKey = isGroqThrottled ? null : (virtualKeyVault.getActiveKey('groq') || process.env.GROQ_API_KEY)
     if (groqKey) {
       try {
         const model = specialist === 'raphael' ? 'deepseek-r1-distill-llama-70b' : 'llama-3.3-70b-versatile'
@@ -283,7 +292,11 @@ export class SwarmModelRouter {
 
         if (res.status === 429 || res.status === 503) {
           virtualKeyVault.markRateLimited('groq', groqKey, 60000)
-          console.warn(`🔄 [ModelRouter] Tier 1 Groq returned HTTP ${res.status}. Failing over to Tier 2...`)
+          console.warn(`🔄 [ModelRouter] Tier 1 Groq returned HTTP ${res.status}. Throttled for 60s, failing over to Tier 2/Tier 3...`)
+          failedTiers.push(1)
+        } else if (res.status === 401) {
+          virtualKeyVault.markRateLimited('groq', groqKey, 300000)
+          console.warn(`⚠️ [ModelRouter] Tier 1 Groq returned HTTP 401. Key unauthorized, failing over to Tier 2/Tier 3...`)
           failedTiers.push(1)
         } else if (res.ok) {
           const json = await res.json() as any
@@ -296,6 +309,8 @@ export class SwarmModelRouter {
               tier: 1
             }
           }
+        } else {
+          failedTiers.push(1)
         }
       } catch (err: any) {
         console.warn('🔄 [ModelRouter] Tier 1 fetch error, failing over to Tier 2:', err?.message || err)
@@ -308,7 +323,8 @@ export class SwarmModelRouter {
     // ──────────────────────────────────────────────────────────────────────────
     // TIER 2: OpenAI 50-Key Virtual Vault (Rotating Pool with ZeroKey / Unkey pattern)
     // ──────────────────────────────────────────────────────────────────────────
-    const openaiKey = virtualKeyVault.getActiveKey('openai') || process.env.OPENAI_API_KEY
+    const isOpenAiThrottled = virtualKeyVault.isProviderThrottled('openai')
+    const openaiKey = isOpenAiThrottled ? null : (virtualKeyVault.getActiveKey('openai') || process.env.OPENAI_API_KEY)
     if (openaiKey) {
       try {
         const model = (specialist === 'jarvis' || specialist === 'raphael') ? 'gpt-4o' : 'gpt-4o-mini'
@@ -358,7 +374,8 @@ export class SwarmModelRouter {
     // ──────────────────────────────────────────────────────────────────────────
     // TIER 3: Free Cloud Reverse Proxy Pool & OpenRouter Key Pool
     // ──────────────────────────────────────────────────────────────────────────
-    const openrouterKey = virtualKeyVault.getActiveKey('openrouter') || process.env.OPENROUTER_API_KEY
+    const isOpenRouterThrottled = virtualKeyVault.isProviderThrottled('openrouter')
+    const openrouterKey = isOpenRouterThrottled ? null : (virtualKeyVault.getActiveKey('openrouter') || process.env.OPENROUTER_API_KEY)
     const tier2Candidates = [
       { url: 'https://openrouter.ai/api/v1/chat/completions', key: openrouterKey, model: 'deepseek/deepseek-r1:free' },
       { url: this.reverseProxyEndpoints[0], key: 'free-tier', model: 'deepseek-r1' }
@@ -409,7 +426,8 @@ export class SwarmModelRouter {
     // ──────────────────────────────────────────────────────────────────────────
     // TIER 4: Emergency Fallback — Google Gemini Flash Free Tier
     // ──────────────────────────────────────────────────────────────────────────
-    const geminiKey = virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY
+    const isGeminiThrottled = virtualKeyVault.isProviderThrottled('gemini')
+    const geminiKey = isGeminiThrottled ? null : (virtualKeyVault.getActiveKey('gemini') || process.env.GEMINI_API_KEY)
     if (geminiKey) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`
@@ -433,7 +451,11 @@ export class SwarmModelRouter {
           signal: AbortSignal.timeout(8000)
         })
 
-        if (res.ok) {
+        if (res.status === 429 || res.status === 503) {
+          virtualKeyVault.markRateLimited('gemini', geminiKey, 60000)
+          console.warn(`🔄 [ModelRouter] Tier 4 Gemini throttled (${res.status}). Failing over...`)
+          failedTiers.push(4)
+        } else if (res.ok) {
           const json = await res.json() as any
           const candidate = json.candidates?.[0]
           const parts = candidate?.content?.parts || []

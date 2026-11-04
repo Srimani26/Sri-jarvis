@@ -37,12 +37,29 @@ export class TaskAuditService {
   private initialized = false
   private inMemoryTasks: Map<string, SwarmTaskRecord> = new Map()
   private inMemoryExecutions: SwarmToolExecutionRecord[] = []
+  private legacyIdToUuidMap: Map<string, string> = new Map()
 
   public static getInstance(): TaskAuditService {
     if (!TaskAuditService.instance) {
       TaskAuditService.instance = new TaskAuditService()
     }
     return TaskAuditService.instance
+  }
+
+  public isValidUUID(str: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str)
+  }
+
+  public ensureValidUUID(id?: string): string {
+    if (!id) return randomUUID()
+    if (this.isValidUUID(id)) return id
+
+    let mapped = this.legacyIdToUuidMap.get(id)
+    if (!mapped) {
+      mapped = randomUUID()
+      this.legacyIdToUuidMap.set(id, mapped)
+    }
+    return mapped
   }
 
   private async getPool(): Promise<pg.Pool | null> {
@@ -107,9 +124,9 @@ export class TaskAuditService {
   /**
    * Record task initiation
    */
-  public async createTask(directive: string, specialist: string): Promise<string> {
+  public async createTask(directive: string, specialist: string, customTaskId?: string): Promise<string> {
     await this.initSchema()
-    const taskId = randomUUID()
+    const taskId = customTaskId ? this.ensureValidUUID(customTaskId) : randomUUID()
     const cleanDirective = sanitizeString(directive)
 
     const task: SwarmTaskRecord = {
@@ -125,10 +142,11 @@ export class TaskAuditService {
     const pool = await this.getPool()
     if (pool) {
       try {
+        const dbTaskId = this.ensureValidUUID(taskId)
         await pool.query(
           `INSERT INTO swarm_tasks (id, directive, specialist, status, created_at)
            VALUES ($1, $2, $3, $4, $5)`,
-          [taskId, cleanDirective, specialist, 'RUNNING', task.createdAt]
+          [dbTaskId, cleanDirective, specialist, 'RUNNING', task.createdAt]
         )
       } catch (err: any) {
         console.warn('[TaskAuditService] Database insert fallback to in-memory:', err?.message || err)
@@ -170,12 +188,13 @@ export class TaskAuditService {
     const pool = await this.getPool()
     if (pool) {
       try {
+        const dbTaskId = this.ensureValidUUID(taskId)
         await pool.query(
           `INSERT INTO swarm_tool_executions (id, task_id, tool_name, arguments, output, status, latency_ms, executed_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [
             execId,
-            taskId,
+            dbTaskId,
             toolName,
             JSON.stringify(cleanArgs || {}),
             JSON.stringify(cleanOutput || {}),
@@ -208,9 +227,10 @@ export class TaskAuditService {
     const pool = await this.getPool()
     if (pool) {
       try {
+        const dbTaskId = this.ensureValidUUID(taskId)
         await pool.query(
           `UPDATE swarm_tasks SET status = $1, result = $2, completed_at = $3 WHERE id = $4`,
-          [status, cleanResult, completedAt, taskId]
+          [status, cleanResult, completedAt, dbTaskId]
         )
       } catch (err: any) {
         console.warn('[TaskAuditService] Database update note:', err?.message || err)

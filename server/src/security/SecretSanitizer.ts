@@ -165,9 +165,8 @@ export class VirtualKeyVault {
     // Find keys not currently throttled
     const healthyKeys = pool.filter(k => k.rateLimitedUntil <= now)
     if (healthyKeys.length === 0) {
-      // If all are throttled, find the key that expires earliest
-      pool.sort((a, b) => a.rateLimitedUntil - b.rateLimitedUntil)
-      return pool[0].rawKey
+      // If all keys in pool are throttled, do NOT return a rate-limited key to prevent 429 infinite loops
+      return null
     }
 
     // Round-robin selection based on lowest usage count
@@ -175,6 +174,13 @@ export class VirtualKeyVault {
     const selected = healthyKeys[0]
     selected.usageCount += 1
     return selected.rawKey
+  }
+
+  public isProviderThrottled(provider: string): boolean {
+    const pool = this.keyPools.get(provider)
+    if (!pool || pool.length === 0) return false
+    const now = Date.now()
+    return pool.every(k => k.rateLimitedUntil > now)
   }
 
   public markRateLimited(provider: string, rawKey: string, cooldownMs = 60000): void {
