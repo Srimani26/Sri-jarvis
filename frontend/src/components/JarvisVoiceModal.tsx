@@ -467,6 +467,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const sovereignLockRef = useRef(true)
   const continuousModeRef = useRef(false)
   const recognitionRef = useRef<any>(null)
+  const voiceWsRef = useRef<WebSocket | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -627,6 +628,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   useEffect(() => {
     isOpenRef.current = isOpen
     if (isOpen) {
+      audioQueuePlayer.attachUserGestureUnlock()
       try {
         const initialAgentId = localStorage.getItem('jarvis_initial_agent')
         if (initialAgentId && AGENTS[initialAgentId]) {
@@ -676,6 +678,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
     try {
       ws = new WebSocket(wsUrl)
+      voiceWsRef.current = ws
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
@@ -692,6 +695,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
 
     return () => {
+      voiceWsRef.current = null
       if (ws) {
         try { ws.close() } catch {}
       }
@@ -765,6 +769,9 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
     if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
 
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop() } catch {}
     }
@@ -3559,6 +3566,9 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
       clearInterval(vadIntervalRef.current)
       vadIntervalRef.current = null
     }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop() } catch {}
     }
@@ -3680,6 +3690,11 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data)
           vad.pushChunk(e.data)
+          if (voiceWsRef.current && voiceWsRef.current.readyState === WebSocket.OPEN) {
+            try {
+              voiceWsRef.current.send(e.data)
+            } catch {}
+          }
         }
       }
 
@@ -3843,6 +3858,11 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
 
         recognition.onerror = (e: any) => {
           console.warn('[WebSpeech] Recognition note:', e?.error)
+          if (e?.error && e?.error !== 'no-speech') {
+            try { recognition.stop() } catch {}
+            setEngineType('Deepgram')
+            startListening()
+          }
         }
 
         recognition.onend = () => {

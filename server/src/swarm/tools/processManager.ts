@@ -13,7 +13,8 @@
  *    - Graceful process termination with stopAppProcess(slug).
  */
 
-import { exec, spawn, ChildProcess } from 'node:child_process'
+import { exec, execSync, spawn, ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 
 export interface ProcessInfo {
@@ -39,6 +40,17 @@ export class ProcessManager {
       ProcessManager.instance = new ProcessManager()
     }
     return ProcessManager.instance
+  }
+
+  /**
+   * Execute CLI commands asynchronously (npm install, npx prisma db push, npm run build)
+   */
+  public async executeCommand(
+    cmd: string,
+    cwd: string = process.cwd(),
+    timeoutMs = 60000
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    return this.runCommand(cmd, cwd, timeoutMs)
   }
 
   /**
@@ -72,7 +84,15 @@ export class ProcessManager {
       }
     }
 
-    for (let port = this.minPort; port <= this.maxPort; port++) {
+    // Start scanning from 4100 to avoid colliding with default host dev server on port 4000
+    for (let port = 4100; port <= this.maxPort; port++) {
+      if (!this.allocatedPorts.has(port)) {
+        this.allocatedPorts.set(port, slug)
+        return port
+      }
+    }
+
+    for (let port = this.minPort; port < 4100; port++) {
       if (!this.allocatedPorts.has(port)) {
         this.allocatedPorts.set(port, slug)
         return port
@@ -83,6 +103,22 @@ export class ProcessManager {
     const fallback = 4000 + (Math.floor(Math.random() * 900))
     this.allocatedPorts.set(fallback, slug)
     return fallback
+  }
+
+  /**
+   * Spawns long-running child processes (Node API backend) inside workspace root or specified cwd
+   */
+  public startService(
+    slug: string,
+    command: string,
+    args: string[] = [],
+    port?: number,
+    cwd?: string
+  ): { pid: number; port: number; status: string } {
+    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command
+    const defaultRoot = path.resolve(process.cwd(), 'workspaces', slug)
+    const workingDir = cwd || defaultRoot
+    return this.spawnAppProcess(slug, fullCommand, port, workingDir)
   }
 
   /**
@@ -105,7 +141,9 @@ export class ProcessManager {
     }
 
     const assignedPort = this.allocatePort(slug, port)
-    const workingDir = cwd || path.resolve(process.cwd(), 'workspaces', slug, 'server')
+    const serverSubdir = path.resolve(process.cwd(), 'workspaces', slug, 'server')
+    const workspaceRoot = path.resolve(process.cwd(), 'workspaces', slug)
+    const workingDir = cwd || (fs.existsSync(serverSubdir) ? serverSubdir : workspaceRoot)
 
     const env = {
       ...process.env,
@@ -119,6 +157,7 @@ export class ProcessManager {
       shell: true,
       stdio: ['ignore', 'pipe', 'pipe']
     })
+    child.unref()
 
     const pid = child.pid || Date.now()
     const logs: string[] = []
@@ -168,19 +207,27 @@ export class ProcessManager {
   /**
    * Gracefully terminate a running child process and free its port
    */
+  public stopService(slug: string): boolean {
+    return this.stopAppProcess(slug)
+  }
+
+  /**
+   * Gracefully terminate a running child process and free its port
+   */
   public stopAppProcess(slug: string): boolean {
     const entry = this.activeProcesses.get(slug)
     if (!entry) return false
 
     try {
-      if (entry.process && !entry.process.killed) {
-        entry.process.kill('SIGTERM')
-        // Force kill if still open after 1s
-        setTimeout(() => {
+      if (entry.process) {
+        if (process.platform === 'win32' && entry.process.pid) {
           try {
-            if (!entry.process.killed) entry.process.kill('SIGKILL')
+            execSync(`taskkill /pid ${entry.process.pid} /T /F`, { stdio: 'ignore' })
           } catch {}
-        }, 1000)
+        }
+        if (!entry.process.killed) {
+          entry.process.kill('SIGTERM')
+        }
       }
     } catch (err) {
       console.warn(`[ProcessManager] Could not kill process for ${slug}:`, err)

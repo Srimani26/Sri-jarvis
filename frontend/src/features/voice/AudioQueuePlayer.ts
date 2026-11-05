@@ -15,7 +15,14 @@
  *    - Retains Web Audio fallback, keep-alive 10Hz oscillator, and WAV header generation for raw 16kHz PCM.
  */
 
-export type TurnTakingState = 'IDLE' | 'SPEAKING' | 'LISTENING' | 'PROCESSING'
+export const TurnTakingState = {
+  IDLE: 'IDLE',
+  SPEAKING: 'SPEAKING',
+  LISTENING: 'LISTENING',
+  PROCESSING: 'PROCESSING'
+} as const
+
+export type TurnTakingState = typeof TurnTakingState[keyof typeof TurnTakingState]
 
 let nextStartTime = 0
 
@@ -110,6 +117,10 @@ export class AudioQueuePlayer {
     return this.currentState
   }
 
+  public getTurnState(): TurnTakingState {
+    return this.currentState
+  }
+
   public setState(state: TurnTakingState): void {
     if (this.currentState === state) return
     this.currentState = state
@@ -120,6 +131,10 @@ export class AudioQueuePlayer {
         console.warn('[AudioQueuePlayer] State listener error:', err)
       }
     }
+  }
+
+  public setTurnState(state: TurnTakingState): void {
+    this.setState(state)
   }
 
   public onStateChange(listener: (state: TurnTakingState) => void): () => void {
@@ -211,6 +226,19 @@ export class AudioQueuePlayer {
       console.warn('[AudioQueuePlayer] prime failed:', err)
       return false
     }
+  }
+
+  public attachUserGestureUnlock(): void {
+    if (typeof window === 'undefined') return
+    const unlock = () => {
+      this.prime().catch(() => {})
+      window.removeEventListener('click', unlock)
+      window.removeEventListener('touchstart', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+    window.addEventListener('click', unlock, { once: true, passive: true })
+    window.addEventListener('touchstart', unlock, { once: true, passive: true })
+    window.addEventListener('keydown', unlock, { once: true, passive: true })
   }
 
   public getAudioContext(): AudioContext | null {
@@ -357,6 +385,7 @@ export class AudioQueuePlayer {
       // Prevents 3x fast-forward chipmunk glitches across iOS Safari & Android Chrome
       audio.playbackRate = 1.0
       audio.preservesPitch = true
+      audio.preload = 'auto'
       this.activeAudio = audio
 
       const cleanupAndNext = () => {

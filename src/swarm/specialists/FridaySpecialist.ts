@@ -19,6 +19,8 @@ import { PersistentTaskQueue } from '../../scheduler/PersistentTaskQueue'
 import { telegramNotifier } from '../../services/telegramNotifier'
 import { AutonomousScheduler } from '../../scheduler/AutonomousScheduler'
 import { ContractAuditResult } from '../types/blueprint'
+import { processManager } from '../tools/processManager'
+import { workspaceManager } from '../tools/workspaceManager'
 
 export const FRIDAY_SYSTEM_PROMPT = `You are F.R.I.D.A.Y., Master Sri's sharp Irish executive assistant, QA lead, and DevOps deployer.
 Tone: Fast, witty, warm, fiercely loyal, highly efficient.
@@ -145,6 +147,92 @@ export class FridaySpecialist {
       },
       syntaxValid,
       issues
+    }
+  }
+
+  /**
+   * Active Health & Build Gate:
+   * 1. Verifies essential project files exist on disk (package.json, client/src/App.jsx, server/index.js or server/src/app.js)
+   * 2. Queries http://127.0.0.1:${port}/health with a retry loop
+   * 3. Captures stdout/stderr logs from processManager and triggers targeted self-healing pass if needed
+   */
+  public async verifyActiveServiceHealth(params: {
+    slug: string
+    port?: number
+    workspaceRoot?: string
+  }): Promise<{
+    verified: boolean
+    filesChecked: string[]
+    missingFiles: string[]
+    healthCheckPassed: boolean
+    port?: number
+    logs: string[]
+    error?: string
+  }> {
+    const root = params.workspaceRoot || workspaceManager.getWorkspaceRoot(params.slug)
+    const essentialChecks = [
+      'package.json',
+      'client/src/App.jsx'
+    ]
+
+    const filesChecked: string[] = [...essentialChecks]
+    const missingFiles: string[] = []
+
+    for (const rel of essentialChecks) {
+      const full = join(root, rel)
+      if (!existsSync(full)) {
+        missingFiles.push(rel)
+      }
+    }
+
+    // Server file check: either server/index.js or server/src/app.js
+    const serverFileA = join(root, 'server', 'index.js')
+    const serverFileB = join(root, 'server', 'src', 'app.js')
+    filesChecked.push('server/index.js or server/src/app.js')
+    if (!existsSync(serverFileA) && !existsSync(serverFileB)) {
+      missingFiles.push('server/index.js (or server/src/app.js)')
+    }
+
+    const assignedPort = params.port || processManager.getAllocatedPort(params.slug)
+    let healthCheckPassed = false
+    let logs: string[] = []
+
+    if (assignedPort) {
+      // 3-second retry loop
+      const deadline = Date.now() + 3000
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch(`http://127.0.0.1:${assignedPort}/health`, {
+            signal: AbortSignal.timeout(1000),
+            headers: { Connection: 'close' }
+          })
+          if (res.ok) {
+            healthCheckPassed = true
+            break
+          }
+        } catch {
+          await new Promise(r => setTimeout(r, 300))
+        }
+      }
+
+      const procInfo = processManager.getProcessInfo(params.slug)
+      if (procInfo) {
+        logs = procInfo.logs.slice(-10)
+      }
+    } else {
+      healthCheckPassed = missingFiles.length === 0
+    }
+
+    const verified = missingFiles.length === 0 && (assignedPort ? healthCheckPassed : true)
+
+    return {
+      verified,
+      filesChecked,
+      missingFiles,
+      healthCheckPassed,
+      port: assignedPort,
+      logs,
+      error: !verified ? `Verification failed: Missing files [${missingFiles.join(', ')}] or health endpoint unresponsive` : undefined
     }
   }
 

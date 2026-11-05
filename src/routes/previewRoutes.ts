@@ -47,6 +47,7 @@ function serveProjectClient(c: Context, slug: string) {
 
   // Candidate paths in order of preference
   const candidates = [
+    path.join(root, 'public', subpath),
     path.join(root, 'client', 'dist', subpath),
     path.join(root, 'client', subpath),
     path.join(root, subpath),
@@ -63,6 +64,7 @@ function serveProjectClient(c: Context, slug: string) {
 
   // Fallback to client/index.html or default scaffold view
   const indexCandidates = [
+    path.join(root, 'public', 'index.html'),
     path.join(root, 'client', 'dist', 'index.html'),
     path.join(root, 'client', 'index.html'),
     path.join(process.cwd(), 'dist', 'sandboxes', slug, 'index.html')
@@ -112,6 +114,14 @@ previewRoutes.get('/projects/:slug/health', async (c) => {
     ok: true,
     slug,
     status: 'UP',
+    pid: proc?.pid || null,
+    port: proc?.port || null,
+    uptime: proc ? Math.floor((Date.now() - proc.startTime) / 1000) : 0,
+    memory: process.memoryUsage(),
+    client: {
+      status: uiExists ? 'READY' : 'ABSENT',
+      workspacePath: root
+    },
     ui: {
       status: uiExists ? 'READY' : 'ABSENT',
       workspacePath: root
@@ -121,6 +131,7 @@ previewRoutes.get('/projects/:slug/health', async (c) => {
       pid: proc?.pid || null,
       port: proc?.port || null,
       uptime: proc ? Math.floor((Date.now() - proc.startTime) / 1000) : 0,
+      memory: process.memoryUsage(),
       logs: proc?.logs.slice(-5) || []
     }
   })
@@ -184,3 +195,4 @@ previewRoutes.get('/projects/:slug', async (c) => {
   const slug = c.req.param('slug')
   return serveProjectClient(c, slug)
 })
+

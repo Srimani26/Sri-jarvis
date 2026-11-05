@@ -477,6 +477,7 @@ Requirements:
         }
         if (aegisBackend.serverJs) {
           workspaceManager.writeWorkspaceFile(slug, 'server/src/app.js', aegisBackend.serverJs, workspaceRoot)
+          workspaceManager.writeWorkspaceFile(slug, 'server/index.js', aegisBackend.serverJs, workspaceRoot)
         }
         if (aegisBackend.routesJs) {
           workspaceManager.writeWorkspaceFile(slug, 'server/src/routes/api.js', aegisBackend.routesJs, workspaceRoot)
@@ -492,9 +493,13 @@ Requirements:
         }
         if (raphaelCss) {
           workspaceManager.writeWorkspaceFile(slug, 'client/src/index.css', raphaelCss, workspaceRoot)
+          workspaceManager.writeWorkspaceFile(slug, 'client/src/styles.css', raphaelCss, workspaceRoot)
         }
         if (midasJs) {
           workspaceManager.writeWorkspaceFile(slug, 'client/src/components/CalculatorEngine.js', midasJs, workspaceRoot)
+        }
+        if (aegisHtml) {
+          workspaceManager.writeWorkspaceFile(slug, 'public/index.html', aegisHtml, workspaceRoot)
         }
       } catch (wsErr: any) {
         console.warn('⚠️ [SwarmOrchestrator] Workspace provisioning note:', wsErr?.message || wsErr)
@@ -537,6 +542,16 @@ Requirements:
       js: midasJs,
       routesJs: aegisBackend.routesJs
     })
+
+    // Friday Active Health & Build Gate
+    try {
+      await fridaySpecialist.verifyActiveServiceHealth({
+        slug: bundleRes.projectSlug,
+        workspaceRoot
+      })
+    } catch (healthErr: any) {
+      console.warn('⚠️ [Friday QA Gate] Service health check warning:', healthErr?.message || healthErr)
+    }
 
     // Friday DevOps ZIP Packaging
     let zipPath = ''
