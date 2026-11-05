@@ -282,6 +282,10 @@ input[type="range"] {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- Tailwind CSS with Dark Mode -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -323,20 +327,20 @@ input[type="range"] {
           </div>
         </div>
 
-        <nav class="space-y-1.5">
-          <a href="#dashboard" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold">
+        <nav class="space-y-1.5" id="main-nav-menu">
+          <a href="#dashboard" id="nav-dashboard" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold">
             <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
           </a>
-          <a href="#telemetry" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#telemetry" id="nav-telemetry" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="activity" class="w-4 h-4"></i> Live Telemetry
           </a>
-          <a href="#map" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#map" id="nav-map" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="map-pin" class="w-4 h-4"></i> Visual Canvas
           </a>
-          <a href="#records" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#records" id="nav-records" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="database" class="w-4 h-4"></i> Data Records
           </a>
-          <a href="#settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#settings" id="nav-settings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="settings" class="w-4 h-4"></i> Settings & RBAC
           </a>
         </nav>
@@ -360,8 +364,11 @@ input[type="range"] {
           <p class="text-xs md:text-sm text-slate-400 mt-1">${directive}</p>
         </div>
 
-        <div class="header-actions flex items-center gap-3">
-          <button id="export-csv-btn" class="btn-primary touch-target px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition flex items-center gap-2">
+        <div class="header-actions flex items-center gap-3 flex-wrap">
+          <button id="open-modal-btn" class="btn-primary touch-target px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-cyan-500/20">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Record
+          </button>
+          <button id="export-csv-btn" class="btn-secondary touch-target px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition border border-slate-700 flex items-center gap-2">
             <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export CSV
           </button>
           <button id="export-pdf-btn" class="btn-secondary touch-target px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition border border-slate-700 flex items-center gap-2">
@@ -469,19 +476,25 @@ input[type="range"] {
         </div>
 
         <!-- 4. High-Density Filterable Data Table with Status Tags -->
-        <section class="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4">
+        <section class="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4" id="records-section">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 class="text-lg font-bold text-white">Cumulative Telemetry & Financial Records</h3>
               <p class="text-xs text-slate-400">Live indexed event audit stream</p>
             </div>
-            <div class="flex items-center gap-3 w-full sm:w-auto">
-              <input type="text" id="table-search" placeholder="Filter records or status..." class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-full sm:w-56">
+            <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+              <div class="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+                <button id="filter-all" class="filter-btn px-2.5 py-1 rounded-lg font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition">All</button>
+                <button id="filter-active" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-emerald-400 transition">Active</button>
+                <button id="filter-alert" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-amber-400 transition">Alert</button>
+                <button id="filter-idle" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 transition">Idle</button>
+              </div>
+              <input type="text" id="table-search" placeholder="Filter records or status..." class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-full sm:w-48">
             </div>
           </div>
 
           <div class="table-responsive-container max-h-80 overflow-y-auto rounded-xl border border-slate-800/80">
-            <table class="w-full border-collapse text-left text-xs font-mono">
+            <table class="w-full border-collapse text-left text-xs font-mono" id="records-table">
               <thead class="bg-slate-900/90 text-slate-400 uppercase text-[11px] sticky top-0 border-b border-slate-800">
                 <tr>
                   <th class="p-3">Index</th>
@@ -492,27 +505,7 @@ input[type="range"] {
                 </tr>
               </thead>
               <tbody id="projection-table-body" class="divide-y divide-slate-800/60 text-slate-300">
-                <tr>
-                  <td class="p-3">01</td>
-                  <td class="p-3 font-semibold text-white">Facility Alpha - Primary Array</td>
-                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span></td>
-                  <td class="p-3">48,200 kWh</td>
-                  <td class="p-3 text-cyan-400">$8,676</td>
-                </tr>
-                <tr>
-                  <td class="p-3">02</td>
-                  <td class="p-3 font-semibold text-white">Fleet Unit #402 - Route Metro</td>
-                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Alert</span></td>
-                  <td class="p-3">94.2% Efficiency</td>
-                  <td class="p-3 text-cyan-400">$14,280</td>
-                </tr>
-                <tr>
-                  <td class="p-3">03</td>
-                  <td class="p-3 font-semibold text-white">Standby Inverter Station</td>
-                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-slate-500/10 text-slate-400 border border-slate-500/20">Idle</span></td>
-                  <td class="p-3">0.0 kWh</td>
-                  <td class="p-3 text-cyan-400">$0</td>
-                </tr>
+                <!-- Dynamically populated and filtered by Midas interactive engine -->
               </tbody>
             </table>
           </div>
@@ -522,6 +515,42 @@ input[type="range"] {
       <footer class="mt-auto p-6 border-t border-slate-800 text-center text-xs text-slate-500">
         <p>Autonomous SDLC Architecture designed by <strong>Raphael &bull; Chief UI/UX Specialist</strong> for Master Sri</p>
       </footer>
+    </div>
+  </div>
+
+  <!-- Interactive State Modal: Add Record / Settings -->
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#111827] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i> New Telemetry Record
+        </h3>
+        <button id="close-modal-btn" type="button" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form id="record-form" class="space-y-4">
+        <div>
+          <label for="new-record-name" class="block text-xs font-medium text-slate-300 mb-1">Resource Name</label>
+          <input type="text" id="new-record-name" placeholder="e.g. Unit #505 - Central Array" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
+        </div>
+        <div>
+          <label for="new-record-status" class="block text-xs font-medium text-slate-300 mb-1">Status</label>
+          <select id="new-record-status" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400">
+            <option value="Active">Active</option>
+            <option value="Alert">Alert</option>
+            <option value="Idle">Idle</option>
+          </select>
+        </div>
+        <div>
+          <label for="new-record-output" class="block text-xs font-medium text-slate-300 mb-1">Output / Delta</label>
+          <input type="text" id="new-record-output" placeholder="e.g. 12,400 kWh" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition">Cancel</button>
+          <button type="submit" id="save-record-btn" class="px-4 py-2 text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl transition font-bold shadow-lg shadow-cyan-500/20">Add Record</button>
+        </div>
+      </form>
     </div>
   </div>
 

@@ -38,7 +38,7 @@ function getContentType(filePath: string): string {
 }
 
 function injectDesignSystemHarness(html: string): string {
-  if (html.includes('cdn.tailwindcss.com') && html.includes('unpkg.com/lucide')) {
+  if (html.includes('cdn.tailwindcss.com') && html.includes('unpkg.com/lucide') && html.includes('react@18')) {
     return html
   }
 
@@ -47,6 +47,10 @@ function injectDesignSystemHarness(html: string): string {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- Tailwind CSS with Dark Mode -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>

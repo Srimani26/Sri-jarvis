@@ -157,7 +157,7 @@ export class MidasSpecialist {
   public generateComputationEngine(blueprint: ProjectBlueprint): string {
     return `// Midas Quantitative Computation Engine & Multi-Format Data Exporters
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('⚡ [Midas Engine] Initializing quantitative computation system for ${blueprint.name}...');
+  console.log('⚡ [Midas Engine] Initializing interactive state runtime for ${blueprint.name}...');
 
   function formatCurrency(num) {
     return new Intl.NumberFormat('en-US', {
@@ -180,6 +180,103 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let lastCalculatedData = [];
+  let chartInstance = null;
+
+  function updateChart(data) {
+    const canvas = document.getElementById('projectionChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const labels = data.slice(0, 10).map(d => 'Yr ' + d.year);
+    const savings = data.slice(0, 10).map(d => d.annualSavings);
+    const cashFlow = data.slice(0, 10).map(d => d.cumulativeCashFlow);
+
+    if (chartInstance) {
+      chartInstance.data.labels = labels;
+      chartInstance.data.datasets[0].data = cashFlow;
+      chartInstance.data.datasets[1].data = savings;
+      chartInstance.update();
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Cumulative Cash Flow ($)',
+            data: cashFlow,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            fill: true,
+            tension: 0.3
+          },
+          {
+            label: 'Annual Savings ($)',
+            data: savings,
+            borderColor: '#10b981',
+            backgroundColor: 'transparent',
+            borderDash: [5, 5],
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }
+
+  let activeFilter = 'all';
+  let searchTerm = '';
+  let records = [
+    { id: '01', name: 'Facility Alpha - Primary Array', status: 'Active', delta: '48,200 kWh', val: 8676 },
+    { id: '02', name: 'Fleet Unit #402 - Route Metro', status: 'Alert', delta: '94.2% Efficiency', val: 14280 },
+    { id: '03', name: 'Standby Inverter Station', status: 'Idle', delta: '0.0 kWh', val: 0 }
+  ];
+
+  function renderTable() {
+    const tbody = document.getElementById('projection-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const filtered = records.filter(r => {
+      const matchesFilter = activeFilter === 'all' || r.status.toLowerCase() === activeFilter.toLowerCase();
+      const matchesSearch = !searchTerm || r.name.toLowerCase().includes(searchTerm) || r.status.toLowerCase().includes(searchTerm) || r.delta.toLowerCase().includes(searchTerm);
+      return matchesFilter && matchesSearch;
+    });
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-500 italic">No matching records found.</td></tr>';
+      return;
+    }
+
+    filtered.forEach(r => {
+      const tr = document.createElement('tr');
+      const badgeClass = r.status === 'Active' 
+        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+        : r.status === 'Alert' 
+        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+        : 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+
+      tr.innerHTML = \`
+        <td class="p-3 text-slate-400">\${r.id}</td>
+        <td class="p-3 font-semibold text-white">\${r.name}</td>
+        <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] border \${badgeClass}">\${r.status}</span></td>
+        <td class="p-3">\${r.delta}</td>
+        <td class="p-3 text-cyan-400">\$\${r.val.toLocaleString()}</td>
+      \`;
+      tbody.appendChild(tr);
+    });
+  }
 
   function recalculate() {
     const roofSqft = getNumericValue('roof-sqft', 50000);
@@ -208,46 +305,131 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 25-Year Projection Matrix
     lastCalculatedData = [];
-    const tbody = document.getElementById('projection-table-body');
-    if (tbody) {
-      tbody.innerHTML = '';
-      let cumulativeFlow = -netCapex;
+    let cumulativeFlow = -netCapex;
 
-      for (let yr = 1; yr <= 25; yr++) {
-        const degradation = Math.pow(1 - 0.005, yr - 1);
-        const escalation = Math.pow(1 + 0.032, yr - 1);
-        const yrKwh = Math.round(initialYearKwh * degradation);
-        const yrSavings = Math.round(yrKwh * elecRate * escalation);
-        cumulativeFlow += yrSavings;
+    for (let yr = 1; yr <= 25; yr++) {
+      const degradation = Math.pow(1 - 0.005, yr - 1);
+      const escalation = Math.pow(1 + 0.032, yr - 1);
+      const yrKwh = Math.round(initialYearKwh * degradation);
+      const yrSavings = Math.round(yrKwh * elecRate * escalation);
+      cumulativeFlow += yrSavings;
 
-        lastCalculatedData.push({
-          year: yr,
-          kwh: yrKwh,
-          annualSavings: yrSavings,
-          cumulativeCashFlow: cumulativeFlow
-        });
-
-        const tr = document.createElement('tr');
-        tr.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
-        tr.innerHTML = \`
-          <td style="padding: 8px 12px; color: #94a3b8;">Year \${yr}</td>
-          <td style="padding: 8px 12px; color: #f8fafc;">\${yrKwh.toLocaleString()} kWh</td>
-          <td style="padding: 8px 12px; color: #10b981;">+\${formatCurrency(yrSavings)}</td>
-          <td style="padding: 8px 12px; font-weight: 700; color: \${cumulativeFlow >= 0 ? '#38bdf8' : '#f43f5e'};">
-            \${formatCurrency(cumulativeFlow)}
-          </td>
-        \`;
-        tbody.appendChild(tr);
-      }
+      lastCalculatedData.push({
+        year: yr,
+        kwh: yrKwh,
+        annualSavings: yrSavings,
+        cumulativeCashFlow: cumulativeFlow
+      });
     }
+
+    updateChart(lastCalculatedData);
+    renderTable();
   }
 
-  // Bind inputs
+  // Bind operational input sliders
   ['roof-sqft', 'solar-kw', 'electricity-rate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', recalculate);
       el.addEventListener('change', recalculate);
+    }
+  });
+
+  // Table search input
+  const searchInput = document.getElementById('table-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      searchTerm = e.target.value.toLowerCase().trim();
+      renderTable();
+    });
+  }
+
+  // Status filter buttons
+  ['filter-all', 'filter-active', 'filter-alert', 'filter-idle'].forEach(btnId => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        activeFilter = btnId.replace('filter-', '');
+        ['filter-all', 'filter-active', 'filter-alert', 'filter-idle'].forEach(id => {
+          const b = document.getElementById(id);
+          if (b) {
+            if (id === btnId) {
+              b.className = 'filter-btn px-2.5 py-1 rounded-lg font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition';
+            } else {
+              b.className = 'filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 transition';
+            }
+          }
+        });
+        renderTable();
+      });
+    }
+  });
+
+  // Modal interactions
+  const modal = document.getElementById('settings-modal');
+  const openModalBtn = document.getElementById('open-modal-btn');
+  const closeModalBtn = document.getElementById('close-modal-btn');
+  const cancelModalBtn = document.getElementById('cancel-modal-btn');
+  const recordForm = document.getElementById('record-form');
+
+  function openModal() {
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+  }
+
+  function closeModal() {
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+  if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+  if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  if (recordForm) {
+    recordForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById('new-record-name');
+      const statusInput = document.getElementById('new-record-status');
+      const outputInput = document.getElementById('new-record-output');
+      if (nameInput && statusInput && outputInput) {
+        const nextId = String(records.length + 1).padStart(2, '0');
+        records.unshift({
+          id: nextId,
+          name: nameInput.value.trim() || 'Unit #' + nextId,
+          status: statusInput.value || 'Active',
+          delta: outputInput.value.trim() || '10,000 kWh',
+          val: Math.round(Math.random() * 10000 + 5000)
+        });
+        renderTable();
+        closeModal();
+        recordForm.reset();
+      }
+    });
+  }
+
+  // Navigation tab switching
+  ['nav-dashboard', 'nav-telemetry', 'nav-map', 'nav-records', 'nav-settings'].forEach(navId => {
+    const el = document.getElementById(navId);
+    if (el) {
+      el.addEventListener('click', (e) => {
+        document.querySelectorAll('.nav-item').forEach(n => {
+          n.className = 'nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition';
+        });
+        el.className = 'nav-item flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold';
+        if (navId === 'nav-settings') {
+          openModal();
+        }
+      });
     }
   });
 
@@ -293,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial Calculation Run
   recalculate();
-  console.log('✅ [Midas Engine] Quantitative computation operational.');
+  console.log('✅ [Midas Engine] Interactive state runtime operational.');
 });
 `
   }

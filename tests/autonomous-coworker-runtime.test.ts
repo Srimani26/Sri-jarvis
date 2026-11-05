@@ -23,6 +23,9 @@ import { workspaceManager } from '../server/src/swarm/tools/workspaceManager'
 import { processManager } from '../server/src/swarm/tools/processManager'
 import { previewRoutes } from '../server/src/routes/previewRoutes'
 import { FridaySpecialist } from '../server/src/swarm/specialists/FridaySpecialist'
+import { raphaelSpecialist } from '../server/src/swarm/specialists/RaphaelSpecialist'
+import { midasSpecialist } from '../server/src/swarm/specialists/MidasSpecialist'
+import { ProjectBlueprint } from '../server/src/swarm/types/blueprint'
 
 describe('Phase 2 Autonomous Co-Worker Runtime & Scaffolder Suite', () => {
   const testSlug = `test-solar-saas-${Date.now().toString().slice(-4)}`
@@ -211,6 +214,95 @@ server.listen(${daemonPort}, () => console.log('Daemon running on ${daemonPort}'
       assert.strictEqual(resultWithPort.healthCheckPassed, true)
 
       processManager.stopAppProcess(testSlug)
+    })
+  })
+
+  describe('Criterion 4: Standalone React 18 & Full Interactive State Runtime', () => {
+    it('should inject standalone React 18, ReactDOM 18, and Babel Standalone into preview <head>', async () => {
+      const req = new Request(`http://localhost:3005/projects/${testSlug}`)
+      const res = await previewRoutes.fetch(req)
+
+      assert.strictEqual(res.status, 200)
+      const text = await res.text()
+      assert.ok(text.includes('react@18/umd/react.production.min.js'), 'Must inject React 18 CDN')
+      assert.ok(text.includes('react-dom@18/umd/react-dom.production.min.js'), 'Must inject ReactDOM 18 CDN')
+      assert.ok(text.includes('@babel/standalone/babel.min.js'), 'Must inject Babel Standalone CDN')
+    })
+
+    it('should augment preview HTML with React runtime via FridaySpecialist.injectReactRuntime', () => {
+      const rawHtml = '<!DOCTYPE html><html><head><title>App</title></head><body><div id="root"></div></body></html>'
+      const augmented = FridaySpecialist.getInstance().injectReactRuntime(rawHtml)
+
+      assert.ok(augmented.includes('react@18/umd/react.production.min.js'))
+      assert.ok(augmented.includes('react-dom@18/umd/react-dom.production.min.js'))
+      assert.ok(augmented.includes('@babel/standalone/babel.min.js'))
+      assert.ok(augmented.includes('</head>'))
+    })
+
+    it('should scaffold complete interactive controls in Raphael HTML layout', () => {
+      const dummyBlueprint: ProjectBlueprint = {
+        directive: 'Commercial Solar Asset Manager',
+        name: 'Solar Manager Pro',
+        slug: 'solar-manager-pro',
+        scope: 'FULLSTACK_SAAS',
+        database: {} as any,
+        backend: {} as any,
+        frontend: {
+          colorPalette: 'slate-cyan',
+          typography: 'Inter',
+          components: ['Sidebar', 'KpiCards', 'Table', 'Modal'],
+          breakpoints: { mobile: '48px', tablet: '768px', desktop: '1280px' }
+        },
+        businessLogic: {} as any,
+        qaContracts: {} as any
+      }
+
+      const html = raphaelSpecialist.generateHtmlLayout(dummyBlueprint)
+
+      // Verify React and Babel CDN scripts
+      assert.ok(html.includes('react@18'))
+      assert.ok(html.includes('babel.min.js'))
+
+      // Verify interactive controls exist
+      assert.ok(html.includes('id="table-search"'), 'Search filter input must exist')
+      assert.ok(html.includes('id="filter-all"'), 'Filter all button must exist')
+      assert.ok(html.includes('id="filter-active"'), 'Filter active button must exist')
+      assert.ok(html.includes('id="filter-alert"'), 'Filter alert button must exist')
+      assert.ok(html.includes('id="filter-idle"'), 'Filter idle button must exist')
+      assert.ok(html.includes('id="open-modal-btn"'), 'Open modal button must exist')
+      assert.ok(html.includes('id="close-modal-btn"'), 'Close modal button must exist')
+      assert.ok(html.includes('id="settings-modal"'), 'Settings modal must exist')
+      assert.ok(html.includes('id="record-form"'), 'Record form must exist')
+      assert.ok(html.includes('id="nav-dashboard"'), 'Nav items must have IDs')
+    })
+
+    it('should generate interactive event handlers and state mutation logic in Midas engine', () => {
+      const dummyBlueprint: ProjectBlueprint = {
+        directive: 'Fleet Vehicle Tracker',
+        name: 'Fleet Pro',
+        slug: 'fleet-pro',
+        scope: 'FULLSTACK_SAAS',
+        database: {} as any,
+        backend: {} as any,
+        frontend: {} as any,
+        businessLogic: {
+          pricingTiers: ['Starter', 'Pro', 'Enterprise'],
+          formulas: ['payback', 'degradation'],
+          currency: 'USD'
+        },
+        qaContracts: {} as any
+      }
+
+      const js = midasSpecialist.generateComputationEngine(dummyBlueprint)
+
+      // Verify interactive listeners
+      assert.ok(js.includes('table-search'), 'Must bind table search')
+      assert.ok(js.includes('filter-active'), 'Must bind filter buttons')
+      assert.ok(js.includes('settings-modal'), 'Must bind modal interactions')
+      assert.ok(js.includes('record-form'), 'Must handle form submission')
+      assert.ok(js.includes('updateChart'), 'Must provide dynamic Chart.js updating')
+      assert.ok(js.includes('export-csv-btn'), 'Must bind CSV download')
+      assert.ok(js.includes('export-pdf-btn'), 'Must bind PDF print')
     })
   })
 })

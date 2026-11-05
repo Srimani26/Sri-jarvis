@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
+process.env.NODE_ENV = 'test'
 import { telegramNotifier, TelegramNotifierService } from '../server/src/services/telegramNotifier'
 
 describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () => {

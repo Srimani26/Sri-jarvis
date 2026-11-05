@@ -11498,6 +11498,10 @@ calculate();
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -11574,6 +11578,10 @@ calculate();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} | Sovereign Fullstack</title>
   <link rel="stylesheet" href="./src/styles/globals.css">
+  <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
@@ -15947,6 +15955,10 @@ input[type="range"] {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- Tailwind CSS with Dark Mode -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -15988,20 +16000,20 @@ input[type="range"] {
           </div>
         </div>
 
-        <nav class="space-y-1.5">
-          <a href="#dashboard" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold">
+        <nav class="space-y-1.5" id="main-nav-menu">
+          <a href="#dashboard" id="nav-dashboard" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold">
             <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
           </a>
-          <a href="#telemetry" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#telemetry" id="nav-telemetry" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="activity" class="w-4 h-4"></i> Live Telemetry
           </a>
-          <a href="#map" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#map" id="nav-map" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="map-pin" class="w-4 h-4"></i> Visual Canvas
           </a>
-          <a href="#records" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#records" id="nav-records" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="database" class="w-4 h-4"></i> Data Records
           </a>
-          <a href="#settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+          <a href="#settings" id="nav-settings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
             <i data-lucide="settings" class="w-4 h-4"></i> Settings & RBAC
           </a>
         </nav>
@@ -16025,8 +16037,11 @@ input[type="range"] {
           <p class="text-xs md:text-sm text-slate-400 mt-1">${directive}</p>
         </div>
 
-        <div class="header-actions flex items-center gap-3">
-          <button id="export-csv-btn" class="btn-primary touch-target px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition flex items-center gap-2">
+        <div class="header-actions flex items-center gap-3 flex-wrap">
+          <button id="open-modal-btn" class="btn-primary touch-target px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-cyan-500/20">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Record
+          </button>
+          <button id="export-csv-btn" class="btn-secondary touch-target px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition border border-slate-700 flex items-center gap-2">
             <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export CSV
           </button>
           <button id="export-pdf-btn" class="btn-secondary touch-target px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition border border-slate-700 flex items-center gap-2">
@@ -16134,19 +16149,25 @@ input[type="range"] {
         </div>
 
         <!-- 4. High-Density Filterable Data Table with Status Tags -->
-        <section class="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4">
+        <section class="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4" id="records-section">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 class="text-lg font-bold text-white">Cumulative Telemetry & Financial Records</h3>
               <p class="text-xs text-slate-400">Live indexed event audit stream</p>
             </div>
-            <div class="flex items-center gap-3 w-full sm:w-auto">
-              <input type="text" id="table-search" placeholder="Filter records or status..." class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-full sm:w-56">
+            <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+              <div class="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+                <button id="filter-all" class="filter-btn px-2.5 py-1 rounded-lg font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition">All</button>
+                <button id="filter-active" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-emerald-400 transition">Active</button>
+                <button id="filter-alert" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-amber-400 transition">Alert</button>
+                <button id="filter-idle" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 transition">Idle</button>
+              </div>
+              <input type="text" id="table-search" placeholder="Filter records or status..." class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-full sm:w-48">
             </div>
           </div>
 
           <div class="table-responsive-container max-h-80 overflow-y-auto rounded-xl border border-slate-800/80">
-            <table class="w-full border-collapse text-left text-xs font-mono">
+            <table class="w-full border-collapse text-left text-xs font-mono" id="records-table">
               <thead class="bg-slate-900/90 text-slate-400 uppercase text-[11px] sticky top-0 border-b border-slate-800">
                 <tr>
                   <th class="p-3">Index</th>
@@ -16157,27 +16178,7 @@ input[type="range"] {
                 </tr>
               </thead>
               <tbody id="projection-table-body" class="divide-y divide-slate-800/60 text-slate-300">
-                <tr>
-                  <td class="p-3">01</td>
-                  <td class="p-3 font-semibold text-white">Facility Alpha - Primary Array</td>
-                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span></td>
-                  <td class="p-3">48,200 kWh</td>
-                  <td class="p-3 text-cyan-400">$8,676</td>
-                </tr>
-                <tr>
-                  <td class="p-3">02</td>
-                  <td class="p-3 font-semibold text-white">Fleet Unit #402 - Route Metro</td>
-                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Alert</span></td>
-                  <td class="p-3">94.2% Efficiency</td>
-                  <td class="p-3 text-cyan-400">$14,280</td>
-                </tr>
-                <tr>
-                  <td class="p-3">03</td>
-                  <td class="p-3 font-semibold text-white">Standby Inverter Station</td>
-                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-slate-500/10 text-slate-400 border border-slate-500/20">Idle</span></td>
-                  <td class="p-3">0.0 kWh</td>
-                  <td class="p-3 text-cyan-400">$0</td>
-                </tr>
+                <!-- Dynamically populated and filtered by Midas interactive engine -->
               </tbody>
             </table>
           </div>
@@ -16187,6 +16188,42 @@ input[type="range"] {
       <footer class="mt-auto p-6 border-t border-slate-800 text-center text-xs text-slate-500">
         <p>Autonomous SDLC Architecture designed by <strong>Raphael &bull; Chief UI/UX Specialist</strong> for Master Sri</p>
       </footer>
+    </div>
+  </div>
+
+  <!-- Interactive State Modal: Add Record / Settings -->
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#111827] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i> New Telemetry Record
+        </h3>
+        <button id="close-modal-btn" type="button" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form id="record-form" class="space-y-4">
+        <div>
+          <label for="new-record-name" class="block text-xs font-medium text-slate-300 mb-1">Resource Name</label>
+          <input type="text" id="new-record-name" placeholder="e.g. Unit #505 - Central Array" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
+        </div>
+        <div>
+          <label for="new-record-status" class="block text-xs font-medium text-slate-300 mb-1">Status</label>
+          <select id="new-record-status" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400">
+            <option value="Active">Active</option>
+            <option value="Alert">Alert</option>
+            <option value="Idle">Idle</option>
+          </select>
+        </div>
+        <div>
+          <label for="new-record-output" class="block text-xs font-medium text-slate-300 mb-1">Output / Delta</label>
+          <input type="text" id="new-record-output" placeholder="e.g. 12,400 kWh" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition">Cancel</button>
+          <button type="submit" id="save-record-btn" class="px-4 py-2 text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl transition font-bold shadow-lg shadow-cyan-500/20">Add Record</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -16443,7 +16480,7 @@ CORE COMPETENCIES:
       generateComputationEngine(blueprint) {
         return `// Midas Quantitative Computation Engine & Multi-Format Data Exporters
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('\u26A1 [Midas Engine] Initializing quantitative computation system for ${blueprint.name}...');
+  console.log('\u26A1 [Midas Engine] Initializing interactive state runtime for ${blueprint.name}...');
 
   function formatCurrency(num) {
     return new Intl.NumberFormat('en-US', {
@@ -16466,6 +16503,103 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let lastCalculatedData = [];
+  let chartInstance = null;
+
+  function updateChart(data) {
+    const canvas = document.getElementById('projectionChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const labels = data.slice(0, 10).map(d => 'Yr ' + d.year);
+    const savings = data.slice(0, 10).map(d => d.annualSavings);
+    const cashFlow = data.slice(0, 10).map(d => d.cumulativeCashFlow);
+
+    if (chartInstance) {
+      chartInstance.data.labels = labels;
+      chartInstance.data.datasets[0].data = cashFlow;
+      chartInstance.data.datasets[1].data = savings;
+      chartInstance.update();
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Cumulative Cash Flow ($)',
+            data: cashFlow,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            fill: true,
+            tension: 0.3
+          },
+          {
+            label: 'Annual Savings ($)',
+            data: savings,
+            borderColor: '#10b981',
+            backgroundColor: 'transparent',
+            borderDash: [5, 5],
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }
+
+  let activeFilter = 'all';
+  let searchTerm = '';
+  let records = [
+    { id: '01', name: 'Facility Alpha - Primary Array', status: 'Active', delta: '48,200 kWh', val: 8676 },
+    { id: '02', name: 'Fleet Unit #402 - Route Metro', status: 'Alert', delta: '94.2% Efficiency', val: 14280 },
+    { id: '03', name: 'Standby Inverter Station', status: 'Idle', delta: '0.0 kWh', val: 0 }
+  ];
+
+  function renderTable() {
+    const tbody = document.getElementById('projection-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const filtered = records.filter(r => {
+      const matchesFilter = activeFilter === 'all' || r.status.toLowerCase() === activeFilter.toLowerCase();
+      const matchesSearch = !searchTerm || r.name.toLowerCase().includes(searchTerm) || r.status.toLowerCase().includes(searchTerm) || r.delta.toLowerCase().includes(searchTerm);
+      return matchesFilter && matchesSearch;
+    });
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-500 italic">No matching records found.</td></tr>';
+      return;
+    }
+
+    filtered.forEach(r => {
+      const tr = document.createElement('tr');
+      const badgeClass = r.status === 'Active' 
+        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+        : r.status === 'Alert' 
+        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+        : 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+
+      tr.innerHTML = \`
+        <td class="p-3 text-slate-400">\${r.id}</td>
+        <td class="p-3 font-semibold text-white">\${r.name}</td>
+        <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] border \${badgeClass}">\${r.status}</span></td>
+        <td class="p-3">\${r.delta}</td>
+        <td class="p-3 text-cyan-400">$\${r.val.toLocaleString()}</td>
+      \`;
+      tbody.appendChild(tr);
+    });
+  }
 
   function recalculate() {
     const roofSqft = getNumericValue('roof-sqft', 50000);
@@ -16494,46 +16628,131 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 25-Year Projection Matrix
     lastCalculatedData = [];
-    const tbody = document.getElementById('projection-table-body');
-    if (tbody) {
-      tbody.innerHTML = '';
-      let cumulativeFlow = -netCapex;
+    let cumulativeFlow = -netCapex;
 
-      for (let yr = 1; yr <= 25; yr++) {
-        const degradation = Math.pow(1 - 0.005, yr - 1);
-        const escalation = Math.pow(1 + 0.032, yr - 1);
-        const yrKwh = Math.round(initialYearKwh * degradation);
-        const yrSavings = Math.round(yrKwh * elecRate * escalation);
-        cumulativeFlow += yrSavings;
+    for (let yr = 1; yr <= 25; yr++) {
+      const degradation = Math.pow(1 - 0.005, yr - 1);
+      const escalation = Math.pow(1 + 0.032, yr - 1);
+      const yrKwh = Math.round(initialYearKwh * degradation);
+      const yrSavings = Math.round(yrKwh * elecRate * escalation);
+      cumulativeFlow += yrSavings;
 
-        lastCalculatedData.push({
-          year: yr,
-          kwh: yrKwh,
-          annualSavings: yrSavings,
-          cumulativeCashFlow: cumulativeFlow
-        });
-
-        const tr = document.createElement('tr');
-        tr.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
-        tr.innerHTML = \`
-          <td style="padding: 8px 12px; color: #94a3b8;">Year \${yr}</td>
-          <td style="padding: 8px 12px; color: #f8fafc;">\${yrKwh.toLocaleString()} kWh</td>
-          <td style="padding: 8px 12px; color: #10b981;">+\${formatCurrency(yrSavings)}</td>
-          <td style="padding: 8px 12px; font-weight: 700; color: \${cumulativeFlow >= 0 ? '#38bdf8' : '#f43f5e'};">
-            \${formatCurrency(cumulativeFlow)}
-          </td>
-        \`;
-        tbody.appendChild(tr);
-      }
+      lastCalculatedData.push({
+        year: yr,
+        kwh: yrKwh,
+        annualSavings: yrSavings,
+        cumulativeCashFlow: cumulativeFlow
+      });
     }
+
+    updateChart(lastCalculatedData);
+    renderTable();
   }
 
-  // Bind inputs
+  // Bind operational input sliders
   ['roof-sqft', 'solar-kw', 'electricity-rate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', recalculate);
       el.addEventListener('change', recalculate);
+    }
+  });
+
+  // Table search input
+  const searchInput = document.getElementById('table-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      searchTerm = e.target.value.toLowerCase().trim();
+      renderTable();
+    });
+  }
+
+  // Status filter buttons
+  ['filter-all', 'filter-active', 'filter-alert', 'filter-idle'].forEach(btnId => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        activeFilter = btnId.replace('filter-', '');
+        ['filter-all', 'filter-active', 'filter-alert', 'filter-idle'].forEach(id => {
+          const b = document.getElementById(id);
+          if (b) {
+            if (id === btnId) {
+              b.className = 'filter-btn px-2.5 py-1 rounded-lg font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition';
+            } else {
+              b.className = 'filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 transition';
+            }
+          }
+        });
+        renderTable();
+      });
+    }
+  });
+
+  // Modal interactions
+  const modal = document.getElementById('settings-modal');
+  const openModalBtn = document.getElementById('open-modal-btn');
+  const closeModalBtn = document.getElementById('close-modal-btn');
+  const cancelModalBtn = document.getElementById('cancel-modal-btn');
+  const recordForm = document.getElementById('record-form');
+
+  function openModal() {
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+  }
+
+  function closeModal() {
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+  if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+  if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  if (recordForm) {
+    recordForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById('new-record-name');
+      const statusInput = document.getElementById('new-record-status');
+      const outputInput = document.getElementById('new-record-output');
+      if (nameInput && statusInput && outputInput) {
+        const nextId = String(records.length + 1).padStart(2, '0');
+        records.unshift({
+          id: nextId,
+          name: nameInput.value.trim() || 'Unit #' + nextId,
+          status: statusInput.value || 'Active',
+          delta: outputInput.value.trim() || '10,000 kWh',
+          val: Math.round(Math.random() * 10000 + 5000)
+        });
+        renderTable();
+        closeModal();
+        recordForm.reset();
+      }
+    });
+  }
+
+  // Navigation tab switching
+  ['nav-dashboard', 'nav-telemetry', 'nav-map', 'nav-records', 'nav-settings'].forEach(navId => {
+    const el = document.getElementById(navId);
+    if (el) {
+      el.addEventListener('click', (e) => {
+        document.querySelectorAll('.nav-item').forEach(n => {
+          n.className = 'nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition';
+        });
+        el.className = 'nav-item flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold';
+        if (navId === 'nav-settings') {
+          openModal();
+        }
+      });
     }
   });
 
@@ -16579,7 +16798,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial Calculation Run
   recalculate();
-  console.log('\u2705 [Midas Engine] Quantitative computation operational.');
+  console.log('\u2705 [Midas Engine] Interactive state runtime operational.');
 });
 `;
       }
@@ -19882,6 +20101,10 @@ export default function Dashboard() {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Tailwind CSS with Dark Mode -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -19951,6 +20174,10 @@ body {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Tailwind CSS with Dark Mode -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -20402,6 +20629,28 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`;
         };
       }
       /**
+       * Injects standalone React 18 and Babel standalone CDN scripts into preview HTML <head>
+       */
+      injectReactRuntime(html) {
+        if (html.includes("react@18") || html.includes("react.production.min.js")) {
+          return html;
+        }
+        const reactCdnScripts = `  <!-- Standalone React 18 & Babel Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>`;
+        if (html.includes("</head>")) {
+          return html.replace("</head>", `${reactCdnScripts}
+</head>`);
+        }
+        if (html.includes("<body")) {
+          return html.replace("<body", `${reactCdnScripts}
+<body`);
+        }
+        return `${reactCdnScripts}
+${html}`;
+      }
+      /**
        * Active Health & Build Gate:
        * 1. Step A: Verifies essential project files exist on disk and meet substance thresholds.
        * 2. Step B: Queries http://127.0.0.1:${port}/health with retry loop and captures stdout/stderr.
@@ -20442,7 +20691,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`;
         for (const hPath of clientHtmlCandidates) {
           if (existsSync17(hPath)) {
             const text = readFileSync13(hPath, "utf-8");
-            if (text.includes("tailwind") || text.includes("lucide") || text.includes("bg-") || text.includes("flex")) {
+            if (text.includes("tailwind") || text.includes("lucide") || text.includes("react") || text.includes("babel") || text.includes("bg-") || text.includes("flex")) {
               clientVerified = true;
               break;
             }
@@ -36440,7 +36689,7 @@ function getContentType(filePath) {
   }
 }
 function injectDesignSystemHarness(html) {
-  if (html.includes("cdn.tailwindcss.com") && html.includes("unpkg.com/lucide")) {
+  if (html.includes("cdn.tailwindcss.com") && html.includes("unpkg.com/lucide") && html.includes("react@18")) {
     return html;
   }
   const harness = `
@@ -36448,6 +36697,10 @@ function injectDesignSystemHarness(html) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Standalone React 18 & Babel Standalone Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- Tailwind CSS with Dark Mode -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>

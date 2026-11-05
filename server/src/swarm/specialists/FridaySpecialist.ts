@@ -151,6 +151,27 @@ export class FridaySpecialist {
   }
 
   /**
+   * Injects standalone React 18 and Babel standalone CDN scripts into preview HTML <head>
+   */
+  public injectReactRuntime(html: string): string {
+    if (html.includes('react@18') || html.includes('react.production.min.js')) {
+      return html
+    }
+    const reactCdnScripts = `  <!-- Standalone React 18 & Babel Preview Runtime -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>`
+
+    if (html.includes('</head>')) {
+      return html.replace('</head>', `${reactCdnScripts}\n</head>`)
+    }
+    if (html.includes('<body')) {
+      return html.replace('<body', `${reactCdnScripts}\n<body`)
+    }
+    return `${reactCdnScripts}\n${html}`
+  }
+
+  /**
    * Active Health & Build Gate:
    * 1. Step A: Verifies essential project files exist on disk and meet substance thresholds.
    * 2. Step B: Queries http://127.0.0.1:${port}/health with retry loop and captures stdout/stderr.
@@ -210,7 +231,14 @@ export class FridaySpecialist {
     for (const hPath of clientHtmlCandidates) {
       if (existsSync(hPath)) {
         const text = readFileSync(hPath, 'utf-8')
-        if (text.includes('tailwind') || text.includes('lucide') || text.includes('bg-') || text.includes('flex')) {
+        if (
+          text.includes('tailwind') ||
+          text.includes('lucide') ||
+          text.includes('react') ||
+          text.includes('babel') ||
+          text.includes('bg-') ||
+          text.includes('flex')
+        ) {
           clientVerified = true
           break
         }
