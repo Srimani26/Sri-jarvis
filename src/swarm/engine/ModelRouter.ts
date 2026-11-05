@@ -511,8 +511,8 @@ export class SwarmModelRouter {
     // ──────────────────────────────────────────────────────────────────────────
     const fallback = this.synthesizeDeterministicFallback(messages)
     return {
-      content: fallback.content,
-      tool_calls: fallback.tool_calls,
+      content: fallback.content || (tools.length === 0 ? 'Ready. Open WebUI bridge and model routing operational, Master Sri.' : undefined),
+      tool_calls: tools.length > 0 ? fallback.tool_calls : undefined,
       provider: 'sovereign-deterministic-sandbox',
       tier: 5,
       failedTiers
@@ -554,7 +554,21 @@ export class SwarmModelRouter {
       }
     }
 
-    if (historyText.includes('weather') || historyText.includes('currency') || historyText.includes('market') || historyText.includes('crypto')) {
+    if ((historyText.includes('scaffold') || historyText.includes('web app') || historyText.includes('dashboard')) && !historyText.includes('aegis_scaffold_and_deploy_web')) {
+      return {
+        tool_calls: [{
+          id: `call_${Date.now()}_scaffold`,
+          name: 'aegis_scaffold_and_deploy_web',
+          arguments: {
+            slug: 'app-' + Date.now().toString().slice(-4),
+            appName: 'Generated Autonomous Dashboard',
+            type: historyText.includes('crypto') ? 'crypto' : 'dashboard'
+          }
+        }]
+      }
+    }
+
+    if ((historyText.includes('weather') || historyText.includes('currency') || historyText.includes('market') || historyText.includes('crypto')) && !historyText.includes('query_public_service')) {
       return {
         tool_calls: [{
           id: `call_${Date.now()}_pub`,

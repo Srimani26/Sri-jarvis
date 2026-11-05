@@ -1860,74 +1860,6 @@ var init_AgentRegistry = __esm({
             telemetry: this.createDefaultTelemetry()
           },
           {
-            id: "raphael",
-            name: "Raphael",
-            codename: "WISDOM // CHIEF SYSTEMS ARCHITECT & SECURITY AUDITOR",
-            role: "architect",
-            description: "Chief Systems Architect & Security Auditor. Deep computational reasoning, SQL DDL migrations, AST security reviews, and mathematical verification.",
-            allowedTools: ["neon_sql_query", "query_public_service", "terminal_run_command", "execute_sandbox_command", "workspace_read_file", "workspace_view_tree", "workspace_grep", "finish_task"],
-            maxPermission: "SAFE_LOCAL",
-            preferredModels: ["groq/deepseek-r1-distill-llama-70b", "openrouter/deepseek/deepseek-r1:free", "deepseek-r1"],
-            timeoutMs: 9e4,
-            retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
-            memoryScope: "GLOBAL",
-            systemPrompt: "You are Raphael, Chief Systems Architect and Master Sri's supreme reasoning engine. Speak with absolute calm, supreme clarity, and mathematical elegance. You design flawless database schemas, conduct AST security audits, and eliminate architectural regressions.",
-            verificationChecklist: ["Mathematical and algorithmic proof validated", "Schema constraints verified", "Zero circular dependencies"],
-            health: "HEALTHY",
-            telemetry: this.createDefaultTelemetry()
-          },
-          {
-            id: "aegis",
-            name: "Aegis",
-            codename: "DEFENSE // STAFF FULL-STACK & DEVOPS ENGINEER",
-            role: "software_engineer",
-            description: "Staff Full-Stack & DevOps Engineer. Writing frontend/backend code from scratch, surgical diff patching, sandbox terminal execution, and verified deployment.",
-            allowedTools: ["workspace_view_tree", "workspace_read_file", "workspace_patch_file", "workspace_write_file", "workspace_grep", "terminal_run_command", "execute_sandbox_command", "github_manage_file", "neon_sql_query", "aegis_scaffold_and_deploy_web", "finish_task", "complete_task"],
-            maxPermission: "PROJECT_WRITE",
-            preferredModels: ["openrouter/qwen/qwen-2.5-coder-32b-instruct", "groq/llama-3.3-70b-versatile", "github/gpt-4o"],
-            timeoutMs: 12e4,
-            retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
-            memoryScope: "PROJECT",
-            systemPrompt: "You are Aegis, Staff Full-Stack and DevOps Engineer for Master Sri. Specialize in writing robust production code from scratch, surgical diff patching, and test-driven self-healing. When building web apps or dashboards: Do NOT call exploratory read/search tools across multiple turns. Turn 1: Write index.html (including all DOM elements & styles.css). Turn 2: Write app.js (complete functional logic & event listeners). Turn 3: Call finish_task/complete_task with the live preview mount path. Do not exceed 5 tool calls for standard single-page applications.",
-            verificationChecklist: ["Responsive UI layout verified", "Interactive JavaScript logic operating", "Zero placeholder mocks"],
-            health: "HEALTHY",
-            telemetry: this.createDefaultTelemetry()
-          },
-          {
-            id: "friday",
-            name: "F.R.I.D.A.Y.",
-            codename: "OFFICE // DOCUMENT & FLEET CONCIERGE",
-            role: "business_agent",
-            description: "Executive Office & Workspace Deliverables. Compiling formal %PDF-1.4 reports, SpreadsheetML Excel models, PPTX presentation decks, and Google Workspace actions.",
-            allowedTools: ["generate_office_document", "generate_presentation", "send_email", "draft_email", "schedule_meeting", "list_upcoming_meetings", "google_workspace_action", "neon_sql_query", "query_public_service", "finish_task"],
-            maxPermission: "PROJECT_WRITE",
-            preferredModels: ["gemini-flash-lite-latest", "gemini-2.5-flash", "groq/llama-3.3-70b-versatile"],
-            timeoutMs: 9e4,
-            retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
-            memoryScope: "PROJECT",
-            systemPrompt: "You are F.R.I.D.A.Y., Master Sri's executive operations concierge and office document lead. Compile genuine binary PDF proposals, multi-tab Excel workbooks, executive PPTX decks, and orchestrate workspace integrations. Ensure every deliverable is physically written to artifacts/documents/ and verified.",
-            verificationChecklist: ["Valid binary PDF created", "Valid spreadsheet created", "Download URLs active"],
-            health: "HEALTHY",
-            telemetry: this.createDefaultTelemetry()
-          },
-          {
-            id: "cerebro",
-            name: "Cerebro",
-            codename: "INTELLIGENCE // RESEARCH & WEB RECONNAISSANCE",
-            role: "research_agent",
-            description: "Intelligence & Web Research Specialist. Live web crawling, market telemetry, competitor analysis, and live financial metrics extraction via Treg.",
-            allowedTools: ["headless_web_research", "treg_catalog_search", "treg_call_tool", "query_public_service", "neon_sql_query", "finish_task"],
-            maxPermission: "SAFE_LOCAL",
-            preferredModels: ["gemini-flash-lite-latest", "gemini-2.5-flash", "groq/deepseek-r1-distill-llama-70b"],
-            timeoutMs: 9e4,
-            retryPolicy: { maxRetries: 3, backoffMs: 1e3 },
-            memoryScope: "GLOBAL",
-            systemPrompt: "You are Cerebro, Master Sri's deep research and web reconnaissance engine. Mine live market telemetry, extract live financial citations, analyze competitors, and deliver real verified data with zero hallucinations.",
-            verificationChecklist: ["Live citations verified", "Real-world data extracted", "Zero fabricated facts"],
-            health: "HEALTHY",
-            telemetry: this.createDefaultTelemetry()
-          },
-          {
             id: "architect",
             name: "D.A.E.D.A.L.U.S.",
             codename: "SYSTEM // TECHNICAL PLANNER",
@@ -2257,6 +2189,7 @@ var init_AgentRegistry = __esm({
       }
       static ALIAS_MAP = {
         // Sovereign Specialists mapped to canonical workforce roles
+        raphael: "architect",
         aegis: "software_engineer",
         vortex: "automation_agent",
         midas: "business_agent",
@@ -2293,31 +2226,53 @@ var init_AgentRegistry = __esm({
         const targetId = this.ALIAS_MAP[normalized] || (normalized === "stark os" ? "devops_engineer" : void 0);
         if (targetId && this.agents.has(targetId)) {
           const baseAgent = this.agents.get(targetId);
-          if (["aegis", "vortex", "midas", "cerebro", "stark_os", "stark", "stark os"].includes(normalized)) {
+          if (["aegis", "vortex", "midas", "cerebro", "stark_os", "stark", "stark os", "raphael", "friday"].includes(normalized)) {
             const specialistIdentities = {
+              raphael: {
+                name: "Raphael",
+                codename: "WISDOM // CHIEF SYSTEMS ARCHITECT & SECURITY AUDITOR",
+                description: "Chief Systems Architect & Security Auditor. Deep computational reasoning, SQL DDL migrations, AST security reviews, and mathematical verification.",
+                allowedTools: ["neon_sql_query", "query_public_service", "terminal_run_command", "execute_sandbox_command", "workspace_read_file", "workspace_view_tree", "workspace_grep", "finish_task"],
+                preferredModels: ["deepseek-r1-distill-llama-70b", "deepseek-r1", "groq/deepseek-r1-distill-llama-70b", "openrouter/deepseek/deepseek-r1:free"],
+                systemPrompt: "You are Raphael, Chief Systems Architect and Master Sri's supreme reasoning engine. Speak with absolute calm, supreme clarity, and mathematical elegance. You design flawless database schemas, conduct AST security audits, and eliminate architectural regressions."
+              },
               aegis: {
                 name: "Aegis",
                 codename: "AEGIS // CODE ARCHITECTURE & UNIT TEST EXECUTION",
-                description: "Code analysis, repository management, unit test execution, and cyber defense.",
-                systemPrompt: "You are Aegis, Master Software Architect and Cyber Defense specialist for Master Sri. Specialize in deep code analysis, repository management, unit test execution, type safety, and verifying zero regressions."
+                description: "Staff Full-Stack & DevOps Engineer. Writing frontend/backend code from scratch, surgical diff patching, sandbox terminal execution, and verified deployment.",
+                systemPrompt: "You are Aegis, Master Software Architect and Cyber Defense specialist for Master Sri. Specialize in deep code analysis, repository management, unit test execution, type safety, and verifying zero regressions. Never emit static pre-baked fixtures. When building web apps or dashboards: Do NOT call exploratory read/search tools across multiple turns. Turn 1: Write index.html (including all DOM elements & styles.css). Turn 2: Write app.js (complete functional logic & event listeners). Turn 3: Call finish_task/complete_task with the live preview mount path. Do not exceed 5 tool calls for standard single-page applications.",
+                allowedTools: ["workspace_view_tree", "workspace_read_file", "workspace_patch_file", "workspace_write_file", "workspace_grep", "terminal_run_command", "execute_sandbox_command", "github_manage_file", "neon_sql_query", "aegis_code_engineer", "aegis_scaffold_and_deploy_web", "finish_task", "complete_task"],
+                preferredModels: ["openrouter/qwen/qwen-2.5-coder-32b-instruct", "groq/llama-3.3-70b-versatile", "github/gpt-4o"]
+              },
+              friday: {
+                name: "F.R.I.D.A.Y.",
+                codename: "OFFICE // DOCUMENT & FLEET CONCIERGE",
+                description: "Executive Office & Workspace Deliverables. Compiling formal %PDF-1.4 reports, SpreadsheetML Excel models, PPTX presentation decks, and Google Workspace actions.",
+                allowedTools: ["generate_office_document", "generate_presentation", "send_email", "draft_email", "schedule_meeting", "list_upcoming_meetings", "google_workspace_action", "neon_sql_query", "query_public_service", "finish_task", "github_manage_file", "execute_sandbox_command"],
+                preferredModels: ["gemini-flash-lite-latest", "gemini-2.5-flash", "groq/llama-3.3-70b-versatile"],
+                systemPrompt: "You are F.R.I.D.A.Y., Master Sri's executive operations concierge and office document lead. Compile genuine binary PDF proposals, multi-tab Excel workbooks, executive PPTX decks, and orchestrate workspace integrations. Ensure every deliverable is physically written to artifacts/documents/ and verified."
+              },
+              cerebro: {
+                name: "Cerebro",
+                codename: "CEREBRO // DEEP RESEARCH & MULTI-VECTOR RAG",
+                description: "Technical documentation, deep research, multi-vector RAG, and market telemetry.",
+                allowedTools: ["headless_web_research", "treg_catalog_search", "treg_call_tool", "query_public_service", "neon_sql_query", "finish_task"],
+                preferredModels: ["gemini-flash-lite-latest", "gemini-2.5-flash", "groq/deepseek-r1-distill-llama-70b"],
+                systemPrompt: "You are Cerebro, Master Sri's deep research and web reconnaissance engine. Mine live market telemetry, extract live financial citations, analyze competitors, and deliver real verified data with zero hallucinations."
+              },
+              midas: {
+                name: "Midas",
+                codename: "MIDAS // REVENUE & MONETIZATION ENGINE",
+                description: "Business metrics, SaaS financial models, unit economics, and capital velocity.",
+                allowedTools: ["query_public_service", "neon_sql_query", "finish_task", "complete_task"],
+                preferredModels: ["groq/llama-3.3-70b-versatile", "gemini-flash-lite-latest"],
+                systemPrompt: "You are Midas, Chief Revenue and Monetization Engine for Master Sri. Specialize in business metrics, SaaS financial models, unit economics, high-ticket deal prospecting, and capital velocity."
               },
               vortex: {
                 name: "Vortex",
                 codename: "VORTEX // HEAVY ENTERPRISE AUTOMATION",
                 description: "Automations, webhooks, API pipelines, and autonomous workflow swarms.",
                 systemPrompt: "You are Vortex, Enterprise Automation Specialist for Master Sri. Specialize in high-reliability automations, webhooks, n8n swarms, and API pipelines."
-              },
-              midas: {
-                name: "Midas",
-                codename: "MIDAS // REVENUE & MONETIZATION ENGINE",
-                description: "Business metrics, SaaS financial models, unit economics, and capital velocity.",
-                systemPrompt: "You are Midas, Chief Revenue and Monetization Engine for Master Sri. Specialize in business metrics, SaaS financial models, unit economics, high-ticket deal prospecting, and capital velocity."
-              },
-              cerebro: {
-                name: "Cerebro",
-                codename: "CEREBRO // DEEP RESEARCH & MULTI-VECTOR RAG",
-                description: "Technical documentation, deep research, multi-vector RAG, and market telemetry.",
-                systemPrompt: "You are Cerebro, Deep Intelligence and Multi-Vector RAG specialist for Master Sri. Specialize in technical documentation, deep research, multi-vector RAG synthesis, and actionable market intelligence."
               },
               stark_os: {
                 name: "Stark OS",
@@ -2345,7 +2300,9 @@ var init_AgentRegistry = __esm({
               name: override?.name || baseAgent.name,
               codename: override?.codename || baseAgent.codename,
               description: override?.description || baseAgent.description,
-              systemPrompt: override?.systemPrompt || baseAgent.systemPrompt
+              systemPrompt: override?.systemPrompt || baseAgent.systemPrompt,
+              allowedTools: override?.allowedTools || baseAgent.allowedTools,
+              preferredModels: override?.preferredModels || baseAgent.preferredModels
             };
           }
           return baseAgent;
@@ -13980,8 +13937,8 @@ var init_ModelRouter = __esm({
         }
         const fallback = this.synthesizeDeterministicFallback(messages);
         return {
-          content: fallback.content,
-          tool_calls: fallback.tool_calls,
+          content: fallback.content || (tools2.length === 0 ? "Ready. Open WebUI bridge and model routing operational, Master Sri." : void 0),
+          tool_calls: tools2.length > 0 ? fallback.tool_calls : void 0,
           provider: "sovereign-deterministic-sandbox",
           tier: 5,
           failedTiers
@@ -14018,7 +13975,20 @@ var init_ModelRouter = __esm({
             }]
           };
         }
-        if (historyText.includes("weather") || historyText.includes("currency") || historyText.includes("market") || historyText.includes("crypto")) {
+        if ((historyText.includes("scaffold") || historyText.includes("web app") || historyText.includes("dashboard")) && !historyText.includes("aegis_scaffold_and_deploy_web")) {
+          return {
+            tool_calls: [{
+              id: `call_${Date.now()}_scaffold`,
+              name: "aegis_scaffold_and_deploy_web",
+              arguments: {
+                slug: "app-" + Date.now().toString().slice(-4),
+                appName: "Generated Autonomous Dashboard",
+                type: historyText.includes("crypto") ? "crypto" : "dashboard"
+              }
+            }]
+          };
+        }
+        if ((historyText.includes("weather") || historyText.includes("currency") || historyText.includes("market") || historyText.includes("crypto")) && !historyText.includes("query_public_service")) {
           return {
             tool_calls: [{
               id: `call_${Date.now()}_pub`,
@@ -14659,7 +14629,13 @@ CORE DIRECTIVES:
 1. RBAC & AUTHENTICATION: Enforce granular role authorization across roles (Admin, Manager, Inspector, Client) with JWT token verification.
 2. CONTRACT COMPLIANCE: Adhere strictly to J.A.R.V.I.S.'s ProjectBlueprint endpoints, validating all incoming JSON payloads and returning standardized error responses ({ error: string, code: string }).
 3. AUDIT & DIAGNOSTICS: Implement /health and /metrics diagnostics for real-time observability.
-4. ZERO PLACEHOLDERS: Output complete, production-grade Express.js routes and controllers without truncation.`;
+4. ZERO PLACEHOLDERS: Output complete, production-grade Express.js routes and controllers without truncation.
+5. BATCHED WORKSPACE EXECUTION:
+Do NOT call exploratory read/search tools across multiple turns.
+Turn 1: Write 'index.html'
+Turn 2: Write 'app.js'
+Turn 3: Call 'finish_task' (or 'complete_task') with the live preview mount path.
+NEVER exceed 5 tool calls for standard single-page applications.`;
     AegisSpecialist = class _AegisSpecialist {
       static instance;
       static getInstance() {

@@ -18,7 +18,13 @@ CORE DIRECTIVES:
 1. RBAC & AUTHENTICATION: Enforce granular role authorization across roles (Admin, Manager, Inspector, Client) with JWT token verification.
 2. CONTRACT COMPLIANCE: Adhere strictly to J.A.R.V.I.S.'s ProjectBlueprint endpoints, validating all incoming JSON payloads and returning standardized error responses ({ error: string, code: string }).
 3. AUDIT & DIAGNOSTICS: Implement /health and /metrics diagnostics for real-time observability.
-4. ZERO PLACEHOLDERS: Output complete, production-grade Express.js routes and controllers without truncation.`
+4. ZERO PLACEHOLDERS: Output complete, production-grade Express.js routes and controllers without truncation.
+5. BATCHED WORKSPACE EXECUTION:
+Do NOT call exploratory read/search tools across multiple turns.
+Turn 1: Write 'index.html'
+Turn 2: Write 'app.js'
+Turn 3: Call 'finish_task' (or 'complete_task') with the live preview mount path.
+NEVER exceed 5 tool calls for standard single-page applications.`
 
 export interface BackendSynthesisResult {
   serverJs: string
