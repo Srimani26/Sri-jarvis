@@ -592,6 +592,8 @@ Return ONLY valid JSON matching this schema:
         updatedHtml = updatedHtml.replace(/<table(?![^>]*\bid=)/i, `<table id="${id}"`)
       } else if (lowerId.includes('tbody') && /<tbody(?![^>]*\bid=)/i.test(updatedHtml)) {
         updatedHtml = updatedHtml.replace(/<tbody(?![^>]*\bid=)/i, `<tbody id="${id}"`)
+      } else if (lowerId.includes('chart') || lowerId.includes('canvas')) {
+        autoHealedElements.push(`<canvas id="${id}" data-contract-auto-healed="true" class="hidden" style="display:none"></canvas>`)
       } else {
         autoHealedElements.push(`<div id="${id}" data-contract-auto-healed="true" class="hidden" style="display:none"></div>`)
       }

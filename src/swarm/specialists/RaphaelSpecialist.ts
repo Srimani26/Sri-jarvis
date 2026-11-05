@@ -479,7 +479,12 @@ input[type="range"] {
             </div>
 
             ${isFleetDirective ? `
-            <div id="fleet-map" style="height: 290px; width: 100%;" class="rounded-xl overflow-hidden border border-slate-800"></div>
+            <div class="space-y-4">
+              <div id="fleet-map" style="height: 220px; width: 100%;" class="rounded-xl overflow-hidden border border-slate-800"></div>
+              <div class="h-[140px] w-full">
+                <canvas id="projectionChart" height="140"></canvas>
+              </div>
+            </div>
             ` : `
             <div class="h-[290px] w-full flex items-center justify-center">
               <canvas id="projectionChart" height="280"></canvas>
@@ -574,12 +579,24 @@ input[type="range"] {
         window.lucide.createIcons();
       }
       if (document.getElementById('fleet-map') && typeof L !== 'undefined') {
-        const map = L.map('fleet-map').setView([37.7749, -122.4194], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-        L.marker([37.7749, -122.4194]).addTo(map).bindPopup('Fleet Unit #402 (Active)').openPopup();
+        try {
+          const map = L.map('fleet-map').setView([37.7749, -122.4194], 12);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+          }).addTo(map);
+          const vehicles = [
+            { lat: 37.7749, lng: -122.4194, name: 'Fleet Unit #402', status: 'Active (62 MPH)' },
+            { lat: 37.7833, lng: -122.4167, name: 'Fleet Unit #108', status: 'Active (55 MPH)' },
+            { lat: 37.7650, lng: -122.4300, name: 'Fleet Unit #505', status: 'Alert (Over-speed 78 MPH)' },
+            { lat: 37.7500, lng: -122.4100, name: 'Fleet Unit #210', status: 'Idle (Depot South)' }
+          ];
+          vehicles.forEach(v => {
+            L.marker([v.lat, v.lng]).addTo(map).bindPopup('<b>' + v.name + '</b><br>' + v.status);
+          });
+        } catch (mapErr) {
+          console.warn('Map initialization note:', mapErr);
+        }
       }
     });
   </script>

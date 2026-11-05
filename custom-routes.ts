@@ -23,6 +23,7 @@ import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
 import { telegramNotifier } from './src/services/telegramNotifier'
 import { pipelineManager } from './src/swarm/engine/PipelineManager'
 import { appBuilderEngine } from './src/swarm/tools/appBuilderEngine'
+import { serveProjectClient } from './src/routes/previewRoutes'
 import { obsidianVaultManager } from './src/swarm/memory/ObsidianVaultManager'
 import { ollamaLocalProvider } from './src/swarm/engine/OllamaLocalProvider'
 
@@ -2876,24 +2877,15 @@ app.post('/pipelines/:id/execute', async (c) => {
   }
 })
 
-// GET /api/preview/:slug — Live Web Preview endpoint
+// GET /api/preview/:slug and /:file{.*} — Live Web Preview endpoint with full candidate resolution
 app.get('/preview/:slug', (c) => {
   const slug = c.req.param('slug')
-  const file = appBuilderEngine.getBuildFile(slug, 'index.html')
-  if (!file) {
-    return c.html(`<h1>404 Not Found</h1><p>Sandbox preview for [${slug}] has not been scaffolded yet.</p>`, 404)
-  }
-  return c.body(file.content as any, 200, { 'Content-Type': file.contentType })
+  return serveProjectClient(c, slug)
 })
 
-app.get('/preview/:slug/:file', (c) => {
+app.get('/preview/:slug/:file{.*}', (c) => {
   const slug = c.req.param('slug')
-  const fileName = c.req.param('file')
-  const file = appBuilderEngine.getBuildFile(slug, fileName)
-  if (!file) {
-    return c.text('Not found', 404)
-  }
-  return c.body(file.content as any, 200, { 'Content-Type': file.contentType })
+  return serveProjectClient(c, slug)
 })
 
 // GET /api/artifacts/download — Download generated office documents

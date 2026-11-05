@@ -179,68 +179,99 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.textContent = text;
   }
 
+  const isSolar = Boolean(
+    ${JSON.stringify(blueprint.domain === 'COMMERCIAL_SOLAR' || /solar|roof/i.test(blueprint.directive || ''))}
+  );
+  const isFleet = Boolean(
+    ${JSON.stringify(blueprint.domain === 'FLEET_LOGISTICS' || /fleet|vehicle|tracker/i.test(blueprint.directive || ''))}
+  );
+  const isCrypto = Boolean(
+    ${JSON.stringify(blueprint.domain === 'CRYPTO_FINANCE' || /crypto|coin|price|token/i.test(blueprint.directive || ''))}
+  );
+
   let lastCalculatedData = [];
   let chartInstance = null;
 
   function updateChart(data) {
-    const canvas = document.getElementById('projectionChart');
-    if (!canvas || typeof Chart === 'undefined') return;
-    const labels = data.slice(0, 10).map(d => 'Yr ' + d.year);
-    const savings = data.slice(0, 10).map(d => d.annualSavings);
-    const cashFlow = data.slice(0, 10).map(d => d.cumulativeCashFlow);
+    const canvas = document.getElementById('projectionChart') || document.querySelector('canvas');
+    if (!canvas || typeof canvas.getContext !== 'function' || typeof Chart === 'undefined') return;
+    try {
+      const labels = data.slice(0, 10).map(d => 'Yr ' + (d.year || d.label || d));
+      const primaryData = data.slice(0, 10).map(d => d.cumulativeCashFlow !== undefined ? d.cumulativeCashFlow : (d.value || d.val || 0));
+      const secondaryData = data.slice(0, 10).map(d => d.annualSavings !== undefined ? d.annualSavings : (d.delta || 0));
 
-    if (chartInstance) {
-      chartInstance.data.labels = labels;
-      chartInstance.data.datasets[0].data = cashFlow;
-      chartInstance.data.datasets[1].data = savings;
-      chartInstance.update();
-      return;
-    }
-
-    const ctx = canvas.getContext('2d');
-    chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Cumulative Cash Flow ($)',
-            data: cashFlow,
-            borderColor: '#38bdf8',
-            backgroundColor: 'rgba(56, 189, 248, 0.1)',
-            fill: true,
-            tension: 0.3
-          },
-          {
-            label: 'Annual Savings ($)',
-            data: savings,
-            borderColor: '#10b981',
-            backgroundColor: 'transparent',
-            borderDash: [5, 5],
-            tension: 0.3
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } } }
-        },
-        scales: {
-          x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-          y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }
-        }
+      if (chartInstance) {
+        chartInstance.data.labels = labels;
+        if (chartInstance.data.datasets[0]) chartInstance.data.datasets[0].data = primaryData;
+        if (chartInstance.data.datasets[1]) chartInstance.data.datasets[1].data = secondaryData;
+        chartInstance.update();
+        return;
       }
-    });
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: isSolar ? 'Cumulative Cash Flow ($)' : (isFleet ? 'Vehicle Telemetry Speed' : 'Operational Output'),
+              data: primaryData,
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              fill: true,
+              tension: 0.3
+            },
+            {
+              label: isSolar ? 'Annual Savings ($)' : (isFleet ? 'Active Shift Alerts' : 'System Delta'),
+              data: secondaryData,
+              borderColor: '#10b981',
+              backgroundColor: 'transparent',
+              borderDash: [5, 5],
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          }
+        }
+      });
+    } catch (chartErr) {
+      console.warn('[Midas Engine] Chart render note:', chartErr);
+    }
   }
 
   let activeFilter = 'all';
   let searchTerm = '';
-  let records = [
+  let records = isSolar ? [
     { id: '01', name: 'Facility Alpha - Primary Array', status: 'Active', delta: '48,200 kWh', val: 8676 },
-    { id: '02', name: 'Fleet Unit #402 - Route Metro', status: 'Alert', delta: '94.2% Efficiency', val: 14280 },
+    { id: '02', name: 'Facility Beta - Rooftop Commercial', status: 'Alert', delta: '94.2% Efficiency', val: 14280 },
     { id: '03', name: 'Standby Inverter Station', status: 'Idle', delta: '0.0 kWh', val: 0 }
+  ] : isFleet ? [
+    { id: 'FL-01', name: 'Fleet Unit #402 — Freightliner Cascadia', status: 'Active', delta: '62 MPH • 98.4% Efficiency', val: 14280 },
+    { id: 'FL-02', name: 'Fleet Unit #108 — Kenworth T680', status: 'Active', delta: '55 MPH • 99.1% Efficiency', val: 18500 },
+    { id: 'FL-03', name: 'Fleet Unit #505 — Peterbilt 579', status: 'Alert', delta: 'Over-speed 78 MPH • High Temp', val: 9400 },
+    { id: 'FL-04', name: 'Fleet Unit #210 — Volvo VNL 860', status: 'Idle', delta: 'Depot South • Engine Off', val: 0 },
+    { id: 'FL-05', name: 'Fleet Unit #315 — Mack Anthem', status: 'Active', delta: '58 MPH • 96.8% Efficiency', val: 12600 }
+  ] : isCrypto ? [
+    { id: 'TX-01', name: 'BTC / USD — Automated Grid Node', status: 'Active', delta: '+4.2% 24h Vol', val: 68450 },
+    { id: 'TX-02', name: 'ETH / USD — Staking Liquidity Pool', status: 'Active', delta: '+2.8% 24h Vol', val: 3520 },
+    { id: 'TX-03', name: 'SOL / USD — High Frequency Arbitrage', status: 'Alert', delta: 'Slippage Alert 1.4%', val: 178 },
+    { id: 'TX-04', name: 'USDC Vault — Reserve Collateral', status: 'Idle', delta: '0.0% Delta', val: 100000 }
+  ] : [
+    { id: 'REC-01', name: 'Primary Cluster Node A', status: 'Active', delta: '99.4% Throughput', val: 12500 },
+    { id: 'REC-02', name: 'Secondary Ingestion Pipeline', status: 'Active', delta: '98.1% Throughput', val: 9800 },
+    { id: 'REC-03', name: 'Edge Gateway Instance 04', status: 'Alert', delta: 'Latency Spike 142ms', val: 4300 },
+    { id: 'REC-04', name: 'Backup Archive Replica', status: 'Idle', delta: 'Synchronized', val: 1500 }
   ];
 
   function renderTable() {
@@ -277,10 +308,6 @@ document.addEventListener('DOMContentLoaded', () => {
       tbody.appendChild(tr);
     });
   }
-
-  const isSolar = Boolean(
-    ${JSON.stringify(blueprint.domain === 'COMMERCIAL_SOLAR' || /solar|roof/i.test(blueprint.directive || ''))}
-  );
 
   function recalculate() {
     if (isSolar) {
@@ -360,7 +387,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Bind operational input sliders
-  ['roof-sqft', 'solar-kw', 'electricity-rate', 'fleet-units', 'speed-threshold', 'alert-threshold', 'param-1', 'param-2', 'param-3'].forEach(id => {
+  const inputSliderIds = isSolar 
+    ? ['roof-sqft', 'solar-kw', 'electricity-rate'] 
+    : ['fleet-units', 'speed-threshold', 'alert-threshold', 'param-1', 'param-2', 'param-3'];
+
+  inputSliderIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', recalculate);
@@ -435,22 +466,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const statusInput = document.getElementById('new-record-status');
       const outputInput = document.getElementById('new-record-output');
       if (nameInput && statusInput && outputInput) {
-        const nextId = String(records.length + 1).padStart(2, '0');
+        const nextId = isFleet ? ('FL-' + String(records.length + 1).padStart(2, '0')) : String(records.length + 1).padStart(2, '0');
         records.unshift({
           id: nextId,
-          name: nameInput.value.trim() || 'Unit #' + nextId,
+          name: nameInput.value.trim() || 'Record #' + nextId,
           status: statusInput.value || 'Active',
-          delta: outputInput.value.trim() || '10,000 kWh',
+          delta: outputInput.value.trim() || (isFleet ? '58 MPH • 98% Efficiency' : '10,000 kWh'),
           val: Math.round(Math.random() * 10000 + 5000)
         });
         renderTable();
         closeModal();
         recordForm.reset();
+        recalculate();
       }
     });
   }
 
-  // Navigation tab switching
+  // Navigation tab switching & smooth scrolling
   ['nav-dashboard', 'nav-telemetry', 'nav-map', 'nav-records', 'nav-settings'].forEach(navId => {
     const el = document.getElementById(navId);
     if (el) {
@@ -461,6 +493,14 @@ document.addEventListener('DOMContentLoaded', () => {
         el.className = 'nav-item flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold';
         if (navId === 'nav-settings') {
           openModal();
+        } else if (navId === 'nav-records') {
+          const recEl = document.getElementById('records-section');
+          if (recEl) recEl.scrollIntoView({ behavior: 'smooth' });
+        } else if (navId === 'nav-map' || navId === 'nav-telemetry') {
+          const mapEl = document.getElementById('fleet-map') || document.getElementById('projectionChart');
+          if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
     }
@@ -469,12 +509,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetBtn = document.getElementById('recalculate-btn');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
-      const roof = document.getElementById('roof-sqft');
-      const solar = document.getElementById('solar-kw');
-      const rate = document.getElementById('electricity-rate');
-      if (roof) roof.value = '50000';
-      if (solar) solar.value = '400';
-      if (rate) rate.value = '0.18';
+      if (isSolar) {
+        const roof = document.getElementById('roof-sqft');
+        const solar = document.getElementById('solar-kw');
+        const rate = document.getElementById('electricity-rate');
+        if (roof) roof.value = '50000';
+        if (solar) solar.value = '400';
+        if (rate) rate.value = '0.18';
+      } else {
+        const p1 = document.getElementById('fleet-units') || document.getElementById('param-1');
+        const p2 = document.getElementById('speed-threshold') || document.getElementById('param-2');
+        const p3 = document.getElementById('alert-threshold') || document.getElementById('param-3');
+        if (p1) p1.value = '148';
+        if (p2) p2.value = '65';
+        if (p3) p3.value = '10';
+      }
       recalculate();
     });
   }
@@ -483,15 +532,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportCsvBtn = document.getElementById('export-csv-btn');
   if (exportCsvBtn) {
     exportCsvBtn.addEventListener('click', () => {
-      let csv = 'Year,Production (kWh),Annual Savings ($),Cumulative Net Flow ($)\\n';
-      lastCalculatedData.forEach(row => {
-        csv += \`\${row.year},\${row.kwh},\${row.annualSavings},\${row.cumulativeCashFlow}\\n\`;
-      });
+      let csv = isSolar 
+        ? 'Year,Production (kWh),Annual Savings ($),Cumulative Net Flow ($)\\n'
+        : 'Index,Resource / Name,Status,Delta / Telemetry,Cumulative Value ($)\\n';
+      if (isSolar && lastCalculatedData.length > 0) {
+        lastCalculatedData.forEach(row => {
+          csv += \`\${row.year},\${row.kwh},\${row.annualSavings},\${row.cumulativeCashFlow}\\n\`;
+        });
+      } else {
+        records.forEach(row => {
+          csv += \`"\${row.id}","\${(row.name || '').replace(/"/g, '""')}","\${row.status}","\${(row.delta || '').replace(/"/g, '""')}",\${row.val || 0}\\n\`;
+        });
+      }
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', '${blueprint.slug}-financial-model.csv');
+      link.setAttribute('download', '${blueprint.slug}-export.csv');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

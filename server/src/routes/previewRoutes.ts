@@ -95,10 +95,12 @@ function injectDesignSystemHarness(html: string): string {
   return harness + html
 }
 
-function serveProjectClient(c: Context, slug: string) {
+export function serveProjectClient(c: Context, slug: string) {
   const root = workspaceManager.getWorkspaceRoot(slug)
   const url = new URL(c.req.url)
-  const prefix = `/projects/${slug}`
+  const prefix = url.pathname.startsWith(`/preview/${slug}`)
+    ? `/preview/${slug}`
+    : `/projects/${slug}`
   let subpath = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : url.pathname
   if (subpath.startsWith('/')) subpath = subpath.slice(1)
   if (!subpath || subpath === '') subpath = 'index.html'
@@ -109,7 +111,8 @@ function serveProjectClient(c: Context, slug: string) {
     path.join(root, 'client', 'dist', subpath),
     path.join(root, 'client', subpath),
     path.join(root, subpath),
-    path.join(process.cwd(), 'dist', 'sandboxes', slug, subpath)
+    path.join(process.cwd(), 'dist', 'sandboxes', slug, subpath),
+    path.join(process.cwd(), 'artifacts', 'builds', slug, subpath)
   ]
 
   for (const candidate of candidates) {
@@ -128,7 +131,8 @@ function serveProjectClient(c: Context, slug: string) {
     path.join(root, 'public', 'index.html'),
     path.join(root, 'client', 'dist', 'index.html'),
     path.join(root, 'client', 'index.html'),
-    path.join(process.cwd(), 'dist', 'sandboxes', slug, 'index.html')
+    path.join(process.cwd(), 'dist', 'sandboxes', slug, 'index.html'),
+    path.join(process.cwd(), 'artifacts', 'builds', slug, 'index.html')
   ]
 
   for (const idxPath of indexCandidates) {
@@ -172,11 +176,11 @@ function serveProjectClient(c: Context, slug: string) {
 }
 
 // 1. Health monitoring endpoint
-previewRoutes.get('/projects/:slug/health', async (c) => {
+const handleHealth = async (c: Context) => {
   const slug = c.req.param('slug')
   const proc = processManager.getProcessInfo(slug)
   const root = workspaceManager.getWorkspaceRoot(slug)
-  const uiExists = fs.existsSync(root)
+  const uiExists = fs.existsSync(root) || fs.existsSync(path.join(process.cwd(), 'artifacts', 'builds', slug))
 
   return c.json({
     ok: true,
@@ -203,10 +207,13 @@ previewRoutes.get('/projects/:slug/health', async (c) => {
       logs: proc?.logs.slice(-5) || []
     }
   })
-})
+}
 
-// 2. Dynamic Reverse Proxying for /projects/${slug}/api/*
-previewRoutes.all('/projects/:slug/api/*', async (c) => {
+previewRoutes.get('/projects/:slug/health', handleHealth)
+previewRoutes.get('/preview/:slug/health', handleHealth)
+
+// 2. Dynamic Reverse Proxying for /projects/${slug}/api/* and /preview/${slug}/api/*
+const handleApiProxy = async (c: Context) => {
   const slug = c.req.param('slug')
   const port = processManager.getAllocatedPort(slug)
 
@@ -218,7 +225,7 @@ previewRoutes.all('/projects/:slug/api/*', async (c) => {
   }
 
   const url = new URL(c.req.url)
-  const prefix = `/projects/${slug}`
+  const prefix = url.pathname.startsWith(`/preview/${slug}`) ? `/preview/${slug}` : `/projects/${slug}`
   const targetSubpath = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : url.pathname
   const targetUrl = `http://127.0.0.1:${port}${targetSubpath}${url.search}`
 
@@ -251,7 +258,10 @@ previewRoutes.all('/projects/:slug/api/*', async (c) => {
       error: `Failed to proxy to backend service at ${targetUrl}: ${err?.message || err}`
     }, 502)
   }
-})
+}
+
+previewRoutes.all('/projects/:slug/api/*', handleApiProxy)
+previewRoutes.all('/preview/:slug/api/*', handleApiProxy)
 
 // 3. Serve client application
 previewRoutes.get('/projects/:slug/*', async (c) => {
@@ -260,6 +270,16 @@ previewRoutes.get('/projects/:slug/*', async (c) => {
 })
 
 previewRoutes.get('/projects/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  return serveProjectClient(c, slug)
+})
+
+previewRoutes.get('/preview/:slug/*', async (c) => {
+  const slug = c.req.param('slug')
+  return serveProjectClient(c, slug)
+})
+
+previewRoutes.get('/preview/:slug', async (c) => {
   const slug = c.req.param('slug')
   return serveProjectClient(c, slug)
 })
