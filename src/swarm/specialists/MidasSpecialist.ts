@@ -278,48 +278,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const isSolar = Boolean(
+    ${JSON.stringify(blueprint.domain === 'COMMERCIAL_SOLAR' || /solar|roof/i.test(blueprint.directive || ''))}
+  );
+
   function recalculate() {
-    const roofSqft = getNumericValue('roof-sqft', 50000);
-    const solarKw = getNumericValue('solar-kw', 400);
-    const elecRate = getNumericValue('electricity-rate', 0.18);
+    if (isSolar) {
+      const roofSqft = getNumericValue('roof-sqft', 50000);
+      const solarKw = getNumericValue('solar-kw', 400);
+      const elecRate = getNumericValue('electricity-rate', 0.18);
 
-    updateText('roof-sqft-val', roofSqft.toLocaleString() + ' sqft');
-    updateText('solar-kw-val', solarKw.toLocaleString() + ' kW');
-    updateText('electricity-rate-val', '$' + elecRate.toFixed(2) + ' /kWh');
+      updateText('roof-sqft-val', roofSqft.toLocaleString() + ' sqft');
+      updateText('solar-kw-val', solarKw.toLocaleString() + ' kW');
+      updateText('electricity-rate-val', '$' + elecRate.toFixed(2) + ' /kWh');
 
-    // Financial formulas
-    const roofCost = roofSqft * 11.5;
-    const solarCapex = solarKw * 1850;
-    const grossCapex = roofCost + solarCapex;
-    const itcCredit = (solarCapex + (roofCost * 0.35)) * 0.30;
-    const netCapex = grossCapex - itcCredit;
+      // Financial formulas
+      const roofCost = roofSqft * 11.5;
+      const solarCapex = solarKw * 1850;
+      const grossCapex = roofCost + solarCapex;
+      const itcCredit = (solarCapex + (roofCost * 0.35)) * 0.30;
+      const netCapex = grossCapex - itcCredit;
 
-    const initialYearKwh = solarKw * 1450;
-    const initialYearSavings = initialYearKwh * elecRate;
-    const paybackYears = initialYearSavings > 0 ? (netCapex / initialYearSavings) : 0;
+      const initialYearKwh = solarKw * 1450;
+      const initialYearSavings = initialYearKwh * elecRate;
+      const paybackYears = initialYearSavings > 0 ? (netCapex / initialYearSavings) : 0;
 
-    updateText('gross-capex', formatCurrency(grossCapex));
-    updateText('itc-incentive', formatCurrency(itcCredit));
-    updateText('net-capex', formatCurrency(netCapex));
-    updateText('payback-years', paybackYears.toFixed(1) + ' Yrs');
+      updateText('gross-capex', formatCurrency(grossCapex));
+      updateText('itc-incentive', formatCurrency(itcCredit));
+      updateText('net-capex', formatCurrency(netCapex));
+      updateText('payback-years', paybackYears.toFixed(1) + ' Yrs');
 
-    // 25-Year Projection Matrix
-    lastCalculatedData = [];
-    let cumulativeFlow = -netCapex;
+      // 25-Year Projection Matrix
+      lastCalculatedData = [];
+      let cumulativeFlow = -netCapex;
 
-    for (let yr = 1; yr <= 25; yr++) {
-      const degradation = Math.pow(1 - 0.005, yr - 1);
-      const escalation = Math.pow(1 + 0.032, yr - 1);
-      const yrKwh = Math.round(initialYearKwh * degradation);
-      const yrSavings = Math.round(yrKwh * elecRate * escalation);
-      cumulativeFlow += yrSavings;
+      for (let yr = 1; yr <= 25; yr++) {
+        const degradation = Math.pow(1 - 0.005, yr - 1);
+        const escalation = Math.pow(1 + 0.032, yr - 1);
+        const yrKwh = Math.round(initialYearKwh * degradation);
+        const yrSavings = Math.round(yrKwh * elecRate * escalation);
+        cumulativeFlow += yrSavings;
 
-      lastCalculatedData.push({
-        year: yr,
-        kwh: yrKwh,
-        annualSavings: yrSavings,
-        cumulativeCashFlow: cumulativeFlow
-      });
+        lastCalculatedData.push({
+          year: yr,
+          kwh: yrKwh,
+          annualSavings: yrSavings,
+          cumulativeCashFlow: cumulativeFlow
+        });
+      }
+    } else {
+      // Dynamic Domain Telemetry Recalculation
+      const p1 = getNumericValue('fleet-units', getNumericValue('param-1', 148));
+      const p2 = getNumericValue('speed-threshold', getNumericValue('param-2', 65));
+      const p3 = getNumericValue('alert-threshold', getNumericValue('param-3', 10));
+
+      updateText('fleet-units-val', p1.toLocaleString() + ' Units');
+      updateText('speed-threshold-val', p2.toFixed(0) + ' MPH');
+      updateText('alert-threshold-val', p3.toFixed(0) + ' sec');
+      updateText('param-1-val', p1.toLocaleString() + ' Units');
+      updateText('param-2-val', p2.toFixed(0) + ' %');
+      updateText('param-3-val', p3.toFixed(0) + ' sec');
+
+      updateText('kpi-active-fleet', Math.round(p1).toLocaleString() + ' Units');
+      updateText('kpi-avg-speed', (p2 * 0.85).toFixed(1) + ' MPH');
+      updateText('kpi-records', Math.round(p1).toLocaleString() + ' Items');
+      updateText('kpi-throughput', Math.min(99.9, p2 * 1.05).toFixed(1) + '%');
+
+      lastCalculatedData = [];
+      for (let i = 1; i <= 10; i++) {
+        lastCalculatedData.push({
+          year: i,
+          kwh: Math.round(p1 * 12 * i),
+          annualSavings: Math.round(p2 * 100 * i),
+          cumulativeCashFlow: Math.round(p1 * p2 * i)
+        });
+      }
     }
 
     updateChart(lastCalculatedData);
@@ -327,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Bind operational input sliders
-  ['roof-sqft', 'solar-kw', 'electricity-rate'].forEach(id => {
+  ['roof-sqft', 'solar-kw', 'electricity-rate', 'fleet-units', 'speed-threshold', 'alert-threshold', 'param-1', 'param-2', 'param-3'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', recalculate);

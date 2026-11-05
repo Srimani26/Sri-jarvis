@@ -61,7 +61,31 @@ export interface BlueprintFormula {
   output: string
 }
 
+export interface BlueprintEntityField {
+  name: string
+  type: string
+  example?: any
+}
+
+export interface BlueprintEntity {
+  name: string
+  fields: BlueprintEntityField[]
+}
+
+export interface BlueprintKPI {
+  label: string
+  unit: string
+  baseline: number
+  format: string
+}
+
 export interface ProjectBlueprint {
+  title?: string
+  domain?: string
+  entities?: BlueprintEntity[]
+  kpis?: BlueprintKPI[]
+  navigationViews?: string[]
+  visualCanvasType?: 'map' | 'chart' | 'grid' | 'network'
   name: string
   slug: string
   directive: string

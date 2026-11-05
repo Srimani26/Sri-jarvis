@@ -11283,6 +11283,7 @@ var init_appBuilderEngine = __esm({
         <div class="calculator-grid">
           <div class="controls-card">
             <h3>Configuration Parameters</h3>
+            ${isSolarOrRoofing ? `
             <div class="input-group">
               <label for="roof-sqft">Roof Surface Area (SqFt)</label>
               <input type="range" id="roof-sqft" min="5000" max="250000" step="2500" value="45000" oninput="calculate()">
@@ -11300,10 +11301,30 @@ var init_appBuilderEngine = __esm({
               <input type="range" id="battery-kwh" min="0" max="2000" step="50" value="500" oninput="calculate()">
               <div class="val-display"><span id="battery-kwh-val">500</span> kWh</div>
             </div>
+            ` : `
+            <div class="input-group">
+              <label for="param-1">Operational Capacity Units</label>
+              <input type="range" id="param-1" min="10" max="500" step="5" value="150" oninput="calculate()">
+              <div class="val-display"><span id="param-1-val">150</span> Units</div>
+            </div>
+
+            <div class="input-group">
+              <label for="param-2">Target Throughput Rate (%)</label>
+              <input type="range" id="param-2" min="50" max="100" step="1" value="95" oninput="calculate()">
+              <div class="val-display"><span id="param-2-val">95</span> %</div>
+            </div>
+
+            <div class="input-group">
+              <label for="param-3">Telemetry Sampling Interval (sec)</label>
+              <input type="range" id="param-3" min="1" max="60" step="1" value="10" oninput="calculate()">
+              <div class="val-display"><span id="param-3-val">10</span> sec</div>
+            </div>
+            `}
           </div>
 
           <div class="results-card" id="metrics">
             <h3>Executive Summary</h3>
+            ${isSolarOrRoofing ? `
             <div class="metric-row">
               <span>Gross Capex</span>
               <strong id="gross-capex">$0</strong>
@@ -11320,6 +11341,24 @@ var init_appBuilderEngine = __esm({
               <span>Estimated Annual Production</span>
               <strong id="annual-mwh">0 MWh</strong>
             </div>
+            ` : `
+            <div class="metric-row">
+              <span>Active Entities</span>
+              <strong id="metric-1">150 Units</strong>
+            </div>
+            <div class="metric-row">
+              <span>System Health</span>
+              <strong id="metric-2" class="highlight-green">98.4%</strong>
+            </div>
+            <div class="metric-row total">
+              <span>Operational Efficiency</span>
+              <strong id="metric-3">Optimal</strong>
+            </div>
+            <div class="metric-row">
+              <span>Active Incident Rate</span>
+              <strong id="metric-4">0 Alerts</strong>
+            </div>
+            `}
           </div>
         </div>
       </section>
@@ -11398,42 +11437,70 @@ function formatCurrency(val) {
 
 function calculate() {
   const roofSqftEl = document.getElementById('roof-sqft');
-  const solarKwEl = document.getElementById('solar-kw');
-  const batteryKwhEl = document.getElementById('battery-kwh');
+  if (roofSqftEl) {
+    const solarKwEl = document.getElementById('solar-kw');
+    const batteryKwhEl = document.getElementById('battery-kwh');
 
-  const sqft = roofSqftEl ? parseFloat(roofSqftEl.value) || 0 : 0;
-  const kw = solarKwEl ? parseFloat(solarKwEl.value) || 0 : 0;
-  const batteryKwh = batteryKwhEl ? parseFloat(batteryKwhEl.value) || 0 : 0;
+    const sqft = parseFloat(roofSqftEl.value) || 0;
+    const kw = solarKwEl ? parseFloat(solarKwEl.value) || 0 : 0;
+    const batteryKwh = batteryKwhEl ? parseFloat(batteryKwhEl.value) || 0 : 0;
 
-  const roofValEl = document.getElementById('roof-sqft-val');
-  const solarValEl = document.getElementById('solar-kw-val');
-  const batteryValEl = document.getElementById('battery-kwh-val');
+    const roofValEl = document.getElementById('roof-sqft-val');
+    const solarValEl = document.getElementById('solar-kw-val');
+    const batteryValEl = document.getElementById('battery-kwh-val');
 
-  if (roofValEl) roofValEl.textContent = sqft.toLocaleString();
-  if (solarValEl) solarValEl.textContent = kw.toLocaleString();
-  if (batteryValEl) batteryValEl.textContent = batteryKwh.toLocaleString();
+    if (roofValEl) roofValEl.textContent = sqft.toLocaleString();
+    if (solarValEl) solarValEl.textContent = kw.toLocaleString();
+    if (batteryValEl) batteryValEl.textContent = batteryKwh.toLocaleString();
 
-  // Dynamic calculations
-  const roofCost = sqft * 11.5;
-  const solarCost = kw * 1850;
-  const batteryCost = batteryKwh * 650;
+    // Dynamic calculations
+    const roofCost = sqft * 11.5;
+    const solarCost = kw * 1850;
+    const batteryCost = batteryKwh * 650;
 
-  const grossCapex = roofCost + solarCost + batteryCost;
-  const itcIncentive = (solarCost + batteryCost) * 0.30;
-  const netCapex = grossCapex - itcIncentive;
-  const annualMwh = Math.round(kw * 1.45);
+    const grossCapex = roofCost + solarCost + batteryCost;
+    const itcIncentive = (solarCost + batteryCost) * 0.30;
+    const netCapex = grossCapex - itcIncentive;
+    const annualMwh = Math.round(kw * 1.45);
 
-  const grossEl = document.getElementById('gross-capex');
-  const itcEl = document.getElementById('itc-incentive');
-  const netEl = document.getElementById('net-capex');
-  const mwhEl = document.getElementById('annual-mwh');
+    const grossEl = document.getElementById('gross-capex');
+    const itcEl = document.getElementById('itc-incentive');
+    const netEl = document.getElementById('net-capex');
+    const mwhEl = document.getElementById('annual-mwh');
 
-  if (grossEl) grossEl.textContent = formatCurrency(grossCapex);
-  if (itcEl) itcEl.textContent = '-' + formatCurrency(itcIncentive);
-  if (netEl) netEl.textContent = formatCurrency(netCapex);
-  if (mwhEl) mwhEl.textContent = annualMwh.toLocaleString() + ' MWh';
+    if (grossEl) grossEl.textContent = formatCurrency(grossCapex);
+    if (itcEl) itcEl.textContent = '-' + formatCurrency(itcIncentive);
+    if (netEl) netEl.textContent = formatCurrency(netCapex);
+    if (mwhEl) mwhEl.textContent = annualMwh.toLocaleString() + ' MWh';
 
-  return { grossCapex, itcIncentive, netCapex, annualMwh };
+    return { grossCapex, itcIncentive, netCapex, annualMwh };
+  }
+
+  // Dynamic Domain Calculations (Non-Solar)
+  const p1El = document.getElementById('param-1');
+  const p2El = document.getElementById('param-2');
+  const p3El = document.getElementById('param-3');
+  const p1 = p1El ? parseFloat(p1El.value) || 0 : 150;
+  const p2 = p2El ? parseFloat(p2El.value) || 0 : 95;
+  const p3 = p3El ? parseFloat(p3El.value) || 0 : 10;
+
+  const v1El = document.getElementById('param-1-val');
+  const v2El = document.getElementById('param-2-val');
+  const v3El = document.getElementById('param-3-val');
+  if (v1El) v1El.textContent = p1.toLocaleString() + ' Units';
+  if (v2El) v2El.textContent = p2.toLocaleString() + ' %';
+  if (v3El) v3El.textContent = p3.toLocaleString() + ' sec';
+
+  const m1El = document.getElementById('metric-1');
+  const m2El = document.getElementById('metric-2');
+  const m3El = document.getElementById('metric-3');
+  const m4El = document.getElementById('metric-4');
+  if (m1El) m1El.textContent = p1.toLocaleString() + ' Units';
+  if (m2El) m2El.textContent = Math.min(99.9, p2 * 1.04).toFixed(1) + '%';
+  if (m3El) m3El.textContent = p2 > 90 ? 'Optimal' : 'Standard';
+  if (m4El) m4El.textContent = '0 Alerts';
+
+  return { units: p1, health: p2, sampling: p3 };
 }
 
 window.calculate = calculate;
@@ -15944,6 +16011,67 @@ input[type="range"] {
         const title = blueprint.name || "J.A.R.V.I.S. Enterprise Platform";
         const directive = blueprint.directive || "Autonomous SDLC Swarm Deliverable";
         const isFleetDirective = /fleet|vehicle|tracker|gps|driver|transit|logistics/i.test(directive);
+        const isSolar = Boolean(
+          blueprint.domain === "COMMERCIAL_SOLAR" || /solar|roof/i.test(blueprint.directive || "") || /solar|roof/i.test(blueprint.name || "")
+        );
+        let kpiCards = [];
+        if (isSolar) {
+          kpiCards = [
+            { label: "Gross Capex", id: "gross-capex", val: "$0", delta: "+14% vs last week", deltaClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", note: "Asset footprint telemetry", valClass: "text-white" },
+            { label: "30% ITC Credit", id: "itc-incentive", val: "$0", delta: "+8.2%", deltaClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", note: "Subsidies & incentives applied", valClass: "text-emerald-400" },
+            { label: "Net Capex", id: "net-capex", val: "$0", delta: "+12.4%", deltaClass: "text-sky-400 bg-sky-500/10 border-sky-500/20", note: "Capital outlay after rebates", valClass: "text-sky-400" },
+            { label: "Payback Period", id: "payback-years", val: "0.0 Yrs", delta: "-2.5%", deltaClass: "text-amber-400 bg-amber-500/10 border-amber-500/20", note: "Amortized breakeven horizon", valClass: "text-amber-400" }
+          ];
+        } else if (blueprint.kpis && blueprint.kpis.length >= 4) {
+          kpiCards = blueprint.kpis.map((kpi, idx) => ({
+            label: kpi.label,
+            id: `kpi-${kpi.label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+            val: `${kpi.baseline} ${kpi.unit}`,
+            delta: idx === 0 ? "+12% vs yesterday" : idx === 1 ? "Nominal" : idx === 2 ? "+4.8%" : "Active",
+            deltaClass: idx % 2 === 0 ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-sky-400 bg-sky-500/10 border-sky-500/20",
+            note: "Live domain telemetry stream",
+            valClass: idx === 0 ? "text-white" : idx === 1 ? "text-emerald-400" : "text-sky-400"
+          }));
+        } else {
+          kpiCards = [
+            { label: "Active Records", id: "kpi-records", val: "148 Units", delta: "+12% vs last week", deltaClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", note: "Active operational entities", valClass: "text-white" },
+            { label: "System Throughput", id: "kpi-throughput", val: "98.4%", delta: "+4.1%", deltaClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", note: "Live service reliability", valClass: "text-emerald-400" },
+            { label: "Operational Load", id: "kpi-load", val: "42.8 Units", delta: "-1.8%", deltaClass: "text-sky-400 bg-sky-500/10 border-sky-500/20", note: "Current load metric", valClass: "text-sky-400" },
+            { label: "Active Alerts", id: "kpi-alerts", val: "0 Critical", delta: "Nominal", deltaClass: "text-amber-400 bg-amber-500/10 border-amber-500/20", note: "System health monitoring", valClass: "text-amber-400" }
+          ];
+        }
+        const kpiCardsHtml = kpiCards.map((c) => `
+          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <span>${c.label}</span>
+              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold border ${c.deltaClass}">${c.delta}</span>
+            </div>
+            <div id="${c.id}" class="text-2xl font-extrabold ${c.valClass || "text-white"} font-mono">${c.val}</div>
+            <p class="text-xs text-slate-500">${c.note}</p>
+          </div>
+    `).join("\n");
+        const inputs = isSolar ? [
+          { id: "roof-sqft", label: "Roof Surface Area / Capacity", valId: "roof-sqft-val", val: "50,000 sqft", min: 1e4, max: 3e5, step: 5e3, initial: 5e4 },
+          { id: "solar-kw", label: "Power Rating / Active Units", valId: "solar-kw-val", val: "400 kW", min: 50, max: 2500, step: 25, initial: 400 },
+          { id: "electricity-rate", label: "Blended Rate / Cost Factor", valId: "electricity-rate-val", val: "$0.18 /kWh", min: 0.08, max: 0.45, step: 0.01, initial: 0.18 }
+        ] : isFleetDirective ? [
+          { id: "fleet-units", label: "Active Fleet Vehicles", valId: "fleet-units-val", val: "148 Units", min: 10, max: 500, step: 5, initial: 148 },
+          { id: "speed-threshold", label: "Speed Limit Threshold", valId: "speed-threshold-val", val: "65 MPH", min: 25, max: 100, step: 5, initial: 65 },
+          { id: "alert-threshold", label: "Telemetry Sample Interval", valId: "alert-threshold-val", val: "10 sec", min: 1, max: 60, step: 1, initial: 10 }
+        ] : [
+          { id: "param-1", label: "Operational Capacity / Units", valId: "param-1-val", val: "240 Units", min: 10, max: 1e3, step: 10, initial: 240 },
+          { id: "param-2", label: "System Throughput Target", valId: "param-2-val", val: "95 %", min: 50, max: 100, step: 1, initial: 95 },
+          { id: "param-3", label: "Sampling Rate / Frequency", valId: "param-3-val", val: "5 sec", min: 1, max: 60, step: 1, initial: 5 }
+        ];
+        const inputsHtml = inputs.map((inp) => `
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-2">
+                  <label for="${inp.id}" class="text-slate-300">${inp.label}</label>
+                  <span id="${inp.valId}" class="text-cyan-400 font-mono font-bold">${inp.val}</span>
+                </div>
+                <input type="range" id="${inp.id}" min="${inp.min}" max="${inp.max}" step="${inp.step}" value="${inp.initial}" class="w-full accent-cyan-400" aria-label="${inp.label}">
+              </div>
+    `).join("\n");
         return `<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -16056,41 +16184,7 @@ input[type="range"] {
       <main class="p-4 md:p-6 space-y-6">
         <!-- 2. 4-Column Metric KPI Cards with Delta Badges -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
-              <span>Gross Capex</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">+14% vs last week</span>
-            </div>
-            <div id="gross-capex" class="text-2xl font-extrabold text-white font-mono">$0</div>
-            <p class="text-xs text-slate-500">Asset footprint telemetry</p>
-          </div>
-
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-emerald-400 uppercase tracking-wider">
-              <span>30% ITC Credit</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">+8.2%</span>
-            </div>
-            <div id="itc-incentive" class="text-2xl font-extrabold text-emerald-400 font-mono">$0</div>
-            <p class="text-xs text-slate-500">Subsidies & incentives applied</p>
-          </div>
-
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-sky-400 uppercase tracking-wider">
-              <span>Net Capex</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">+12.4%</span>
-            </div>
-            <div id="net-capex" class="text-2xl font-extrabold text-sky-400 font-mono">$0</div>
-            <p class="text-xs text-slate-500">Capital outlay after rebates</p>
-          </div>
-
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-amber-400 uppercase tracking-wider">
-              <span>Payback Period</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">-2.5%</span>
-            </div>
-            <div id="payback-years" class="text-2xl font-extrabold text-amber-400 font-mono">0.0 Yrs</div>
-            <p class="text-xs text-slate-500">Amortized breakeven horizon</p>
-          </div>
+          ${kpiCardsHtml}
         </div>
 
         <!-- 3. Domain-Specific Visual Canvas & Inputs -->
@@ -16102,29 +16196,7 @@ input[type="range"] {
             </h2>
 
             <div class="space-y-4">
-              <div>
-                <div class="flex justify-between text-xs font-semibold mb-2">
-                  <label for="roof-sqft" class="text-slate-300">Surface Area / Capacity</label>
-                  <span id="roof-sqft-val" class="text-cyan-400 font-mono font-bold">50,000 sqft</span>
-                </div>
-                <input type="range" id="roof-sqft" min="10000" max="300000" step="5000" value="50000" class="w-full accent-cyan-400" aria-label="Surface Area">
-              </div>
-
-              <div>
-                <div class="flex justify-between text-xs font-semibold mb-2">
-                  <label for="solar-kw" class="text-slate-300">Power Rating / Active Units</label>
-                  <span id="solar-kw-val" class="text-cyan-400 font-mono font-bold">400 kW</span>
-                </div>
-                <input type="range" id="solar-kw" min="50" max="2500" step="25" value="400" class="w-full accent-cyan-400" aria-label="System Size">
-              </div>
-
-              <div>
-                <div class="flex justify-between text-xs font-semibold mb-2">
-                  <label for="electricity-rate" class="text-slate-300">Blended Rate / Cost Factor</label>
-                  <span id="electricity-rate-val" class="text-cyan-400 font-mono font-bold">$0.18 /kWh</span>
-                </div>
-                <input type="range" id="electricity-rate" min="0.08" max="0.45" step="0.01" value="0.18" class="w-full accent-cyan-400" aria-label="Cost Factor">
-              </div>
+              ${inputsHtml}
             </div>
           </section>
 
@@ -16217,7 +16289,7 @@ input[type="range"] {
         </div>
         <div>
           <label for="new-record-output" class="block text-xs font-medium text-slate-300 mb-1">Output / Delta</label>
-          <input type="text" id="new-record-output" placeholder="e.g. 12,400 kWh" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
+          <input type="text" id="new-record-output" placeholder="e.g. 98.4% or 420 units" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
         </div>
         <div class="flex justify-end gap-3 pt-2">
           <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition">Cancel</button>
@@ -16601,48 +16673,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const isSolar = Boolean(
+    ${JSON.stringify(blueprint.domain === "COMMERCIAL_SOLAR" || /solar|roof/i.test(blueprint.directive || ""))}
+  );
+
   function recalculate() {
-    const roofSqft = getNumericValue('roof-sqft', 50000);
-    const solarKw = getNumericValue('solar-kw', 400);
-    const elecRate = getNumericValue('electricity-rate', 0.18);
+    if (isSolar) {
+      const roofSqft = getNumericValue('roof-sqft', 50000);
+      const solarKw = getNumericValue('solar-kw', 400);
+      const elecRate = getNumericValue('electricity-rate', 0.18);
 
-    updateText('roof-sqft-val', roofSqft.toLocaleString() + ' sqft');
-    updateText('solar-kw-val', solarKw.toLocaleString() + ' kW');
-    updateText('electricity-rate-val', '$' + elecRate.toFixed(2) + ' /kWh');
+      updateText('roof-sqft-val', roofSqft.toLocaleString() + ' sqft');
+      updateText('solar-kw-val', solarKw.toLocaleString() + ' kW');
+      updateText('electricity-rate-val', '$' + elecRate.toFixed(2) + ' /kWh');
 
-    // Financial formulas
-    const roofCost = roofSqft * 11.5;
-    const solarCapex = solarKw * 1850;
-    const grossCapex = roofCost + solarCapex;
-    const itcCredit = (solarCapex + (roofCost * 0.35)) * 0.30;
-    const netCapex = grossCapex - itcCredit;
+      // Financial formulas
+      const roofCost = roofSqft * 11.5;
+      const solarCapex = solarKw * 1850;
+      const grossCapex = roofCost + solarCapex;
+      const itcCredit = (solarCapex + (roofCost * 0.35)) * 0.30;
+      const netCapex = grossCapex - itcCredit;
 
-    const initialYearKwh = solarKw * 1450;
-    const initialYearSavings = initialYearKwh * elecRate;
-    const paybackYears = initialYearSavings > 0 ? (netCapex / initialYearSavings) : 0;
+      const initialYearKwh = solarKw * 1450;
+      const initialYearSavings = initialYearKwh * elecRate;
+      const paybackYears = initialYearSavings > 0 ? (netCapex / initialYearSavings) : 0;
 
-    updateText('gross-capex', formatCurrency(grossCapex));
-    updateText('itc-incentive', formatCurrency(itcCredit));
-    updateText('net-capex', formatCurrency(netCapex));
-    updateText('payback-years', paybackYears.toFixed(1) + ' Yrs');
+      updateText('gross-capex', formatCurrency(grossCapex));
+      updateText('itc-incentive', formatCurrency(itcCredit));
+      updateText('net-capex', formatCurrency(netCapex));
+      updateText('payback-years', paybackYears.toFixed(1) + ' Yrs');
 
-    // 25-Year Projection Matrix
-    lastCalculatedData = [];
-    let cumulativeFlow = -netCapex;
+      // 25-Year Projection Matrix
+      lastCalculatedData = [];
+      let cumulativeFlow = -netCapex;
 
-    for (let yr = 1; yr <= 25; yr++) {
-      const degradation = Math.pow(1 - 0.005, yr - 1);
-      const escalation = Math.pow(1 + 0.032, yr - 1);
-      const yrKwh = Math.round(initialYearKwh * degradation);
-      const yrSavings = Math.round(yrKwh * elecRate * escalation);
-      cumulativeFlow += yrSavings;
+      for (let yr = 1; yr <= 25; yr++) {
+        const degradation = Math.pow(1 - 0.005, yr - 1);
+        const escalation = Math.pow(1 + 0.032, yr - 1);
+        const yrKwh = Math.round(initialYearKwh * degradation);
+        const yrSavings = Math.round(yrKwh * elecRate * escalation);
+        cumulativeFlow += yrSavings;
 
-      lastCalculatedData.push({
-        year: yr,
-        kwh: yrKwh,
-        annualSavings: yrSavings,
-        cumulativeCashFlow: cumulativeFlow
-      });
+        lastCalculatedData.push({
+          year: yr,
+          kwh: yrKwh,
+          annualSavings: yrSavings,
+          cumulativeCashFlow: cumulativeFlow
+        });
+      }
+    } else {
+      // Dynamic Domain Telemetry Recalculation
+      const p1 = getNumericValue('fleet-units', getNumericValue('param-1', 148));
+      const p2 = getNumericValue('speed-threshold', getNumericValue('param-2', 65));
+      const p3 = getNumericValue('alert-threshold', getNumericValue('param-3', 10));
+
+      updateText('fleet-units-val', p1.toLocaleString() + ' Units');
+      updateText('speed-threshold-val', p2.toFixed(0) + ' MPH');
+      updateText('alert-threshold-val', p3.toFixed(0) + ' sec');
+      updateText('param-1-val', p1.toLocaleString() + ' Units');
+      updateText('param-2-val', p2.toFixed(0) + ' %');
+      updateText('param-3-val', p3.toFixed(0) + ' sec');
+
+      updateText('kpi-active-fleet', Math.round(p1).toLocaleString() + ' Units');
+      updateText('kpi-avg-speed', (p2 * 0.85).toFixed(1) + ' MPH');
+      updateText('kpi-records', Math.round(p1).toLocaleString() + ' Items');
+      updateText('kpi-throughput', Math.min(99.9, p2 * 1.05).toFixed(1) + '%');
+
+      lastCalculatedData = [];
+      for (let i = 1; i <= 10; i++) {
+        lastCalculatedData.push({
+          year: i,
+          kwh: Math.round(p1 * 12 * i),
+          annualSavings: Math.round(p2 * 100 * i),
+          cumulativeCashFlow: Math.round(p1 * p2 * i)
+        });
+      }
     }
 
     updateChart(lastCalculatedData);
@@ -16650,7 +16755,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Bind operational input sliders
-  ['roof-sqft', 'solar-kw', 'electricity-rate'].forEach(id => {
+  ['roof-sqft', 'solar-kw', 'electricity-rate', 'fleet-units', 'speed-threshold', 'alert-threshold', 'param-1', 'param-2', 'param-3'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', recalculate);
@@ -20123,13 +20228,14 @@ export function Sidebar({ activePage, setActivePage }) {
           "client/src/components/MetricCards.jsx",
           `import React from 'react'
 
-export function MetricCards({ metrics = {} }) {
-  const cards = [
-    { label: 'Gross Capex', value: metrics.grossCapex || '$580,000', delta: '+14% vs last week', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
-    { label: '30% ITC Credit', value: metrics.itcCredit || '$174,000', delta: '+8.2%', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
-    { label: 'Net Capex', value: metrics.netCapex || '$406,000', delta: '+12.4%', deltaClass: 'text-sky-400 bg-sky-500/10' },
-    { label: 'Payback Period', value: metrics.paybackYears || '3.2 Yrs', delta: '-2.5%', deltaClass: 'text-amber-400 bg-amber-500/10' }
+export function MetricCards({ metrics = {}, kpis = [] }) {
+  const defaultCards = [
+    { label: 'Active Records', value: metrics.activeRecords || '148 Units', delta: '+12% vs last week', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'System Throughput', value: metrics.throughput || '98.4%', delta: '+4.1%', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Operational Load', value: metrics.load || '42.8 Units', delta: '-1.8%', deltaClass: 'text-sky-400 bg-sky-500/10' },
+    { label: 'Alert Thresholds', value: metrics.alerts || '0 Critical', delta: 'Nominal', deltaClass: 'text-amber-400 bg-amber-500/10' }
   ]
+  const cards = kpis && kpis.length > 0 ? kpis : defaultCards
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -20137,11 +20243,11 @@ export function MetricCards({ metrics = {} }) {
         <div key={i} className="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
             <span>{c.label}</span>
-            <span className={\`px-2 py-0.5 rounded text-[11px] font-mono font-semibold border border-slate-700/50 \${c.deltaClass}\`}>
-              {c.delta}
+            <span className={\`px-2 py-0.5 rounded text-[11px] font-mono font-semibold border border-slate-700/50 \${c.deltaClass || 'text-emerald-400 bg-emerald-500/10'}\`}>
+              {c.delta || '+2.4%'}
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-white font-mono">{c.value}</div>
+          <div className="text-2xl font-extrabold text-white font-mono">{c.value || c.baseline || '0'}</div>
           <p className="text-xs text-slate-500">Live indexed telemetry</p>
         </div>
       ))}
@@ -20350,7 +20456,7 @@ export function ActionModal({ isOpen, onClose, onSaveRecord }) {
               id="new-record-output"
               value={output}
               onChange={e => setOutput(e.target.value)}
-              placeholder="e.g. 14,200 kWh"
+              placeholder="e.g. 98.4% or 420 units"
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
             />
           </div>
@@ -21578,8 +21684,311 @@ var init_SwarmOrchestrator = __esm({
         const rawScope = classifyProjectScope(directive);
         const scope = rawScope === "SCOPE_FULLSTACK" ? "FULLSTACK_SAAS" : "SPA_PROTOTYPE";
         const name = directive.slice(0, 50).replace(/[_-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-        const isSolar = directive.toLowerCase().includes("solar") || directive.toLowerCase().includes("roi");
+        const isSolar = /solar|roof/i.test(directive);
+        const isFleet = /fleet|vehicle|truck|driver|shipment|telemetry/i.test(directive);
+        const isCrypto = /crypto|coin|token|trading|price|exchange/i.test(directive);
+        const isHealthcare = /health|patient|clinic|hospital|doctor|medical/i.test(directive);
+        let domain = "ENTERPRISE_OPERATIONS";
+        let visualCanvasType = "chart";
+        let navigationViews = ["Dashboard", "Telemetry", "Records", "Settings"];
+        let entities = [];
+        let kpis = [];
+        let models = [];
+        let formulas = [];
+        if (isSolar) {
+          domain = "COMMERCIAL_SOLAR";
+          visualCanvasType = "chart";
+          navigationViews = ["Dashboard", "Telemetry", "Exports"];
+          entities = [
+            {
+              name: "SolarProject",
+              fields: [
+                { name: "roofSqft", type: "Float", example: 5e4 },
+                { name: "systemKw", type: "Float", example: 400 },
+                { name: "utilityRate", type: "Float", example: 0.18 },
+                { name: "grossCapex", type: "Float", example: 58e4 },
+                { name: "itcIncentive", type: "Float", example: 174e3 },
+                { name: "netCapex", type: "Float", example: 406e3 },
+                { name: "paybackYears", type: "Float", example: 3.2 }
+              ]
+            },
+            {
+              name: "ProjectionRow",
+              fields: [
+                { name: "year", type: "Int", example: 1 },
+                { name: "annualKwh", type: "Float", example: 58e4 },
+                { name: "annualSavings", type: "Float", example: 104400 },
+                { name: "cumulativeCashFlow", type: "Float", example: -301600 }
+              ]
+            }
+          ];
+          kpis = [
+            { label: "Gross Capex", unit: "$", baseline: 58e4, format: "currency" },
+            { label: "30% ITC Credit", unit: "$", baseline: 174e3, format: "currency" },
+            { label: "Net Capex", unit: "$", baseline: 406e3, format: "currency" },
+            { label: "Payback Period", unit: "Yrs", baseline: 3.2, format: "decimal" }
+          ];
+          models = [
+            {
+              name: "SolarProject",
+              fields: [
+                { name: "id", type: "String", attributes: "@id @default(uuid())" },
+                { name: "title", type: "String" },
+                { name: "roofSqft", type: "Float" },
+                { name: "systemKw", type: "Float" },
+                { name: "utilityRate", type: "Float" },
+                { name: "grossCapex", type: "Float" },
+                { name: "itcIncentive", type: "Float" },
+                { name: "netCapex", type: "Float" },
+                { name: "paybackYears", type: "Float" }
+              ],
+              isTenantScoped: true
+            },
+            {
+              name: "ProjectionRow",
+              fields: [
+                { name: "id", type: "String", attributes: "@id @default(uuid())" },
+                { name: "year", type: "Int" },
+                { name: "annualKwh", type: "Float" },
+                { name: "annualSavings", type: "Float" },
+                { name: "cumulativeCashFlow", type: "Float" }
+              ],
+              isTenantScoped: true
+            }
+          ];
+          formulas = [
+            {
+              name: "GrossCapex",
+              formula: "RoofCost + SolarCost",
+              description: "Total upfront capital expenditure before incentives",
+              inputs: ["roofSqft", "solarKw"],
+              output: "grossCapex"
+            },
+            {
+              name: "FederalITC",
+              formula: "(SolarCost + (RoofCost * 0.35)) * 0.30",
+              description: "Federal Investment Tax Credit deduction under IRA section 48",
+              inputs: ["solarKw", "roofSqft"],
+              output: "itcCredit"
+            },
+            {
+              name: "NetInvestment",
+              formula: "GrossCapex - FederalITC",
+              description: "Net capital out-of-pocket investment",
+              inputs: ["grossCapex", "itcCredit"],
+              output: "netCapex"
+            },
+            {
+              name: "PaybackYears",
+              formula: "NetCapex / InitialYearSavings",
+              description: "Simple financial payback breakeven horizon in years",
+              inputs: ["netCapex", "initialYearSavings"],
+              output: "paybackYears"
+            }
+          ];
+        } else if (isFleet) {
+          domain = "FLEET_LOGISTICS";
+          visualCanvasType = "map";
+          navigationViews = ["Dashboard", "Live Tracking", "Shift Logs", "Thresholds", "Settings"];
+          entities = [
+            {
+              name: "Vehicle",
+              fields: [
+                { name: "vin", type: "String", example: "1FTFW1ED8MFA01234" },
+                { name: "makeModel", type: "String", example: "Ford F-150 Lightning EV" },
+                { name: "status", type: "String", example: "ACTIVE" },
+                { name: "speedMph", type: "Float", example: 54.2 },
+                { name: "batteryFuelLevel", type: "Float", example: 82.5 },
+                { name: "latitude", type: "Float", example: 37.7749 },
+                { name: "longitude", type: "Float", example: -122.4194 }
+              ]
+            },
+            {
+              name: "ShiftLog",
+              fields: [
+                { name: "driverName", type: "String", example: "Marcus Vance" },
+                { name: "shiftStart", type: "String", example: "08:00 AM" },
+                { name: "shiftEnd", type: "String", example: "05:00 PM" },
+                { name: "milesDriven", type: "Float", example: 142.5 },
+                { name: "status", type: "String", example: "COMPLETED" }
+              ]
+            },
+            {
+              name: "AlertThreshold",
+              fields: [
+                { name: "alertType", type: "String", example: "SPEED_LIMIT_EXCEEDED" },
+                { name: "thresholdValue", type: "Float", example: 75 },
+                { name: "severity", type: "String", example: "WARNING" },
+                { name: "isActive", type: "Boolean", example: true }
+              ]
+            }
+          ];
+          kpis = [
+            { label: "Active Fleet", unit: "Units", baseline: 148, format: "number" },
+            { label: "Avg Speed", unit: "MPH", baseline: 54.2, format: "decimal" },
+            { label: "Shift Hours", unit: "Hrs", baseline: 1840, format: "number" },
+            { label: "Active Alerts", unit: "Alerts", baseline: 2, format: "number" }
+          ];
+          models = [
+            {
+              name: "Vehicle",
+              fields: [
+                { name: "id", type: "String", attributes: "@id @default(uuid())" },
+                { name: "vin", type: "String" },
+                { name: "makeModel", type: "String" },
+                { name: "status", type: "String", attributes: '@default("ACTIVE")' },
+                { name: "speedMph", type: "Float", attributes: "@default(0)" },
+                { name: "batteryFuelLevel", type: "Float", attributes: "@default(100)" },
+                { name: "latitude", type: "Float", attributes: "@default(37.7749)" },
+                { name: "longitude", type: "Float", attributes: "@default(-122.4194)" }
+              ],
+              isTenantScoped: true
+            },
+            {
+              name: "ShiftLog",
+              fields: [
+                { name: "id", type: "String", attributes: "@id @default(uuid())" },
+                { name: "driverName", type: "String" },
+                { name: "shiftStart", type: "String" },
+                { name: "shiftEnd", type: "String" },
+                { name: "milesDriven", type: "Float", attributes: "@default(0)" },
+                { name: "status", type: "String", attributes: '@default("ACTIVE")' }
+              ],
+              isTenantScoped: true
+            },
+            {
+              name: "AlertThreshold",
+              fields: [
+                { name: "id", type: "String", attributes: "@id @default(uuid())" },
+                { name: "alertType", type: "String" },
+                { name: "thresholdValue", type: "Float" },
+                { name: "severity", type: "String", attributes: '@default("WARNING")' },
+                { name: "isActive", type: "Boolean", attributes: "@default(true)" }
+              ],
+              isTenantScoped: true
+            }
+          ];
+          formulas = [
+            {
+              name: "FleetUtilization",
+              formula: "ActiveVehicles / TotalVehicles",
+              description: "Operational ratio of active vehicles in fleet",
+              inputs: ["activeVehicles", "totalVehicles"],
+              output: "utilizationRate"
+            },
+            {
+              name: "EfficiencyMpg",
+              formula: "MilesDriven / FuelUnits",
+              description: "Average fleet operational efficiency",
+              inputs: ["milesDriven", "fuelUnits"],
+              output: "efficiency"
+            }
+          ];
+        } else if (isCrypto) {
+          domain = "CRYPTO_FINANCE";
+          visualCanvasType = "chart";
+          navigationViews = ["Dashboard", "Live Prices", "Order Book", "Alerts", "Settings"];
+          entities = [
+            {
+              name: "CryptoAsset",
+              fields: [
+                { name: "symbol", type: "String", example: "BTC" },
+                { name: "name", type: "String", example: "Bitcoin" },
+                { name: "priceUsd", type: "Float", example: 68450 },
+                { name: "change24h", type: "Float", example: 3.42 },
+                { name: "marketCap", type: "Float", example: 135e10 },
+                { name: "volume24h", type: "Float", example: 421e8 }
+              ]
+            },
+            {
+              name: "TradeOrder",
+              fields: [
+                { name: "assetSymbol", type: "String", example: "BTC" },
+                { name: "orderType", type: "String", example: "BUY" },
+                { name: "amount", type: "Float", example: 0.25 },
+                { name: "price", type: "Float", example: 68200 },
+                { name: "status", type: "String", example: "FILLED" }
+              ]
+            }
+          ];
+          kpis = [
+            { label: "Market Cap", unit: "$B", baseline: 2450, format: "currency" },
+            { label: "24h Volume", unit: "$B", baseline: 84.5, format: "currency" },
+            { label: "BTC Dominance", unit: "%", baseline: 56.4, format: "percent" },
+            { label: "Active Pairs", unit: "Pairs", baseline: 1240, format: "number" }
+          ];
+          models = [
+            {
+              name: "CryptoAsset",
+              fields: [
+                { name: "id", type: "String", attributes: "@id @default(uuid())" },
+                { name: "symbol", type: "String" },
+                { name: "name", type: "String" },
+                { name: "priceUsd", type: "Float" },
+                { name: "change24h", type: "Float", attributes: "@default(0)" }
+              ],
+              isTenantScoped: true
+            }
+          ];
+          formulas = [
+            {
+              name: "SpreadCalc",
+              formula: "AskPrice - BidPrice",
+              description: "Order book spread margin",
+              inputs: ["askPrice", "bidPrice"],
+              output: "spread"
+            }
+          ];
+        } else {
+          domain = "ENTERPRISE_OPERATIONS";
+          visualCanvasType = "chart";
+          navigationViews = ["Dashboard", "Telemetry", "Records", "Settings"];
+          entities = [
+            {
+              name: "AssetRecord",
+              fields: [
+                { name: "name", type: "String", example: "Primary Core Unit Alpha" },
+                { name: "status", type: "String", example: "ACTIVE" },
+                { name: "throughput", type: "Float", example: 98.4 },
+                { name: "metricValue", type: "Float", example: 142e3 }
+              ]
+            }
+          ];
+          kpis = [
+            { label: "Active Records", unit: "Items", baseline: 240, format: "number" },
+            { label: "System Throughput", unit: "%", baseline: 98.4, format: "percent" },
+            { label: "Operational Load", unit: "Units", baseline: 42.8, format: "decimal" },
+            { label: "Active Alerts", unit: "Alerts", baseline: 0, format: "number" }
+          ];
+          models = [
+            {
+              name: "AssetRecord",
+              fields: [
+                { name: "id", type: "String", attributes: "@id @default(uuid())" },
+                { name: "name", type: "String" },
+                { name: "status", type: "String", attributes: '@default("ACTIVE")' },
+                { name: "metricValue", type: "Float", attributes: "@default(0)" }
+              ],
+              isTenantScoped: true
+            }
+          ];
+          formulas = [
+            {
+              name: "ThroughputEfficiency",
+              formula: "CompletedTasks / TotalTasks",
+              description: "Operational success ratio",
+              inputs: ["completedTasks", "totalTasks"],
+              output: "efficiency"
+            }
+          ];
+        }
         return {
+          title: name,
+          domain,
+          entities,
+          kpis,
+          navigationViews,
+          visualCanvasType,
           name: name || "Enterprise SDLC Platform",
           slug,
           directive,
@@ -21589,45 +21998,7 @@ var init_SwarmOrchestrator = __esm({
             provider: "postgresql",
             isMultiTenant: true,
             tenantField: "organizationId",
-            models: isSolar ? [
-              {
-                name: "SolarProject",
-                fields: [
-                  { name: "id", type: "String", attributes: "@id @default(uuid())" },
-                  { name: "title", type: "String" },
-                  { name: "roofSqft", type: "Float" },
-                  { name: "systemKw", type: "Float" },
-                  { name: "utilityRate", type: "Float" },
-                  { name: "grossCapex", type: "Float" },
-                  { name: "itcIncentive", type: "Float" },
-                  { name: "netCapex", type: "Float" },
-                  { name: "paybackYears", type: "Float" }
-                ],
-                isTenantScoped: true
-              },
-              {
-                name: "ProjectionRow",
-                fields: [
-                  { name: "id", type: "String", attributes: "@id @default(uuid())" },
-                  { name: "year", type: "Int" },
-                  { name: "annualKwh", type: "Float" },
-                  { name: "annualSavings", type: "Float" },
-                  { name: "cumulativeCashFlow", type: "Float" }
-                ],
-                isTenantScoped: true
-              }
-            ] : [
-              {
-                name: "ProjectEntity",
-                fields: [
-                  { name: "id", type: "String", attributes: "@id @default(uuid())" },
-                  { name: "title", type: "String" },
-                  { name: "status", type: "String", attributes: '@default("ACTIVE")' },
-                  { name: "metricValue", type: "Float", attributes: "@default(0)" }
-                ],
-                isTenantScoped: true
-              }
-            ]
+            models
           },
           backend: {
             endpoints: [
@@ -21664,7 +22035,7 @@ var init_SwarmOrchestrator = __esm({
             rbacRoles: ["Admin", "Manager", "Inspector", "Client"]
           },
           frontend: {
-            pages: ["Dashboard", "Telemetry", "Exports"],
+            pages: navigationViews,
             components: ["HeaderActions", "OperationalInputs", "KpiCardsGrid", "ProjectionsMatrix"],
             viewports: {
               mobile: {
@@ -21690,41 +22061,68 @@ var init_SwarmOrchestrator = __esm({
             }
           },
           businessLogic: {
-            formulas: [
-              {
-                name: "GrossCapex",
-                formula: "RoofCost + SolarCost",
-                description: "Total upfront capital expenditure before incentives",
-                inputs: ["roofSqft", "solarKw"],
-                output: "grossCapex"
-              },
-              {
-                name: "FederalITC",
-                formula: "(SolarCost + (RoofCost * 0.35)) * 0.30",
-                description: "Federal Investment Tax Credit deduction under IRA section 48",
-                inputs: ["solarKw", "roofSqft"],
-                output: "itcCredit"
-              },
-              {
-                name: "NetInvestment",
-                formula: "GrossCapex - FederalITC",
-                description: "Net capital out-of-pocket investment",
-                inputs: ["grossCapex", "itcCredit"],
-                output: "netCapex"
-              },
-              {
-                name: "PaybackYears",
-                formula: "NetCapex / InitialYearSavings",
-                description: "Simple financial payback breakeven horizon in years",
-                inputs: ["netCapex", "initialYearSavings"],
-                output: "paybackYears"
-              }
-            ],
+            formulas,
             exportFormats: ["CSV", "PDF", "JSON"],
             saasTiers: ["FREE", "STARTER", "PRO", "ENTERPRISE"],
             stripeEnabled: true
           }
         };
+      }
+      /**
+       * Asynchronous LLM Blueprint Synthesis Pass
+       * Uses J.A.R.V.I.S. with Gemini/OpenRouter to synthesize rich custom schemas when online,
+       * falling back to inferential domain decomposition when in test mode or offline.
+       */
+      async synthesizeBlueprint(directive) {
+        const isTestMode = process.env.NODE_ENV === "test" || process.argv.some((a) => a.includes("test")) || process.execArgv.includes("--test");
+        if (!isTestMode) {
+          try {
+            const prompt = [
+              {
+                role: "system",
+                content: `You are J.A.R.V.I.S., Chief Systems Architect for Master Sri.
+Decompose the user directive into a formal, production JSON ProjectBlueprint.
+Return ONLY valid JSON matching this schema:
+{
+  "title": string,
+  "domain": string,
+  "entities": [
+    {
+      "name": string,
+      "fields": [{ "name": string, "type": string, "example": any }]
+    }
+  ],
+  "kpis": [
+    { "label": string, "unit": string, "baseline": number, "format": string }
+  ],
+  "navigationViews": string[],
+  "visualCanvasType": "map" | "chart" | "grid" | "network"
+}`
+              },
+              { role: "user", content: `Decompose directive: "${directive}"` }
+            ];
+            const res = await swarmModelRouter.dispatch("jarvis", prompt, []);
+            const jsonMatch = res.content?.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.domain && parsed.entities && Array.isArray(parsed.entities)) {
+                const base = this.generateBlueprint(directive);
+                return {
+                  ...base,
+                  title: parsed.title || base.title,
+                  domain: parsed.domain || base.domain,
+                  entities: parsed.entities || base.entities,
+                  kpis: parsed.kpis && parsed.kpis.length >= 4 ? parsed.kpis : base.kpis,
+                  navigationViews: parsed.navigationViews && parsed.navigationViews.length > 0 ? parsed.navigationViews : base.navigationViews,
+                  visualCanvasType: parsed.visualCanvasType || base.visualCanvasType
+                };
+              }
+            }
+          } catch (err) {
+            console.warn("\u26A0\uFE0F [SwarmOrchestrator] J.A.R.V.I.S. LLM blueprint note:", err?.message || err);
+          }
+        }
+        return this.generateBlueprint(directive);
       }
       autoAlignSharedElementIds(html, js) {
         if (!html || !js) return html;
@@ -21827,7 +22225,7 @@ var init_SwarmOrchestrator = __esm({
           }
         };
         await notify("DISPATCH", "Task decomposed across Aegis, Raphael, and Midas.");
-        const blueprint = this.generateBlueprint(directive);
+        const blueprint = await this.synthesizeBlueprint(directive);
         await notify("PROGRESS", `Stage 1: J.A.R.V.I.S. established ProjectBlueprint data contract (${blueprint.scope}).`);
         await taskAuditService.logToolExecution(taskId, "jarvis_blueprint_decomposition", { directive }, { slug: blueprint.slug }, "SUCCESS", 50);
         const cerebroDb = await cerebroSpecialist.executeDatabaseSynthesis(blueprint);
@@ -21838,23 +22236,40 @@ var init_SwarmOrchestrator = __esm({
         let aegisHtml = "";
         if (!isTestMode) {
           try {
+            const isSolar = blueprint.domain === "COMMERCIAL_SOLAR" || /solar|roof/i.test(directive);
+            const inputIdExamples = isSolar ? 'id="roof-sqft", id="solar-kw", id="electricity-rate"' : 'domain-specific IDs, e.g. id="param-1", id="param-2", id="param-3" (or matching entity fields)';
+            const metricIdExamples = isSolar ? 'id="gross-capex", id="net-capex", id="itc-incentive", id="payback-years"' : 'distinct IDs matching KPIs, e.g. id="kpi-0", id="kpi-1", id="kpi-2", id="kpi-3"';
             const aegisPrompt = [
               {
                 role: "system",
                 content: `You are Aegis, Master Software Architect for Master Sri.
-Generate complete, semantic, valid HTML markup for: "${directive}".
+Generate complete, semantic, valid HTML markup for project: "${blueprint.name}" (Domain: ${blueprint.domain || "ENTERPRISE"}).
+User Directive: "${directive}".
 Requirements:
 1. Container element (<div class="calculator-container" id="calculator-root">).
-2. Input parameter card with at least 3 labeled range sliders and number inputs with id attributes (e.g. id="roof-sqft", id="solar-kw", id="electricity-rate") and display value badges (e.g. id="roof-sqft-val").
-3. Key metrics summary card with distinct IDs (e.g. id="gross-capex", id="net-capex", id="itc-incentive", id="annual-savings", id="payback-years").
-4. Tabular projection matrix: <table> with <thead> and <tbody id="projection-table-body">.
-5. Action controls: <button id="export-csv-btn">Export CSV</button>, <button id="export-pdf-btn">Export PDF</button>, and <button id="recalculate-btn">Recalculate</button>.
+2. Input parameter card with at least 3 labeled range sliders and number inputs with id attributes (${inputIdExamples}) and display value badges (e.g. id="...-val").
+3. Key metrics summary card with 4 KPI cards with distinct IDs (${metricIdExamples}).
+4. Tabular projection/records matrix: <table> with <thead> and <tbody id="projection-table-body">.
+5. Action controls: <button id="export-csv-btn">Export CSV</button>, <button id="export-pdf-btn">Export PDF</button>, <button id="recalculate-btn">Recalculate</button>, <button id="open-modal-btn">Add Record</button>.
 6. Return ONLY the HTML code. Do NOT output markdown code blocks or TODO placeholders.`
               },
-              { role: "user", content: `Generate HTML architecture for: ${directive}` }
+              { role: "user", content: `Generate domain-specific HTML architecture for: ${directive}` }
             ];
             const aegisRes = await swarmModelRouter.dispatch("aegis", aegisPrompt, []);
             aegisHtml = this.extractCodeBlock(aegisRes.content || "", "html");
+            if (!aegisHtml || aegisHtml.length < 200 || !aegisHtml.includes("input")) {
+              console.warn("\u26A0\uFE0F [SwarmOrchestrator] Aegis HTML pass incomplete; triggering LLM retry pass with error feedback...");
+              const retryPrompt = [
+                ...aegisPrompt,
+                { role: "assistant", content: aegisHtml || "Failed generation" },
+                { role: "user", content: "The previous generation was incomplete or empty. Please regenerate valid, full HTML markup with all required interactive elements." }
+              ];
+              const retryRes = await swarmModelRouter.dispatch("aegis", retryPrompt, []);
+              const retriedHtml = this.extractCodeBlock(retryRes.content || "", "html");
+              if (retriedHtml && retriedHtml.length > 200 && retriedHtml.includes("input")) {
+                aegisHtml = retriedHtml;
+              }
+            }
           } catch (err) {
             console.warn("\u26A0\uFE0F [SwarmOrchestrator] Aegis model synthesis fallback:", err?.message || err);
           }

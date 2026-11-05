@@ -270,6 +270,75 @@ input[type="range"] {
     const title = blueprint.name || 'J.A.R.V.I.S. Enterprise Platform'
     const directive = blueprint.directive || 'Autonomous SDLC Swarm Deliverable'
     const isFleetDirective = /fleet|vehicle|tracker|gps|driver|transit|logistics/i.test(directive)
+    const isSolar = Boolean(
+      blueprint.domain === 'COMMERCIAL_SOLAR' ||
+      /solar|roof/i.test(blueprint.directive || '') ||
+      /solar|roof/i.test(blueprint.name || '')
+    )
+
+    // Dynamic KPI Cards
+    let kpiCards: any[] = []
+    if (isSolar) {
+      kpiCards = [
+        { label: 'Gross Capex', id: 'gross-capex', val: '$0', delta: '+14% vs last week', deltaClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', note: 'Asset footprint telemetry', valClass: 'text-white' },
+        { label: '30% ITC Credit', id: 'itc-incentive', val: '$0', delta: '+8.2%', deltaClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', note: 'Subsidies & incentives applied', valClass: 'text-emerald-400' },
+        { label: 'Net Capex', id: 'net-capex', val: '$0', delta: '+12.4%', deltaClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20', note: 'Capital outlay after rebates', valClass: 'text-sky-400' },
+        { label: 'Payback Period', id: 'payback-years', val: '0.0 Yrs', delta: '-2.5%', deltaClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20', note: 'Amortized breakeven horizon', valClass: 'text-amber-400' }
+      ]
+    } else if (blueprint.kpis && blueprint.kpis.length >= 4) {
+      kpiCards = blueprint.kpis.map((kpi, idx) => ({
+        label: kpi.label,
+        id: `kpi-${kpi.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        val: `${kpi.baseline} ${kpi.unit}`,
+        delta: idx === 0 ? '+12% vs yesterday' : (idx === 1 ? 'Nominal' : (idx === 2 ? '+4.8%' : 'Active')),
+        deltaClass: idx % 2 === 0 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-sky-400 bg-sky-500/10 border-sky-500/20',
+        note: 'Live domain telemetry stream',
+        valClass: idx === 0 ? 'text-white' : (idx === 1 ? 'text-emerald-400' : 'text-sky-400')
+      }))
+    } else {
+      kpiCards = [
+        { label: 'Active Records', id: 'kpi-records', val: '148 Units', delta: '+12% vs last week', deltaClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', note: 'Active operational entities', valClass: 'text-white' },
+        { label: 'System Throughput', id: 'kpi-throughput', val: '98.4%', delta: '+4.1%', deltaClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', note: 'Live service reliability', valClass: 'text-emerald-400' },
+        { label: 'Operational Load', id: 'kpi-load', val: '42.8 Units', delta: '-1.8%', deltaClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20', note: 'Current load metric', valClass: 'text-sky-400' },
+        { label: 'Active Alerts', id: 'kpi-alerts', val: '0 Critical', delta: 'Nominal', deltaClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20', note: 'System health monitoring', valClass: 'text-amber-400' }
+      ]
+    }
+
+    const kpiCardsHtml = kpiCards.map(c => `
+          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <span>${c.label}</span>
+              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold border ${c.deltaClass}">${c.delta}</span>
+            </div>
+            <div id="${c.id}" class="text-2xl font-extrabold ${c.valClass || 'text-white'} font-mono">${c.val}</div>
+            <p class="text-xs text-slate-500">${c.note}</p>
+          </div>
+    `).join('\n')
+
+    // Dynamic Operational Inputs
+    const inputs = isSolar ? [
+      { id: 'roof-sqft', label: 'Roof Surface Area / Capacity', valId: 'roof-sqft-val', val: '50,000 sqft', min: 10000, max: 300000, step: 5000, initial: 50000 },
+      { id: 'solar-kw', label: 'Power Rating / Active Units', valId: 'solar-kw-val', val: '400 kW', min: 50, max: 2500, step: 25, initial: 400 },
+      { id: 'electricity-rate', label: 'Blended Rate / Cost Factor', valId: 'electricity-rate-val', val: '$0.18 /kWh', min: 0.08, max: 0.45, step: 0.01, initial: 0.18 }
+    ] : (isFleetDirective ? [
+      { id: 'fleet-units', label: 'Active Fleet Vehicles', valId: 'fleet-units-val', val: '148 Units', min: 10, max: 500, step: 5, initial: 148 },
+      { id: 'speed-threshold', label: 'Speed Limit Threshold', valId: 'speed-threshold-val', val: '65 MPH', min: 25, max: 100, step: 5, initial: 65 },
+      { id: 'alert-threshold', label: 'Telemetry Sample Interval', valId: 'alert-threshold-val', val: '10 sec', min: 1, max: 60, step: 1, initial: 10 }
+    ] : [
+      { id: 'param-1', label: 'Operational Capacity / Units', valId: 'param-1-val', val: '240 Units', min: 10, max: 1000, step: 10, initial: 240 },
+      { id: 'param-2', label: 'System Throughput Target', valId: 'param-2-val', val: '95 %', min: 50, max: 100, step: 1, initial: 95 },
+      { id: 'param-3', label: 'Sampling Rate / Frequency', valId: 'param-3-val', val: '5 sec', min: 1, max: 60, step: 1, initial: 5 }
+    ])
+
+    const inputsHtml = inputs.map(inp => `
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-2">
+                  <label for="${inp.id}" class="text-slate-300">${inp.label}</label>
+                  <span id="${inp.valId}" class="text-cyan-400 font-mono font-bold">${inp.val}</span>
+                </div>
+                <input type="range" id="${inp.id}" min="${inp.min}" max="${inp.max}" step="${inp.step}" value="${inp.initial}" class="w-full accent-cyan-400" aria-label="${inp.label}">
+              </div>
+    `).join('\n')
 
     return `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -383,41 +452,7 @@ input[type="range"] {
       <main class="p-4 md:p-6 space-y-6">
         <!-- 2. 4-Column Metric KPI Cards with Delta Badges -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
-              <span>Gross Capex</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">+14% vs last week</span>
-            </div>
-            <div id="gross-capex" class="text-2xl font-extrabold text-white font-mono">$0</div>
-            <p class="text-xs text-slate-500">Asset footprint telemetry</p>
-          </div>
-
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-emerald-400 uppercase tracking-wider">
-              <span>30% ITC Credit</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">+8.2%</span>
-            </div>
-            <div id="itc-incentive" class="text-2xl font-extrabold text-emerald-400 font-mono">$0</div>
-            <p class="text-xs text-slate-500">Subsidies & incentives applied</p>
-          </div>
-
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-sky-400 uppercase tracking-wider">
-              <span>Net Capex</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">+12.4%</span>
-            </div>
-            <div id="net-capex" class="text-2xl font-extrabold text-sky-400 font-mono">$0</div>
-            <p class="text-xs text-slate-500">Capital outlay after rebates</p>
-          </div>
-
-          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-amber-400 uppercase tracking-wider">
-              <span>Payback Period</span>
-              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">-2.5%</span>
-            </div>
-            <div id="payback-years" class="text-2xl font-extrabold text-amber-400 font-mono">0.0 Yrs</div>
-            <p class="text-xs text-slate-500">Amortized breakeven horizon</p>
-          </div>
+          ${kpiCardsHtml}
         </div>
 
         <!-- 3. Domain-Specific Visual Canvas & Inputs -->
@@ -429,29 +464,7 @@ input[type="range"] {
             </h2>
 
             <div class="space-y-4">
-              <div>
-                <div class="flex justify-between text-xs font-semibold mb-2">
-                  <label for="roof-sqft" class="text-slate-300">Surface Area / Capacity</label>
-                  <span id="roof-sqft-val" class="text-cyan-400 font-mono font-bold">50,000 sqft</span>
-                </div>
-                <input type="range" id="roof-sqft" min="10000" max="300000" step="5000" value="50000" class="w-full accent-cyan-400" aria-label="Surface Area">
-              </div>
-
-              <div>
-                <div class="flex justify-between text-xs font-semibold mb-2">
-                  <label for="solar-kw" class="text-slate-300">Power Rating / Active Units</label>
-                  <span id="solar-kw-val" class="text-cyan-400 font-mono font-bold">400 kW</span>
-                </div>
-                <input type="range" id="solar-kw" min="50" max="2500" step="25" value="400" class="w-full accent-cyan-400" aria-label="System Size">
-              </div>
-
-              <div>
-                <div class="flex justify-between text-xs font-semibold mb-2">
-                  <label for="electricity-rate" class="text-slate-300">Blended Rate / Cost Factor</label>
-                  <span id="electricity-rate-val" class="text-cyan-400 font-mono font-bold">$0.18 /kWh</span>
-                </div>
-                <input type="range" id="electricity-rate" min="0.08" max="0.45" step="0.01" value="0.18" class="w-full accent-cyan-400" aria-label="Cost Factor">
-              </div>
+              ${inputsHtml}
             </div>
           </section>
 
@@ -544,7 +557,7 @@ input[type="range"] {
         </div>
         <div>
           <label for="new-record-output" class="block text-xs font-medium text-slate-300 mb-1">Output / Delta</label>
-          <input type="text" id="new-record-output" placeholder="e.g. 12,400 kWh" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
+          <input type="text" id="new-record-output" placeholder="e.g. 98.4% or 420 units" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
         </div>
         <div class="flex justify-end gap-3 pt-2">
           <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition">Cancel</button>

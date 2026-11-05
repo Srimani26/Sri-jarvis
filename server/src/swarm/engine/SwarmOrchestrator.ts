@@ -121,9 +121,314 @@ export class SwarmOrchestrator {
     const scope = rawScope === 'SCOPE_FULLSTACK' ? 'FULLSTACK_SAAS' : 'SPA_PROTOTYPE'
     const name = directive.slice(0, 50).replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 
-    const isSolar = directive.toLowerCase().includes('solar') || directive.toLowerCase().includes('roi')
+    const isSolar = /solar|roof/i.test(directive)
+    const isFleet = /fleet|vehicle|truck|driver|shipment|telemetry/i.test(directive)
+    const isCrypto = /crypto|coin|token|trading|price|exchange/i.test(directive)
+    const isHealthcare = /health|patient|clinic|hospital|doctor|medical/i.test(directive)
+
+    let domain = 'ENTERPRISE_OPERATIONS'
+    let visualCanvasType: 'map' | 'chart' | 'grid' | 'network' = 'chart'
+    let navigationViews = ['Dashboard', 'Telemetry', 'Records', 'Settings']
+    let entities: any[] = []
+    let kpis: any[] = []
+    let models: any[] = []
+    let formulas: any[] = []
+
+    if (isSolar) {
+      domain = 'COMMERCIAL_SOLAR'
+      visualCanvasType = 'chart'
+      navigationViews = ['Dashboard', 'Telemetry', 'Exports']
+      entities = [
+        {
+          name: 'SolarProject',
+          fields: [
+            { name: 'roofSqft', type: 'Float', example: 50000 },
+            { name: 'systemKw', type: 'Float', example: 400 },
+            { name: 'utilityRate', type: 'Float', example: 0.18 },
+            { name: 'grossCapex', type: 'Float', example: 580000 },
+            { name: 'itcIncentive', type: 'Float', example: 174000 },
+            { name: 'netCapex', type: 'Float', example: 406000 },
+            { name: 'paybackYears', type: 'Float', example: 3.2 }
+          ]
+        },
+        {
+          name: 'ProjectionRow',
+          fields: [
+            { name: 'year', type: 'Int', example: 1 },
+            { name: 'annualKwh', type: 'Float', example: 580000 },
+            { name: 'annualSavings', type: 'Float', example: 104400 },
+            { name: 'cumulativeCashFlow', type: 'Float', example: -301600 }
+          ]
+        }
+      ]
+      kpis = [
+        { label: 'Gross Capex', unit: '$', baseline: 580000, format: 'currency' },
+        { label: '30% ITC Credit', unit: '$', baseline: 174000, format: 'currency' },
+        { label: 'Net Capex', unit: '$', baseline: 406000, format: 'currency' },
+        { label: 'Payback Period', unit: 'Yrs', baseline: 3.2, format: 'decimal' }
+      ]
+      models = [
+        {
+          name: 'SolarProject',
+          fields: [
+            { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
+            { name: 'title', type: 'String' },
+            { name: 'roofSqft', type: 'Float' },
+            { name: 'systemKw', type: 'Float' },
+            { name: 'utilityRate', type: 'Float' },
+            { name: 'grossCapex', type: 'Float' },
+            { name: 'itcIncentive', type: 'Float' },
+            { name: 'netCapex', type: 'Float' },
+            { name: 'paybackYears', type: 'Float' }
+          ],
+          isTenantScoped: true
+        },
+        {
+          name: 'ProjectionRow',
+          fields: [
+            { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
+            { name: 'year', type: 'Int' },
+            { name: 'annualKwh', type: 'Float' },
+            { name: 'annualSavings', type: 'Float' },
+            { name: 'cumulativeCashFlow', type: 'Float' }
+          ],
+          isTenantScoped: true
+        }
+      ]
+      formulas = [
+        {
+          name: 'GrossCapex',
+          formula: 'RoofCost + SolarCost',
+          description: 'Total upfront capital expenditure before incentives',
+          inputs: ['roofSqft', 'solarKw'],
+          output: 'grossCapex'
+        },
+        {
+          name: 'FederalITC',
+          formula: '(SolarCost + (RoofCost * 0.35)) * 0.30',
+          description: 'Federal Investment Tax Credit deduction under IRA section 48',
+          inputs: ['solarKw', 'roofSqft'],
+          output: 'itcCredit'
+        },
+        {
+          name: 'NetInvestment',
+          formula: 'GrossCapex - FederalITC',
+          description: 'Net capital out-of-pocket investment',
+          inputs: ['grossCapex', 'itcCredit'],
+          output: 'netCapex'
+        },
+        {
+          name: 'PaybackYears',
+          formula: 'NetCapex / InitialYearSavings',
+          description: 'Simple financial payback breakeven horizon in years',
+          inputs: ['netCapex', 'initialYearSavings'],
+          output: 'paybackYears'
+        }
+      ]
+    } else if (isFleet) {
+      domain = 'FLEET_LOGISTICS'
+      visualCanvasType = 'map'
+      navigationViews = ['Dashboard', 'Live Tracking', 'Shift Logs', 'Thresholds', 'Settings']
+      entities = [
+        {
+          name: 'Vehicle',
+          fields: [
+            { name: 'vin', type: 'String', example: '1FTFW1ED8MFA01234' },
+            { name: 'makeModel', type: 'String', example: 'Ford F-150 Lightning EV' },
+            { name: 'status', type: 'String', example: 'ACTIVE' },
+            { name: 'speedMph', type: 'Float', example: 54.2 },
+            { name: 'batteryFuelLevel', type: 'Float', example: 82.5 },
+            { name: 'latitude', type: 'Float', example: 37.7749 },
+            { name: 'longitude', type: 'Float', example: -122.4194 }
+          ]
+        },
+        {
+          name: 'ShiftLog',
+          fields: [
+            { name: 'driverName', type: 'String', example: 'Marcus Vance' },
+            { name: 'shiftStart', type: 'String', example: '08:00 AM' },
+            { name: 'shiftEnd', type: 'String', example: '05:00 PM' },
+            { name: 'milesDriven', type: 'Float', example: 142.5 },
+            { name: 'status', type: 'String', example: 'COMPLETED' }
+          ]
+        },
+        {
+          name: 'AlertThreshold',
+          fields: [
+            { name: 'alertType', type: 'String', example: 'SPEED_LIMIT_EXCEEDED' },
+            { name: 'thresholdValue', type: 'Float', example: 75.0 },
+            { name: 'severity', type: 'String', example: 'WARNING' },
+            { name: 'isActive', type: 'Boolean', example: true }
+          ]
+        }
+      ]
+      kpis = [
+        { label: 'Active Fleet', unit: 'Units', baseline: 148, format: 'number' },
+        { label: 'Avg Speed', unit: 'MPH', baseline: 54.2, format: 'decimal' },
+        { label: 'Shift Hours', unit: 'Hrs', baseline: 1840, format: 'number' },
+        { label: 'Active Alerts', unit: 'Alerts', baseline: 2, format: 'number' }
+      ]
+      models = [
+        {
+          name: 'Vehicle',
+          fields: [
+            { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
+            { name: 'vin', type: 'String' },
+            { name: 'makeModel', type: 'String' },
+            { name: 'status', type: 'String', attributes: '@default("ACTIVE")' },
+            { name: 'speedMph', type: 'Float', attributes: '@default(0)' },
+            { name: 'batteryFuelLevel', type: 'Float', attributes: '@default(100)' },
+            { name: 'latitude', type: 'Float', attributes: '@default(37.7749)' },
+            { name: 'longitude', type: 'Float', attributes: '@default(-122.4194)' }
+          ],
+          isTenantScoped: true
+        },
+        {
+          name: 'ShiftLog',
+          fields: [
+            { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
+            { name: 'driverName', type: 'String' },
+            { name: 'shiftStart', type: 'String' },
+            { name: 'shiftEnd', type: 'String' },
+            { name: 'milesDriven', type: 'Float', attributes: '@default(0)' },
+            { name: 'status', type: 'String', attributes: '@default("ACTIVE")' }
+          ],
+          isTenantScoped: true
+        },
+        {
+          name: 'AlertThreshold',
+          fields: [
+            { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
+            { name: 'alertType', type: 'String' },
+            { name: 'thresholdValue', type: 'Float' },
+            { name: 'severity', type: 'String', attributes: '@default("WARNING")' },
+            { name: 'isActive', type: 'Boolean', attributes: '@default(true)' }
+          ],
+          isTenantScoped: true
+        }
+      ]
+      formulas = [
+        {
+          name: 'FleetUtilization',
+          formula: 'ActiveVehicles / TotalVehicles',
+          description: 'Operational ratio of active vehicles in fleet',
+          inputs: ['activeVehicles', 'totalVehicles'],
+          output: 'utilizationRate'
+        },
+        {
+          name: 'EfficiencyMpg',
+          formula: 'MilesDriven / FuelUnits',
+          description: 'Average fleet operational efficiency',
+          inputs: ['milesDriven', 'fuelUnits'],
+          output: 'efficiency'
+        }
+      ]
+    } else if (isCrypto) {
+      domain = 'CRYPTO_FINANCE'
+      visualCanvasType = 'chart'
+      navigationViews = ['Dashboard', 'Live Prices', 'Order Book', 'Alerts', 'Settings']
+      entities = [
+        {
+          name: 'CryptoAsset',
+          fields: [
+            { name: 'symbol', type: 'String', example: 'BTC' },
+            { name: 'name', type: 'String', example: 'Bitcoin' },
+            { name: 'priceUsd', type: 'Float', example: 68450.0 },
+            { name: 'change24h', type: 'Float', example: 3.42 },
+            { name: 'marketCap', type: 'Float', example: 1350000000000 },
+            { name: 'volume24h', type: 'Float', example: 42100000000 }
+          ]
+        },
+        {
+          name: 'TradeOrder',
+          fields: [
+            { name: 'assetSymbol', type: 'String', example: 'BTC' },
+            { name: 'orderType', type: 'String', example: 'BUY' },
+            { name: 'amount', type: 'Float', example: 0.25 },
+            { name: 'price', type: 'Float', example: 68200.0 },
+            { name: 'status', type: 'String', example: 'FILLED' }
+          ]
+        }
+      ]
+      kpis = [
+        { label: 'Market Cap', unit: '$B', baseline: 2450, format: 'currency' },
+        { label: '24h Volume', unit: '$B', baseline: 84.5, format: 'currency' },
+        { label: 'BTC Dominance', unit: '%', baseline: 56.4, format: 'percent' },
+        { label: 'Active Pairs', unit: 'Pairs', baseline: 1240, format: 'number' }
+      ]
+      models = [
+        {
+          name: 'CryptoAsset',
+          fields: [
+            { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
+            { name: 'symbol', type: 'String' },
+            { name: 'name', type: 'String' },
+            { name: 'priceUsd', type: 'Float' },
+            { name: 'change24h', type: 'Float', attributes: '@default(0)' }
+          ],
+          isTenantScoped: true
+        }
+      ]
+      formulas = [
+        {
+          name: 'SpreadCalc',
+          formula: 'AskPrice - BidPrice',
+          description: 'Order book spread margin',
+          inputs: ['askPrice', 'bidPrice'],
+          output: 'spread'
+        }
+      ]
+    } else {
+      domain = 'ENTERPRISE_OPERATIONS'
+      visualCanvasType = 'chart'
+      navigationViews = ['Dashboard', 'Telemetry', 'Records', 'Settings']
+      entities = [
+        {
+          name: 'AssetRecord',
+          fields: [
+            { name: 'name', type: 'String', example: 'Primary Core Unit Alpha' },
+            { name: 'status', type: 'String', example: 'ACTIVE' },
+            { name: 'throughput', type: 'Float', example: 98.4 },
+            { name: 'metricValue', type: 'Float', example: 142000 }
+          ]
+        }
+      ]
+      kpis = [
+        { label: 'Active Records', unit: 'Items', baseline: 240, format: 'number' },
+        { label: 'System Throughput', unit: '%', baseline: 98.4, format: 'percent' },
+        { label: 'Operational Load', unit: 'Units', baseline: 42.8, format: 'decimal' },
+        { label: 'Active Alerts', unit: 'Alerts', baseline: 0, format: 'number' }
+      ]
+      models = [
+        {
+          name: 'AssetRecord',
+          fields: [
+            { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
+            { name: 'name', type: 'String' },
+            { name: 'status', type: 'String', attributes: '@default("ACTIVE")' },
+            { name: 'metricValue', type: 'Float', attributes: '@default(0)' }
+          ],
+          isTenantScoped: true
+        }
+      ]
+      formulas = [
+        {
+          name: 'ThroughputEfficiency',
+          formula: 'CompletedTasks / TotalTasks',
+          description: 'Operational success ratio',
+          inputs: ['completedTasks', 'totalTasks'],
+          output: 'efficiency'
+        }
+      ]
+    }
 
     return {
+      title: name,
+      domain,
+      entities,
+      kpis,
+      navigationViews,
+      visualCanvasType,
       name: name || 'Enterprise SDLC Platform',
       slug,
       directive,
@@ -133,47 +438,7 @@ export class SwarmOrchestrator {
         provider: 'postgresql',
         isMultiTenant: true,
         tenantField: 'organizationId',
-        models: isSolar
-          ? [
-              {
-                name: 'SolarProject',
-                fields: [
-                  { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
-                  { name: 'title', type: 'String' },
-                  { name: 'roofSqft', type: 'Float' },
-                  { name: 'systemKw', type: 'Float' },
-                  { name: 'utilityRate', type: 'Float' },
-                  { name: 'grossCapex', type: 'Float' },
-                  { name: 'itcIncentive', type: 'Float' },
-                  { name: 'netCapex', type: 'Float' },
-                  { name: 'paybackYears', type: 'Float' }
-                ],
-                isTenantScoped: true
-              },
-              {
-                name: 'ProjectionRow',
-                fields: [
-                  { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
-                  { name: 'year', type: 'Int' },
-                  { name: 'annualKwh', type: 'Float' },
-                  { name: 'annualSavings', type: 'Float' },
-                  { name: 'cumulativeCashFlow', type: 'Float' }
-                ],
-                isTenantScoped: true
-              }
-            ]
-          : [
-              {
-                name: 'ProjectEntity',
-                fields: [
-                  { name: 'id', type: 'String', attributes: '@id @default(uuid())' },
-                  { name: 'title', type: 'String' },
-                  { name: 'status', type: 'String', attributes: '@default("ACTIVE")' },
-                  { name: 'metricValue', type: 'Float', attributes: '@default(0)' }
-                ],
-                isTenantScoped: true
-              }
-            ]
+        models
       },
       backend: {
         endpoints: [
@@ -210,7 +475,7 @@ export class SwarmOrchestrator {
         rbacRoles: ['Admin', 'Manager', 'Inspector', 'Client']
       },
       frontend: {
-        pages: ['Dashboard', 'Telemetry', 'Exports'],
+        pages: navigationViews,
         components: ['HeaderActions', 'OperationalInputs', 'KpiCardsGrid', 'ProjectionsMatrix'],
         viewports: {
           mobile: {
@@ -236,41 +501,72 @@ export class SwarmOrchestrator {
         }
       },
       businessLogic: {
-        formulas: [
-          {
-            name: 'GrossCapex',
-            formula: 'RoofCost + SolarCost',
-            description: 'Total upfront capital expenditure before incentives',
-            inputs: ['roofSqft', 'solarKw'],
-            output: 'grossCapex'
-          },
-          {
-            name: 'FederalITC',
-            formula: '(SolarCost + (RoofCost * 0.35)) * 0.30',
-            description: 'Federal Investment Tax Credit deduction under IRA section 48',
-            inputs: ['solarKw', 'roofSqft'],
-            output: 'itcCredit'
-          },
-          {
-            name: 'NetInvestment',
-            formula: 'GrossCapex - FederalITC',
-            description: 'Net capital out-of-pocket investment',
-            inputs: ['grossCapex', 'itcCredit'],
-            output: 'netCapex'
-          },
-          {
-            name: 'PaybackYears',
-            formula: 'NetCapex / InitialYearSavings',
-            description: 'Simple financial payback breakeven horizon in years',
-            inputs: ['netCapex', 'initialYearSavings'],
-            output: 'paybackYears'
-          }
-        ],
+        formulas,
         exportFormats: ['CSV', 'PDF', 'JSON'],
         saasTiers: ['FREE', 'STARTER', 'PRO', 'ENTERPRISE'],
         stripeEnabled: true
       }
     }
+  }
+
+  /**
+   * Asynchronous LLM Blueprint Synthesis Pass
+   * Uses J.A.R.V.I.S. with Gemini/OpenRouter to synthesize rich custom schemas when online,
+   * falling back to inferential domain decomposition when in test mode or offline.
+   */
+  public async synthesizeBlueprint(directive: string): Promise<ProjectBlueprint> {
+    const isTestMode = process.env.NODE_ENV === 'test' || process.argv.some(a => a.includes('test')) || process.execArgv.includes('--test')
+
+    if (!isTestMode) {
+      try {
+        const prompt = [
+          {
+            role: 'system',
+            content: `You are J.A.R.V.I.S., Chief Systems Architect for Master Sri.
+Decompose the user directive into a formal, production JSON ProjectBlueprint.
+Return ONLY valid JSON matching this schema:
+{
+  "title": string,
+  "domain": string,
+  "entities": [
+    {
+      "name": string,
+      "fields": [{ "name": string, "type": string, "example": any }]
+    }
+  ],
+  "kpis": [
+    { "label": string, "unit": string, "baseline": number, "format": string }
+  ],
+  "navigationViews": string[],
+  "visualCanvasType": "map" | "chart" | "grid" | "network"
+}`
+          },
+          { role: 'user', content: `Decompose directive: "${directive}"` }
+        ]
+
+        const res = await swarmModelRouter.dispatch('jarvis', prompt, [])
+        const jsonMatch = res.content?.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          if (parsed.domain && parsed.entities && Array.isArray(parsed.entities)) {
+            const base = this.generateBlueprint(directive)
+            return {
+              ...base,
+              title: parsed.title || base.title,
+              domain: parsed.domain || base.domain,
+              entities: parsed.entities || base.entities,
+              kpis: parsed.kpis && parsed.kpis.length >= 4 ? parsed.kpis : base.kpis,
+              navigationViews: parsed.navigationViews && parsed.navigationViews.length > 0 ? parsed.navigationViews : base.navigationViews,
+              visualCanvasType: parsed.visualCanvasType || base.visualCanvasType
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('⚠️ [SwarmOrchestrator] J.A.R.V.I.S. LLM blueprint note:', err?.message || err)
+      }
+    }
+
+    return this.generateBlueprint(directive)
   }
 
   public autoAlignSharedElementIds(html: string, js: string): string {
@@ -375,7 +671,7 @@ export class SwarmOrchestrator {
     // ──────────────────────────────────────────────────────────────────────────
     // STAGE 1: J.A.R.V.I.S. (Chief Systems Architect & Planner)
     // ──────────────────────────────────────────────────────────────────────────
-    const blueprint = this.generateBlueprint(directive)
+    const blueprint = await this.synthesizeBlueprint(directive)
     await notify('PROGRESS', `Stage 1: J.A.R.V.I.S. established ProjectBlueprint data contract (${blueprint.scope}).`)
     await taskAuditService.logToolExecution(taskId, 'jarvis_blueprint_decomposition', { directive }, { slug: blueprint.slug }, 'SUCCESS', 50)
 
@@ -397,24 +693,48 @@ export class SwarmOrchestrator {
     let aegisHtml = ''
     if (!isTestMode) {
       try {
+        const isSolar = blueprint.domain === 'COMMERCIAL_SOLAR' || /solar|roof/i.test(directive)
+        const inputIdExamples = isSolar
+          ? 'id="roof-sqft", id="solar-kw", id="electricity-rate"'
+          : 'domain-specific IDs, e.g. id="param-1", id="param-2", id="param-3" (or matching entity fields)'
+        const metricIdExamples = isSolar
+          ? 'id="gross-capex", id="net-capex", id="itc-incentive", id="payback-years"'
+          : 'distinct IDs matching KPIs, e.g. id="kpi-0", id="kpi-1", id="kpi-2", id="kpi-3"'
+
         const aegisPrompt = [
           {
             role: 'system',
             content: `You are Aegis, Master Software Architect for Master Sri.
-Generate complete, semantic, valid HTML markup for: "${directive}".
+Generate complete, semantic, valid HTML markup for project: "${blueprint.name}" (Domain: ${blueprint.domain || 'ENTERPRISE'}).
+User Directive: "${directive}".
 Requirements:
 1. Container element (<div class="calculator-container" id="calculator-root">).
-2. Input parameter card with at least 3 labeled range sliders and number inputs with id attributes (e.g. id="roof-sqft", id="solar-kw", id="electricity-rate") and display value badges (e.g. id="roof-sqft-val").
-3. Key metrics summary card with distinct IDs (e.g. id="gross-capex", id="net-capex", id="itc-incentive", id="annual-savings", id="payback-years").
-4. Tabular projection matrix: <table> with <thead> and <tbody id="projection-table-body">.
-5. Action controls: <button id="export-csv-btn">Export CSV</button>, <button id="export-pdf-btn">Export PDF</button>, and <button id="recalculate-btn">Recalculate</button>.
+2. Input parameter card with at least 3 labeled range sliders and number inputs with id attributes (${inputIdExamples}) and display value badges (e.g. id="...-val").
+3. Key metrics summary card with 4 KPI cards with distinct IDs (${metricIdExamples}).
+4. Tabular projection/records matrix: <table> with <thead> and <tbody id="projection-table-body">.
+5. Action controls: <button id="export-csv-btn">Export CSV</button>, <button id="export-pdf-btn">Export PDF</button>, <button id="recalculate-btn">Recalculate</button>, <button id="open-modal-btn">Add Record</button>.
 6. Return ONLY the HTML code. Do NOT output markdown code blocks or TODO placeholders.`
           },
-          { role: 'user', content: `Generate HTML architecture for: ${directive}` }
+          { role: 'user', content: `Generate domain-specific HTML architecture for: ${directive}` }
         ]
 
         const aegisRes = await swarmModelRouter.dispatch('aegis', aegisPrompt, [])
         aegisHtml = this.extractCodeBlock(aegisRes.content || '', 'html')
+
+        // Automated retry pass if generation was incomplete
+        if (!aegisHtml || aegisHtml.length < 200 || !aegisHtml.includes('input')) {
+          console.warn('⚠️ [SwarmOrchestrator] Aegis HTML pass incomplete; triggering LLM retry pass with error feedback...')
+          const retryPrompt = [
+            ...aegisPrompt,
+            { role: 'assistant', content: aegisHtml || 'Failed generation' },
+            { role: 'user', content: 'The previous generation was incomplete or empty. Please regenerate valid, full HTML markup with all required interactive elements.' }
+          ]
+          const retryRes = await swarmModelRouter.dispatch('aegis', retryPrompt, [])
+          const retriedHtml = this.extractCodeBlock(retryRes.content || '', 'html')
+          if (retriedHtml && retriedHtml.length > 200 && retriedHtml.includes('input')) {
+            aegisHtml = retriedHtml
+          }
+        }
       } catch (err: any) {
         console.warn('⚠️ [SwarmOrchestrator] Aegis model synthesis fallback:', err?.message || err)
       }

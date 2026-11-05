@@ -140,6 +140,7 @@ export class AppBuilderEngine {
         <div class="calculator-grid">
           <div class="controls-card">
             <h3>Configuration Parameters</h3>
+            ${isSolarOrRoofing ? `
             <div class="input-group">
               <label for="roof-sqft">Roof Surface Area (SqFt)</label>
               <input type="range" id="roof-sqft" min="5000" max="250000" step="2500" value="45000" oninput="calculate()">
@@ -157,10 +158,30 @@ export class AppBuilderEngine {
               <input type="range" id="battery-kwh" min="0" max="2000" step="50" value="500" oninput="calculate()">
               <div class="val-display"><span id="battery-kwh-val">500</span> kWh</div>
             </div>
+            ` : `
+            <div class="input-group">
+              <label for="param-1">Operational Capacity Units</label>
+              <input type="range" id="param-1" min="10" max="500" step="5" value="150" oninput="calculate()">
+              <div class="val-display"><span id="param-1-val">150</span> Units</div>
+            </div>
+
+            <div class="input-group">
+              <label for="param-2">Target Throughput Rate (%)</label>
+              <input type="range" id="param-2" min="50" max="100" step="1" value="95" oninput="calculate()">
+              <div class="val-display"><span id="param-2-val">95</span> %</div>
+            </div>
+
+            <div class="input-group">
+              <label for="param-3">Telemetry Sampling Interval (sec)</label>
+              <input type="range" id="param-3" min="1" max="60" step="1" value="10" oninput="calculate()">
+              <div class="val-display"><span id="param-3-val">10</span> sec</div>
+            </div>
+            `}
           </div>
 
           <div class="results-card" id="metrics">
             <h3>Executive Summary</h3>
+            ${isSolarOrRoofing ? `
             <div class="metric-row">
               <span>Gross Capex</span>
               <strong id="gross-capex">$0</strong>
@@ -177,6 +198,24 @@ export class AppBuilderEngine {
               <span>Estimated Annual Production</span>
               <strong id="annual-mwh">0 MWh</strong>
             </div>
+            ` : `
+            <div class="metric-row">
+              <span>Active Entities</span>
+              <strong id="metric-1">150 Units</strong>
+            </div>
+            <div class="metric-row">
+              <span>System Health</span>
+              <strong id="metric-2" class="highlight-green">98.4%</strong>
+            </div>
+            <div class="metric-row total">
+              <span>Operational Efficiency</span>
+              <strong id="metric-3">Optimal</strong>
+            </div>
+            <div class="metric-row">
+              <span>Active Incident Rate</span>
+              <strong id="metric-4">0 Alerts</strong>
+            </div>
+            `}
           </div>
         </div>
       </section>
@@ -257,42 +296,70 @@ function formatCurrency(val) {
 
 function calculate() {
   const roofSqftEl = document.getElementById('roof-sqft');
-  const solarKwEl = document.getElementById('solar-kw');
-  const batteryKwhEl = document.getElementById('battery-kwh');
+  if (roofSqftEl) {
+    const solarKwEl = document.getElementById('solar-kw');
+    const batteryKwhEl = document.getElementById('battery-kwh');
 
-  const sqft = roofSqftEl ? parseFloat(roofSqftEl.value) || 0 : 0;
-  const kw = solarKwEl ? parseFloat(solarKwEl.value) || 0 : 0;
-  const batteryKwh = batteryKwhEl ? parseFloat(batteryKwhEl.value) || 0 : 0;
+    const sqft = parseFloat(roofSqftEl.value) || 0;
+    const kw = solarKwEl ? parseFloat(solarKwEl.value) || 0 : 0;
+    const batteryKwh = batteryKwhEl ? parseFloat(batteryKwhEl.value) || 0 : 0;
 
-  const roofValEl = document.getElementById('roof-sqft-val');
-  const solarValEl = document.getElementById('solar-kw-val');
-  const batteryValEl = document.getElementById('battery-kwh-val');
+    const roofValEl = document.getElementById('roof-sqft-val');
+    const solarValEl = document.getElementById('solar-kw-val');
+    const batteryValEl = document.getElementById('battery-kwh-val');
 
-  if (roofValEl) roofValEl.textContent = sqft.toLocaleString();
-  if (solarValEl) solarValEl.textContent = kw.toLocaleString();
-  if (batteryValEl) batteryValEl.textContent = batteryKwh.toLocaleString();
+    if (roofValEl) roofValEl.textContent = sqft.toLocaleString();
+    if (solarValEl) solarValEl.textContent = kw.toLocaleString();
+    if (batteryValEl) batteryValEl.textContent = batteryKwh.toLocaleString();
 
-  // Dynamic calculations
-  const roofCost = sqft * 11.5;
-  const solarCost = kw * 1850;
-  const batteryCost = batteryKwh * 650;
+    // Dynamic calculations
+    const roofCost = sqft * 11.5;
+    const solarCost = kw * 1850;
+    const batteryCost = batteryKwh * 650;
 
-  const grossCapex = roofCost + solarCost + batteryCost;
-  const itcIncentive = (solarCost + batteryCost) * 0.30;
-  const netCapex = grossCapex - itcIncentive;
-  const annualMwh = Math.round(kw * 1.45);
+    const grossCapex = roofCost + solarCost + batteryCost;
+    const itcIncentive = (solarCost + batteryCost) * 0.30;
+    const netCapex = grossCapex - itcIncentive;
+    const annualMwh = Math.round(kw * 1.45);
 
-  const grossEl = document.getElementById('gross-capex');
-  const itcEl = document.getElementById('itc-incentive');
-  const netEl = document.getElementById('net-capex');
-  const mwhEl = document.getElementById('annual-mwh');
+    const grossEl = document.getElementById('gross-capex');
+    const itcEl = document.getElementById('itc-incentive');
+    const netEl = document.getElementById('net-capex');
+    const mwhEl = document.getElementById('annual-mwh');
 
-  if (grossEl) grossEl.textContent = formatCurrency(grossCapex);
-  if (itcEl) itcEl.textContent = '-' + formatCurrency(itcIncentive);
-  if (netEl) netEl.textContent = formatCurrency(netCapex);
-  if (mwhEl) mwhEl.textContent = annualMwh.toLocaleString() + ' MWh';
+    if (grossEl) grossEl.textContent = formatCurrency(grossCapex);
+    if (itcEl) itcEl.textContent = '-' + formatCurrency(itcIncentive);
+    if (netEl) netEl.textContent = formatCurrency(netCapex);
+    if (mwhEl) mwhEl.textContent = annualMwh.toLocaleString() + ' MWh';
 
-  return { grossCapex, itcIncentive, netCapex, annualMwh };
+    return { grossCapex, itcIncentive, netCapex, annualMwh };
+  }
+
+  // Dynamic Domain Calculations (Non-Solar)
+  const p1El = document.getElementById('param-1');
+  const p2El = document.getElementById('param-2');
+  const p3El = document.getElementById('param-3');
+  const p1 = p1El ? parseFloat(p1El.value) || 0 : 150;
+  const p2 = p2El ? parseFloat(p2El.value) || 0 : 95;
+  const p3 = p3El ? parseFloat(p3El.value) || 0 : 10;
+
+  const v1El = document.getElementById('param-1-val');
+  const v2El = document.getElementById('param-2-val');
+  const v3El = document.getElementById('param-3-val');
+  if (v1El) v1El.textContent = p1.toLocaleString() + ' Units';
+  if (v2El) v2El.textContent = p2.toLocaleString() + ' %';
+  if (v3El) v3El.textContent = p3.toLocaleString() + ' sec';
+
+  const m1El = document.getElementById('metric-1');
+  const m2El = document.getElementById('metric-2');
+  const m3El = document.getElementById('metric-3');
+  const m4El = document.getElementById('metric-4');
+  if (m1El) m1El.textContent = p1.toLocaleString() + ' Units';
+  if (m2El) m2El.textContent = Math.min(99.9, p2 * 1.04).toFixed(1) + '%';
+  if (m3El) m3El.textContent = p2 > 90 ? 'Optimal' : 'Standard';
+  if (m4El) m4El.textContent = '0 Alerts';
+
+  return { units: p1, health: p2, sampling: p3 };
 }
 
 window.calculate = calculate;

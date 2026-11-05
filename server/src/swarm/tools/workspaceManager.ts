@@ -264,13 +264,14 @@ export function Sidebar({ activePage, setActivePage }) {
       'client/src/components/MetricCards.jsx',
       `import React from 'react'
 
-export function MetricCards({ metrics = {} }) {
-  const cards = [
-    { label: 'Gross Capex', value: metrics.grossCapex || '$580,000', delta: '+14% vs last week', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
-    { label: '30% ITC Credit', value: metrics.itcCredit || '$174,000', delta: '+8.2%', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
-    { label: 'Net Capex', value: metrics.netCapex || '$406,000', delta: '+12.4%', deltaClass: 'text-sky-400 bg-sky-500/10' },
-    { label: 'Payback Period', value: metrics.paybackYears || '3.2 Yrs', delta: '-2.5%', deltaClass: 'text-amber-400 bg-amber-500/10' }
+export function MetricCards({ metrics = {}, kpis = [] }) {
+  const defaultCards = [
+    { label: 'Active Records', value: metrics.activeRecords || '148 Units', delta: '+12% vs last week', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'System Throughput', value: metrics.throughput || '98.4%', delta: '+4.1%', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Operational Load', value: metrics.load || '42.8 Units', delta: '-1.8%', deltaClass: 'text-sky-400 bg-sky-500/10' },
+    { label: 'Alert Thresholds', value: metrics.alerts || '0 Critical', delta: 'Nominal', deltaClass: 'text-amber-400 bg-amber-500/10' }
   ]
+  const cards = kpis && kpis.length > 0 ? kpis : defaultCards
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -278,11 +279,11 @@ export function MetricCards({ metrics = {} }) {
         <div key={i} className="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
             <span>{c.label}</span>
-            <span className={\`px-2 py-0.5 rounded text-[11px] font-mono font-semibold border border-slate-700/50 \${c.deltaClass}\`}>
-              {c.delta}
+            <span className={\`px-2 py-0.5 rounded text-[11px] font-mono font-semibold border border-slate-700/50 \${c.deltaClass || 'text-emerald-400 bg-emerald-500/10'}\`}>
+              {c.delta || '+2.4%'}
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-white font-mono">{c.value}</div>
+          <div className="text-2xl font-extrabold text-white font-mono">{c.value || c.baseline || '0'}</div>
           <p className="text-xs text-slate-500">Live indexed telemetry</p>
         </div>
       ))}
@@ -494,7 +495,7 @@ export function ActionModal({ isOpen, onClose, onSaveRecord }) {
               id="new-record-output"
               value={output}
               onChange={e => setOutput(e.target.value)}
-              placeholder="e.g. 14,200 kWh"
+              placeholder="e.g. 98.4% or 420 units"
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
             />
           </div>
