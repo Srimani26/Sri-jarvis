@@ -421,7 +421,11 @@ function cleanAndDeduplicateTranscript(raw: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
+export type VoiceTurnState = 'IDLE' | 'SPEAKING' | 'LISTENING' | 'PROCESSING'
+
 export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: JarvisVoiceModalProps) {
+  const [voiceState, setVoiceState] = useState<VoiceTurnState>('IDLE')
+  const voiceStateRef = useRef<VoiceTurnState>('IDLE')
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -458,6 +462,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const isSleepingRef = useRef(false)
   const isProcessingRef = useRef(false)
   const silenceTimerRef = useRef<any>(null)
+  const silenceDebounceTimerRef = useRef<any>(null)
   const maxRecordingTimerRef = useRef<any>(null)
   const sovereignLockRef = useRef(true)
   const continuousModeRef = useRef(false)
@@ -791,11 +796,27 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       setIsSpeaking(false)
       isSpeakingRef.current = false
       lastActiveRef.current = Date.now()
+
+      // Release audio focus
+      stopNeuralSpeech()
+
+      // Play a 100ms low-volume cue chime
+      playJarvisChime('wake')
+
+      // Trigger a brief vibration (50ms)
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        try { navigator.vibrate(50) } catch {}
+      }
+
+      // Transition immediately to LISTENING and awaken the microphone
+      setVoiceState('LISTENING')
+      voiceStateRef.current = 'LISTENING'
+
       if (onDone) {
         onDone()
       } else if (isOpenRef.current) {
-        setIsSleeping(true)
-        isSleepingRef.current = true
+        setIsSleeping(false)
+        isSleepingRef.current = false
         startListening()
       }
     }
@@ -3527,7 +3548,11 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
 
   const stopListening = (hardTeardown = false) => {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+    if (silenceDebounceTimerRef.current) clearTimeout(silenceDebounceTimerRef.current)
     if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+    }
     if (vadIntervalRef.current) {
       clearInterval(vadIntervalRef.current)
       vadIntervalRef.current = null
@@ -3550,6 +3575,8 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
     resetEqualizerBars()
     setIsListening(false)
     isListeningRef.current = false
+    setVoiceState('IDLE')
+    voiceStateRef.current = 'IDLE'
   }
 
   const startWhisperRecording = async () => {
@@ -3726,7 +3753,124 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
     }
   }
 
+  const dispatchVoiceSession = async (finalSpeech: string) => {
+    try {
+      await fetch('/api/voice/session', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({
+          transcript: finalSpeech,
+          text: finalSpeech,
+          agent: activeAgentRef.current?.id || 'jarvis'
+        })
+      })
+    } catch (e) {
+      console.warn('[Voice] /api/voice/session dispatch note:', e)
+    }
+    await processCommand(finalSpeech)
+  }
+
   const startListening = () => {
+    if (isSpeakingRef.current || isProcessingRef.current) return
+
+    if (silenceDebounceTimerRef.current) {
+      clearTimeout(silenceDebounceTimerRef.current)
+      silenceDebounceTimerRef.current = null
+    }
+
+    const SpeechRecognition = typeof window !== 'undefined'
+      ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+      : null
+
+    if (SpeechRecognition && engineType === 'WebSpeech') {
+      try {
+        let recognition = recognitionRef.current
+        if (!recognition) {
+          recognition = new SpeechRecognition()
+          recognitionRef.current = recognition
+        }
+
+        recognition.continuous = false // Mobile Chrome drops continuous: true
+        recognition.interimResults = true
+        recognition.lang = 'en-US'
+
+        recognition.onstart = () => {
+          setIsListening(true)
+          isListeningRef.current = true
+          setVoiceState('LISTENING')
+          voiceStateRef.current = 'LISTENING'
+          // Trigger brief vibration (50ms) when listening window opens
+          if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+            try { navigator.vibrate(50) } catch {}
+          }
+        }
+
+        recognition.onresult = (event: any) => {
+          let interim = ''
+          let final = ''
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              final += event.results[i][0].transcript
+            } else {
+              interim += event.results[i][0].transcript
+            }
+          }
+          const currentText = cleanAndDeduplicateTranscript(final || interim).trim()
+          if (currentText) {
+            setTranscript(currentText)
+            transcriptRef.current = currentText
+          }
+
+          // Detect speech completion using a 1200ms silence debounce timer
+          if (silenceDebounceTimerRef.current) clearTimeout(silenceDebounceTimerRef.current)
+          silenceDebounceTimerRef.current = setTimeout(async () => {
+            const finalSpeech = transcriptRef.current.trim()
+            if (finalSpeech && voiceStateRef.current === 'LISTENING') {
+              setVoiceState('PROCESSING')
+              voiceStateRef.current = 'PROCESSING'
+              setIsListening(false)
+              isListeningRef.current = false
+              setIsProcessing(true)
+              isProcessingRef.current = true
+              try { recognition.stop() } catch {}
+
+              await dispatchVoiceSession(finalSpeech)
+            }
+          }, 1200)
+        }
+
+        recognition.onerror = (e: any) => {
+          console.warn('[WebSpeech] Recognition note:', e?.error)
+        }
+
+        recognition.onend = () => {
+          // If still in LISTENING state, immediately re-arm recognition
+          if (voiceStateRef.current === 'LISTENING' && isOpenRef.current) {
+            try {
+              recognition.start()
+            } catch (e) {
+              // ignore already started
+            }
+          }
+        }
+
+        try {
+          recognition.start()
+        } catch (e) {
+          // ignore if already started
+        }
+
+        setIsListening(true)
+        isListeningRef.current = true
+        setVoiceState('LISTENING')
+        voiceStateRef.current = 'LISTENING'
+        setEngineType('WebSpeech')
+        return
+      } catch (err) {
+        console.warn('[WebSpeech] Fallback to Whisper recording:', err)
+      }
+    }
+
     startWhisperRecording()
   }
 

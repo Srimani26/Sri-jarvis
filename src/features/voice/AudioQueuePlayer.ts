@@ -1,14 +1,21 @@
 /**
  * AudioQueuePlayer.ts — Low-Latency Mobile-Resilient Audio Queue & Monotonic Scheduler
+ * Target: src/features/voice/AudioQueuePlayer.ts & frontend/src/features/voice/AudioQueuePlayer.ts
  *
  * Implements:
- * 1. Monotonic Scheduling: Eliminates fast-forward / chipmunk audio overlap by strictly
- *    scheduling chunk playback times sequentially: nextStartTime = Math.max(currentTime, nextStartTime).
- * 2. Automatic Sample Rate Normalization: Uses native decodeAudioData (or auto-wrapped WAV header for raw PCM)
- *    to let the browser's native C++ resampler match the device's hardware sample rate (16kHz / 24kHz -> 44.1kHz / 48kHz).
- * 3. User-Gesture Priming: Explicitly unlocks and resumes AudioContext on user interaction to prevent iOS/Android suspended audio clock drift.
- * 4. Conversational Barge-In: Instantly halts active and queued sources upon interruption.
+ * 1. Mobile Voice Playback Stabilization:
+ *    - HTML5 Audio queue playback with strict 1.0x playback rate and pitch preservation:
+ *      audio.playbackRate = 1.0; audio.preservesPitch = true;
+ *    - Converts raw buffers to Blob([buffer], { type: 'audio/mpeg' }) + URL.createObjectURL.
+ *    - Sequential queue playback: waits for audio.onended before playing the next segment.
+ * 2. Turn-Taking State Machine:
+ *    - Explicitly manages states: IDLE -> SPEAKING -> LISTENING -> PROCESSING.
+ *    - While state === 'SPEAKING', microphone is paused/muted.
+ * 3. Monotonic Web Audio Scheduling & User-Gesture Priming:
+ *    - Retains Web Audio fallback, keep-alive 10Hz oscillator, and WAV header generation for raw 16kHz PCM.
  */
+
+export type TurnTakingState = 'IDLE' | 'SPEAKING' | 'LISTENING' | 'PROCESSING'
 
 let nextStartTime = 0
 
@@ -60,6 +67,13 @@ export function wrapPcmInWavHeader(pcmBytes: Uint8Array, sampleRate = 16000, cha
   return buffer
 }
 
+export interface AudioQueueItem {
+  id: string
+  objectUrl: string
+  onChunkStart?: () => void
+  onChunkEnd?: () => void
+}
+
 export class AudioQueuePlayer {
   private static instance: AudioQueuePlayer | null = null
   private audioCtx: AudioContext | null = null
@@ -70,6 +84,17 @@ export class AudioQueuePlayer {
   private keepAliveOscillator: OscillatorNode | null = null
   private keepAliveGain: GainNode | null = null
 
+  // Turn-Taking State Machine
+  private currentState: TurnTakingState = 'IDLE'
+  private stateChangeListeners: Set<(state: TurnTakingState) => void> = new Set()
+
+  // HTML5 Sequential Audio Queue
+  private queue: AudioQueueItem[] = []
+  private activeAudio: HTMLAudioElement | null = null
+  private activeObjectUrl: string | null = null
+  private isPlayingQueue = false
+  private onAllEndedCallback: (() => void) | null = null
+
   public static getInstance(): AudioQueuePlayer {
     if (!AudioQueuePlayer.instance) {
       AudioQueuePlayer.instance = new AudioQueuePlayer()
@@ -77,11 +102,37 @@ export class AudioQueuePlayer {
     return AudioQueuePlayer.instance
   }
 
-  /**
-   * Attaches an inaudible 10Hz oscillator node with microscopic gain (0.0001)
-   * connected to destination. This prevents Android Chrome and iOS Safari from
-   * releasing the microphone hardware and suspending the audio clock when speech finishes.
-   */
+  // ---------------------------------------------------------------------------
+  // Turn-Taking State Machine Management
+  // ---------------------------------------------------------------------------
+
+  public getState(): TurnTakingState {
+    return this.currentState
+  }
+
+  public setState(state: TurnTakingState): void {
+    if (this.currentState === state) return
+    this.currentState = state
+    for (const listener of this.stateChangeListeners) {
+      try {
+        listener(state)
+      } catch (err) {
+        console.warn('[AudioQueuePlayer] State listener error:', err)
+      }
+    }
+  }
+
+  public onStateChange(listener: (state: TurnTakingState) => void): () => void {
+    this.stateChangeListeners.add(listener)
+    return () => {
+      this.stateChangeListeners.delete(listener)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Keep-Alive & Priming (iOS Safari & Android Chrome Hardware Audio Clock)
+  // ---------------------------------------------------------------------------
+
   public startKeepAliveOscillator(audioCtx?: AudioContext): boolean {
     const ctx = audioCtx || this.audioCtx
     if (!ctx || ctx.state === 'closed') return false
@@ -92,8 +143,8 @@ export class AudioQueuePlayer {
       const gain = ctx.createGain()
 
       osc.type = 'sine'
-      osc.frequency.setValueAtTime(10, ctx.currentTime) // 10Hz inaudible sub-audible tone
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime) // 0.0001 gain to prevent sleep without audible noise
+      osc.frequency.setValueAtTime(10, ctx.currentTime) // 10Hz inaudible tone
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime) // 0.0001 gain prevents sleep
 
       osc.connect(gain)
       gain.connect(ctx.destination)
@@ -101,7 +152,6 @@ export class AudioQueuePlayer {
 
       this.keepAliveOscillator = osc
       this.keepAliveGain = gain
-      console.log('🔊 [AudioQueuePlayer] Silent keep-alive oscillator (10Hz, gain 0.0001) connected.')
       return true
     } catch (err) {
       console.warn('[AudioQueuePlayer] Keep-alive oscillator note:', err)
@@ -129,10 +179,6 @@ export class AudioQueuePlayer {
     return this.keepAliveOscillator !== null
   }
 
-  /**
-   * Must be called on first user touch/mic interaction to unlock audio clock
-   * on iOS Safari and mobile Chrome.
-   */
   public async prime(providedCtx?: AudioContext): Promise<boolean> {
     if (typeof window === 'undefined') return false
 
@@ -141,23 +187,23 @@ export class AudioQueuePlayer {
         this.audioCtx = providedCtx
       } else if (!this.audioCtx || this.audioCtx.state === 'closed') {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-        if (!AudioCtx) return false
-        this.audioCtx = new AudioCtx({ latencyHint: 'interactive' })
+        if (AudioCtx) {
+          this.audioCtx = new AudioCtx({ latencyHint: 'interactive' })
+        }
       }
 
-      if (this.audioCtx.state === 'suspended') {
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
         await this.audioCtx.resume()
       }
 
-      // Play 1 silent frame to register user-gesture token
-      const silent = this.audioCtx.createBuffer(1, 1, 22050)
-      const src = this.audioCtx.createBufferSource()
-      src.buffer = silent
-      src.connect(this.audioCtx.destination)
-      src.start(0)
-
-      // Start continuous silent keep-alive oscillator
-      this.startKeepAliveOscillator(this.audioCtx)
+      if (this.audioCtx) {
+        const silent = this.audioCtx.createBuffer(1, 1, 22050)
+        const src = this.audioCtx.createBufferSource()
+        src.buffer = silent
+        src.connect(this.audioCtx.destination)
+        src.start(0)
+        this.startKeepAliveOscillator(this.audioCtx)
+      }
 
       this.isUnlocked = true
       return true
@@ -172,21 +218,232 @@ export class AudioQueuePlayer {
   }
 
   public isSpeaking(): boolean {
-    return this.activeSources.size > 0 || this.pendingDecodeCount > 0
+    return (
+      this.currentState === 'SPEAKING' ||
+      this.activeAudio !== null ||
+      this.queue.length > 0 ||
+      this.activeSources.size > 0 ||
+      this.pendingDecodeCount > 0
+    )
   }
 
   public isPlaying(): boolean {
     return this.isSpeaking()
   }
 
+  public getPlaybackRate(): number {
+    return this.activeAudio ? this.activeAudio.playbackRate : 1.0
+  }
+
+  public getPreservesPitch(): boolean {
+    return this.activeAudio ? (this.activeAudio.preservesPitch ?? true) : true
+  }
+
+  public getActiveAudio(): HTMLAudioElement | null {
+    return this.activeAudio
+  }
+
+  public getQueueLength(): number {
+    return this.queue.length
+  }
+
+  // ---------------------------------------------------------------------------
+  // HTML5 Audio Queue & Strict 1.0x Playback Rate Lockdown
+  // ---------------------------------------------------------------------------
+
   /**
-   * Instantly stops all current speech and resets schedule timeline (barge-in).
+   * Enqueues an audio segment (ArrayBuffer, Uint8Array, or base64 MP3/WAV string)
+   * into the sequential HTML5 Audio playback queue.
+   *
+   * Enforces:
+   * - Blob([buffer], { type: 'audio/mpeg' }) + URL.createObjectURL
+   * - audio.playbackRate = 1.0
+   * - audio.preservesPitch = true
+   * - Strict sequential playback waiting for audio.onended before next item
    */
-  public stop() {
+  public async playQueue(
+    audioData: ArrayBuffer | Uint8Array | string,
+    onChunkStart?: () => void,
+    onAllEnded?: () => void
+  ): Promise<boolean> {
+    if (typeof window === 'undefined') return false
+
+    try {
+      let buffer: Uint8Array
+      if (typeof audioData === 'string') {
+        // Base64 string decode
+        const binaryString = typeof atob === 'function'
+          ? atob(audioData)
+          : Buffer.from(audioData, 'base64').toString('binary')
+        const len = binaryString.length
+        buffer = new Uint8Array(len)
+        for (let i = 0; i < len; i++) {
+          buffer[i] = binaryString.charCodeAt(i)
+        }
+      } else if (audioData instanceof Uint8Array) {
+        buffer = audioData
+      } else {
+        buffer = new Uint8Array(audioData)
+      }
+
+      // Convert audio bytes to Blob([buffer], { type: 'audio/mpeg' }) and construct ObjectURL
+      const blob = new Blob([buffer as any], { type: 'audio/mpeg' })
+      const objectUrl = URL.createObjectURL(blob)
+
+      if (onAllEnded) {
+        this.onAllEndedCallback = onAllEnded
+      }
+
+      const item: AudioQueueItem = {
+        id: `chunk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        objectUrl,
+        onChunkStart,
+        onChunkEnd: () => {
+          try {
+            URL.revokeObjectURL(objectUrl)
+          } catch {}
+        }
+      }
+
+      this.queue.push(item)
+
+      if (!this.isPlayingQueue) {
+        this.processNextQueueItem()
+      }
+
+      return true
+    } catch (err) {
+      console.error('[AudioQueuePlayer] playQueue error:', err)
+      return false
+    }
+  }
+
+  private processNextQueueItem(): void {
+    if (this.queue.length === 0) {
+      this.isPlayingQueue = false
+      this.activeAudio = null
+      this.activeObjectUrl = null
+      this.setState('LISTENING')
+      if (this.onAllEndedCallback) {
+        const cb = this.onAllEndedCallback
+        this.onAllEndedCallback = null
+        try { cb() } catch {}
+      }
+      return
+    }
+
+    this.isPlayingQueue = true
+    this.setState('SPEAKING')
+
+    const item = this.queue.shift()!
+    this.activeObjectUrl = item.objectUrl
+
+    try {
+      const AudioConstructor = (typeof Audio !== 'undefined')
+        ? Audio
+        : (typeof window !== 'undefined' && (window as any).Audio)
+
+      if (!AudioConstructor) {
+        // Fallback for non-browser/test mocking environments
+        item.onChunkStart?.()
+        item.onChunkEnd?.()
+        this.processNextQueueItem()
+        return
+      }
+
+      const audio = new AudioConstructor(item.objectUrl)
+
+      // Playback Rate & Pitch Preservation Lockdown:
+      // Prevents 3x fast-forward chipmunk glitches across iOS Safari & Android Chrome
+      audio.playbackRate = 1.0
+      audio.preservesPitch = true
+      this.activeAudio = audio
+
+      const cleanupAndNext = () => {
+        item.onChunkEnd?.()
+        this.activeAudio = null
+        this.activeObjectUrl = null
+        this.processNextQueueItem()
+      }
+
+      audio.onplay = () => {
+        this.setState('SPEAKING')
+        item.onChunkStart?.()
+      }
+
+      audio.onended = () => {
+        cleanupAndNext()
+      }
+
+      audio.onerror = (e) => {
+        console.warn('[AudioQueuePlayer] HTML5 audio playback error:', e)
+        cleanupAndNext()
+      }
+
+      const playPromise = audio.play()
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('[AudioQueuePlayer] Play failed or was blocked by autoplay:', err)
+          cleanupAndNext()
+        })
+      }
+    } catch (err) {
+      console.warn('[AudioQueuePlayer] Exception in processNextQueueItem:', err)
+      item.onChunkEnd?.()
+      this.processNextQueueItem()
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Web Audio Monotonic Enqueue (Dual Pipeline Support)
+  // ---------------------------------------------------------------------------
+
+  public async enqueueChunk(
+    rawBuffer: ArrayBuffer,
+    onChunkStart?: () => void,
+    onAllEnded?: () => void
+  ): Promise<boolean> {
+    // Route into the HTML5 queue for mobile playback stabilization
+    return this.playQueue(rawBuffer, onChunkStart, onAllEnded)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conversational Barge-In & Complete Stop
+  // ---------------------------------------------------------------------------
+
+  public stop(): void {
     this.sessionId++
     this.pendingDecodeCount = 0
     nextStartTime = this.audioCtx ? this.audioCtx.currentTime : 0
 
+    // Stop active HTML5 Audio playback
+    if (this.activeAudio) {
+      try {
+        this.activeAudio.pause()
+        this.activeAudio.currentTime = 0
+        this.activeAudio.src = ''
+      } catch {}
+      this.activeAudio = null
+    }
+
+    if (this.activeObjectUrl) {
+      try {
+        URL.revokeObjectURL(this.activeObjectUrl)
+      } catch {}
+      this.activeObjectUrl = null
+    }
+
+    // Drain queued items and revoke their ObjectURLs
+    for (const item of this.queue) {
+      try {
+        URL.revokeObjectURL(item.objectUrl)
+      } catch {}
+    }
+    this.queue = []
+    this.isPlayingQueue = false
+    this.onAllEndedCallback = null
+
+    // Stop active Web Audio buffer sources
     for (const src of this.activeSources) {
       try {
         src.stop(0)
@@ -194,95 +451,13 @@ export class AudioQueuePlayer {
       } catch {}
     }
     this.activeSources.clear()
+
+    this.setState('IDLE')
   }
 
-  /**
-   * Alias for barge-in interruption.
-   */
-  public stopAll() {
+  public stopAll(): void {
     this.stop()
-  }
-
-  /**
-   * Enqueues an ArrayBuffer (MP3, WAV, or raw 16kHz PCM) and schedules it gaplessly.
-   */
-  public async enqueueChunk(
-    rawBuffer: ArrayBuffer,
-    onChunkStart?: () => void,
-    onAllEnded?: () => void
-  ): Promise<boolean> {
-    const currentSession = this.sessionId
-    await this.prime()
-    if (!this.audioCtx) return false
-
-    this.pendingDecodeCount++
-
-    try {
-      let decodeBuffer = rawBuffer.slice(0)
-
-      // Inspect first 4 bytes to check if it has a container header (RIFF, ID3, or MP3 frame sync 0xFF)
-      const u8 = new Uint8Array(decodeBuffer)
-      const isRiff = u8.length > 4 && u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46
-      const isId3 = u8.length > 3 && u8[0] === 0x49 && u8[1] === 0x44 && u8[2] === 0x33
-      const isMp3Sync = u8.length > 2 && u8[0] === 0xFF && (u8[1] & 0xE0) === 0xE0
-
-      // If raw headerless PCM, wrap into WAV format so decodeAudioData resamples to hardware rate cleanly
-      if (!isRiff && !isId3 && !isMp3Sync) {
-        decodeBuffer = wrapPcmInWavHeader(u8, 16000, 1)
-      }
-
-      const audioBuffer = await this.audioCtx.decodeAudioData(decodeBuffer)
-
-      if (this.sessionId !== currentSession) {
-        this.pendingDecodeCount = Math.max(0, this.pendingDecodeCount - 1)
-        return false
-      }
-
-      const source = playAudioChunk(audioBuffer, this.audioCtx)
-      this.activeSources.add(source)
-
-      source.onended = () => {
-        this.activeSources.delete(source)
-        this.pendingDecodeCount = Math.max(0, this.pendingDecodeCount - 1)
-        try { source.disconnect() } catch {}
-
-        if (this.sessionId === currentSession && this.activeSources.size === 0 && this.pendingDecodeCount === 0) {
-          nextStartTime = 0
-          onAllEnded?.()
-        }
-      }
-
-      onChunkStart?.()
-      return true
-    } catch (err) {
-      this.pendingDecodeCount = Math.max(0, this.pendingDecodeCount - 1)
-      console.warn('[AudioQueuePlayer] decodeAudioData error, attempting raw PCM fallback:', err)
-
-      // Emergency fallback: If decodeAudioData failed, create native buffer directly with 16kHz
-      try {
-        const int16 = new Int16Array(rawBuffer)
-        const fallbackBuf = this.audioCtx.createBuffer(1, int16.length, 16000)
-        const channel = fallbackBuf.getChannelData(0)
-        for (let i = 0; i < int16.length; i++) {
-          channel[i] = int16[i] / 32768.0
-        }
-        const source = playAudioChunk(fallbackBuf, this.audioCtx)
-        this.activeSources.add(source)
-        source.onended = () => {
-          this.activeSources.delete(source)
-          if (this.activeSources.size === 0) {
-            nextStartTime = 0
-            onAllEnded?.()
-          }
-        }
-        return true
-      } catch (fallbackErr) {
-        console.error('[AudioQueuePlayer] Playback completely failed:', fallbackErr)
-        return false
-      }
-    }
   }
 }
 
 export const audioQueuePlayer = AudioQueuePlayer.getInstance()
-

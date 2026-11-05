@@ -294,6 +294,49 @@ export class VoiceGatewayService {
 
           if (msg.type === 'SPEECH_END' || msg.type === 'PROCESS_BUFFER') {
             await this.processSpeechBuffer(session)
+          } else if (msg.type === 'TRANSCRIPT' || msg.type === 'PROCESS_TRANSCRIPT') {
+            const transcript = String(msg.text || msg.transcript || '').trim()
+            if (transcript) {
+              session.ws.send(JSON.stringify({
+                type: 'TRANSCRIPT',
+                text: transcript,
+                agent: session.activeAgent
+              }))
+              const intent = parseVoiceIntent(transcript, session.activeAgent)
+              if (intent.type === 'SWARM_BUILD') {
+                const ack = intent.replyText || 'Directive acknowledged, Master Sri. Initiating swarm decomposition across Aegis, Raphael, and Midas.'
+                session.ws.send(JSON.stringify({
+                  type: 'SWARM_BUILD_STARTED',
+                  status: 'DISPATCHED',
+                  agent: 'SWARM',
+                  directive: transcript,
+                  spokenAck: ack
+                }))
+                await this.streamTTSResponse(session, ack)
+                const { SwarmOrchestrator } = await import('../swarm/engine/SwarmOrchestrator')
+                SwarmOrchestrator.dispatch({
+                  directive: transcript,
+                  author: 'MASTER_SRI_VOICE',
+                  onProgress: async (stage: string, message: string) => {
+                    if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+                      session.ws.send(JSON.stringify({
+                        type: 'SWARM_PROGRESS',
+                        stage,
+                        message
+                      }))
+                    }
+                  }
+                }).then((res: any) => {
+                  if (res && res.previewUrl) {
+                    session.ws.send(JSON.stringify({
+                      type: 'OPEN_PREVIEW',
+                      url: res.previewUrl,
+                      summary: res.summary
+                    }))
+                  }
+                }).catch(() => {})
+              }
+            }
           } else if (msg.type === 'SET_AGENT') {
             if (msg.agent && SPECIALIST_PERSONAS[msg.agent as SpecialistAgent]) {
               session.activeAgent = msg.agent as SpecialistAgent

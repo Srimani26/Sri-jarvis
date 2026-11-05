@@ -23,6 +23,7 @@ import { aegisSpecialist } from '../specialists/AegisSpecialist'
 import { raphaelSpecialist } from '../specialists/RaphaelSpecialist'
 import { midasSpecialist } from '../specialists/MidasSpecialist'
 import { fridaySpecialist } from '../specialists/FridaySpecialist'
+import { workspaceManager } from '../tools/workspaceManager'
 
 export interface SwarmOrchestrationOptions {
   chatId?: string | number
@@ -455,7 +456,38 @@ Requirements:
     const scope = classifyProjectScope(directive)
     let bundleRes: AppBuilderResult
 
-    if (scope === 'SCOPE_FULLSTACK') {
+    if (scope === 'SCOPE_FULLSTACK' || blueprint.scope === 'FULLSTACK_SAAS') {
+      // Phase 2: Provision dedicated discrete workspace directory tree
+      try {
+        workspaceManager.provisionWorkspace(slug, 'FULLSTACK_SAAS', workspaceRoot)
+        if (cerebroDb.prismaSchema) {
+          workspaceManager.writeWorkspaceFile(slug, 'prisma/schema.prisma', cerebroDb.prismaSchema, workspaceRoot)
+        }
+        if (aegisBackend.serverJs) {
+          workspaceManager.writeWorkspaceFile(slug, 'server/src/app.js', aegisBackend.serverJs, workspaceRoot)
+        }
+        if (aegisBackend.routesJs) {
+          workspaceManager.writeWorkspaceFile(slug, 'server/src/routes/api.js', aegisBackend.routesJs, workspaceRoot)
+        }
+        if (aegisBackend.authJs) {
+          workspaceManager.writeWorkspaceFile(slug, 'server/src/middleware/auth.js', aegisBackend.authJs, workspaceRoot)
+        }
+        if (raphaelFrontend.reactAppJsx) {
+          workspaceManager.writeWorkspaceFile(slug, 'client/src/App.jsx', raphaelFrontend.reactAppJsx, workspaceRoot)
+        }
+        if (raphaelFrontend.dashboardJsx) {
+          workspaceManager.writeWorkspaceFile(slug, 'client/src/components/Dashboard.jsx', raphaelFrontend.dashboardJsx, workspaceRoot)
+        }
+        if (raphaelCss) {
+          workspaceManager.writeWorkspaceFile(slug, 'client/src/index.css', raphaelCss, workspaceRoot)
+        }
+        if (midasJs) {
+          workspaceManager.writeWorkspaceFile(slug, 'client/src/components/CalculatorEngine.js', midasJs, workspaceRoot)
+        }
+      } catch (wsErr: any) {
+        console.warn('⚠️ [SwarmOrchestrator] Workspace provisioning note:', wsErr?.message || wsErr)
+      }
+
       bundleRes = appBuilderEngine.scaffoldFullstackDeliverable({
         slug,
         title: blueprint.name,

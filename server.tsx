@@ -53,6 +53,7 @@ import { androidBridgeService } from './src/services/androidBridgeService'
 import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
 import { swarmAutonomousScheduler } from './src/swarm/engine/AutonomousScheduler'
 import { telegramNotifier } from './src/services/telegramNotifier'
+import { previewRoutes } from './src/routes/previewRoutes'
 
 const app = new Hono()
 
@@ -95,6 +96,9 @@ app.get('/health/:sub', async (c) => {
 
 // Custom API routes (always mounted under /api)
 app.route('/api', customRoutes)
+
+// Phase 2 Dynamic Reverse Proxy & Co-Worker Preview Routes (/projects/:slug/*)
+app.route('/', previewRoutes)
 
 // Top-level /preview route forwarding to sandbox builder
 app.get('/preview/:slug', (c) => {

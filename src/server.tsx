@@ -1,6 +1,212 @@
+import dns from 'node:dns'
+import { setGlobalDispatcher, Agent } from 'undici'
+
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first')
+}
+
+// Force all undici/fetch requests to use strictly IPv4 (fixes ENETUNREACH on Render)
+try {
+  setGlobalDispatcher(new Agent({
+    connect: {
+      family: 4, // 4 = IPv4 only, skips IPv6 completely
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4, all: false }, callback)
+      }
+    }
+  }))
+  console.log('🌐 [Network] Undici global dispatcher configured for strict IPv4 (family: 4)')
+} catch (e) {
+  console.warn('⚠️ [Network] Could not set undici dispatcher:', e)
+}
+
+// SOVEREIGN ZERO-CRASH SHIELD: Intercept all uncaught exceptions & unhandled rejections
+// Ensures J.A.R.V.I.S. server runtime NEVER shuts down or terminates under any circumstance
+process.on('uncaughtException', (err) => {
+  console.error('🛡️ [SOVEREIGN ZERO-CRASH SHIELD] Intercepted uncaught exception (kept alive):', err?.message || err)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('🛡️ [SOVEREIGN ZERO-CRASH SHIELD] Intercepted unhandled rejection (kept alive):', reason)
+})
+
 /**
- * J.A.R.V.I.S. Core Server Entrypoint (src/server.tsx)
- * Delegates to canonical server runtime.
+ * Sovereign J.A.R.V.I.S. Full-Stack Cloud Server (Hono + Node.js)
+ * Serves both API endpoints and the production frontend PWA on a single cloud port.
  */
 
-import '../server';
+import 'dotenv/config'
+import { Hono } from 'hono'
+import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import customRoutes from './custom-routes'
+import { CrashRecovery } from './src/kernel/CrashRecovery'
+import { AutonomousScheduler, autonomousScheduler } from './src/scheduler/AutonomousScheduler'
+import { PersistentTaskQueue } from './src/scheduler/PersistentTaskQueue'
+import { validateDatabaseConnectivity } from './src/lib/db'
+import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
+import { TelegramBotListener, startTelegramBotListener, stopTelegramBotListener } from './src/notifications/TelegramBotListener'
+import { voiceGateway } from './src/services/voiceGateway'
+import { androidBridgeService } from './src/services/androidBridgeService'
+import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
+import { swarmAutonomousScheduler } from './src/swarm/engine/AutonomousScheduler'
+import { telegramNotifier } from './src/services/telegramNotifier'
+import { previewRoutes } from './src/routes/previewRoutes'
+
+const app = new Hono()
+
+// CORS - manual middleware so wildcard always propagates
+app.use('*', async (c, next) => {
+  c.res.headers.set('Access-Control-Allow-Origin', '*')
+  c.res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+  c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+  if (c.req.method === 'OPTIONS') return c.body(null, 204)
+  await next()
+})
+
+// Health check endpoint (for Cloudflare tunnel & Render keep-alive monitors)
+app.get('/health', async (c) => {
+  const dbDiag = await validateDatabaseConnectivity().catch(() => ({ provider: 'unknown', status: 'ERROR', durable: false }));
+  return c.json({
+    ok: true,
+    timestamp: new Date().toISOString(),
+    cloudStatus: 'ONLINE_24x7',
+    commit: process.env.RENDER_GIT_COMMIT || '3284f46',
+    render: {
+      gitCommit: process.env.RENDER_GIT_COMMIT || null,
+      gitBranch: process.env.RENDER_GIT_BRANCH || null,
+      serviceId: process.env.RENDER_SERVICE_ID || null,
+      instanceId: process.env.RENDER_INSTANCE_ID || null
+    },
+    database: {
+      provider: dbDiag.provider,
+      status: dbDiag.status,
+      durable: dbDiag.durable
+    }
+  });
+});
+app.get('/health/:sub', async (c) => {
+  const sub = c.req.param('sub')
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = `/api/health/${sub}`
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+
+// Custom API routes (always mounted under /api)
+app.route('/api', customRoutes)
+
+// Phase 2 Dynamic Reverse Proxy & Co-Worker Preview Routes (/projects/:slug/*)
+app.route('/', previewRoutes)
+
+// Top-level /preview route forwarding to sandbox builder
+app.get('/preview/:slug', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/preview/' + c.req.param('slug')
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+app.get('/preview/:slug/:file', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/preview/' + c.req.param('slug') + '/' + c.req.param('file')
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+
+// Top-level /v1 OpenAI & Open WebUI gateway forwarding
+app.get('/v1/models', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/v1/models'
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+app.post('/v1/chat/completions', (c) => {
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = '/api/v1/chat/completions'
+  return app.fetch(new Request(newUrl.toString(), c.req.raw))
+})
+
+// Installed-integration tools proxy
+const tools = createToolsHandlers({})
+app.post('/api/tools/execute', (c) => tools.execute(c.req.raw))
+app.get('/api/tools/schemas', (c) => tools.list(c.req.raw))
+
+// Serve static production assets from ./dist (PWA, icons, bundle)
+app.use('/*', serveStatic({ root: './dist' }))
+
+// SPA fallback: Any non-API route serves dist/index.html so client-side routing works cleanly
+app.get('*', (c) => {
+  const indexPath = join(process.cwd(), 'dist', 'index.html')
+  if (existsSync(indexPath)) {
+    return c.html(readFileSync(indexPath, 'utf-8'))
+  }
+  return c.text('J.A.R.V.I.S. Sovereign Cloud Engine Active', 200)
+})
+
+const port = Number(process.env.PORT) || 3005
+console.log(`⚡ J.A.R.V.I.S. Cloud Server running on http://localhost:${port}`)
+
+// Validate database connectivity and durability on boot
+validateDatabaseConnectivity().then((diag) => {
+  console.log(`🗄️ [Database] Provider: ${diag.provider} | Env: ${diag.environment} | Durability: ${diag.durability} | Status: ${diag.status} (${diag.latencyMs}ms)`)
+}).catch((err) => {
+  console.error('⚠️ [Database] Startup connectivity check failed:', err?.message || err)
+})
+
+// Autonomous Crash Recovery: inspect and safely recover in-flight tasks from prior runs
+CrashRecovery.recoverInterruptedTasks().catch((err) => {
+  console.error('⚠️ [CrashRecovery] Boot recovery failed:', err?.message || err)
+})
+
+// 24/7 Persistent Task Queue: Boot durable background worker daemon
+PersistentTaskQueue.startWorker(2000)
+
+// 24/7 Autonomous Scheduler: Start revenue scout loop, daily 9:00 PM IST EOD audit, and heartbeat
+autonomousScheduler.start()
+
+AutonomousScheduler.scheduleJob({
+  title: 'Autonomous System Health Audit',
+  cronExpression: '*/30 * * * *',
+  agentId: 'jarvis',
+  toolName: 'system_health',
+  toolArgs: {},
+})
+
+// 24/7 Swarm Autonomous Scheduler & Provider Handshake
+swarmAutonomousScheduler.start()
+swarmModelRouter.runStartupHandshake().then((report) => {
+  console.log('🤖 [ModelRouter] Startup handshake report:', JSON.stringify(report))
+}).catch((err) => {
+  console.warn('⚠️ [ModelRouter] Handshake warning:', err?.message || err)
+})
+
+// 24/7 Interactive Mobile Control: Mount TelegramBotListener for Master Sri (clears webhook & handles bidirectional commands)
+
+try {
+  startTelegramBotListener()
+} catch (botErr: any) {
+  console.warn('⚠️ [TelegramBotListener] Boot fallback (offline or unconfigured):', botErr?.message || botErr)
+}
+
+// Graceful shutdown hooks
+const shutdown = async (signal: string) => {
+  console.log(`\n🛑 [Server] Received ${signal}. Initiating graceful shutdown...`)
+  autonomousScheduler.stop()
+  swarmAutonomousScheduler.stop()
+  telegramNotifier.stopPolling()
+  stopTelegramBotListener()
+  try {
+    const { prisma } = await import('./src/lib/db')
+    await (prisma as any).$disconnect()
+  } catch {}
+  process.exit(0)
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+
+const serverInstance = serve({ port, fetch: app.fetch })
+try {
+  voiceGateway.attachToServer(serverInstance as any)
+  androidBridgeService.attachToServer(serverInstance as any)
+} catch (wsErr: any) {
+  console.warn('⚡ [VoiceGateway] WebSocket attach note:', wsErr?.message || wsErr)
+}

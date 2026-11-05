@@ -8325,6 +8325,35 @@ app.post('/voice/intent', async (c) => {
   }
 });
 
+// POST /api/voice/session — Autonomous Voice Session & Swarm Dispatch
+app.post('/voice/session', async (c) => {
+  try {
+    const { parseVoiceIntent } = await import('./src/services/voiceGateway');
+    const { SwarmOrchestrator } = await import('./src/swarm/engine/SwarmOrchestrator');
+    const body = await c.req.json().catch(() => ({}));
+    const text = String(body?.transcript || body?.text || '').trim();
+    const currentAgent = (body?.agent || 'jarvis') as any;
+
+    const intent = parseVoiceIntent(text, currentAgent);
+    let buildResult = null;
+    if (intent.type === 'SWARM_BUILD') {
+      buildResult = await SwarmOrchestrator.dispatch({
+        directive: text,
+        author: 'MASTER_SRI_VOICE'
+      });
+    }
+
+    return c.json({
+      ok: true,
+      intent,
+      dispatched: intent.type === 'SWARM_BUILD',
+      buildResult
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Voice session dispatch failed' }, 500);
+  }
+});
+
 // POST /api/webhooks/inbound/:source — Friday Heavy Webhook Ingestion Engine
 app.post('/webhooks/inbound/:source', async (c) => {
   try {
