@@ -20006,9 +20006,16 @@ model User {
 var SwarmOrchestrator_exports = {};
 __export(SwarmOrchestrator_exports, {
   SwarmOrchestrator: () => SwarmOrchestrator,
+  isSoftwareBuildDirective: () => isSoftwareBuildDirective,
   swarmOrchestrator: () => swarmOrchestrator
 });
 import { randomUUID as randomUUID3 } from "node:crypto";
+function isSoftwareBuildDirective(text) {
+  if (!text || typeof text !== "string") return false;
+  const actionPattern = /\b(build|create|develop|code|scaffold|make|implement|generate|deploy|program)\b/i;
+  const softwarePattern = /\b(app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view|tracker|hub|engine|service|manager|suite|crm|erp|website|fullstack|frontend|backend|api|database|worker)\b/i;
+  return actionPattern.test(text) && softwarePattern.test(text) || /\b(fullstack|frontend|backend|microservice|rest api)\b/i.test(text);
+}
 var SwarmOrchestrator, swarmOrchestrator;
 var init_SwarmOrchestrator = __esm({
   "src/swarm/engine/SwarmOrchestrator.ts"() {
@@ -20250,10 +20257,7 @@ var init_SwarmOrchestrator = __esm({
         return content.replace(/^```[a-z]*\s*/i, "").replace(/```\s*$/i, "").trim();
       }
       isComplexWebProject(directive) {
-        const lower = directive.toLowerCase();
-        const isBuild = /build|create|generate|make|develop|implement|scaffold/i.test(lower);
-        const isApp = /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(lower);
-        return isBuild && isApp;
+        return isSoftwareBuildDirective(directive);
       }
       deriveCleanSlug(directive) {
         const stopWords = /* @__PURE__ */ new Set([
@@ -20482,8 +20486,15 @@ var telegramNotifier_exports = {};
 __export(telegramNotifier_exports, {
   MASTER_CHAT_ID: () => MASTER_CHAT_ID,
   TelegramNotifierService: () => TelegramNotifierService,
+  isSoftwareBuildDirective: () => isSoftwareBuildDirective2,
   telegramNotifier: () => telegramNotifier
 });
+function isSoftwareBuildDirective2(text) {
+  if (!text || typeof text !== "string") return false;
+  const actionPattern = /\b(build|create|develop|code|scaffold|make|implement|generate|deploy|program)\b/i;
+  const softwarePattern = /\b(app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view|tracker|hub|engine|service|manager|suite|crm|erp|website|fullstack|frontend|backend|api|database|worker)\b/i;
+  return actionPattern.test(text) && softwarePattern.test(text) || /\b(fullstack|frontend|backend|microservice|rest api)\b/i.test(text);
+}
 var MASTER_CHAT_ID, TelegramNotifierService, telegramNotifier;
 var init_telegramNotifier = __esm({
   "src/services/telegramNotifier.ts"() {
@@ -20574,12 +20585,13 @@ var init_telegramNotifier = __esm({
         };
         const specialist = validSpecialists[agentName.toLowerCase()] || "jarvis";
         const ackStart = Date.now();
+        const isSoftware = isSoftwareBuildDirective2(directive);
         const ackMessage = [
           `\u{1F680} *[J.A.R.V.I.S. SWARM DISPATCHED]*`,
           `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
           `\u2022 *Specialist:* \`${specialist.toUpperCase()}\``,
           `\u2022 *Directive:* _${directive}_`,
-          `\u2022 *Engine:* Autonomous ReAct Loop V2`,
+          `\u2022 *Engine:* ${isSoftware ? "J.A.R.V.I.S. 6-Stage SDLC Swarm" : "Autonomous ReAct Loop V2"}`,
           `\u23F3 *Executing architecture, coding, and verifier... I will post the preview link here once ready.*`
         ].join("\n");
         await this.sendMessage(ackMessage, chatId);
@@ -20588,7 +20600,7 @@ var init_telegramNotifier = __esm({
         const taskPromise = (async () => {
           try {
             const lower = directive.toLowerCase();
-            const isAppDirective = /build|create|generate|develop|scaffold|make|implement/i.test(directive) && /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(directive);
+            const isAppDirective = isSoftwareBuildDirective2(directive);
             const { swarmOrchestrator: swarmOrchestrator2 } = await Promise.resolve().then(() => (init_SwarmOrchestrator(), SwarmOrchestrator_exports));
             if (isAppDirective || swarmOrchestrator2.isComplexWebProject(directive)) {
               console.log("\u26A1 [SwarmOrchestrator] Intercepted app/scaffold directive; decomposing across Aegis, Raphael, and Midas...");
@@ -22024,9 +22036,7 @@ function pcmToWav(pcmBuffer, sampleRate = 16e3) {
 function parseVoiceIntent(rawText, currentAgent) {
   const text = rawText.trim();
   const lower = text.toLowerCase();
-  const isBuild = /build|create|generate|develop|scaffold/i.test(text);
-  const isApp = /app|system|saas|tool|calculator|dashboard|portal|platform/i.test(text);
-  if (isBuild && isApp) {
+  if (isSoftwareBuildDirective2(text)) {
     return {
       type: "SWARM_BUILD",
       target: text,
@@ -22121,6 +22131,7 @@ var init_voiceGateway = __esm({
   "src/services/voiceGateway.ts"() {
     "use strict";
     init_ModelRouter();
+    init_telegramNotifier();
     SPECIALIST_PERSONAS = {
       jarvis: {
         name: "J.A.R.V.I.S.",
@@ -35337,8 +35348,9 @@ Task ID: ${analysis.taskId}`,
       await this.generateOnDemandBid(brief, chatId);
       return;
     }
+    const { isSoftwareBuildDirective: isSoftwareBuildDirective3 } = await Promise.resolve().then(() => (init_telegramNotifier(), telegramNotifier_exports));
     const agentPrefixMatch = trimmed.match(/^(?:hey\s+)?(jarvis|aegis|raphael|friday|cerebro|midas|vortex)[,:\s]+(.+)/i);
-    const isActionDirective = /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(trimmed);
+    const isActionDirective = isSoftwareBuildDirective3(trimmed) || /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(trimmed);
     if (agentPrefixMatch || isActionDirective) {
       const { telegramNotifier: telegramNotifier2 } = await Promise.resolve().then(() => (init_telegramNotifier(), telegramNotifier_exports));
       await telegramNotifier2.handleInboundUpdate({ message: { chat: { id: chatId }, text: trimmed } });

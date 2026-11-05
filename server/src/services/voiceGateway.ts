@@ -15,6 +15,7 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import type { Server as HttpServer } from 'node:http'
 import { swarmModelRouter } from '../swarm/engine/ModelRouter'
+import { isSoftwareBuildDirective } from './telegramNotifier'
 
 export type SpecialistAgent = 'jarvis' | 'aegis' | 'raphael' | 'friday'
 
@@ -104,9 +105,7 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
   const lower = text.toLowerCase()
 
   // 1. Swarm Build Directive Extraction (Aegis + Raphael + Midas Multi-Agent Swarm)
-  const isBuild = /build|create|generate|develop|scaffold/i.test(text)
-  const isApp = /app|system|saas|tool|calculator|dashboard|portal|platform/i.test(text)
-  if (isBuild && isApp) {
+  if (isSoftwareBuildDirective(text)) {
     return {
       type: 'SWARM_BUILD',
       target: text,

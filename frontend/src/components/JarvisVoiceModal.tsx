@@ -1444,8 +1444,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
 
     // Direct Voice Trigger to Multi-Agent Swarm Orchestrator (Aegis + Raphael + Midas)
-    const isBuildDirective = /build|create|generate|develop|scaffold/i.test(cmd) &&
-      /app|system|saas|tool|calculator|dashboard|portal|platform/i.test(cmd)
+    const actionPattern = /\b(build|create|develop|code|scaffold|make|implement|generate|deploy|program)\b/i
+    const softwarePattern = /\b(app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view|tracker|hub|engine|service|manager|suite|crm|erp|website|fullstack|frontend|backend|api|database|worker)\b/i
+    const isBuildDirective = (actionPattern.test(cmd) && softwarePattern.test(cmd)) ||
+      /\b(fullstack|frontend|backend|microservice|rest api)\b/i.test(cmd)
 
     if (isBuildDirective) {
       const ack = 'Directive acknowledged, Master Sri. Initiating swarm decomposition across Aegis, Raphael, and Midas.'

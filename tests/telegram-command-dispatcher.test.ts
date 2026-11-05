@@ -240,5 +240,70 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
       }
     })
   })
+
+  describe('Criterion 5: Universal Software Build Routing (No Brittle Keyword Drops)', () => {
+    it('should identify software build directives across trackers, engines, portals, hubs and CRMs', async () => {
+      const { isSoftwareBuildDirective } = await import('../server/src/services/telegramNotifier')
+
+      const directives = [
+        'Build a fullstack fleet vehicle tracker with live REST telemetry, driver shift logs, and alert thresholds.',
+        'Create a real-time crypto price tracker dashboard',
+        'Develop an autonomous driver shift log manager',
+        'Scaffold a fullstack warehouse inventory hub',
+        'Code an enterprise CRM suite for roofing contractors',
+        'Make a REST API microservice for dispatch routing',
+        'Deploy a fullstack database service with Prisma'
+      ]
+
+      for (const d of directives) {
+        assert.strictEqual(isSoftwareBuildDirective(d), true, `Expected "${d}" to be recognized as software build directive`)
+      }
+
+      // Non-build queries should not trigger software build routing
+      assert.strictEqual(isSoftwareBuildDirective('What is our cloud infrastructure status?'), false)
+      assert.strictEqual(isSoftwareBuildDirective('Show me the audit logs'), false)
+      assert.strictEqual(isSoftwareBuildDirective('Audit git working tree'), false)
+    })
+
+    it('should route "Build a fullstack fleet vehicle tracker..." to SwarmOrchestrator with live preview deliverables', async () => {
+      const sentMessages: string[] = []
+      const origSend = telegramNotifier.sendMessage
+      telegramNotifier.sendMessage = async (msg: string) => {
+        sentMessages.push(msg)
+        return true
+      }
+
+      try {
+        const update = {
+          update_id: 8888,
+          message: {
+            message_id: 88,
+            chat: { id: '1377862282' },
+            text: '/run aegis Build a fullstack fleet vehicle tracker with live REST telemetry, driver shift logs, and alert thresholds.'
+          }
+        }
+
+        const res = await telegramNotifier.handleInboundUpdate(update)
+        assert.strictEqual(res.handled, true)
+        assert.ok(sentMessages.length >= 1)
+
+        // First message is dispatch acknowledgement mentioning Swarm
+        assert.ok(sentMessages[0].includes('SWARM DISPATCHED'))
+        assert.ok(sentMessages[0].includes('J.A.R.V.I.S. 6-Stage SDLC Swarm'))
+
+        if (res.taskPromise) await res.taskPromise
+        else if (telegramNotifier.lastTaskPromise) await telegramNotifier.lastTaskPromise
+
+        // Final completion message must contain live preview deliverables
+        const completionMsg = sentMessages.find(m => m.includes('Task Completed by SWARM')) || sentMessages[sentMessages.length - 1]
+        assert.ok(completionMsg.includes('Task Completed by SWARM (Aegis + Raphael + Midas)'))
+        assert.ok(completionMsg.includes('Live Web Preview:'))
+        assert.ok(completionMsg.includes('/preview/'))
+        assert.ok(completionMsg.includes('Render URL:'))
+      } finally {
+        telegramNotifier.sendMessage = origSend
+      }
+    })
+  })
 })
 

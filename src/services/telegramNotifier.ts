@@ -19,6 +19,21 @@ export interface TelegramMessagePayload {
   parse_mode?: 'Markdown' | 'HTML'
 }
 
+/**
+ * Universal software building intent detection:
+ * Detects any directive instructing J.A.R.V.I.S. or any specialist to build, develop,
+ * code, make, create, or scaffold software (trackers, hubs, engines, portals, CRMs, etc.).
+ */
+export function isSoftwareBuildDirective(text: string): boolean {
+  if (!text || typeof text !== 'string') return false
+  const actionPattern = /\b(build|create|develop|code|scaffold|make|implement|generate|deploy|program)\b/i
+  const softwarePattern = /\b(app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view|tracker|hub|engine|service|manager|suite|crm|erp|website|fullstack|frontend|backend|api|database|worker)\b/i
+
+  // Route if it has an action verb AND a software noun, OR mentions explicit fullstack/frontend/backend tags
+  return (actionPattern.test(text) && softwarePattern.test(text)) || 
+         /\b(fullstack|frontend|backend|microservice|rest api)\b/i.test(text)
+}
+
 export class TelegramNotifierService {
   private static instance: TelegramNotifierService
   private botToken: string = process.env.TELEGRAM_BOT_TOKEN || '8833543250:AAEcqCZadls0APgOBM-HGU76M28rBRw9MtI'
@@ -127,12 +142,13 @@ export class TelegramNotifierService {
 
     // STEP 2.1: Immediate dispatch acknowledgement (<300ms)
     const ackStart = Date.now()
+    const isSoftware = isSoftwareBuildDirective(directive)
     const ackMessage = [
       `🚀 *[J.A.R.V.I.S. SWARM DISPATCHED]*`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       `• *Specialist:* \`${specialist.toUpperCase()}\``,
       `• *Directive:* _${directive}_`,
-      `• *Engine:* Autonomous ReAct Loop V2`,
+      `• *Engine:* ${isSoftware ? 'J.A.R.V.I.S. 6-Stage SDLC Swarm' : 'Autonomous ReAct Loop V2'}`,
       `⏳ *Executing architecture, coding, and verifier... I will post the preview link here once ready.*`
     ].join('\n')
 
@@ -145,8 +161,7 @@ export class TelegramNotifierService {
     const taskPromise = (async () => {
       try {
         const lower = directive.toLowerCase()
-        const isAppDirective = /build|create|generate|develop|scaffold|make|implement/i.test(directive) && 
-                               /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(directive)
+        const isAppDirective = isSoftwareBuildDirective(directive)
 
         // STEP 1: DEEP SWARM MULTI-AGENT ORCHESTRATION FOR ALL BUILD & SCAFFOLD DIRECTIVES
         const { swarmOrchestrator } = await import('../swarm/engine/SwarmOrchestrator')

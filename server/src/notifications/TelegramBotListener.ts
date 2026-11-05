@@ -430,8 +430,9 @@ export class TelegramBotListener {
     }
 
     // 3. Natural agent delegation or action directive (Hey Aegis..., build a web app...)
+    const { isSoftwareBuildDirective } = await import('../services/telegramNotifier');
     const agentPrefixMatch = trimmed.match(/^(?:hey\s+)?(jarvis|aegis|raphael|friday|cerebro|midas|vortex)[,:\s]+(.+)/i);
-    const isActionDirective = /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(trimmed);
+    const isActionDirective = isSoftwareBuildDirective(trimmed) || /(?:build|create|scaffold|generate|write|implement|refactor|fix|patch|audit|inspect|test|deploy|schedule)\s+(.+)/i.test(trimmed);
 
     if (agentPrefixMatch || isActionDirective) {
       const { telegramNotifier } = await import('../services/telegramNotifier');

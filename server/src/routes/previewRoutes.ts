@@ -184,3 +184,4 @@ previewRoutes.get('/projects/:slug', async (c) => {
   const slug = c.req.param('slug')
   return serveProjectClient(c, slug)
 })
+

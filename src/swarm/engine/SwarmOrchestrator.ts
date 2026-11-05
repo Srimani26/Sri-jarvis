@@ -59,6 +59,21 @@ export interface SwarmOrchestrationResult {
   }
 }
 
+/**
+ * Universal software building intent detection:
+ * Detects any directive instructing J.A.R.V.I.S. or any specialist to build, develop,
+ * code, make, create, or scaffold software (trackers, hubs, engines, portals, CRMs, etc.).
+ */
+export function isSoftwareBuildDirective(text: string): boolean {
+  if (!text || typeof text !== 'string') return false
+  const actionPattern = /\b(build|create|develop|code|scaffold|make|implement|generate|deploy|program)\b/i
+  const softwarePattern = /\b(app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view|tracker|hub|engine|service|manager|suite|crm|erp|website|fullstack|frontend|backend|api|database|worker)\b/i
+
+  // Route if it has an action verb AND a software noun, OR mentions explicit fullstack/frontend/backend tags
+  return (actionPattern.test(text) && softwarePattern.test(text)) || 
+         /\b(fullstack|frontend|backend|microservice|rest api)\b/i.test(text)
+}
+
 export class SwarmOrchestrator {
   private static instance: SwarmOrchestrator
 
@@ -309,10 +324,7 @@ export class SwarmOrchestrator {
   }
 
   public isComplexWebProject(directive: string): boolean {
-    const lower = directive.toLowerCase()
-    const isBuild = /build|create|generate|make|develop|implement|scaffold/i.test(lower)
-    const isApp = /app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view/i.test(lower)
-    return isBuild && isApp
+    return isSoftwareBuildDirective(directive)
   }
 
   public deriveCleanSlug(directive: string): string {
