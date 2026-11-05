@@ -143,12 +143,25 @@ export class TelegramNotifierService {
     // STEP 2.1: Immediate dispatch acknowledgement (<300ms)
     const ackStart = Date.now()
     const isSoftware = isSoftwareBuildDirective(directive)
-    const ackMessage = [
+    const title = directive.slice(0, 50).replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+
+    const ackMessage = isSoftware ? [
+      `🚀 *[J.A.R.V.I.S. DEEP WORKER ENGAGED]*`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `• *Project:* \`${title}\``,
+      `• *Specialist:* \`${specialist.toUpperCase()}\``,
+      `• *Directive:* _${directive}_`,
+      `• *Engine:* J.A.R.V.I.S. 6-Stage SDLC Swarm`,
+      `• *Status:* SWARM DISPATCHED`,
+      `• *Estimated Build Time:* \`4 - 8 minutes\``,
+      `• *Architecture:* \`Modular React + Vite + Tailwind + Express Backend\``,
+      `⏳ *I will stream live progress as each component is coded and compiled.*`
+    ].join('\n') : [
       `🚀 *[J.A.R.V.I.S. SWARM DISPATCHED]*`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       `• *Specialist:* \`${specialist.toUpperCase()}\``,
       `• *Directive:* _${directive}_`,
-      `• *Engine:* ${isSoftware ? 'J.A.R.V.I.S. 6-Stage SDLC Swarm' : 'Autonomous ReAct Loop V2'}`,
+      `• *Engine:* Autonomous ReAct Loop V2`,
       `⏳ *Executing architecture, coding, and verifier... I will post the preview link here once ready.*`
     ].join('\n')
 
@@ -173,8 +186,10 @@ export class TelegramNotifierService {
               specialist,
               workspaceRoot: process.cwd(),
               onProgress: async (stage: string, message: string) => {
-                const header = stage === 'DISPATCH' ? '📡 *[Swarm Dispatch]*' : '⚙️ *[Swarm Progress]*'
-                await this.sendMessage(`${header} ${message}`, chatId).catch(() => {})
+                const formatted = message.startsWith('[Milestone')
+                  ? `⏳ *${message}*`
+                  : (stage === 'DISPATCH' ? `📡 *[Swarm Dispatch]* ${message}` : `⚙️ *[Swarm Progress]* ${message}`)
+                await this.sendMessage(formatted, chatId).catch(() => {})
               }
             })
 

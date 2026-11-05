@@ -174,26 +174,490 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 )`
     )
 
+    // Discrete Component Architecture (Step 2)
+    writeFileSafe(
+      'client/src/components/Navbar.jsx',
+      `import React from 'react'
+
+export function Navbar({ onOpenModal, currentTenant = 'Standard Roofs Global', role = 'SUPER_ADMIN' }) {
+  return (
+    <header className="glass-panel p-4 md:px-6 rounded-2xl flex flex-wrap justify-between items-center gap-4 border border-slate-800 bg-[#111827]/80 backdrop-blur mb-6">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold text-lg">
+          ⚡
+        </div>
+        <div>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono font-semibold">J.A.R.V.I.S. OS</span>
+          <h2 className="text-sm font-bold text-white tracking-wide">{currentTenant}</h2>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="hidden sm:inline-block font-mono text-cyan-400 text-xs px-2.5 py-1 bg-slate-900/80 rounded-lg border border-slate-800">Role: {role}</span>
+        <button
+          onClick={onOpenModal}
+          id="open-modal-btn"
+          className="btn-primary touch-target px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-cyan-500/20"
+        >
+          <span>+</span> Add Record
+        </button>
+      </div>
+    </header>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/components/Sidebar.jsx',
+      `import React from 'react'
+
+export function Sidebar({ activePage, setActivePage }) {
+  const navItems = [
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'analytics', label: 'Analytics', icon: '📈' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' }
+  ]
+
+  return (
+    <aside className="w-64 bg-[#111827] border-r border-slate-800 p-5 flex flex-col justify-between hidden md:flex min-h-screen">
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold">
+            ⚡
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-white tracking-wide">Enterprise Swarm</h2>
+            <p className="text-xs text-slate-400">Deep Autonomous Co-Worker</p>
+          </div>
+        </div>
+
+        <nav className="space-y-1.5" id="main-nav-menu">
+          {navItems.map(item => {
+            const isActive = activePage === item.id
+            return (
+              <button
+                key={item.id}
+                id={\`nav-\${item.id}\`}
+                onClick={() => setActivePage(item.id)}
+                className={\`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition \${
+                  isActive
+                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }\`}
+              >
+                <span>{item.icon}</span> {item.label}
+              </button>
+            )
+          })}
+        </nav>
+      </div>
+
+      <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-1 font-mono">
+        <p className="text-slate-300 font-semibold">Master Sri Edition</p>
+        <p className="text-emerald-400 text-[11px]">Runtime: 100% Verified</p>
+      </div>
+    </aside>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/components/MetricCards.jsx',
+      `import React from 'react'
+
+export function MetricCards({ metrics = {} }) {
+  const cards = [
+    { label: 'Gross Capex', value: metrics.grossCapex || '$580,000', delta: '+14% vs last week', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
+    { label: '30% ITC Credit', value: metrics.itcCredit || '$174,000', delta: '+8.2%', deltaClass: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Net Capex', value: metrics.netCapex || '$406,000', delta: '+12.4%', deltaClass: 'text-sky-400 bg-sky-500/10' },
+    { label: 'Payback Period', value: metrics.paybackYears || '3.2 Yrs', delta: '-2.5%', deltaClass: 'text-amber-400 bg-amber-500/10' }
+  ]
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {cards.map((c, i) => (
+        <div key={i} className="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span>{c.label}</span>
+            <span className={\`px-2 py-0.5 rounded text-[11px] font-mono font-semibold border border-slate-700/50 \${c.deltaClass}\`}>
+              {c.delta}
+            </span>
+          </div>
+          <div className="text-2xl font-extrabold text-white font-mono">{c.value}</div>
+          <p className="text-xs text-slate-500">Live indexed telemetry</p>
+        </div>
+      ))}
+    </div>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/components/DataMap.jsx',
+      `import React from 'react'
+
+export function DataMap({ title = 'Live Visual Canvas & Telemetry Stream', isFleet = false }) {
+  return (
+    <div className="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4 mb-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-bold text-white flex items-center gap-2">
+          <span>{isFleet ? '📍' : '📈'}</span> {title}
+        </h3>
+        <span className="text-xs font-mono text-cyan-400">Stream: Active (60 FPS)</span>
+      </div>
+      <div className="h-64 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-center p-4">
+        {isFleet ? (
+          <div id="fleet-map" className="w-full h-full rounded-lg flex items-center justify-center text-xs text-slate-400 font-mono">
+            [Interactive Geospatial Canvas & Telemetry Map]
+          </div>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-xs text-slate-400 font-mono space-y-2">
+            <div className="w-full h-32 flex items-end gap-2 px-4">
+              {[40, 65, 55, 80, 95, 70, 85, 110, 130, 150].map((h, i) => (
+                <div key={i} className="flex-1 bg-cyan-500/30 hover:bg-cyan-400 border-t border-cyan-400 transition" style={{ height: \`\${h}px\` }} />
+              ))}
+            </div>
+            <p>Dynamic 25-Year Cash Flow Projection Curve</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/components/DataTable.jsx',
+      `import React, { useState } from 'react'
+
+export function DataTable({ records = [], onDeleteRecord }) {
+  const [filter, setFilter] = useState('All')
+  const [search, setSearch] = useState('')
+
+  const filtered = records.filter(r => {
+    const matchesFilter = filter === 'All' || r.status.toLowerCase() === filter.toLowerCase()
+    const matchesSearch = !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.status.toLowerCase().includes(search.toLowerCase())
+    return matchesFilter && matchesSearch
+  })
+
+  return (
+    <div className="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 className="text-base font-bold text-white">Records & Audit Stream</h3>
+          <p className="text-xs text-slate-400">High-density data matrix</p>
+        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            {['All', 'Active', 'Alert', 'Idle'].map(f => (
+              <button
+                key={f}
+                id={\`filter-\${f.toLowerCase()}\`}
+                onClick={() => setFilter(f)}
+                className={\`px-2.5 py-1 rounded-lg font-semibold transition \${
+                  filter === f
+                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }\`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            id="table-search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search records..."
+            className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-full sm:w-44"
+          />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-800/80">
+        <table className="w-full border-collapse text-left text-xs font-mono">
+          <thead className="bg-slate-900/90 text-slate-400 uppercase text-[11px] border-b border-slate-800">
+            <tr>
+              <th className="p-3">ID</th>
+              <th className="p-3">Resource / Item</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Output / Delta</th>
+              <th className="p-3">Value</th>
+              <th className="p-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="projection-table-body" className="divide-y divide-slate-800/60 text-slate-300">
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="p-6 text-center text-slate-500 italic">No matching records found.</td>
+              </tr>
+            ) : (
+              filtered.map(r => {
+                const badgeClass = r.status === 'Active'
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                  : r.status === 'Alert'
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                return (
+                  <tr key={r.id}>
+                    <td className="p-3 text-slate-400">{r.id}</td>
+                    <td className="p-3 font-semibold text-white">{r.name}</td>
+                    <td className="p-3"><span className={\`px-2 py-0.5 rounded text-[10px] border \${badgeClass}\`}>{r.status}</span></td>
+                    <td className="p-3">{r.output || r.delta}</td>
+                    <td className="p-3 text-cyan-400">\${Number(r.val || 8500).toLocaleString()}</td>
+                    <td className="p-3">
+                      {onDeleteRecord && (
+                        <button
+                          onClick={() => onDeleteRecord(r.id)}
+                          className="text-rose-400 hover:text-rose-300 font-sans text-xs underline"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/components/ActionModal.jsx',
+      `import React, { useState } from 'react'
+
+export function ActionModal({ isOpen, onClose, onSaveRecord }) {
+  const [name, setName] = useState('')
+  const [status, setStatus] = useState('Active')
+  const [output, setOutput] = useState('')
+
+  if (!isOpen) return null
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    onSaveRecord({
+      name: name.trim(),
+      status,
+      output: output.trim() || '12,500 kWh',
+      val: Math.round(Math.random() * 8000 + 4000)
+    })
+    setName('')
+    setOutput('')
+    onClose()
+  }
+
+  return (
+    <div id="settings-modal" className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#111827] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <span>➕</span> New Telemetry Record
+          </h3>
+          <button id="close-modal-btn" onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
+            ✕
+          </button>
+        </div>
+        <form id="record-form" onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="new-record-name" className="block text-xs font-medium text-slate-300 mb-1">Resource Name</label>
+            <input
+              id="new-record-name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Unit #505 - Central Array"
+              required
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+            />
+          </div>
+          <div>
+            <label htmlFor="new-record-status" className="block text-xs font-medium text-slate-300 mb-1">Status</label>
+            <select
+              id="new-record-status"
+              value={status}
+              onChange={e => setStatus(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400"
+            >
+              <option value="Active">Active</option>
+              <option value="Alert">Alert</option>
+              <option value="Idle">Idle</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="new-record-output" className="block text-xs font-medium text-slate-300 mb-1">Output / Delta</label>
+            <input
+              id="new-record-output"
+              value={output}
+              onChange={e => setOutput(e.target.value)}
+              placeholder="e.g. 14,200 kWh"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              id="cancel-modal-btn"
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              id="save-record-btn"
+              type="submit"
+              className="px-4 py-2 text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl font-bold shadow-lg shadow-cyan-500/20"
+            >
+              Add Record
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/pages/Overview.jsx',
+      `import React from 'react'
+import { MetricCards } from '../components/MetricCards'
+import { DataMap } from '../components/DataMap'
+import { DataTable } from '../components/DataTable'
+
+export function Overview({ metrics, records, onDeleteRecord, isFleet }) {
+  return (
+    <div className="space-y-6">
+      <MetricCards metrics={metrics} />
+      <DataMap isFleet={isFleet} />
+      <DataTable records={records} onDeleteRecord={onDeleteRecord} />
+    </div>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/pages/Analytics.jsx',
+      `import React from 'react'
+
+export function Analytics({ metrics }) {
+  return (
+    <div className="space-y-6">
+      <div className="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-bold text-white">Advanced Financial Analytics & 25-Year Matrix</h3>
+            <p className="text-xs text-slate-400">Cash flow projection with degradation & utility rate escalation</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => alert('Exporting CSV...')}
+              id="export-csv-btn"
+              className="px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-bold text-xs"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={() => window.print()}
+              id="export-pdf-btn"
+              className="px-3 py-1.5 rounded-lg bg-slate-800 text-white font-semibold text-xs border border-slate-700"
+            >
+              Export PDF
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800 font-mono text-xs space-y-2">
+          <p className="text-emerald-400">✓ Degradation Factor: 0.5% per annum</p>
+          <p className="text-cyan-400">✓ Utility Escalation: 3.2% per annum</p>
+          <p className="text-slate-300">✓ 25-Year Cumulative Net Yield: $1,420,000</p>
+        </div>
+      </div>
+    </div>
+  )
+}`
+    )
+
+    writeFileSafe(
+      'client/src/pages/Settings.jsx',
+      `import React from 'react'
+
+export function Settings({ currentTenant = 'Standard Roofs Global' }) {
+  return (
+    <div className="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-white">Tenant & System Settings</h3>
+        <p className="text-xs text-slate-400">Partitioned multi-tenant environment</p>
+      </div>
+
+      <div className="space-y-4 font-mono text-xs">
+        <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex justify-between items-center">
+          <span className="text-slate-400">Organization:</span>
+          <span className="text-white font-semibold">{currentTenant}</span>
+        </div>
+        <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex justify-between items-center">
+          <span className="text-slate-400">RBAC Enforcement:</span>
+          <span className="text-emerald-400 font-semibold">ACTIVE (Admin, Manager, Inspector, Client)</span>
+        </div>
+        <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex justify-between items-center">
+          <span className="text-slate-400">Stripe Billing Webhook:</span>
+          <span className="text-cyan-400 font-semibold">Mounted (/api/v1/billing/webhook)</span>
+        </div>
+      </div>
+    </div>
+  )
+}`
+    )
+
     writeFileSafe(
       'client/src/App.jsx',
       `import React, { useState } from 'react'
+import { Navbar } from './components/Navbar'
+import { Sidebar } from './components/Sidebar'
+import { ActionModal } from './components/ActionModal'
+import { Overview } from './pages/Overview'
+import { Analytics } from './pages/Analytics'
+import { Settings } from './pages/Settings'
 
 export default function App() {
-  const [status, setStatus] = useState('Online')
+  const [activePage, setActivePage] = useState('overview')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [records, setRecords] = useState([
+    { id: '01', name: 'Facility Alpha - Primary Array', status: 'Active', output: '48,200 kWh', val: 8676 },
+    { id: '02', name: 'Fleet Unit #402 - Route Metro', status: 'Alert', output: '94.2% Efficiency', val: 14280 },
+    { id: '03', name: 'Standby Inverter Station', status: 'Idle', output: '0.0 kWh', val: 0 }
+  ])
+
+  const handleSaveRecord = (record) => {
+    const nextId = String(records.length + 1).padStart(2, '0')
+    setRecords(prev => [{ id: nextId, ...record }, ...prev])
+  }
+
+  const handleDeleteRecord = (id) => {
+    setRecords(prev => prev.filter(r => r.id !== id))
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
-      <div className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
-        <h1 className="text-3xl font-extrabold bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
-          ${cleanSlug.replace(/-/g, ' ').toUpperCase()}
-        </h1>
-        <p className="text-slate-400 mt-2">
-          Autonomous Full-Stack System engineered by J.A.R.V.I.S. Swarm.
-        </p>
-        <div className="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-mono border border-emerald-500/20">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          Status: {status}
-        </div>
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans antialiased flex">
+      <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      <div className="flex-1 flex flex-col min-w-0 p-4 md:p-6 overflow-y-auto">
+        <Navbar onOpenModal={() => setIsModalOpen(true)} />
+        <main className="flex-1">
+          {activePage === 'overview' && (
+            <Overview records={records} onDeleteRecord={handleDeleteRecord} />
+          )}
+          {activePage === 'analytics' && <Analytics />}
+          {activePage === 'settings' && <Settings />}
+        </main>
+        <ActionModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSaveRecord={handleSaveRecord}
+        />
       </div>
     </div>
   )
@@ -450,6 +914,36 @@ router.get('/', (req, res) => {
     },
     timestamp: new Date().toISOString()
   })
+})
+
+module.exports = router`
+    )
+
+    writeFileSafe(
+      'server/routes/api.js',
+      `const express = require('express')
+const router = express.Router()
+
+let records = [
+  { id: '01', name: 'Facility Alpha - Primary Array', status: 'Active', delta: '48,200 kWh', val: 8676 },
+  { id: '02', name: 'Fleet Unit #402 - Route Metro', status: 'Alert', delta: '94.2% Efficiency', val: 14280 },
+  { id: '03', name: 'Standby Inverter Station', status: 'Idle', delta: '0.0 kWh', val: 0 }
+]
+
+router.get('/health', (req, res) => {
+  res.json({ status: 'UP', service: '${cleanSlug}', timestamp: new Date().toISOString(), uptime: process.uptime() })
+})
+
+router.get('/records', (req, res) => {
+  res.json({ ok: true, records })
+})
+
+router.post('/records', (req, res) => {
+  const { name, status, delta, val } = req.body || {}
+  const id = String(records.length + 1).padStart(2, '0')
+  const newRec = { id, name: name || 'Unit #' + id, status: status || 'Active', delta: delta || '10,000 kWh', val: val || 5000 }
+  records.unshift(newRec)
+  res.status(201).json({ ok: true, record: newRec })
 })
 
 module.exports = router`

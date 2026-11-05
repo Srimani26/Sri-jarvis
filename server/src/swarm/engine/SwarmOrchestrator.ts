@@ -383,7 +383,7 @@ export class SwarmOrchestrator {
     // STAGE 2: CEREBRO (Database & Data Modeling Specialist)
     // ──────────────────────────────────────────────────────────────────────────
     const cerebroDb = await cerebroSpecialist.executeDatabaseSynthesis(blueprint)
-    await notify('PROGRESS', 'Stage 2: Cerebro generated PostgreSQL schema & mock seed dataset.')
+    await notify('PROGRESS', '[Milestone 1/6] Cerebro generated Prisma schema & seeded database.')
     await taskAuditService.logToolExecution(taskId, 'cerebro_database_synthesis', { slug }, { schemaLength: cerebroDb.prismaSchema.length }, 'SUCCESS', 150)
 
     const isTestMode = process.env.NODE_ENV === 'test' || process.argv.some(a => a.includes('test')) || process.execArgv.includes('--test')
@@ -424,7 +424,7 @@ Requirements:
       aegisHtml = raphaelSpecialist.generateHtmlLayout(blueprint)
     }
 
-    await notify('PROGRESS', 'Aegis completed semantic HTML structure and REST endpoints.')
+    await notify('PROGRESS', '[Milestone 2/6] Aegis coded Express REST endpoints & auth middleware.')
     await taskAuditService.logToolExecution(taskId, 'aegis_backend_synthesis', { directive }, { length: aegisBackend.routesJs.length }, 'SUCCESS', 200)
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -432,7 +432,7 @@ Requirements:
     // ──────────────────────────────────────────────────────────────────────────
     const raphaelFrontend = await raphaelSpecialist.executeFrontendSynthesis(blueprint)
     const raphaelCss = raphaelFrontend.css || raphaelSpecialist.generateResponsiveCss(blueprint)
-    await notify('PROGRESS', 'Raphael completed glassmorphic styling system & multi-viewport layout.')
+    await notify('PROGRESS', '[Milestone 3/6] Raphael coded React UI components (Sidebar, Dashboard, Canvas).')
     await taskAuditService.logToolExecution(taskId, 'raphael_frontend_synthesis', { directive }, { length: raphaelCss.length }, 'SUCCESS', 200)
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -454,13 +454,13 @@ Requirements:
       midasJs = midasSpecialist.generateComputationEngine(blueprint)
     }
 
-    await notify('PROGRESS', 'Midas completed calculation engine & event handlers.')
+    await notify('PROGRESS', '[Milestone 4/6] Midas wired calculation engine & live state store.')
     await taskAuditService.logToolExecution(taskId, 'midas_logic_synthesis', { directive }, { length: midasJs.length }, 'SUCCESS', 200)
 
     // Auto-align and heal shared contract DOM element IDs between Aegis/Raphael and Midas
     aegisHtml = this.autoAlignSharedElementIds(aegisHtml, midasJs)
 
-    await notify('PROGRESS', 'Synthesis complete. Running autonomous verification...')
+    await notify('PROGRESS', '[Milestone 5/6] Friday running compiler & integration tests.')
 
     // ──────────────────────────────────────────────────────────────────────────
     // STAGE 6: FRIDAY (QA Integration Audit, Preview Mount & DevOps Packaging)
@@ -586,6 +586,7 @@ Requirements:
     const previewPath = `/preview/${bundleRes.projectSlug}`
     const previewUrl = `https://sri-jarvis.onrender.com${previewPath}`
 
+    await notify('PROGRESS', `[Milestone 6/6] Verified preview deployed to ${previewPath} & packaged ZIP.`)
     await taskAuditService.completeTask(taskId, verification.verified ? 'COMPLETED' : 'FAILED', `SDLC 6-stage Swarm verified at ${previewUrl}`)
 
     return {

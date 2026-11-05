@@ -61,9 +61,24 @@ describe('Phase 2 Autonomous Co-Worker Runtime & Scaffolder Suite', () => {
 
       // Check server tree
       assert.ok(fs.existsSync(path.join(testDir, 'server', 'package.json')), 'server/package.json must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'server', 'index.js')), 'server/index.js must exist')
       assert.ok(fs.existsSync(path.join(testDir, 'server', 'src', 'app.js')), 'server/src/app.js must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'server', 'routes', 'api.js')), 'server/routes/api.js must exist')
       assert.ok(fs.existsSync(path.join(testDir, 'server', 'src', 'routes', 'api.js')), 'server/src/routes/api.js must exist')
       assert.ok(fs.existsSync(path.join(testDir, 'server', 'src', 'middleware', 'auth.js')), 'server/src/middleware/auth.js must exist')
+
+      // Check discrete modular components (Step 2)
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'components', 'Navbar.jsx')), 'Navbar.jsx must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'components', 'Sidebar.jsx')), 'Sidebar.jsx must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'components', 'MetricCards.jsx')), 'MetricCards.jsx must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'components', 'DataMap.jsx')), 'DataMap.jsx must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'components', 'DataTable.jsx')), 'DataTable.jsx must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'components', 'ActionModal.jsx')), 'ActionModal.jsx must exist')
+
+      // Check discrete modular pages (Step 2)
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'pages', 'Overview.jsx')), 'Overview.jsx must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'pages', 'Analytics.jsx')), 'Analytics.jsx must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'src', 'pages', 'Settings.jsx')), 'Settings.jsx must exist')
 
       // Check prisma tree
       assert.ok(fs.existsSync(path.join(testDir, 'prisma', 'schema.prisma')), 'prisma/schema.prisma must exist')
@@ -303,6 +318,30 @@ server.listen(${daemonPort}, () => console.log('Daemon running on ${daemonPort}'
       assert.ok(js.includes('updateChart'), 'Must provide dynamic Chart.js updating')
       assert.ok(js.includes('export-csv-btn'), 'Must bind CSV download')
       assert.ok(js.includes('export-pdf-btn'), 'Must bind PDF print')
+    })
+  })
+
+  describe('Criterion 5: Real Compiler & Self-Healing Loop (Friday)', () => {
+    it('should execute real compilation pass into client/dist/bundle.js and client/dist/index.html', async () => {
+      const friday = FridaySpecialist.getInstance()
+      const compileRes = await friday.executeCompilerSelfHealingLoop(testSlug)
+
+      assert.strictEqual(compileRes.success, true, 'Compilation must succeed')
+      assert.strictEqual(compileRes.distCreated, true, 'Must produce dist/index.html')
+      assert.ok(compileRes.attempts >= 1)
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'dist', 'bundle.js')), 'dist/bundle.js must exist')
+      assert.ok(fs.existsSync(path.join(testDir, 'client', 'dist', 'index.html')), 'dist/index.html must exist')
+    })
+
+    it('should serve compiled Vite/esbuild distribution from /projects/:slug', async () => {
+      const req = new Request(`http://localhost:3005/projects/${testSlug}`)
+      const res = await previewRoutes.fetch(req)
+
+      assert.strictEqual(res.status, 200)
+      const text = await res.text()
+      assert.ok(text.includes('html'))
+      // Verify bundle reference or html structure
+      assert.ok(text.includes('bundle.js') || text.includes('root') || text.includes('App'))
     })
   })
 })

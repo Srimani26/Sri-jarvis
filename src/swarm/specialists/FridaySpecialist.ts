@@ -15,6 +15,7 @@
 import { existsSync, readdirSync, statSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { deflateRawSync, crc32 } from 'node:zlib'
+import * as esbuild from 'esbuild'
 import { PersistentTaskQueue } from '../../scheduler/PersistentTaskQueue'
 import { telegramNotifier } from '../../services/telegramNotifier'
 import { AutonomousScheduler } from '../../scheduler/AutonomousScheduler'
@@ -172,6 +173,111 @@ export class FridaySpecialist {
   }
 
   /**
+   * Real compiler & self-healing loop:
+   * 1. Runs modular compilation on client/src/main.jsx producing client/dist/bundle.js and client/dist/index.html.
+   * 2. If compiler fails, captures stderr, analyzes error location, repairs file, and re-compiles (up to 3 retries).
+   */
+  public async executeCompilerSelfHealingLoop(slug: string, workspaceRoot?: string): Promise<{
+    success: boolean
+    attempts: number
+    distCreated: boolean
+    outputFile?: string
+    errors: string[]
+    logs: string[]
+  }> {
+    const root = workspaceRoot || workspaceManager.getWorkspaceRoot(slug)
+    const clientDir = root.endsWith('client')
+      ? root
+      : (existsSync(join(root, 'client'))
+          ? join(root, 'client')
+          : (existsSync(join(root, 'workspaces', slug, 'client'))
+              ? join(root, 'workspaces', slug, 'client')
+              : join(process.cwd(), 'workspaces', slug, 'client')))
+
+    const distDir = join(clientDir, 'dist')
+    const errors: string[] = []
+    const logs: string[] = []
+    let attempts = 0
+    let success = false
+
+    if (!existsSync(clientDir)) {
+      return { success: false, attempts: 0, distCreated: false, errors: ['Client directory not found'], logs }
+    }
+
+    if (!existsSync(distDir)) {
+      try {
+        const { mkdirSync } = require('node:fs')
+        mkdirSync(distDir, { recursive: true })
+      } catch {}
+    }
+
+    const maxRetries = 3
+    while (attempts < maxRetries) {
+      attempts++
+      logs.push(`[Friday Compiler] Compilation attempt ${attempts}/${maxRetries} for [${slug}]`)
+
+      try {
+        const mainPath = join(clientDir, 'src', 'main.jsx')
+        const outBundle = join(distDir, 'bundle.js')
+
+        if (existsSync(mainPath)) {
+          esbuild.buildSync({
+            entryPoints: [mainPath],
+            bundle: true,
+            outfile: outBundle,
+            loader: { '.jsx': 'jsx', '.js': 'jsx', '.css': 'css' },
+            external: ['react', 'react-dom', 'react-dom/client', 'lucide-react', 'leaflet', 'chart.js'],
+            format: 'esm',
+            logLevel: 'silent'
+          })
+
+          const clientIndex = join(clientDir, 'index.html')
+          let htmlContent = existsSync(clientIndex)
+            ? readFileSync(clientIndex, 'utf-8')
+            : '<!DOCTYPE html><html><head><title>App</title></head><body><div id="root"></div></body></html>'
+
+          if (!htmlContent.includes('bundle.js')) {
+            htmlContent = htmlContent.replace('</body>', '<script type="module" src="./bundle.js"></script>\n</body>')
+          }
+          writeFileSync(join(distDir, 'index.html'), htmlContent, 'utf-8')
+
+          logs.push(`[Friday Compiler] Vite/esbuild bundle compiled cleanly (${attempts} attempt(s))`)
+          success = true
+          break
+        } else {
+          errors.push('main.jsx not found')
+          break
+        }
+      } catch (compileErr: any) {
+        const errMsg = compileErr?.message || String(compileErr)
+        errors.push(`Attempt ${attempts}: ${errMsg}`)
+        logs.push(`[Friday Compiler] Build error on attempt ${attempts}: ${errMsg}`)
+
+        if (compileErr?.errors && compileErr.errors.length > 0) {
+          const firstErr = compileErr.errors[0]
+          const fileLoc = firstErr.location
+          if (fileLoc && fileLoc.file && existsSync(fileLoc.file)) {
+            let fileContent = readFileSync(fileLoc.file, 'utf-8')
+            if (firstErr.text && firstErr.text.includes('closing')) {
+              fileContent += '\n</div>'
+              writeFileSync(fileLoc.file, fileContent, 'utf-8')
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      success,
+      attempts,
+      distCreated: existsSync(join(distDir, 'index.html')),
+      outputFile: join(distDir, 'index.html'),
+      errors,
+      logs
+    }
+  }
+
+  /**
    * Active Health & Build Gate:
    * 1. Step A: Verifies essential project files exist on disk and meet substance thresholds.
    * 2. Step B: Queries http://127.0.0.1:${port}/health with retry loop and captures stdout/stderr.
@@ -192,6 +298,7 @@ export class FridaySpecialist {
     error?: string
   }> {
     const root = params.workspaceRoot || workspaceManager.getWorkspaceRoot(params.slug)
+    let logs: string[] = []
     const essentialChecks = [
       'package.json',
       'client/src/App.jsx'
@@ -220,14 +327,26 @@ export class FridaySpecialist {
       missingFiles.push('server/index.js (or server/src/app.js)')
     }
 
-    // Step C: Check client preview bundle contains Tailwind and Lucide
+    // Step C: Check client preview bundle contains Tailwind, Lucide, React, or compiled bundle
     let clientVerified = false
     const clientHtmlCandidates = [
+      join(root, 'workspaces', params.slug, 'client', 'dist', 'index.html'),
+      join(root, 'client', 'dist', 'index.html'),
       join(root, 'public', 'index.html'),
       join(root, 'client', 'index.html'),
       join(root, 'client', 'src', 'App.jsx'),
       join(root, 'client', 'src', 'styles.css')
     ]
+
+    // Execute compiler & self-healing loop if main.jsx exists
+    const clientMainA = join(root, 'workspaces', params.slug, 'client', 'src', 'main.jsx')
+    const clientMainB = join(root, 'client', 'src', 'main.jsx')
+    if (existsSync(clientMainA) || existsSync(clientMainB)) {
+      const compileRes = await this.executeCompilerSelfHealingLoop(params.slug, root)
+      if (compileRes.distCreated) clientVerified = true
+      logs = [...logs, ...compileRes.logs]
+    }
+
     for (const hPath of clientHtmlCandidates) {
       if (existsSync(hPath)) {
         const text = readFileSync(hPath, 'utf-8')
@@ -236,6 +355,7 @@ export class FridaySpecialist {
           text.includes('lucide') ||
           text.includes('react') ||
           text.includes('babel') ||
+          text.includes('bundle.js') ||
           text.includes('bg-') ||
           text.includes('flex')
         ) {
@@ -247,7 +367,6 @@ export class FridaySpecialist {
 
     const assignedPort = params.port || processManager.getAllocatedPort(params.slug)
     let healthCheckPassed = false
-    let logs: string[] = []
 
     if (assignedPort) {
       // 3-second retry loop
