@@ -239,6 +239,40 @@ describe('Telegram Bot Command Dispatcher & Autonomous Swarm Bridge Suite', () =
         telegramNotifier.sendMessage = origSend
       }
     })
+
+    it('should unconditionally authorize Master Sri (1377862282) without force-subscription or group join gates', async () => {
+      const sentMessages: string[] = []
+      const origSend = telegramNotifier.sendMessage
+      telegramNotifier.sendMessage = async (msg: string) => {
+        sentMessages.push(msg)
+        return true
+      }
+
+      try {
+        // Test 1: Master Sri sending from a group (chat id is group, from id is Master Sri)
+        const groupUpdateFromMasterSri = {
+          update_id: 8888,
+          message: {
+            message_id: 120,
+            chat: { id: '-100987654321', type: 'supergroup' },
+            from: { id: '1377862282', username: 'MasterSri' },
+            text: '/status'
+          }
+        }
+
+        const res = await telegramNotifier.handleInboundUpdate(groupUpdateFromMasterSri)
+        assert.strictEqual(res.handled, true)
+        assert.strictEqual(res.command, '/status')
+        assert.ok(sentMessages.length >= 1)
+        assert.ok(sentMessages[0].includes('J.A.R.V.I.S. System Status'))
+
+        // Test 2: Verify channel membership gate is completely bypassed (always returns true)
+        const membershipPassed = await telegramNotifier.verifyChannelMembership('-100987654321', '1377862282')
+        assert.strictEqual(membershipPassed, true)
+      } finally {
+        telegramNotifier.sendMessage = origSend
+      }
+    })
   })
 
   describe('Criterion 5: Universal Software Build Routing (No Brittle Keyword Drops)', () => {

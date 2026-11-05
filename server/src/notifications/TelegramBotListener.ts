@@ -179,11 +179,20 @@ export class TelegramBotListener {
    * Process incoming update from Telegram (callback queries or text commands)
    */
   public static async handleUpdate(update: any, authorizedChatId: string = this.AUTHORIZED_CHAT_ID): Promise<void> {
+    const MASTER_SRI_ID = '1377862282';
+
     // 1. Handle Interactive Inline Button Callback Queries
     if (update.callback_query) {
       const query = update.callback_query;
       const senderChatId = String(query.message?.chat?.id || query.from?.id || '');
-      if (senderChatId === authorizedChatId || senderChatId === this.AUTHORIZED_CHAT_ID) {
+      const senderUserId = String(query.from?.id || '');
+      if (
+        senderChatId === authorizedChatId ||
+        senderChatId === this.AUTHORIZED_CHAT_ID ||
+        senderChatId === MASTER_SRI_ID ||
+        senderUserId === MASTER_SRI_ID ||
+        senderUserId === authorizedChatId
+      ) {
         await this.handleCallbackQuery(query);
       }
       return;
@@ -194,15 +203,24 @@ export class TelegramBotListener {
     if (!message || !message.text) return;
 
     const senderChatId = String(message.chat?.id || '');
+    const senderUserId = String(message.from?.id || '');
     const senderUsername = message.from?.username || message.chat?.username || 'Unknown';
     const text = message.text.trim();
 
     // STEP 1: Structured entrypoint logging
-    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`);
+    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, UserID: ${senderUserId}, Username: @${senderUsername}, Text: "${text}"`);
 
-    // STEP 1: Security gate strictly authorizing Master Sri (1377862282)
-    if (senderChatId !== authorizedChatId && senderChatId !== this.AUTHORIZED_CHAT_ID) {
-      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`);
+    // STEP 1: Security gate unconditionally authorizing Master Sri (1377862282) and configured authorized ID
+    // Note: Force-sub / mandatory channel/group verification is completely removed/bypassed. Direct, unrestricted access is guaranteed.
+    const isAuthorized =
+      senderChatId === MASTER_SRI_ID ||
+      senderUserId === MASTER_SRI_ID ||
+      senderChatId === this.AUTHORIZED_CHAT_ID ||
+      senderChatId === authorizedChatId ||
+      senderUserId === authorizedChatId;
+
+    if (!isAuthorized) {
+      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId} (User ID: ${senderUserId})`);
       await TelegramNotifier.sendMessage(
         `⛔ Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`,
         { targetChatId: senderChatId }
@@ -210,8 +228,17 @@ export class TelegramBotListener {
       return;
     }
 
-    // Process authorized command
+    // Process authorized command immediately without external group/channel join gates
     await this.handleIncomingMessage(text, senderChatId);
+  }
+
+  /**
+   * Force-Subscription / Mandatory Group Join Verification Gate
+   * Explicitly bypassed: returns true immediately for Master Sri and all authorized users.
+   * Zero external group membership checks (no getChatMember requirement).
+   */
+  public static async verifyChannelMembership(_chatId: string | number, _userId?: string | number): Promise<boolean> {
+    return true;
   }
 
   /**

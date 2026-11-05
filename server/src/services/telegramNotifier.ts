@@ -305,17 +305,27 @@ export class TelegramNotifierService {
     if (!msg || !msg.text) return { handled: false }
 
     const senderChatId = String(msg.chat?.id || '')
+    const senderUserId = String(msg.from?.id || '')
     const senderUsername = msg.from?.username || msg.chat?.username || 'Unknown'
     const text = msg.text.trim()
 
     // STEP 1: Structured entrypoint logging
-    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, Username: @${senderUsername}, Text: "${text}"`)
+    console.log(`[Telegram Inbound] ChatID: ${senderChatId}, UserID: ${senderUserId}, Username: @${senderUsername}, Text: "${text}"`)
 
     const authorizedChatId = String(this.getChatId())
+    const MASTER_SRI_ID = '1377862282'
+
+    // Force-Sub / Mandatory Group Join Gate: Completely disabled / bypassed.
+    // Master Sri (1377862282) and authorized users have direct, unrestricted access to execute all directives unconditionally.
+    const isAuthorized =
+      senderChatId === MASTER_SRI_ID ||
+      senderUserId === MASTER_SRI_ID ||
+      senderChatId === authorizedChatId ||
+      senderUserId === authorizedChatId
 
     // STEP 1: Audit Authorized Chat ID against MASTER_CHAT_ID (1377862282)
-    if (authorizedChatId && senderChatId !== authorizedChatId) {
-      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId}`)
+    if (authorizedChatId && !isAuthorized) {
+      console.warn(`[Telegram Security Alert] Rejected unauthorized chat ID: ${senderChatId} (User ID: ${senderUserId})`)
       const denialMessage = `⛔ Access Denied. Your Telegram Chat ID (${senderChatId}) is not authorized for J.A.R.V.I.S. Command Center.`
       await this.sendMessage(denialMessage, senderChatId)
       return { handled: false, reply: denialMessage }
@@ -472,6 +482,15 @@ export class TelegramNotifierService {
 
   public isPolling(): boolean {
     return this.isPollingActive
+  }
+
+  /**
+   * Force-Subscription / Mandatory Group Join Verification Gate
+   * Explicitly bypassed: returns true immediately for Master Sri and all authorized users.
+   * Direct execution without getChatMember or external group requirements.
+   */
+  public async verifyChannelMembership(_chatId: string | number, _userId?: string | number): Promise<boolean> {
+    return true
   }
 }
 
