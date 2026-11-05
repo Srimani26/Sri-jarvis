@@ -535,13 +535,27 @@ Requirements:
       } as any, workspaceRoot)
     }
 
-    // Friday Cross-Agent Contract Integration Audit
-    const contractAudit = fridaySpecialist.auditContracts({
+    // Friday Cross-Agent Contract Integration Audit & Iterative Build Pass
+    let contractAudit = fridaySpecialist.auditContracts({
       html: aegisHtml,
       css: raphaelCss,
       js: midasJs,
       routesJs: aegisBackend.routesJs
     })
+
+    // Iterative self-healing loop: if syntax or contract audit fails, heal and re-audit
+    if (!contractAudit.passed && (!contractAudit.syntaxValid || contractAudit.domIdAudit.missingIds.length > 0)) {
+      if (!contractAudit.syntaxValid) {
+        midasJs = midasSpecialist.generateComputationEngine(blueprint)
+      }
+      aegisHtml = this.autoAlignSharedElementIds(aegisHtml, midasJs)
+      contractAudit = fridaySpecialist.auditContracts({
+        html: aegisHtml,
+        css: raphaelCss,
+        js: midasJs,
+        routesJs: aegisBackend.routesJs
+      })
+    }
 
     // Friday Active Health & Build Gate
     try {

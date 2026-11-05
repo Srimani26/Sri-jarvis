@@ -233,15 +233,52 @@ export default function Dashboard() {
     writeFileSafe(
       'public/index.html',
       `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${cleanSlug.replace(/-/g, ' ')}</title>
+    <!-- High-Fidelity Design System & Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS with Dark Mode -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              darkBg: '#0b0f19',
+              glassCard: '#111827',
+              accentCyan: '#38bdf8'
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Visual Canvas: Lucide, Chart.js, Leaflet -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="/client/src/styles.css"/>
   </head>
-  <body>
+  <body class="bg-[#0b0f19] text-slate-100 font-sans antialiased min-h-screen">
     <div id="root"></div>
     <script type="module" src="/client/src/main.jsx"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>`
     )
@@ -254,8 +291,8 @@ export default function Dashboard() {
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #020617;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #0b0f19;
   color: #f8fafc;
 }
 
@@ -267,15 +304,52 @@ body {
     writeFileSafe(
       'client/index.html',
       `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${cleanSlug.replace(/-/g, ' ')}</title>
+    <!-- High-Fidelity Design System & Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS with Dark Mode -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              darkBg: '#0b0f19',
+              glassCard: '#111827',
+              accentCyan: '#38bdf8'
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Visual Canvas: Lucide, Chart.js, Leaflet -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="/src/styles.css"/>
   </head>
-  <body>
+  <body class="bg-[#0b0f19] text-slate-100 font-sans antialiased min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>`
     )
@@ -602,6 +676,32 @@ model User {
     return fs.readdirSync(workspacesDir, { withFileTypes: true })
       .filter(d => d.isDirectory())
       .map(d => d.name)
+  }
+
+  /**
+   * Spawns real CLI commands inside workspaces/${slug} with 60-second timeout, capturing stdout & stderr
+   */
+  public async executeShell(
+    slug: string,
+    command: string,
+    timeoutMs = 60000,
+    baseDir = process.cwd()
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const { processManager } = await import('./processManager')
+    return processManager.executeShell(slug, command, timeoutMs, baseDir)
+  }
+
+  /**
+   * Spawns live background Node.js servers, binds them to internal ports (4000-4999), and captures running PIDs
+   */
+  public startDaemon(
+    slug: string,
+    entrypoint: string = 'server/index.js',
+    port?: number,
+    baseDir = process.cwd()
+  ): { pid: number; port: number; status: string } {
+    const { processManager } = require('./processManager')
+    return processManager.startDaemon(slug, entrypoint, port, baseDir)
   }
 }
 

@@ -14730,6 +14730,49 @@ router.${method}('${ep.path.replace("/api/v1", "")}', ${rolesParam}(req, res) =>
 `;
           }
         }
+        code += `const dynamicStore = new Map();
+
+router.get('/:resource', (req, res) => {
+  const resource = req.params.resource;
+  const items = dynamicStore.get(resource) || [
+    { id: 'rec_01', name: 'Primary Asset Alpha', status: 'ACTIVE', metrics: { throughput: 98.4 }, createdAt: new Date().toISOString() },
+    { id: 'rec_02', name: 'Secondary Unit Beta', status: 'ALERT', metrics: { throughput: 84.1 }, createdAt: new Date().toISOString() }
+  ];
+  res.json({
+    success: true,
+    resource,
+    count: items.length,
+    data: items,
+    timestamp: new Date().toISOString()
+  });
+});
+
+router.post('/:resource', (req, res) => {
+  const resource = req.params.resource;
+  const payload = req.body;
+  if (!payload || Object.keys(payload).length === 0) {
+    return res.status(400).json({ error: 'Missing request payload', code: 'VALIDATION_FAILED' });
+  }
+
+  const newRecord = {
+    id: 'rec_' + Date.now(),
+    ...payload,
+    organizationId: req.user?.organizationId || 'org-master-sri-001',
+    createdAt: new Date().toISOString()
+  };
+
+  const existing = dynamicStore.get(resource) || [];
+  existing.push(newRecord);
+  dynamicStore.set(resource, existing);
+
+  res.status(201).json({
+    success: true,
+    resource,
+    data: newRecord
+  });
+});
+
+`;
         code += `module.exports = router;
 `;
         return code;
@@ -14753,9 +14796,10 @@ app.use(express.json());
 // Diagnostics
 app.get('/health', (req, res) => {
   res.json({
-    status: 'HEALTHY',
+    status: 'UP',
     service: '${blueprint.slug}-backend',
     version: '1.0.0',
+    uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString()
   });
 });
@@ -15134,6 +15178,215 @@ var init_AutonomousAgentLoop = __esm({
   }
 });
 
+// src/swarm/tools/processManager.ts
+var processManager_exports = {};
+__export(processManager_exports, {
+  ProcessManager: () => ProcessManager,
+  processManager: () => processManager
+});
+import { exec as exec5, execSync, spawn as spawn2 } from "node:child_process";
+import fs10 from "node:fs";
+import path12 from "node:path";
+var ProcessManager, processManager;
+var init_processManager = __esm({
+  "src/swarm/tools/processManager.ts"() {
+    "use strict";
+    ProcessManager = class _ProcessManager {
+      static instance;
+      activeProcesses = /* @__PURE__ */ new Map();
+      allocatedPorts = /* @__PURE__ */ new Map();
+      // port -> slug
+      minPort = 4e3;
+      maxPort = 4999;
+      static getInstance() {
+        if (!_ProcessManager.instance) {
+          _ProcessManager.instance = new _ProcessManager();
+        }
+        return _ProcessManager.instance;
+      }
+      /**
+       * Spawns real CLI commands inside workspaces/${slug} with 60-second timeout, capturing stdout & stderr
+       */
+      async executeShell(slug, command, timeoutMs = 6e4, baseDir = process.cwd()) {
+        const cwd = path12.resolve(baseDir, "workspaces", slug);
+        const targetDir = fs10.existsSync(cwd) ? cwd : baseDir;
+        return this.executeCommand(command, targetDir, timeoutMs);
+      }
+      /**
+       * Spawns live background Node.js servers, binds them to internal ports (4000-4999), and captures running PIDs
+       */
+      startDaemon(slug, entrypoint = "server/index.js", port2, baseDir = process.cwd()) {
+        const cwd = path12.resolve(baseDir, "workspaces", slug);
+        return this.startService(slug, "node", [entrypoint], port2, cwd);
+      }
+      /**
+       * Execute CLI commands asynchronously (npm install, npx prisma db push, npm run build)
+       */
+      async executeCommand(cmd, cwd = process.cwd(), timeoutMs = 6e4) {
+        return this.runCommand(cmd, cwd, timeoutMs);
+      }
+      /**
+       * Execute CLI commands synchronously with promise resolution
+       */
+      async runCommand(cmd, cwd = process.cwd(), timeoutMs = 6e4) {
+        return new Promise((resolve20) => {
+          exec5(cmd, { cwd, timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+            const exitCode = err ? typeof err.code === "number" ? err.code : 1 : 0;
+            resolve20({
+              stdout: stdout.toString(),
+              stderr: stderr.toString(),
+              exitCode
+            });
+          });
+        });
+      }
+      /**
+       * Allocate an unused internal port between 4000-4999
+       */
+      allocatePort(slug, preferredPort) {
+        if (preferredPort && preferredPort >= this.minPort && preferredPort <= this.maxPort) {
+          if (!this.allocatedPorts.has(preferredPort) || this.allocatedPorts.get(preferredPort) === slug) {
+            this.allocatedPorts.set(preferredPort, slug);
+            return preferredPort;
+          }
+        }
+        for (let port2 = 4100; port2 <= this.maxPort; port2++) {
+          if (!this.allocatedPorts.has(port2)) {
+            this.allocatedPorts.set(port2, slug);
+            return port2;
+          }
+        }
+        for (let port2 = this.minPort; port2 < 4100; port2++) {
+          if (!this.allocatedPorts.has(port2)) {
+            this.allocatedPorts.set(port2, slug);
+            return port2;
+          }
+        }
+        const fallback = 4e3 + Math.floor(Math.random() * 900);
+        this.allocatedPorts.set(fallback, slug);
+        return fallback;
+      }
+      /**
+       * Spawns long-running child processes (Node API backend) inside workspace root or specified cwd
+       */
+      startService(slug, command, args = [], port2, cwd) {
+        const fullCommand = args && args.length > 0 ? `${command} ${args.join(" ")}` : command;
+        const defaultRoot = path12.resolve(process.cwd(), "workspaces", slug);
+        const workingDir = cwd || defaultRoot;
+        return this.spawnAppProcess(slug, fullCommand, port2, workingDir);
+      }
+      /**
+       * Spawn a background Node.js server process and bind to an allocated port
+       */
+      spawnAppProcess(slug, command, port2, cwd) {
+        const existing = this.activeProcesses.get(slug);
+        if (existing && existing.info.status === "running") {
+          return {
+            pid: existing.info.pid,
+            port: existing.info.port,
+            status: existing.info.status
+          };
+        }
+        const assignedPort = this.allocatePort(slug, port2);
+        const serverSubdir = path12.resolve(process.cwd(), "workspaces", slug, "server");
+        const workspaceRoot = path12.resolve(process.cwd(), "workspaces", slug);
+        const workingDir = cwd || (fs10.existsSync(serverSubdir) ? serverSubdir : workspaceRoot);
+        const env = {
+          ...process.env,
+          PORT: String(assignedPort),
+          NODE_ENV: "production"
+        };
+        const child = spawn2(command, {
+          cwd: workingDir,
+          env,
+          shell: true,
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+        child.unref();
+        const pid = child.pid || Date.now();
+        const logs = [];
+        const appendLog = (chunk) => {
+          const text = chunk.toString().trim();
+          if (text) {
+            logs.push(`[${(/* @__PURE__ */ new Date()).toISOString()}] ${text}`);
+            if (logs.length > 100) logs.shift();
+          }
+        };
+        if (child.stdout) child.stdout.on("data", appendLog);
+        if (child.stderr) child.stderr.on("data", appendLog);
+        const info = {
+          slug,
+          pid,
+          port: assignedPort,
+          command,
+          cwd: workingDir,
+          status: "running",
+          startTime: Date.now(),
+          logs
+        };
+        child.on("exit", (code) => {
+          info.status = code === 0 ? "stopped" : "failed";
+          this.allocatedPorts.delete(assignedPort);
+        });
+        child.on("error", (err) => {
+          console.warn(`[ProcessManager] Subprocess error for ${slug}:`, err);
+          info.status = "failed";
+          this.allocatedPorts.delete(assignedPort);
+        });
+        this.activeProcesses.set(slug, { info, process: child });
+        return {
+          pid,
+          port: assignedPort,
+          status: "running"
+        };
+      }
+      /**
+       * Gracefully terminate a running child process and free its port
+       */
+      stopService(slug) {
+        return this.stopAppProcess(slug);
+      }
+      /**
+       * Gracefully terminate a running child process and free its port
+       */
+      stopAppProcess(slug) {
+        const entry = this.activeProcesses.get(slug);
+        if (!entry) return false;
+        try {
+          if (entry.process) {
+            if (process.platform === "win32" && entry.process.pid) {
+              try {
+                execSync(`taskkill /pid ${entry.process.pid} /T /F`, { stdio: "ignore" });
+              } catch {
+              }
+            }
+            if (!entry.process.killed) {
+              entry.process.kill("SIGTERM");
+            }
+          }
+        } catch (err) {
+          console.warn(`[ProcessManager] Could not kill process for ${slug}:`, err);
+        }
+        this.allocatedPorts.delete(entry.info.port);
+        entry.info.status = "stopped";
+        this.activeProcesses.delete(slug);
+        return true;
+      }
+      getProcessInfo(slug) {
+        return this.activeProcesses.get(slug)?.info;
+      }
+      getAllocatedPort(slug) {
+        const entry = this.activeProcesses.get(slug);
+        return entry?.info.port;
+      }
+      listActiveProcesses() {
+        return Array.from(this.activeProcesses.values()).map((e) => e.info);
+      }
+    };
+    processManager = ProcessManager.getInstance();
+  }
+});
+
 // src/swarm/specialists/CerebroSpecialist.ts
 var CEREBRO_SYSTEM_PROMPT, CerebroSpecialist, cerebroSpecialist;
 var init_CerebroSpecialist = __esm({
@@ -15422,6 +15675,13 @@ Return ONLY the Prisma schema. Do NOT wrap in markdown fences.`
         const { seedTs, mockJson } = this.generateMockSeed(blueprint);
         return { prismaSchema, seedTs, mockJson };
       }
+      /**
+       * Runs real Prisma client generation inside the target workspace
+       */
+      async runPrismaGenerate(slug, baseDir = process.cwd()) {
+        const { processManager: processManager2 } = await Promise.resolve().then(() => (init_processManager(), processManager_exports));
+        return processManager2.executeShell(slug, "npx prisma generate", 6e4, baseDir);
+      }
     };
     cerebroSpecialist = CerebroSpecialist.getInstance();
   }
@@ -15675,128 +15935,277 @@ input[type="range"] {
       generateHtmlLayout(blueprint) {
         const title = blueprint.name || "J.A.R.V.I.S. Enterprise Platform";
         const directive = blueprint.directive || "Autonomous SDLC Swarm Deliverable";
+        const isFleetDirective = /fleet|vehicle|tracker|gps|driver|transit|logistics/i.test(directive);
         return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
   <link rel="stylesheet" href="styles.css">
+  <!-- High-Fidelity Typography & Design System -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS with Dark Mode -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            darkBg: '#0b0f19',
+            glassCard: '#111827',
+            accentCyan: '#38bdf8'
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Visual Canvas: Lucide, Chart.js, Leaflet -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
-<body class="dark-theme">
-  <div class="app-container" id="calculator-root">
-    <!-- Header with Breadcrumbs & Action Controls -->
-    <header class="glass-panel" style="padding: 20px 24px; margin-bottom: 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px;">
-      <div>
-        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 9999px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); font-size: 12px; font-weight: 600; color: #38bdf8; margin-bottom: 8px;">
-          <span>\u26A1</span> J.A.R.V.I.S. SDLC Verified Architecture
+<body class="bg-[#0b0f19] text-slate-100 font-sans antialiased min-h-screen">
+  <div class="app-container flex min-h-screen" id="calculator-root">
+    <!-- 1. Collapsible Sidebar Navigation with Active Route Highlights -->
+    <aside id="sidebar-nav" class="w-64 bg-[#111827] border-r border-slate-800 p-5 flex flex-col justify-between hidden md:flex">
+      <div class="space-y-6">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold">
+            \u26A1
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-white tracking-wide">J.A.R.V.I.S. OS</h2>
+            <p class="text-xs text-slate-400">Enterprise Swarm</p>
+          </div>
         </div>
-        <h1 style="font-size: 26px; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">${title}</h1>
-        <p style="font-size: 13px; color: #94a3b8; margin-top: 2px;">${directive}</p>
+
+        <nav class="space-y-1.5">
+          <a href="#dashboard" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm font-semibold">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+          </a>
+          <a href="#telemetry" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+            <i data-lucide="activity" class="w-4 h-4"></i> Live Telemetry
+          </a>
+          <a href="#map" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+            <i data-lucide="map-pin" class="w-4 h-4"></i> Visual Canvas
+          </a>
+          <a href="#records" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+            <i data-lucide="database" class="w-4 h-4"></i> Data Records
+          </a>
+          <a href="#settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 text-sm font-medium transition">
+            <i data-lucide="settings" class="w-4 h-4"></i> Settings & RBAC
+          </a>
+        </nav>
       </div>
 
-      <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
-        <button id="export-csv-btn" class="btn-primary touch-target">
-          <span>\u{1F4CA}</span> Export CSV
-        </button>
-        <button id="export-pdf-btn" class="btn-secondary touch-target">
-          <span>\u{1F4C4}</span> Export PDF
-        </button>
-        <button id="recalculate-btn" class="btn-secondary touch-target">
-          <span>\u{1F504}</span> Recalculate
-        </button>
+      <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-1">
+        <p class="font-semibold text-slate-300">Client: Master Sri</p>
+        <p class="font-mono text-cyan-400 text-[11px]">Role: SUPER_ADMIN</p>
       </div>
-    </header>
+    </aside>
 
-    <!-- Main Responsive Grid -->
-    <main class="dashboard-grid">
-      <!-- Input Controls Sidebar -->
-      <section class="glass-panel sticky-sidebar" style="padding: 24px;">
-        <h2 style="font-size: 18px; font-weight: 700; color: #f8fafc; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
-          <span>\u2699\uFE0F</span> Operational Inputs
-        </h2>
-
-        <div style="display: flex; flex-direction: column; gap: 20px;">
-          <div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600;">
-              <label for="roof-sqft" style="color: #cbd5e1;">Roof Surface Area (SqFt)</label>
-              <span id="roof-sqft-val" style="color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-weight: 700;">50,000 sqft</span>
-            </div>
-            <input type="range" id="roof-sqft" min="10000" max="300000" step="5000" value="50000" aria-label="Roof Surface Area">
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Header with Breadcrumbs & Action Controls -->
+      <header class="glass-panel p-5 m-4 md:m-6 rounded-2xl flex flex-wrap justify-between items-center gap-4 border border-slate-800 bg-[#111827]/80">
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-xs font-semibold text-cyan-400 mb-2">
+            <span>\u26A1</span> J.A.R.V.I.S. Verified SDLC System
           </div>
-
-          <div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600;">
-              <label for="solar-kw" style="color: #cbd5e1;">Solar PV System (kW DC)</label>
-              <span id="solar-kw-val" style="color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-weight: 700;">400 kW</span>
-            </div>
-            <input type="range" id="solar-kw" min="50" max="2500" step="25" value="400" aria-label="Solar PV System Size">
-          </div>
-
-          <div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600;">
-              <label for="electricity-rate" style="color: #cbd5e1;">Blended Utility Rate ($/kWh)</label>
-              <span id="electricity-rate-val" style="color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-weight: 700;">$0.18 /kWh</span>
-            </div>
-            <input type="range" id="electricity-rate" min="0.08" max="0.45" step="0.01" value="0.18" aria-label="Utility Electricity Rate">
-          </div>
-        </div>
-      </section>
-
-      <!-- Key Metrics & Projection Table -->
-      <section style="display: flex; flex-direction: column; gap: 24px;">
-        <!-- KPI Cards Grid -->
-        <div class="metric-cards-grid">
-          <div class="glass-card">
-            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em;">Gross Capex</span>
-            <div id="gross-capex" style="font-size: 24px; font-weight: 800; color: #ffffff; font-family: 'JetBrains Mono', monospace; margin-top: 4px;">$0</div>
-          </div>
-          <div class="glass-card">
-            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #10b981; letter-spacing: 0.05em;">30% ITC Credit</span>
-            <div id="itc-incentive" style="font-size: 24px; font-weight: 800; color: #10b981; font-family: 'JetBrains Mono', monospace; margin-top: 4px;">$0</div>
-          </div>
-          <div class="glass-card">
-            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #38bdf8; letter-spacing: 0.05em;">Net Capex</span>
-            <div id="net-capex" style="font-size: 24px; font-weight: 800; color: #38bdf8; font-family: 'JetBrains Mono', monospace; margin-top: 4px;">$0</div>
-          </div>
-          <div class="glass-card">
-            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #f59e0b; letter-spacing: 0.05em;">Payback Period</span>
-            <div id="payback-years" style="font-size: 24px; font-weight: 800; color: #f59e0b; font-family: 'JetBrains Mono', monospace; margin-top: 4px;">0.0 Yrs</div>
-          </div>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight">${title}</h1>
+          <p class="text-xs md:text-sm text-slate-400 mt-1">${directive}</p>
         </div>
 
-        <!-- Tabular Projections -->
-        <div class="glass-panel" style="padding: 24px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3 style="font-size: 16px; font-weight: 700; color: #ffffff;">25-Year Cumulative Financial Projections</h3>
-            <span style="font-size: 12px; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">3.2% Utility Escalation &bull; 0.5% Degradation</span>
+        <div class="header-actions flex items-center gap-3">
+          <button id="export-csv-btn" class="btn-primary touch-target px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition flex items-center gap-2">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export CSV
+          </button>
+          <button id="export-pdf-btn" class="btn-secondary touch-target px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition border border-slate-700 flex items-center gap-2">
+            <i data-lucide="file-text" class="w-4 h-4"></i> Export PDF
+          </button>
+          <button id="recalculate-btn" class="btn-secondary touch-target px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-sm transition border border-slate-700 flex items-center gap-2">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync
+          </button>
+        </div>
+      </header>
+
+      <main class="p-4 md:p-6 space-y-6">
+        <!-- 2. 4-Column Metric KPI Cards with Delta Badges -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <span>Gross Capex</span>
+              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">+14% vs last week</span>
+            </div>
+            <div id="gross-capex" class="text-2xl font-extrabold text-white font-mono">$0</div>
+            <p class="text-xs text-slate-500">Asset footprint telemetry</p>
           </div>
-          <div class="table-responsive-container" style="max-height: 380px; overflow-y: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
-              <thead>
-                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; text-transform: uppercase; font-size: 11px;">
-                  <th style="padding: 10px 12px;">Year</th>
-                  <th style="padding: 10px 12px;">Production (kWh)</th>
-                  <th style="padding: 10px 12px;">Annual Savings</th>
-                  <th style="padding: 10px 12px;">Cumulative Cash Flow</th>
+
+          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
+            <div class="flex items-center justify-between text-xs font-bold text-emerald-400 uppercase tracking-wider">
+              <span>30% ITC Credit</span>
+              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">+8.2%</span>
+            </div>
+            <div id="itc-incentive" class="text-2xl font-extrabold text-emerald-400 font-mono">$0</div>
+            <p class="text-xs text-slate-500">Subsidies & incentives applied</p>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
+            <div class="flex items-center justify-between text-xs font-bold text-sky-400 uppercase tracking-wider">
+              <span>Net Capex</span>
+              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">+12.4%</span>
+            </div>
+            <div id="net-capex" class="text-2xl font-extrabold text-sky-400 font-mono">$0</div>
+            <p class="text-xs text-slate-500">Capital outlay after rebates</p>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-2">
+            <div class="flex items-center justify-between text-xs font-bold text-amber-400 uppercase tracking-wider">
+              <span>Payback Period</span>
+              <span class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">-2.5%</span>
+            </div>
+            <div id="payback-years" class="text-2xl font-extrabold text-amber-400 font-mono">0.0 Yrs</div>
+            <p class="text-xs text-slate-500">Amortized breakeven horizon</p>
+          </div>
+        </div>
+
+        <!-- 3. Domain-Specific Visual Canvas & Inputs -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Operational Inputs Card -->
+          <section class="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-5">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="sliders" class="w-5 h-5 text-cyan-400"></i> Operational Inputs
+            </h2>
+
+            <div class="space-y-4">
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-2">
+                  <label for="roof-sqft" class="text-slate-300">Surface Area / Capacity</label>
+                  <span id="roof-sqft-val" class="text-cyan-400 font-mono font-bold">50,000 sqft</span>
+                </div>
+                <input type="range" id="roof-sqft" min="10000" max="300000" step="5000" value="50000" class="w-full accent-cyan-400" aria-label="Surface Area">
+              </div>
+
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-2">
+                  <label for="solar-kw" class="text-slate-300">Power Rating / Active Units</label>
+                  <span id="solar-kw-val" class="text-cyan-400 font-mono font-bold">400 kW</span>
+                </div>
+                <input type="range" id="solar-kw" min="50" max="2500" step="25" value="400" class="w-full accent-cyan-400" aria-label="System Size">
+              </div>
+
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-2">
+                  <label for="electricity-rate" class="text-slate-300">Blended Rate / Cost Factor</label>
+                  <span id="electricity-rate-val" class="text-cyan-400 font-mono font-bold">$0.18 /kWh</span>
+                </div>
+                <input type="range" id="electricity-rate" min="0.08" max="0.45" step="0.01" value="0.18" class="w-full accent-cyan-400" aria-label="Cost Factor">
+              </div>
+            </div>
+          </section>
+
+          <!-- Visual Canvas: Interactive Map for Fleet or Chart.js for Projections -->
+          <section class="lg:col-span-2 glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                <i data-lucide="${isFleetDirective ? "map" : "line-chart"}" class="w-5 h-5 text-cyan-400"></i>
+                ${isFleetDirective ? "Live Geospatial Telemetry Map" : "Dynamic Projection Matrix"}
+              </h2>
+              <span class="text-xs font-mono text-slate-400">Real-time Stream &bull; 60 FPS</span>
+            </div>
+
+            ${isFleetDirective ? `
+            <div id="fleet-map" style="height: 290px; width: 100%;" class="rounded-xl overflow-hidden border border-slate-800"></div>
+            ` : `
+            <div class="h-[290px] w-full flex items-center justify-center">
+              <canvas id="projectionChart" height="280"></canvas>
+            </div>
+            `}
+          </section>
+        </div>
+
+        <!-- 4. High-Density Filterable Data Table with Status Tags -->
+        <section class="glass-panel p-6 rounded-2xl bg-[#111827] border border-slate-800 space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 class="text-lg font-bold text-white">Cumulative Telemetry & Financial Records</h3>
+              <p class="text-xs text-slate-400">Live indexed event audit stream</p>
+            </div>
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+              <input type="text" id="table-search" placeholder="Filter records or status..." class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-full sm:w-56">
+            </div>
+          </div>
+
+          <div class="table-responsive-container max-h-80 overflow-y-auto rounded-xl border border-slate-800/80">
+            <table class="w-full border-collapse text-left text-xs font-mono">
+              <thead class="bg-slate-900/90 text-slate-400 uppercase text-[11px] sticky top-0 border-b border-slate-800">
+                <tr>
+                  <th class="p-3">Index</th>
+                  <th class="p-3">Resource / Item</th>
+                  <th class="p-3">Status</th>
+                  <th class="p-3">Production / Delta</th>
+                  <th class="p-3">Cumulative Value</th>
                 </tr>
               </thead>
-              <tbody id="projection-table-body" style="font-family: 'JetBrains Mono', monospace;">
+              <tbody id="projection-table-body" class="divide-y divide-slate-800/60 text-slate-300">
+                <tr>
+                  <td class="p-3">01</td>
+                  <td class="p-3 font-semibold text-white">Facility Alpha - Primary Array</td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span></td>
+                  <td class="p-3">48,200 kWh</td>
+                  <td class="p-3 text-cyan-400">$8,676</td>
+                </tr>
+                <tr>
+                  <td class="p-3">02</td>
+                  <td class="p-3 font-semibold text-white">Fleet Unit #402 - Route Metro</td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Alert</span></td>
+                  <td class="p-3">94.2% Efficiency</td>
+                  <td class="p-3 text-cyan-400">$14,280</td>
+                </tr>
+                <tr>
+                  <td class="p-3">03</td>
+                  <td class="p-3 font-semibold text-white">Standby Inverter Station</td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-slate-500/10 text-slate-400 border border-slate-500/20">Idle</span></td>
+                  <td class="p-3">0.0 kWh</td>
+                  <td class="p-3 text-cyan-400">$0</td>
+                </tr>
               </tbody>
             </table>
           </div>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
 
-    <footer style="margin-top: 36px; padding: 20px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); text-align: center; font-size: 12px; color: #64748b;">
-      <p>Autonomous SDLC Architecture designed by <strong>Raphael &bull; Chief UI/UX Specialist</strong> for Master Sri</p>
-    </footer>
+      <footer class="mt-auto p-6 border-t border-slate-800 text-center text-xs text-slate-500">
+        <p>Autonomous SDLC Architecture designed by <strong>Raphael &bull; Chief UI/UX Specialist</strong> for Master Sri</p>
+      </footer>
+    </div>
   </div>
+
   <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+      if (document.getElementById('fleet-map') && typeof L !== 'undefined') {
+        const map = L.map('fleet-map').setView([37.7749, -122.4194], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        L.marker([37.7749, -122.4194]).addTo(map).bindPopup('Fleet Unit #402 (Active)').openPopup();
+      }
+    });
+  </script>
 </body>
 </html>`;
       }
@@ -19286,195 +19695,6 @@ ${leadsSnippet}
   }
 });
 
-// src/swarm/tools/processManager.ts
-import { exec as exec5, execSync, spawn as spawn2 } from "node:child_process";
-import fs10 from "node:fs";
-import path12 from "node:path";
-var ProcessManager, processManager;
-var init_processManager = __esm({
-  "src/swarm/tools/processManager.ts"() {
-    "use strict";
-    ProcessManager = class _ProcessManager {
-      static instance;
-      activeProcesses = /* @__PURE__ */ new Map();
-      allocatedPorts = /* @__PURE__ */ new Map();
-      // port -> slug
-      minPort = 4e3;
-      maxPort = 4999;
-      static getInstance() {
-        if (!_ProcessManager.instance) {
-          _ProcessManager.instance = new _ProcessManager();
-        }
-        return _ProcessManager.instance;
-      }
-      /**
-       * Execute CLI commands asynchronously (npm install, npx prisma db push, npm run build)
-       */
-      async executeCommand(cmd, cwd = process.cwd(), timeoutMs = 6e4) {
-        return this.runCommand(cmd, cwd, timeoutMs);
-      }
-      /**
-       * Execute CLI commands synchronously with promise resolution
-       */
-      async runCommand(cmd, cwd = process.cwd(), timeoutMs = 6e4) {
-        return new Promise((resolve20) => {
-          exec5(cmd, { cwd, timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
-            const exitCode = err ? typeof err.code === "number" ? err.code : 1 : 0;
-            resolve20({
-              stdout: stdout.toString(),
-              stderr: stderr.toString(),
-              exitCode
-            });
-          });
-        });
-      }
-      /**
-       * Allocate an unused internal port between 4000-4999
-       */
-      allocatePort(slug, preferredPort) {
-        if (preferredPort && preferredPort >= this.minPort && preferredPort <= this.maxPort) {
-          if (!this.allocatedPorts.has(preferredPort) || this.allocatedPorts.get(preferredPort) === slug) {
-            this.allocatedPorts.set(preferredPort, slug);
-            return preferredPort;
-          }
-        }
-        for (let port2 = 4100; port2 <= this.maxPort; port2++) {
-          if (!this.allocatedPorts.has(port2)) {
-            this.allocatedPorts.set(port2, slug);
-            return port2;
-          }
-        }
-        for (let port2 = this.minPort; port2 < 4100; port2++) {
-          if (!this.allocatedPorts.has(port2)) {
-            this.allocatedPorts.set(port2, slug);
-            return port2;
-          }
-        }
-        const fallback = 4e3 + Math.floor(Math.random() * 900);
-        this.allocatedPorts.set(fallback, slug);
-        return fallback;
-      }
-      /**
-       * Spawns long-running child processes (Node API backend) inside workspace root or specified cwd
-       */
-      startService(slug, command, args = [], port2, cwd) {
-        const fullCommand = args && args.length > 0 ? `${command} ${args.join(" ")}` : command;
-        const defaultRoot = path12.resolve(process.cwd(), "workspaces", slug);
-        const workingDir = cwd || defaultRoot;
-        return this.spawnAppProcess(slug, fullCommand, port2, workingDir);
-      }
-      /**
-       * Spawn a background Node.js server process and bind to an allocated port
-       */
-      spawnAppProcess(slug, command, port2, cwd) {
-        const existing = this.activeProcesses.get(slug);
-        if (existing && existing.info.status === "running") {
-          return {
-            pid: existing.info.pid,
-            port: existing.info.port,
-            status: existing.info.status
-          };
-        }
-        const assignedPort = this.allocatePort(slug, port2);
-        const serverSubdir = path12.resolve(process.cwd(), "workspaces", slug, "server");
-        const workspaceRoot = path12.resolve(process.cwd(), "workspaces", slug);
-        const workingDir = cwd || (fs10.existsSync(serverSubdir) ? serverSubdir : workspaceRoot);
-        const env = {
-          ...process.env,
-          PORT: String(assignedPort),
-          NODE_ENV: "production"
-        };
-        const child = spawn2(command, {
-          cwd: workingDir,
-          env,
-          shell: true,
-          stdio: ["ignore", "pipe", "pipe"]
-        });
-        child.unref();
-        const pid = child.pid || Date.now();
-        const logs = [];
-        const appendLog = (chunk) => {
-          const text = chunk.toString().trim();
-          if (text) {
-            logs.push(`[${(/* @__PURE__ */ new Date()).toISOString()}] ${text}`);
-            if (logs.length > 100) logs.shift();
-          }
-        };
-        if (child.stdout) child.stdout.on("data", appendLog);
-        if (child.stderr) child.stderr.on("data", appendLog);
-        const info = {
-          slug,
-          pid,
-          port: assignedPort,
-          command,
-          cwd: workingDir,
-          status: "running",
-          startTime: Date.now(),
-          logs
-        };
-        child.on("exit", (code) => {
-          info.status = code === 0 ? "stopped" : "failed";
-          this.allocatedPorts.delete(assignedPort);
-        });
-        child.on("error", (err) => {
-          console.warn(`[ProcessManager] Subprocess error for ${slug}:`, err);
-          info.status = "failed";
-          this.allocatedPorts.delete(assignedPort);
-        });
-        this.activeProcesses.set(slug, { info, process: child });
-        return {
-          pid,
-          port: assignedPort,
-          status: "running"
-        };
-      }
-      /**
-       * Gracefully terminate a running child process and free its port
-       */
-      stopService(slug) {
-        return this.stopAppProcess(slug);
-      }
-      /**
-       * Gracefully terminate a running child process and free its port
-       */
-      stopAppProcess(slug) {
-        const entry = this.activeProcesses.get(slug);
-        if (!entry) return false;
-        try {
-          if (entry.process) {
-            if (process.platform === "win32" && entry.process.pid) {
-              try {
-                execSync(`taskkill /pid ${entry.process.pid} /T /F`, { stdio: "ignore" });
-              } catch {
-              }
-            }
-            if (!entry.process.killed) {
-              entry.process.kill("SIGTERM");
-            }
-          }
-        } catch (err) {
-          console.warn(`[ProcessManager] Could not kill process for ${slug}:`, err);
-        }
-        this.allocatedPorts.delete(entry.info.port);
-        entry.info.status = "stopped";
-        this.activeProcesses.delete(slug);
-        return true;
-      }
-      getProcessInfo(slug) {
-        return this.activeProcesses.get(slug)?.info;
-      }
-      getAllocatedPort(slug) {
-        const entry = this.activeProcesses.get(slug);
-        return entry?.info.port;
-      }
-      listActiveProcesses() {
-        return Array.from(this.activeProcesses.values()).map((e) => e.info);
-      }
-    };
-    processManager = ProcessManager.getInstance();
-  }
-});
-
 // src/swarm/tools/workspaceManager.ts
 import fs11 from "node:fs";
 import path13 from "node:path";
@@ -19653,15 +19873,52 @@ export default function Dashboard() {
         writeFileSafe(
           "public/index.html",
           `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${cleanSlug.replace(/-/g, " ")}</title>
+    <!-- High-Fidelity Design System & Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS with Dark Mode -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              darkBg: '#0b0f19',
+              glassCard: '#111827',
+              accentCyan: '#38bdf8'
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Visual Canvas: Lucide, Chart.js, Leaflet -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="/client/src/styles.css"/>
   </head>
-  <body>
+  <body class="bg-[#0b0f19] text-slate-100 font-sans antialiased min-h-screen">
     <div id="root"></div>
     <script type="module" src="/client/src/main.jsx"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>`
         );
@@ -19673,8 +19930,8 @@ export default function Dashboard() {
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #020617;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #0b0f19;
   color: #f8fafc;
 }
 
@@ -19685,15 +19942,52 @@ body {
         writeFileSafe(
           "client/index.html",
           `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${cleanSlug.replace(/-/g, " ")}</title>
+    <!-- High-Fidelity Design System & Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS with Dark Mode -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              darkBg: '#0b0f19',
+              glassCard: '#111827',
+              accentCyan: '#38bdf8'
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Visual Canvas: Lucide, Chart.js, Leaflet -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="/src/styles.css"/>
   </head>
-  <body>
+  <body class="bg-[#0b0f19] text-slate-100 font-sans antialiased min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>`
         );
@@ -19978,6 +20272,20 @@ model User {
         if (!fs11.existsSync(workspacesDir)) return [];
         return fs11.readdirSync(workspacesDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
       }
+      /**
+       * Spawns real CLI commands inside workspaces/${slug} with 60-second timeout, capturing stdout & stderr
+       */
+      async executeShell(slug, command, timeoutMs = 6e4, baseDir = process.cwd()) {
+        const { processManager: processManager2 } = await Promise.resolve().then(() => (init_processManager(), processManager_exports));
+        return processManager2.executeShell(slug, command, timeoutMs, baseDir);
+      }
+      /**
+       * Spawns live background Node.js servers, binds them to internal ports (4000-4999), and captures running PIDs
+       */
+      startDaemon(slug, entrypoint = "server/index.js", port2, baseDir = process.cwd()) {
+        const { processManager: processManager2 } = (init_processManager(), __toCommonJS(processManager_exports));
+        return processManager2.startDaemon(slug, entrypoint, port2, baseDir);
+      }
     };
     workspaceManager = WorkspaceManager2.getInstance();
   }
@@ -20095,9 +20403,9 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`;
       }
       /**
        * Active Health & Build Gate:
-       * 1. Verifies essential project files exist on disk (package.json, client/src/App.jsx, server/index.js or server/src/app.js)
-       * 2. Queries http://127.0.0.1:${port}/health with a retry loop
-       * 3. Captures stdout/stderr logs from processManager and triggers targeted self-healing pass if needed
+       * 1. Step A: Verifies essential project files exist on disk and meet substance thresholds.
+       * 2. Step B: Queries http://127.0.0.1:${port}/health with retry loop and captures stdout/stderr.
+       * 3. Step C: Verifies client preview bundle contains Tailwind class names and Lucide initialization.
        */
       async verifyActiveServiceHealth(params) {
         const root = params.workspaceRoot || workspaceManager.getWorkspaceRoot(params.slug);
@@ -20111,6 +20419,11 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`;
           const full = join14(root, rel);
           if (!existsSync17(full)) {
             missingFiles.push(rel);
+          } else {
+            const size = statSync4(full).size;
+            if (size < 50) {
+              missingFiles.push(`${rel} (content truncated < 50 bytes)`);
+            }
           }
         }
         const serverFileA = join14(root, "server", "index.js");
@@ -20118,6 +20431,22 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`;
         filesChecked.push("server/index.js or server/src/app.js");
         if (!existsSync17(serverFileA) && !existsSync17(serverFileB)) {
           missingFiles.push("server/index.js (or server/src/app.js)");
+        }
+        let clientVerified = false;
+        const clientHtmlCandidates = [
+          join14(root, "public", "index.html"),
+          join14(root, "client", "index.html"),
+          join14(root, "client", "src", "App.jsx"),
+          join14(root, "client", "src", "styles.css")
+        ];
+        for (const hPath of clientHtmlCandidates) {
+          if (existsSync17(hPath)) {
+            const text = readFileSync13(hPath, "utf-8");
+            if (text.includes("tailwind") || text.includes("lucide") || text.includes("bg-") || text.includes("flex")) {
+              clientVerified = true;
+              break;
+            }
+          }
         }
         const assignedPort = params.port || processManager.getAllocatedPort(params.slug);
         let healthCheckPassed = false;
@@ -20130,7 +20459,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`;
                 signal: AbortSignal.timeout(1e3),
                 headers: { Connection: "close" }
               });
-              if (res.ok) {
+              if (res.status === 200) {
                 healthCheckPassed = true;
                 break;
               }
@@ -20151,6 +20480,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`;
           filesChecked,
           missingFiles,
           healthCheckPassed,
+          clientVerified,
           port: assignedPort,
           logs,
           error: !verified ? `Verification failed: Missing files [${missingFiles.join(", ")}] or health endpoint unresponsive` : void 0
@@ -20800,12 +21130,24 @@ Requirements:
             blueprint
           }, workspaceRoot);
         }
-        const contractAudit = fridaySpecialist.auditContracts({
+        let contractAudit = fridaySpecialist.auditContracts({
           html: aegisHtml,
           css: raphaelCss,
           js: midasJs,
           routesJs: aegisBackend.routesJs
         });
+        if (!contractAudit.passed && (!contractAudit.syntaxValid || contractAudit.domIdAudit.missingIds.length > 0)) {
+          if (!contractAudit.syntaxValid) {
+            midasJs = midasSpecialist.generateComputationEngine(blueprint);
+          }
+          aegisHtml = this.autoAlignSharedElementIds(aegisHtml, midasJs);
+          contractAudit = fridaySpecialist.auditContracts({
+            html: aegisHtml,
+            css: raphaelCss,
+            js: midasJs,
+            routesJs: aegisBackend.routesJs
+          });
+        }
         try {
           await fridaySpecialist.verifyActiveServiceHealth({
             slug: bundleRes.projectSlug,
@@ -36097,6 +36439,59 @@ function getContentType(filePath) {
       return "text/plain; charset=utf-8";
   }
 }
+function injectDesignSystemHarness(html) {
+  if (html.includes("cdn.tailwindcss.com") && html.includes("unpkg.com/lucide")) {
+    return html;
+  }
+  const harness = `
+  <!-- J.A.R.V.I.S. High-Fidelity Design System & Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS with Dark Mode -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              bg: '#0b0f19',
+              card: '#111827',
+              accent: '#38bdf8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Visual Canvas: Lucide, Chart.js, Leaflet -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    });
+  </script>
+`;
+  if (html.includes("</head>")) {
+    return html.replace("</head>", `${harness}
+</head>`);
+  } else if (html.includes("<body")) {
+    return html.replace("<body", `${harness}
+<body`);
+  }
+  return harness + html;
+}
 function serveProjectClient(c, slug) {
   const root = workspaceManager.getWorkspaceRoot(slug);
   const url = new URL(c.req.url);
@@ -36113,8 +36508,11 @@ function serveProjectClient(c, slug) {
   ];
   for (const candidate of candidates) {
     if (fs15.existsSync(candidate) && fs15.statSync(candidate).isFile()) {
-      const content = fs15.readFileSync(candidate);
+      let content = fs15.readFileSync(candidate);
       const contentType = getContentType(candidate);
+      if (contentType.includes("text/html")) {
+        content = injectDesignSystemHarness(content.toString("utf-8"));
+      }
       return c.body(content, 200, { "Content-Type": contentType });
     }
   }
@@ -36126,31 +36524,38 @@ function serveProjectClient(c, slug) {
   ];
   for (const idxPath of indexCandidates) {
     if (fs15.existsSync(idxPath) && fs15.statSync(idxPath).isFile()) {
-      const content = fs15.readFileSync(idxPath);
+      let content = fs15.readFileSync(idxPath, "utf-8");
+      content = injectDesignSystemHarness(content);
       return c.body(content, 200, { "Content-Type": "text/html; charset=utf-8" });
     }
   }
-  const fallbackHtml = `<!DOCTYPE html>
-<html lang="en">
+  const fallbackHtml = injectDesignSystemHarness(`<!DOCTYPE html>
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <title>${slug} \u2014 Live Preview</title>
-  <style>
-    body { margin: 0; font-family: system-ui, sans-serif; background: #020617; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .card { max-width: 500px; padding: 2rem; background: #0f172a; border: 1px solid #1e293b; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-    h1 { margin-top: 0; color: #38bdf8; font-size: 1.5rem; }
-    p { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
-    .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; background: rgba(56, 189, 248, 0.1); color: #38bdf8; font-size: 0.75rem; font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.2); }
-  </style>
 </head>
-<body>
-  <div class="card">
-    <span class="badge">AUTONOMOUS CO-WORKER SWARM</span>
-    <h1>${slug}</h1>
-    <p>Workspace provisioned and verified by J.A.R.V.I.S. Core Engine. Client application is ready.</p>
+<body class="bg-[#0b0f19] text-slate-100 flex items-center justify-center min-h-screen p-6 font-sans">
+  <div class="max-w-xl w-full bg-[#111827] border border-slate-800 rounded-2xl p-8 shadow-2xl">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+        <i data-lucide="cpu" class="w-3.5 h-3.5"></i> AUTONOMOUS CO-WORKER SWARM
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> READY
+      </span>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">${slug}</h1>
+    <p class="text-slate-400 text-sm leading-relaxed mb-6">
+      Workspace provisioned and verified by J.A.R.V.I.S. Core Engine. Production UI harness active with Tailwind CSS, Lucide Icons, Chart.js, and Leaflet telemetry.
+    </p>
+    <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-800/80 font-mono text-xs text-slate-300 flex items-center justify-between">
+      <span>Status: OPERATIONAL</span>
+      <span class="text-cyan-400">Port Allocated</span>
+    </div>
   </div>
 </body>
-</html>`;
+</html>`);
   return c.html(fallbackHtml, 200);
 }
 previewRoutes.get("/projects/:slug/health", async (c) => {

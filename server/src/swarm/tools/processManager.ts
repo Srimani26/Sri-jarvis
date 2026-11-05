@@ -43,6 +43,33 @@ export class ProcessManager {
   }
 
   /**
+   * Spawns real CLI commands inside workspaces/${slug} with 60-second timeout, capturing stdout & stderr
+   */
+  public async executeShell(
+    slug: string,
+    command: string,
+    timeoutMs = 60000,
+    baseDir = process.cwd()
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const cwd = path.resolve(baseDir, 'workspaces', slug)
+    const targetDir = fs.existsSync(cwd) ? cwd : baseDir
+    return this.executeCommand(command, targetDir, timeoutMs)
+  }
+
+  /**
+   * Spawns live background Node.js servers, binds them to internal ports (4000-4999), and captures running PIDs
+   */
+  public startDaemon(
+    slug: string,
+    entrypoint: string = 'server/index.js',
+    port?: number,
+    baseDir = process.cwd()
+  ): { pid: number; port: number; status: string } {
+    const cwd = path.resolve(baseDir, 'workspaces', slug)
+    return this.startService(slug, 'node', [entrypoint], port, cwd)
+  }
+
+  /**
    * Execute CLI commands asynchronously (npm install, npx prisma db push, npm run build)
    */
   public async executeCommand(

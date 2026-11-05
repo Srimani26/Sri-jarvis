@@ -177,6 +177,49 @@ router.${method}('${ep.path.replace('/api/v1', '')}', ${rolesParam}(req, res) =>
       }
     }
 
+    // Dynamic Resource Persistence & Query Layer
+    code += `const dynamicStore = new Map();
+
+router.get('/:resource', (req, res) => {
+  const resource = req.params.resource;
+  const items = dynamicStore.get(resource) || [
+    { id: 'rec_01', name: 'Primary Asset Alpha', status: 'ACTIVE', metrics: { throughput: 98.4 }, createdAt: new Date().toISOString() },
+    { id: 'rec_02', name: 'Secondary Unit Beta', status: 'ALERT', metrics: { throughput: 84.1 }, createdAt: new Date().toISOString() }
+  ];
+  res.json({
+    success: true,
+    resource,
+    count: items.length,
+    data: items,
+    timestamp: new Date().toISOString()
+  });
+});
+
+router.post('/:resource', (req, res) => {
+  const resource = req.params.resource;
+  const payload = req.body;
+  if (!payload || Object.keys(payload).length === 0) {
+    return res.status(400).json({ error: 'Missing request payload', code: 'VALIDATION_FAILED' });
+  }
+
+  const newRecord = {
+    id: 'rec_' + Date.now(),
+    ...payload,
+    organizationId: req.user?.organizationId || 'org-master-sri-001',
+    createdAt: new Date().toISOString()
+  };
+
+  const existing = dynamicStore.get(resource) || [];
+  existing.push(newRecord);
+  dynamicStore.set(resource, existing);
+
+  res.status(201).json({
+    success: true,
+    resource,
+    data: newRecord
+  });
+});\n\n`;
+
     code += `module.exports = router;\n`
     return code
   }
@@ -200,9 +243,10 @@ app.use(express.json());
 // Diagnostics
 app.get('/health', (req, res) => {
   res.json({
-    status: 'HEALTHY',
+    status: 'UP',
     service: '${blueprint.slug}-backend',
     version: '1.0.0',
+    uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString()
   });
 });

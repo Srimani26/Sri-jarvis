@@ -22,6 +22,7 @@ import path from 'node:path'
 import { workspaceManager } from '../server/src/swarm/tools/workspaceManager'
 import { processManager } from '../server/src/swarm/tools/processManager'
 import { previewRoutes } from '../server/src/routes/previewRoutes'
+import { FridaySpecialist } from '../server/src/swarm/specialists/FridaySpecialist'
 
 describe('Phase 2 Autonomous Co-Worker Runtime & Scaffolder Suite', () => {
   const testSlug = `test-solar-saas-${Date.now().toString().slice(-4)}`
@@ -96,6 +97,49 @@ describe('Phase 2 Autonomous Co-Worker Runtime & Scaffolder Suite', () => {
       assert.notStrictEqual(port1, port2)
     })
 
+    it('should execute workspace shell command via executeShell', async () => {
+      const res = await processManager.executeShell(testSlug, 'node -e "console.log(12345)"')
+      assert.strictEqual(res.exitCode, 0)
+      assert.ok(res.stdout.includes('12345'))
+    })
+
+    it('should spawn background daemon via startDaemon and track lifecycle', async () => {
+      const daemonPort = processManager.allocatePort(testSlug)
+      // Create minimal server entrypoint
+      const dummyEntrypoint = 'server/src/dummyServer.js'
+      workspaceManager.writeWorkspaceFile(
+        testSlug,
+        dummyEntrypoint,
+        `const http = require('http');
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'UP', port: ${daemonPort} }));
+  } else {
+    res.writeHead(200);
+    res.end('OK');
+  }
+});
+server.listen(${daemonPort}, () => console.log('Daemon running on ${daemonPort}'));`
+      )
+
+      const daemon = await processManager.startDaemon(testSlug, dummyEntrypoint, daemonPort)
+      assert.strictEqual(daemon.status, 'running')
+      assert.strictEqual(daemon.port, daemonPort)
+      assert.ok(daemon.pid > 0)
+
+      // Query health endpoint directly
+      await new Promise(r => setTimeout(r, 400))
+      const res = await fetch(`http://127.0.0.1:${daemonPort}/health`)
+      assert.strictEqual(res.status, 200)
+      const data = await res.json() as any
+      assert.strictEqual(data.status, 'UP')
+
+      // Stop daemon
+      const stopped = processManager.stopAppProcess(testSlug)
+      assert.strictEqual(stopped, true)
+    })
+
     it('should spawn a background process and track its PID lifecycle', async () => {
       // Spawn a harmless background sleep script simulating backend server
       const proc = processManager.spawnAppProcess(
@@ -135,13 +179,38 @@ describe('Phase 2 Autonomous Co-Worker Runtime & Scaffolder Suite', () => {
       assert.ok('backend' in data)
     })
 
-    it('should serve client index.html from /projects/:slug', async () => {
+    it('should serve client index.html from /projects/:slug with injected high-fidelity design harness', async () => {
       const req = new Request(`http://localhost:3005/projects/${testSlug}`)
       const res = await previewRoutes.fetch(req)
 
       assert.strictEqual(res.status, 200)
       const text = await res.text()
-      assert.ok(text.includes('html') || text.includes('AUTONOMOUS CO-WORKER SWARM'))
+      assert.ok(text.includes('html'))
+      // Verify design system harness injection
+      assert.ok(text.includes('cdn.tailwindcss.com'), 'Must inject Tailwind CDN')
+      assert.ok(text.includes('lucide'), 'Must inject Lucide icons')
+      assert.ok(text.includes('chart.js'), 'Must inject Chart.js library')
+      assert.ok(text.includes('leaflet'), 'Must inject Leaflet maps library')
+    })
+
+    it('should verify active service health and substance via FridaySpecialist gate', async () => {
+      const friday = FridaySpecialist.getInstance()
+      // First verify without background server running (should verify files)
+      const resultNoPort = await friday.verifyActiveServiceHealth({ slug: testSlug })
+      assert.strictEqual(resultNoPort.verified, true)
+      assert.ok(resultNoPort.filesChecked.length > 0)
+      assert.strictEqual(resultNoPort.clientVerified, true)
+
+      // Next verify with active server port returning 200
+      const port = processManager.allocatePort(testSlug)
+      const daemon = await processManager.startDaemon(testSlug, 'server/src/dummyServer.js', port)
+      await new Promise(r => setTimeout(r, 400))
+
+      const resultWithPort = await friday.verifyActiveServiceHealth({ slug: testSlug, port })
+      assert.strictEqual(resultWithPort.verified, true)
+      assert.strictEqual(resultWithPort.healthCheckPassed, true)
+
+      processManager.stopAppProcess(testSlug)
     })
   })
 })

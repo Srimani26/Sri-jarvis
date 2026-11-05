@@ -37,6 +37,60 @@ function getContentType(filePath: string): string {
   }
 }
 
+function injectDesignSystemHarness(html: string): string {
+  if (html.includes('cdn.tailwindcss.com') && html.includes('unpkg.com/lucide')) {
+    return html
+  }
+
+  const harness = `
+  <!-- J.A.R.V.I.S. High-Fidelity Design System & Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS with Dark Mode -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              bg: '#0b0f19',
+              card: '#111827',
+              accent: '#38bdf8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Visual Canvas: Lucide, Chart.js, Leaflet -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    });
+  </script>
+`
+
+  if (html.includes('</head>')) {
+    return html.replace('</head>', `${harness}\n</head>`)
+  } else if (html.includes('<body')) {
+    return html.replace('<body', `${harness}\n<body`)
+  }
+  return harness + html
+}
+
 function serveProjectClient(c: Context, slug: string) {
   const root = workspaceManager.getWorkspaceRoot(slug)
   const url = new URL(c.req.url)
@@ -56,8 +110,11 @@ function serveProjectClient(c: Context, slug: string) {
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-      const content = fs.readFileSync(candidate)
+      let content: any = fs.readFileSync(candidate)
       const contentType = getContentType(candidate)
+      if (contentType.includes('text/html')) {
+        content = injectDesignSystemHarness(content.toString('utf-8'))
+      }
       return c.body(content as any, 200, { 'Content-Type': contentType })
     }
   }
@@ -72,33 +129,40 @@ function serveProjectClient(c: Context, slug: string) {
 
   for (const idxPath of indexCandidates) {
     if (fs.existsSync(idxPath) && fs.statSync(idxPath).isFile()) {
-      const content = fs.readFileSync(idxPath)
+      let content = fs.readFileSync(idxPath, 'utf-8')
+      content = injectDesignSystemHarness(content)
       return c.body(content as any, 200, { 'Content-Type': 'text/html; charset=utf-8' })
     }
   }
 
   // Default interactive UI fallback for preview
-  const fallbackHtml = `<!DOCTYPE html>
-<html lang="en">
+  const fallbackHtml = injectDesignSystemHarness(`<!DOCTYPE html>
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <title>${slug} — Live Preview</title>
-  <style>
-    body { margin: 0; font-family: system-ui, sans-serif; background: #020617; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .card { max-width: 500px; padding: 2rem; background: #0f172a; border: 1px solid #1e293b; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-    h1 { margin-top: 0; color: #38bdf8; font-size: 1.5rem; }
-    p { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
-    .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; background: rgba(56, 189, 248, 0.1); color: #38bdf8; font-size: 0.75rem; font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.2); }
-  </style>
 </head>
-<body>
-  <div class="card">
-    <span class="badge">AUTONOMOUS CO-WORKER SWARM</span>
-    <h1>${slug}</h1>
-    <p>Workspace provisioned and verified by J.A.R.V.I.S. Core Engine. Client application is ready.</p>
+<body class="bg-[#0b0f19] text-slate-100 flex items-center justify-center min-h-screen p-6 font-sans">
+  <div class="max-w-xl w-full bg-[#111827] border border-slate-800 rounded-2xl p-8 shadow-2xl">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+        <i data-lucide="cpu" class="w-3.5 h-3.5"></i> AUTONOMOUS CO-WORKER SWARM
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> READY
+      </span>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">${slug}</h1>
+    <p class="text-slate-400 text-sm leading-relaxed mb-6">
+      Workspace provisioned and verified by J.A.R.V.I.S. Core Engine. Production UI harness active with Tailwind CSS, Lucide Icons, Chart.js, and Leaflet telemetry.
+    </p>
+    <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-800/80 font-mono text-xs text-slate-300 flex items-center justify-between">
+      <span>Status: OPERATIONAL</span>
+      <span class="text-cyan-400">Port Allocated</span>
+    </div>
   </div>
 </body>
-</html>`
+</html>`)
 
   return c.html(fallbackHtml, 200)
 }

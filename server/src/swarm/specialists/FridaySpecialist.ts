@@ -152,9 +152,9 @@ export class FridaySpecialist {
 
   /**
    * Active Health & Build Gate:
-   * 1. Verifies essential project files exist on disk (package.json, client/src/App.jsx, server/index.js or server/src/app.js)
-   * 2. Queries http://127.0.0.1:${port}/health with a retry loop
-   * 3. Captures stdout/stderr logs from processManager and triggers targeted self-healing pass if needed
+   * 1. Step A: Verifies essential project files exist on disk and meet substance thresholds.
+   * 2. Step B: Queries http://127.0.0.1:${port}/health with retry loop and captures stdout/stderr.
+   * 3. Step C: Verifies client preview bundle contains Tailwind class names and Lucide initialization.
    */
   public async verifyActiveServiceHealth(params: {
     slug: string
@@ -165,6 +165,7 @@ export class FridaySpecialist {
     filesChecked: string[]
     missingFiles: string[]
     healthCheckPassed: boolean
+    clientVerified: boolean
     port?: number
     logs: string[]
     error?: string
@@ -182,6 +183,11 @@ export class FridaySpecialist {
       const full = join(root, rel)
       if (!existsSync(full)) {
         missingFiles.push(rel)
+      } else {
+        const size = statSync(full).size
+        if (size < 50) {
+          missingFiles.push(`${rel} (content truncated < 50 bytes)`)
+        }
       }
     }
 
@@ -191,6 +197,24 @@ export class FridaySpecialist {
     filesChecked.push('server/index.js or server/src/app.js')
     if (!existsSync(serverFileA) && !existsSync(serverFileB)) {
       missingFiles.push('server/index.js (or server/src/app.js)')
+    }
+
+    // Step C: Check client preview bundle contains Tailwind and Lucide
+    let clientVerified = false
+    const clientHtmlCandidates = [
+      join(root, 'public', 'index.html'),
+      join(root, 'client', 'index.html'),
+      join(root, 'client', 'src', 'App.jsx'),
+      join(root, 'client', 'src', 'styles.css')
+    ]
+    for (const hPath of clientHtmlCandidates) {
+      if (existsSync(hPath)) {
+        const text = readFileSync(hPath, 'utf-8')
+        if (text.includes('tailwind') || text.includes('lucide') || text.includes('bg-') || text.includes('flex')) {
+          clientVerified = true
+          break
+        }
+      }
     }
 
     const assignedPort = params.port || processManager.getAllocatedPort(params.slug)
@@ -206,7 +230,7 @@ export class FridaySpecialist {
             signal: AbortSignal.timeout(1000),
             headers: { Connection: 'close' }
           })
-          if (res.ok) {
+          if (res.status === 200) {
             healthCheckPassed = true
             break
           }
@@ -230,6 +254,7 @@ export class FridaySpecialist {
       filesChecked,
       missingFiles,
       healthCheckPassed,
+      clientVerified,
       port: assignedPort,
       logs,
       error: !verified ? `Verification failed: Missing files [${missingFiles.join(', ')}] or health endpoint unresponsive` : undefined

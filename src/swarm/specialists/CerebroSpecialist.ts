@@ -317,6 +317,14 @@ Return ONLY the Prisma schema. Do NOT wrap in markdown fences.`
     const { seedTs, mockJson } = this.generateMockSeed(blueprint)
     return { prismaSchema, seedTs, mockJson }
   }
+
+  /**
+   * Runs real Prisma client generation inside the target workspace
+   */
+  public async runPrismaGenerate(slug: string, baseDir = process.cwd()): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const { processManager } = await import('../tools/processManager')
+    return processManager.executeShell(slug, 'npx prisma generate', 60000, baseDir)
+  }
 }
 
 export const cerebroSpecialist = CerebroSpecialist.getInstance()
