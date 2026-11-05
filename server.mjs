@@ -14948,311 +14948,6 @@ Return ONLY pure JavaScript router code.`
   }
 });
 
-// src/swarm/engine/AutonomousAgentLoop.ts
-var AutonomousAgentLoop_exports = {};
-__export(AutonomousAgentLoop_exports, {
-  executeAutonomousReAct: () => executeAutonomousReAct
-});
-import { existsSync as existsSync13 } from "node:fs";
-import { join as join10 } from "node:path";
-import { randomUUID as randomUUID2 } from "node:crypto";
-function compactContextWindow(messages) {
-  const totalLength = messages.reduce((acc, m) => acc + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content || "").length), 0);
-  if (totalLength <= MAX_CONTEXT_CHARS || messages.length <= 8) {
-    return messages;
-  }
-  const systemMsg = messages[0];
-  const userMsg = messages[1];
-  const tailMessages = messages.slice(-6);
-  const intermediateMessages = messages.slice(2, -6);
-  const toolSummaries = [];
-  const filesTouched = /* @__PURE__ */ new Set();
-  for (const m of intermediateMessages) {
-    if (m.role === "tool") {
-      try {
-        const parsed = JSON.parse(m.content);
-        toolSummaries.push(`- Tool Output: ${typeof parsed === "string" ? parsed : parsed.message || parsed.summary || "Executed"}`);
-        if (parsed.filePath) filesTouched.add(parsed.filePath);
-        if (parsed.targetPath) filesTouched.add(parsed.targetPath);
-        if (Array.isArray(parsed.filesCreated)) parsed.filesCreated.forEach((f) => filesTouched.add(f));
-      } catch {
-        toolSummaries.push(`- Tool Output: ${String(m.content).substring(0, 80)}`);
-      }
-    } else if (m.role === "assistant" && Array.isArray(m.tool_calls)) {
-      for (const tc of m.tool_calls) {
-        try {
-          const args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments || tc.arguments;
-          if (args?.filePath) filesTouched.add(args.filePath);
-          if (args?.targetPath) filesTouched.add(args.targetPath);
-          if (args?.path) filesTouched.add(args.path);
-        } catch {
-        }
-      }
-    }
-  }
-  const filesSummary = filesTouched.size > 0 ? `
-Files Created/Modified:
-${Array.from(filesTouched).map((f) => `  * ${f}`).join("\n")}` : "";
-  const summaryContent = `[CONTEXT_WINDOW_ROLLING_COMPACTOR: Intermediate turns compacted (${intermediateMessages.length} messages).${filesSummary}
-Summary of actions taken:
-${toolSummaries.slice(-8).join("\n")}
-Retaining original directive and recent turns.]`;
-  return [
-    systemMsg,
-    userMsg,
-    { role: "system", content: summaryContent },
-    ...tailMessages
-  ];
-}
-async function executeAutonomousReAct(directive, options = {}) {
-  const taskId = randomUUID2();
-  const lowerDirective = directive.toLowerCase();
-  const isCodingTask = options.specialist === "aegis" || options.deliverableType === "web_app" || options.deliverableType === "logic_backend" || lowerDirective.includes("build") || lowerDirective.includes("create") || lowerDirective.includes("app") || lowerDirective.includes("web") || lowerDirective.includes("code") || lowerDirective.includes("scaffold") || lowerDirective.includes("dashboard") || lowerDirective.includes("refactor");
-  const taskType = isCodingTask ? "coding" : "general";
-  const maxSteps = options.maxSteps || (taskType === "coding" ? 35 : 25);
-  const specialist = options.specialist || (isCodingTask ? "aegis" : "jarvis");
-  const workspaceRoot = options.workspaceRoot || process.cwd();
-  await taskAuditService.createTask(directive, specialist, taskId);
-  let systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
-You operate under the High Command of Master Sri with autonomous self-healing authorization.
-
-OPERATIONAL INVARIANTS:
-1. THINK & OBSERVE: Analyze the current workspace, check existing files, run terminal diagnostics, and read actual error traces.
-2. SURGICAL TOOLS:
-   - Use 'workspace_view_tree' to locate project layout.
-   - Use 'workspace_read_file' with exact line numbers to inspect code before modifying.
-   - Use 'workspace_patch_file' to perform surgical diffs rather than overwriting whole files.
-   - Use 'workspace_write_file' to create new files or full implementations.
-   - Use 'terminal_run_command' to run builds, tests, and syntax checks.
-3. SELF-HEALING REFLECTION: If a terminal command fails (exitCode != 0) or tests fail:
-   - Read the exact error stack trace.
-   - Diagnose the broken line or syntax defect.
-   - Apply a surgical patch using workspace_patch_file.
-   - Re-run the terminal command to verify it passes cleanly.
-   - Do NOT quit or report failure when self-healing is possible.
-4. PROOF-OF-WORK VERIFICATION: Terminate only by calling 'finish_task' (or 'complete_task') with summary and artifacts once all tests pass.`;
-  if (specialist === "aegis" || taskType === "coding") {
-    systemPrompt = `${AEGIS_SYSTEM_PROMPT}
-
-${systemPrompt}`;
-  }
-  let messages = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: directive }
-  ];
-  const toolCallHistory = [];
-  let artifacts = [];
-  let finalResponse = "";
-  let success = false;
-  let selfHealed = false;
-  let verificationDetails = null;
-  let discoveredSlug = options.slug || "";
-  const filesWritten = [];
-  for (let step = 1; step <= maxSteps; step++) {
-    messages = compactContextWindow(messages);
-    const completion = await swarmModelRouter.dispatch(specialist, messages, SWARM_TOOL_SCHEMAS);
-    const modelContent = completion.content || "";
-    const toolCalls = completion.tool_calls || [];
-    if (!toolCalls || toolCalls.length === 0) {
-      finalResponse = modelContent || "Autonomous directive executed.";
-      success = true;
-      break;
-    }
-    messages.push({
-      role: "assistant",
-      content: modelContent,
-      tool_calls: toolCalls
-    });
-    let finishTaskEncountered = false;
-    for (const tc of toolCalls) {
-      const toolId = tc.id || `tc_${Date.now()}`;
-      const toolName = tc.function?.name || tc.name;
-      let args = {};
-      try {
-        args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments || tc.arguments || {};
-      } catch {
-        args = {};
-      }
-      const start = Date.now();
-      let output = null;
-      let status = "SUCCESS";
-      try {
-        output = await dispatchToolCall(toolName, args);
-      } catch (err) {
-        status = "ERROR";
-        output = {
-          error: true,
-          message: err?.message || String(err)
-        };
-      }
-      const latencyMs = Date.now() - start;
-      await taskAuditService.logToolExecution(taskId, toolName, args, output, status, latencyMs);
-      toolCallHistory.push({
-        id: toolId,
-        name: toolName,
-        args,
-        output,
-        status,
-        latencyMs
-      });
-      if (options.onStepProgress) {
-        options.onStepProgress(step, modelContent, toolName, output);
-      }
-      if (output?.previewUrl && typeof output.previewUrl === "string") {
-        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl);
-        const m = output.previewUrl.match(/\/preview\/([a-zA-Z0-9_-]+)/);
-        if (m) discoveredSlug = m[1];
-      }
-      if (output?.filePath && typeof output.filePath === "string") {
-        if (!artifacts.includes(output.filePath)) artifacts.push(output.filePath);
-        filesWritten.push(output.filePath);
-      }
-      if (args?.filePath && typeof args.filePath === "string") {
-        filesWritten.push(args.filePath);
-        const m = args.filePath.match(/artifacts[/\\]builds[/\\]([^/\\]+)/);
-        if (m) discoveredSlug = m[1];
-      }
-      if (args?.projectSlug && typeof args.projectSlug === "string") {
-        discoveredSlug = args.projectSlug;
-      }
-      if ((toolName === "terminal_run_command" || toolName === "sandbox_terminal_execute") && output?.exitCode !== void 0 && output.exitCode !== 0) {
-        selfHealed = true;
-      }
-      if (toolName === "finish_task" || toolName === "complete_task") {
-        const targetSlug = discoveredSlug || options.slug || "app-preview";
-        if (options.requireVerification) {
-          const req = {
-            deliverableType: options.deliverableType || "general",
-            targetPath: options.verificationTarget,
-            slug: targetSlug,
-            testCommand: options.testCommand
-          };
-          const verifyRes = await autonomousVerifier.verifyDeliverable(req, workspaceRoot);
-          verificationDetails = verifyRes;
-          if (!verifyRes.verified) {
-            messages.push({
-              role: "tool",
-              tool_call_id: toolId,
-              content: JSON.stringify({
-                status: "VERIFICATION_REJECTED",
-                message: `Automated verification failed before sign-off: ${verifyRes.message}. Please inspect the error and self-heal before calling finish_task.`,
-                errors: verifyRes.errors
-              })
-            });
-            continue;
-          }
-        }
-        finishTaskEncountered = true;
-        success = true;
-        finalResponse = args.summary || output?.summary || "Task completed and verified.";
-        if (Array.isArray(args.artifacts)) artifacts.push(...args.artifacts);
-        if (args.previewUrl && !artifacts.includes(args.previewUrl)) artifacts.push(args.previewUrl);
-        if (targetSlug && options.deliverableType === "web_app" && !artifacts.includes(`/preview/${targetSlug}`)) {
-          artifacts.push(`/preview/${targetSlug}`);
-        }
-        break;
-      }
-      if (toolName === "aegis_scaffold_and_deploy_web" && output?.success && output?.previewUrl) {
-        finishTaskEncountered = true;
-        success = true;
-        finalResponse = `Web application successfully scaffolded and mounted at ${output.previewUrl}.`;
-        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl);
-        break;
-      }
-      if ((options.deliverableType === "web_app" || isCodingTask) && discoveredSlug) {
-        const buildDir = join10(workspaceRoot, "artifacts", "builds", discoveredSlug);
-        if (existsSync13(join10(buildDir, "index.html"))) {
-          finishTaskEncountered = true;
-          success = true;
-          finalResponse = `Web application successfully built and verified at /preview/${discoveredSlug}.`;
-          const previewUrl = `/preview/${discoveredSlug}`;
-          if (!artifacts.includes(previewUrl)) artifacts.push(previewUrl);
-          break;
-        }
-      }
-      if ((toolName === "terminal_run_command" || toolName === "sandbox_terminal_execute") && output?.exitCode !== void 0 && output.exitCode !== 0) {
-        messages.push({
-          role: "tool",
-          tool_call_id: toolId,
-          content: `[COMMAND_FAILED: Exit Code ${output.exitCode}]
-STDERR:
-${output.stderr || ""}
-STDOUT:
-${output.stdout || ""}
-Analyze the error, patch the target file using workspace_patch_file, and re-execute.`
-        });
-      } else {
-        messages.push({
-          role: "tool",
-          tool_call_id: toolId,
-          content: typeof output === "string" ? output : JSON.stringify(output)
-        });
-      }
-    }
-    if (finishTaskEncountered) {
-      break;
-    }
-  }
-  if (!finalResponse) {
-    finalResponse = `Autonomous ReAct execution concluded after ${toolCallHistory.length} tool executions.`;
-    success = true;
-  }
-  if (options.requireVerification && !verificationDetails) {
-    const targetSlug = discoveredSlug || options.slug || "app-preview";
-    const req = {
-      deliverableType: options.deliverableType || "general",
-      targetPath: options.verificationTarget,
-      slug: targetSlug,
-      testCommand: options.testCommand
-    };
-    verificationDetails = await autonomousVerifier.verifyDeliverable(req, workspaceRoot);
-    if (!verificationDetails.verified) {
-      success = false;
-    } else {
-      success = true;
-      if (options.deliverableType === "web_app") {
-        const previewPath = `/preview/${targetSlug}`;
-        if (!artifacts.includes(previewPath)) artifacts.push(previewPath);
-      }
-    }
-  }
-  await taskAuditService.completeTask(taskId, success ? "COMPLETED" : "FAILED", finalResponse);
-  telegramNotifier.sendSwarmUpdate(
-    specialist,
-    `Autonomous ReAct: ${directive.substring(0, 60)}...`,
-    success ? "SUCCESS" : "FAILED",
-    toolCallHistory.reduce((acc, t) => acc + t.latencyMs, 0),
-    `Steps: ${toolCallHistory.length} | Self-Healed: ${selfHealed ? "YES" : "NO"}
-Deliverables: ${artifacts.join(", ") || "N/A"}`
-  ).catch(() => {
-  });
-  return {
-    taskId,
-    success,
-    specialist,
-    directive,
-    finalResponse,
-    stepsExecuted: toolCallHistory.length,
-    toolCallHistory,
-    artifacts,
-    selfHealed,
-    verificationDetails
-  };
-}
-var MAX_CONTEXT_CHARS;
-var init_AutonomousAgentLoop = __esm({
-  "src/swarm/engine/AutonomousAgentLoop.ts"() {
-    "use strict";
-    init_toolRegistry();
-    init_ModelRouter();
-    init_AutonomousVerifier();
-    init_taskAuditService();
-    init_telegramNotifier();
-    init_AegisSpecialist();
-    MAX_CONTEXT_CHARS = 12e4;
-  }
-});
-
 // src/swarm/tools/processManager.ts
 var processManager_exports = {};
 __export(processManager_exports, {
@@ -18878,8 +18573,8 @@ Analyze this requirement and output the JSON solution now.`;
 });
 
 // src/services/LeadDeduplicationService.ts
-import { existsSync as existsSync14, mkdirSync as mkdirSync7, readFileSync as readFileSync10, writeFileSync as writeFileSync9 } from "node:fs";
-import { resolve as resolve9, join as join11 } from "node:path";
+import { existsSync as existsSync13, mkdirSync as mkdirSync7, readFileSync as readFileSync10, writeFileSync as writeFileSync9 } from "node:fs";
+import { resolve as resolve9, join as join10 } from "node:path";
 var LeadDeduplicationService;
 var init_LeadDeduplicationService = __esm({
   "src/services/LeadDeduplicationService.ts"() {
@@ -18887,14 +18582,14 @@ var init_LeadDeduplicationService = __esm({
     init_db();
     LeadDeduplicationService = class _LeadDeduplicationService {
       static dataDir = resolve9(process.cwd(), "data");
-      static leadsFile = join11(_LeadDeduplicationService.dataDir, "processed_leads.json");
+      static leadsFile = join10(_LeadDeduplicationService.dataDir, "processed_leads.json");
       static cache = /* @__PURE__ */ new Map();
       static dbInitialized = false;
       static ensureDataDir() {
-        if (!existsSync14(this.dataDir)) {
+        if (!existsSync13(this.dataDir)) {
           mkdirSync7(this.dataDir, { recursive: true });
         }
-        if (!existsSync14(this.leadsFile)) {
+        if (!existsSync13(this.leadsFile)) {
           writeFileSync9(this.leadsFile, JSON.stringify([], null, 2), "utf-8");
         }
       }
@@ -19025,8 +18720,8 @@ var init_LeadDeduplicationService = __esm({
 });
 
 // src/services/RealizedEarningsService.ts
-import { existsSync as existsSync15, mkdirSync as mkdirSync8, readFileSync as readFileSync11, writeFileSync as writeFileSync10 } from "node:fs";
-import { resolve as resolve10, join as join12 } from "node:path";
+import { existsSync as existsSync14, mkdirSync as mkdirSync8, readFileSync as readFileSync11, writeFileSync as writeFileSync10 } from "node:fs";
+import { resolve as resolve10, join as join11 } from "node:path";
 var RealizedEarningsService;
 var init_RealizedEarningsService = __esm({
   "src/services/RealizedEarningsService.ts"() {
@@ -19034,14 +18729,14 @@ var init_RealizedEarningsService = __esm({
     init_db();
     RealizedEarningsService = class _RealizedEarningsService {
       static dataDir = resolve10(process.cwd(), "data");
-      static ledgerFile = join12(_RealizedEarningsService.dataDir, "realized_earnings.json");
+      static ledgerFile = join11(_RealizedEarningsService.dataDir, "realized_earnings.json");
       static cache = /* @__PURE__ */ new Map();
       static dbInitialized = false;
       static ensureDataDir() {
-        if (!existsSync15(this.dataDir)) {
+        if (!existsSync14(this.dataDir)) {
           mkdirSync8(this.dataDir, { recursive: true });
         }
-        if (!existsSync15(this.ledgerFile)) {
+        if (!existsSync14(this.ledgerFile)) {
           writeFileSync10(this.ledgerFile, JSON.stringify([], null, 2), "utf-8");
         }
       }
@@ -19307,8 +19002,8 @@ var RevenueHunterEngine_exports = {};
 __export(RevenueHunterEngine_exports, {
   RevenueHunterEngine: () => RevenueHunterEngine
 });
-import { existsSync as existsSync16, mkdirSync as mkdirSync9, writeFileSync as writeFileSync11, readFileSync as readFileSync12 } from "fs";
-import { resolve as resolve11, join as join13 } from "path";
+import { existsSync as existsSync15, mkdirSync as mkdirSync9, writeFileSync as writeFileSync11, readFileSync as readFileSync12 } from "fs";
+import { resolve as resolve11, join as join12 } from "path";
 var RevenueHunterEngine;
 var init_RevenueHunterEngine = __esm({
   "src/agents/RevenueHunterEngine.ts"() {
@@ -19318,8 +19013,8 @@ var init_RevenueHunterEngine = __esm({
     init_OpenQodexReviewEngine();
     RevenueHunterEngine = class _RevenueHunterEngine {
       static dataDir = resolve11(process.cwd(), "data");
-      static opportunitiesFile = join13(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
-      static settingsFile = join13(_RevenueHunterEngine.dataDir, "payout_settings.json");
+      static opportunitiesFile = join12(_RevenueHunterEngine.dataDir, "revenue_opportunities.json");
+      static settingsFile = join12(_RevenueHunterEngine.dataDir, "payout_settings.json");
       // Real opportunities are ingested dynamically via JobScoutTool / incoming client feeds.
       static defaultOpportunities = [];
       static defaultSettings = {
@@ -19333,13 +19028,13 @@ var init_RevenueHunterEngine = __esm({
         autoWithdrawThresholdINR: 1e4
       };
       static ensureDataDir() {
-        if (!existsSync16(this.dataDir)) {
+        if (!existsSync15(this.dataDir)) {
           mkdirSync9(this.dataDir, { recursive: true });
         }
-        if (!existsSync16(this.opportunitiesFile)) {
+        if (!existsSync15(this.opportunitiesFile)) {
           writeFileSync11(this.opportunitiesFile, JSON.stringify(this.defaultOpportunities, null, 2), "utf-8");
         }
-        if (!existsSync16(this.settingsFile)) {
+        if (!existsSync15(this.settingsFile)) {
           writeFileSync11(this.settingsFile, JSON.stringify(this.defaultSettings, null, 2), "utf-8");
         }
       }
@@ -21188,8 +20883,8 @@ __export(FridaySpecialist_exports, {
   FridaySpecialist: () => FridaySpecialist,
   fridaySpecialist: () => fridaySpecialist
 });
-import { existsSync as existsSync17, readdirSync as readdirSync4, statSync as statSync4, readFileSync as readFileSync13, writeFileSync as writeFileSync12 } from "node:fs";
-import { join as join14, relative as relative4 } from "node:path";
+import { existsSync as existsSync16, readdirSync as readdirSync4, statSync as statSync4, readFileSync as readFileSync13, writeFileSync as writeFileSync12 } from "node:fs";
+import { join as join13, relative as relative4 } from "node:path";
 import { deflateRawSync, crc32 } from "node:zlib";
 import * as esbuild from "esbuild";
 var FRIDAY_SYSTEM_PROMPT, FridaySpecialist, fridaySpecialist;
@@ -21321,16 +21016,16 @@ ${html}`;
        */
       async executeCompilerSelfHealingLoop(slug, workspaceRoot) {
         const root = workspaceRoot || workspaceManager.getWorkspaceRoot(slug);
-        const clientDir = root.endsWith("client") ? root : existsSync17(join14(root, "client")) ? join14(root, "client") : existsSync17(join14(root, "workspaces", slug, "client")) ? join14(root, "workspaces", slug, "client") : join14(process.cwd(), "workspaces", slug, "client");
-        const distDir = join14(clientDir, "dist");
+        const clientDir = root.endsWith("client") ? root : existsSync16(join13(root, "client")) ? join13(root, "client") : existsSync16(join13(root, "workspaces", slug, "client")) ? join13(root, "workspaces", slug, "client") : join13(process.cwd(), "workspaces", slug, "client");
+        const distDir = join13(clientDir, "dist");
         const errors = [];
         const logs = [];
         let attempts = 0;
         let success = false;
-        if (!existsSync17(clientDir)) {
+        if (!existsSync16(clientDir)) {
           return { success: false, attempts: 0, distCreated: false, errors: ["Client directory not found"], logs };
         }
-        if (!existsSync17(distDir)) {
+        if (!existsSync16(distDir)) {
           try {
             const { mkdirSync: mkdirSync19 } = __require("node:fs");
             mkdirSync19(distDir, { recursive: true });
@@ -21342,9 +21037,9 @@ ${html}`;
           attempts++;
           logs.push(`[Friday Compiler] Compilation attempt ${attempts}/${maxRetries} for [${slug}]`);
           try {
-            const mainPath = join14(clientDir, "src", "main.jsx");
-            const outBundle = join14(distDir, "bundle.js");
-            if (existsSync17(mainPath)) {
+            const mainPath = join13(clientDir, "src", "main.jsx");
+            const outBundle = join13(distDir, "bundle.js");
+            if (existsSync16(mainPath)) {
               esbuild.buildSync({
                 entryPoints: [mainPath],
                 bundle: true,
@@ -21354,12 +21049,12 @@ ${html}`;
                 format: "esm",
                 logLevel: "silent"
               });
-              const clientIndex = join14(clientDir, "index.html");
-              let htmlContent = existsSync17(clientIndex) ? readFileSync13(clientIndex, "utf-8") : '<!DOCTYPE html><html><head><title>App</title></head><body><div id="root"></div></body></html>';
+              const clientIndex = join13(clientDir, "index.html");
+              let htmlContent = existsSync16(clientIndex) ? readFileSync13(clientIndex, "utf-8") : '<!DOCTYPE html><html><head><title>App</title></head><body><div id="root"></div></body></html>';
               if (!htmlContent.includes("bundle.js")) {
                 htmlContent = htmlContent.replace("</body>", '<script type="module" src="./bundle.js"></script>\n</body>');
               }
-              writeFileSync12(join14(distDir, "index.html"), htmlContent, "utf-8");
+              writeFileSync12(join13(distDir, "index.html"), htmlContent, "utf-8");
               logs.push(`[Friday Compiler] Vite/esbuild bundle compiled cleanly (${attempts} attempt(s))`);
               success = true;
               break;
@@ -21374,7 +21069,7 @@ ${html}`;
             if (compileErr?.errors && compileErr.errors.length > 0) {
               const firstErr = compileErr.errors[0];
               const fileLoc = firstErr.location;
-              if (fileLoc && fileLoc.file && existsSync17(fileLoc.file)) {
+              if (fileLoc && fileLoc.file && existsSync16(fileLoc.file)) {
                 let fileContent = readFileSync13(fileLoc.file, "utf-8");
                 if (firstErr.text && firstErr.text.includes("closing")) {
                   fileContent += "\n</div>";
@@ -21387,8 +21082,8 @@ ${html}`;
         return {
           success,
           attempts,
-          distCreated: existsSync17(join14(distDir, "index.html")),
-          outputFile: join14(distDir, "index.html"),
+          distCreated: existsSync16(join13(distDir, "index.html")),
+          outputFile: join13(distDir, "index.html"),
           errors,
           logs
         };
@@ -21409,8 +21104,8 @@ ${html}`;
         const filesChecked = [...essentialChecks];
         const missingFiles = [];
         for (const rel of essentialChecks) {
-          const full = join14(root, rel);
-          if (!existsSync17(full)) {
+          const full = join13(root, rel);
+          if (!existsSync16(full)) {
             missingFiles.push(rel);
           } else {
             const size = statSync4(full).size;
@@ -21419,30 +21114,30 @@ ${html}`;
             }
           }
         }
-        const serverFileA = join14(root, "server", "index.js");
-        const serverFileB = join14(root, "server", "src", "app.js");
+        const serverFileA = join13(root, "server", "index.js");
+        const serverFileB = join13(root, "server", "src", "app.js");
         filesChecked.push("server/index.js or server/src/app.js");
-        if (!existsSync17(serverFileA) && !existsSync17(serverFileB)) {
+        if (!existsSync16(serverFileA) && !existsSync16(serverFileB)) {
           missingFiles.push("server/index.js (or server/src/app.js)");
         }
         let clientVerified = false;
         const clientHtmlCandidates = [
-          join14(root, "workspaces", params.slug, "client", "dist", "index.html"),
-          join14(root, "client", "dist", "index.html"),
-          join14(root, "public", "index.html"),
-          join14(root, "client", "index.html"),
-          join14(root, "client", "src", "App.jsx"),
-          join14(root, "client", "src", "styles.css")
+          join13(root, "workspaces", params.slug, "client", "dist", "index.html"),
+          join13(root, "client", "dist", "index.html"),
+          join13(root, "public", "index.html"),
+          join13(root, "client", "index.html"),
+          join13(root, "client", "src", "App.jsx"),
+          join13(root, "client", "src", "styles.css")
         ];
-        const clientMainA = join14(root, "workspaces", params.slug, "client", "src", "main.jsx");
-        const clientMainB = join14(root, "client", "src", "main.jsx");
-        if (existsSync17(clientMainA) || existsSync17(clientMainB)) {
+        const clientMainA = join13(root, "workspaces", params.slug, "client", "src", "main.jsx");
+        const clientMainB = join13(root, "client", "src", "main.jsx");
+        if (existsSync16(clientMainA) || existsSync16(clientMainB)) {
           const compileRes = await this.executeCompilerSelfHealingLoop(params.slug, root);
           if (compileRes.distCreated) clientVerified = true;
           logs = [...logs, ...compileRes.logs];
         }
         for (const hPath of clientHtmlCandidates) {
-          if (existsSync17(hPath)) {
+          if (existsSync16(hPath)) {
             const text = readFileSync13(hPath, "utf-8");
             if (text.includes("tailwind") || text.includes("lucide") || text.includes("react") || text.includes("babel") || text.includes("bundle.js") || text.includes("bg-") || text.includes("flex")) {
               clientVerified = true;
@@ -21556,15 +21251,15 @@ ${html}`;
        * Recursively packages a build directory into a .zip deliverable archive
        */
       async packageDeliverableZip(buildDir, zipPath) {
-        if (!existsSync17(buildDir)) {
+        if (!existsSync16(buildDir)) {
           throw new Error(`[Friday DevOps] Build directory does not exist: ${buildDir}`);
         }
-        const targetZip = zipPath || join14(buildDir, "deliverable.zip");
+        const targetZip = zipPath || join13(buildDir, "deliverable.zip");
         const collectFiles = (dir) => {
           let results = [];
           const entries = readdirSync4(dir);
           for (const entry of entries) {
-            const fullPath = join14(dir, entry);
+            const fullPath = join13(dir, entry);
             if (fullPath.endsWith(".zip")) continue;
             const stat = statSync4(fullPath);
             if (stat.isDirectory()) {
@@ -21696,6 +21391,335 @@ ${html}`;
       }
     };
     fridaySpecialist = FridaySpecialist.getInstance();
+  }
+});
+
+// src/swarm/engine/AutonomousAgentLoop.ts
+var AutonomousAgentLoop_exports = {};
+__export(AutonomousAgentLoop_exports, {
+  executeAutonomousReAct: () => executeAutonomousReAct
+});
+import { existsSync as existsSync17 } from "node:fs";
+import { join as join14 } from "node:path";
+import { randomUUID as randomUUID2 } from "node:crypto";
+function compactContextWindow(messages) {
+  const totalLength = messages.reduce((acc, m) => acc + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content || "").length), 0);
+  if (totalLength <= MAX_CONTEXT_CHARS || messages.length <= 8) {
+    return messages;
+  }
+  const systemMsg = messages[0];
+  const userMsg = messages[1];
+  const tailMessages = messages.slice(-6);
+  const intermediateMessages = messages.slice(2, -6);
+  const toolSummaries = [];
+  const filesTouched = /* @__PURE__ */ new Set();
+  for (const m of intermediateMessages) {
+    if (m.role === "tool") {
+      try {
+        const parsed = JSON.parse(m.content);
+        toolSummaries.push(`- Tool Output: ${typeof parsed === "string" ? parsed : parsed.message || parsed.summary || "Executed"}`);
+        if (parsed.filePath) filesTouched.add(parsed.filePath);
+        if (parsed.targetPath) filesTouched.add(parsed.targetPath);
+        if (Array.isArray(parsed.filesCreated)) parsed.filesCreated.forEach((f) => filesTouched.add(f));
+      } catch {
+        toolSummaries.push(`- Tool Output: ${String(m.content).substring(0, 80)}`);
+      }
+    } else if (m.role === "assistant" && Array.isArray(m.tool_calls)) {
+      for (const tc of m.tool_calls) {
+        try {
+          const args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments || tc.arguments;
+          if (args?.filePath) filesTouched.add(args.filePath);
+          if (args?.targetPath) filesTouched.add(args.targetPath);
+          if (args?.path) filesTouched.add(args.path);
+        } catch {
+        }
+      }
+    }
+  }
+  const filesSummary = filesTouched.size > 0 ? `
+Files Created/Modified:
+${Array.from(filesTouched).map((f) => `  * ${f}`).join("\n")}` : "";
+  const summaryContent = `[CONTEXT_WINDOW_ROLLING_COMPACTOR: Intermediate turns compacted (${intermediateMessages.length} messages).${filesSummary}
+Summary of actions taken:
+${toolSummaries.slice(-8).join("\n")}
+Retaining original directive and recent turns.]`;
+  return [
+    systemMsg,
+    userMsg,
+    { role: "system", content: summaryContent },
+    ...tailMessages
+  ];
+}
+async function executeAutonomousReAct(directive, options = {}) {
+  const taskId = randomUUID2();
+  const lowerDirective = directive.toLowerCase();
+  const isCodingTask = options.specialist === "aegis" || options.deliverableType === "web_app" || options.deliverableType === "logic_backend" || lowerDirective.includes("build") || lowerDirective.includes("create") || lowerDirective.includes("app") || lowerDirective.includes("web") || lowerDirective.includes("code") || lowerDirective.includes("scaffold") || lowerDirective.includes("dashboard") || lowerDirective.includes("refactor");
+  const taskType = isCodingTask ? "coding" : "general";
+  const maxSteps = options.maxSteps || (taskType === "coding" ? 35 : 25);
+  const specialist = options.specialist || (isCodingTask ? "aegis" : "jarvis");
+  const workspaceRoot = options.workspaceRoot || process.cwd();
+  await taskAuditService.createTask(directive, specialist, taskId);
+  let systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
+You operate under the High Command of Master Sri with autonomous self-healing authorization.
+
+OPERATIONAL INVARIANTS:
+1. THINK & OBSERVE: Analyze the current workspace, check existing files, run terminal diagnostics, and read actual error traces.
+2. SURGICAL TOOLS:
+   - Use 'workspace_view_tree' to locate project layout.
+   - Use 'workspace_read_file' with exact line numbers to inspect code before modifying.
+   - Use 'workspace_patch_file' to perform surgical diffs rather than overwriting whole files.
+   - Use 'workspace_write_file' to create new files or full implementations.
+   - Use 'terminal_run_command' to run builds, tests, and syntax checks.
+3. SELF-HEALING REFLECTION: If a terminal command fails (exitCode != 0) or tests fail:
+   - Read the exact error stack trace.
+   - Diagnose the broken line or syntax defect.
+   - Apply a surgical patch using workspace_patch_file.
+   - Re-run the terminal command to verify it passes cleanly.
+   - Do NOT quit or report failure when self-healing is possible.
+4. PROOF-OF-WORK VERIFICATION: Terminate only by calling 'finish_task' (or 'complete_task') with summary and artifacts once all tests pass.`;
+  if (specialist === "aegis") {
+    systemPrompt = `${AEGIS_SYSTEM_PROMPT}
+
+${systemPrompt}`;
+  } else if (specialist === "cerebro") {
+    systemPrompt = `${CEREBRO_SYSTEM_PROMPT}
+
+${systemPrompt}`;
+  } else if (specialist === "raphael") {
+    systemPrompt = `${RAPHAEL_SYSTEM_PROMPT}
+
+${systemPrompt}`;
+  } else if (specialist === "midas") {
+    systemPrompt = `${MIDAS_SYSTEM_PROMPT}
+
+${systemPrompt}`;
+  } else if (specialist === "friday") {
+    systemPrompt = `${FRIDAY_SYSTEM_PROMPT}
+
+${systemPrompt}`;
+  } else if (taskType === "coding") {
+    systemPrompt = `${AEGIS_SYSTEM_PROMPT}
+
+${systemPrompt}`;
+  }
+  let messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: directive }
+  ];
+  const toolCallHistory = [];
+  let artifacts = [];
+  let finalResponse = "";
+  let success = false;
+  let selfHealed = false;
+  let verificationDetails = null;
+  let discoveredSlug = options.slug || "";
+  const filesWritten = [];
+  for (let step = 1; step <= maxSteps; step++) {
+    messages = compactContextWindow(messages);
+    const completion = await swarmModelRouter.dispatch(specialist, messages, SWARM_TOOL_SCHEMAS);
+    const modelContent = completion.content || "";
+    const toolCalls = completion.tool_calls || [];
+    if (!toolCalls || toolCalls.length === 0) {
+      finalResponse = modelContent || "Autonomous directive executed.";
+      success = true;
+      break;
+    }
+    messages.push({
+      role: "assistant",
+      content: modelContent,
+      tool_calls: toolCalls
+    });
+    let finishTaskEncountered = false;
+    for (const tc of toolCalls) {
+      const toolId = tc.id || `tc_${Date.now()}`;
+      const toolName = tc.function?.name || tc.name;
+      let args = {};
+      try {
+        args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments || tc.arguments || {};
+      } catch {
+        args = {};
+      }
+      const start = Date.now();
+      let output = null;
+      let status = "SUCCESS";
+      try {
+        output = await dispatchToolCall(toolName, args);
+      } catch (err) {
+        status = "ERROR";
+        output = {
+          error: true,
+          message: err?.message || String(err)
+        };
+      }
+      const latencyMs = Date.now() - start;
+      await taskAuditService.logToolExecution(taskId, toolName, args, output, status, latencyMs);
+      toolCallHistory.push({
+        id: toolId,
+        name: toolName,
+        args,
+        output,
+        status,
+        latencyMs
+      });
+      if (options.onStepProgress) {
+        options.onStepProgress(step, modelContent, toolName, output);
+      }
+      if (output?.previewUrl && typeof output.previewUrl === "string") {
+        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl);
+        const m = output.previewUrl.match(/\/preview\/([a-zA-Z0-9_-]+)/);
+        if (m) discoveredSlug = m[1];
+      }
+      if (output?.filePath && typeof output.filePath === "string") {
+        if (!artifacts.includes(output.filePath)) artifacts.push(output.filePath);
+        filesWritten.push(output.filePath);
+      }
+      if (args?.filePath && typeof args.filePath === "string") {
+        filesWritten.push(args.filePath);
+        const m = args.filePath.match(/artifacts[/\\]builds[/\\]([^/\\]+)/);
+        if (m) discoveredSlug = m[1];
+      }
+      if (args?.projectSlug && typeof args.projectSlug === "string") {
+        discoveredSlug = args.projectSlug;
+      }
+      if ((toolName === "terminal_run_command" || toolName === "sandbox_terminal_execute") && output?.exitCode !== void 0 && output.exitCode !== 0) {
+        selfHealed = true;
+      }
+      if (toolName === "finish_task" || toolName === "complete_task") {
+        const targetSlug = discoveredSlug || options.slug || "app-preview";
+        if (options.requireVerification) {
+          const req = {
+            deliverableType: options.deliverableType || "general",
+            targetPath: options.verificationTarget,
+            slug: targetSlug,
+            testCommand: options.testCommand
+          };
+          const verifyRes = await autonomousVerifier.verifyDeliverable(req, workspaceRoot);
+          verificationDetails = verifyRes;
+          if (!verifyRes.verified) {
+            messages.push({
+              role: "tool",
+              tool_call_id: toolId,
+              content: JSON.stringify({
+                status: "VERIFICATION_REJECTED",
+                message: `Automated verification failed before sign-off: ${verifyRes.message}. Please inspect the error and self-heal before calling finish_task.`,
+                errors: verifyRes.errors
+              })
+            });
+            continue;
+          }
+        }
+        finishTaskEncountered = true;
+        success = true;
+        finalResponse = args.summary || output?.summary || "Task completed and verified.";
+        if (Array.isArray(args.artifacts)) artifacts.push(...args.artifacts);
+        if (args.previewUrl && !artifacts.includes(args.previewUrl)) artifacts.push(args.previewUrl);
+        if (targetSlug && options.deliverableType === "web_app" && !artifacts.includes(`/preview/${targetSlug}`)) {
+          artifacts.push(`/preview/${targetSlug}`);
+        }
+        break;
+      }
+      if (toolName === "aegis_scaffold_and_deploy_web" && output?.success && output?.previewUrl) {
+        finishTaskEncountered = true;
+        success = true;
+        finalResponse = `Web application successfully scaffolded and mounted at ${output.previewUrl}.`;
+        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl);
+        break;
+      }
+      if ((options.deliverableType === "web_app" || isCodingTask) && discoveredSlug) {
+        const buildDir = join14(workspaceRoot, "artifacts", "builds", discoveredSlug);
+        if (existsSync17(join14(buildDir, "index.html"))) {
+          finishTaskEncountered = true;
+          success = true;
+          finalResponse = `Web application successfully built and verified at /preview/${discoveredSlug}.`;
+          const previewUrl = `/preview/${discoveredSlug}`;
+          if (!artifacts.includes(previewUrl)) artifacts.push(previewUrl);
+          break;
+        }
+      }
+      if ((toolName === "terminal_run_command" || toolName === "sandbox_terminal_execute") && output?.exitCode !== void 0 && output.exitCode !== 0) {
+        messages.push({
+          role: "tool",
+          tool_call_id: toolId,
+          content: `[COMMAND_FAILED: Exit Code ${output.exitCode}]
+STDERR:
+${output.stderr || ""}
+STDOUT:
+${output.stdout || ""}
+Analyze the error, patch the target file using workspace_patch_file, and re-execute.`
+        });
+      } else {
+        messages.push({
+          role: "tool",
+          tool_call_id: toolId,
+          content: typeof output === "string" ? output : JSON.stringify(output)
+        });
+      }
+    }
+    if (finishTaskEncountered) {
+      break;
+    }
+  }
+  if (!finalResponse) {
+    finalResponse = `Autonomous ReAct execution concluded after ${toolCallHistory.length} tool executions.`;
+    success = true;
+  }
+  if (options.requireVerification && !verificationDetails) {
+    const targetSlug = discoveredSlug || options.slug || "app-preview";
+    const req = {
+      deliverableType: options.deliverableType || "general",
+      targetPath: options.verificationTarget,
+      slug: targetSlug,
+      testCommand: options.testCommand
+    };
+    verificationDetails = await autonomousVerifier.verifyDeliverable(req, workspaceRoot);
+    if (!verificationDetails.verified) {
+      success = false;
+    } else {
+      success = true;
+      if (options.deliverableType === "web_app") {
+        const previewPath = `/preview/${targetSlug}`;
+        if (!artifacts.includes(previewPath)) artifacts.push(previewPath);
+      }
+    }
+  }
+  await taskAuditService.completeTask(taskId, success ? "COMPLETED" : "FAILED", finalResponse);
+  telegramNotifier.sendSwarmUpdate(
+    specialist,
+    `Autonomous ReAct: ${directive.substring(0, 60)}...`,
+    success ? "SUCCESS" : "FAILED",
+    toolCallHistory.reduce((acc, t) => acc + t.latencyMs, 0),
+    `Steps: ${toolCallHistory.length} | Self-Healed: ${selfHealed ? "YES" : "NO"}
+Deliverables: ${artifacts.join(", ") || "N/A"}`
+  ).catch(() => {
+  });
+  return {
+    taskId,
+    success,
+    specialist,
+    directive,
+    finalResponse,
+    stepsExecuted: toolCallHistory.length,
+    toolCallHistory,
+    artifacts,
+    selfHealed,
+    verificationDetails
+  };
+}
+var MAX_CONTEXT_CHARS;
+var init_AutonomousAgentLoop = __esm({
+  "src/swarm/engine/AutonomousAgentLoop.ts"() {
+    "use strict";
+    init_toolRegistry();
+    init_ModelRouter();
+    init_AutonomousVerifier();
+    init_taskAuditService();
+    init_telegramNotifier();
+    init_AegisSpecialist();
+    init_CerebroSpecialist();
+    init_RaphaelSpecialist();
+    init_MidasSpecialist();
+    init_FridaySpecialist();
+    MAX_CONTEXT_CHARS = 12e4;
   }
 });
 
@@ -22353,11 +22377,11 @@ Requirements:
         if (!aegisHtml || aegisHtml.length < 200 || !aegisHtml.includes("input")) {
           aegisHtml = raphaelSpecialist.generateHtmlLayout(blueprint);
         }
-        await notify("PROGRESS", "[Milestone 2/6] Aegis coded Express REST endpoints & auth middleware.");
+        await notify("PROGRESS", "[Milestone 2/6] Aegis coded Express REST endpoints & auth middleware. Aegis completed semantic HTML structure.");
         await taskAuditService.logToolExecution(taskId, "aegis_backend_synthesis", { directive }, { length: aegisBackend.routesJs.length }, "SUCCESS", 200);
         const raphaelFrontend = await raphaelSpecialist.executeFrontendSynthesis(blueprint);
         const raphaelCss = raphaelFrontend.css || raphaelSpecialist.generateResponsiveCss(blueprint);
-        await notify("PROGRESS", "[Milestone 3/6] Raphael coded React UI components (Sidebar, Dashboard, Canvas).");
+        await notify("PROGRESS", "[Milestone 3/6] Raphael coded React UI components (Sidebar, Dashboard, Canvas). Raphael completed glassmorphic styling system.");
         await taskAuditService.logToolExecution(taskId, "raphael_frontend_synthesis", { directive }, { length: raphaelCss.length }, "SUCCESS", 200);
         const midasLogic = await midasSpecialist.executeBusinessLogicSynthesis(blueprint);
         let midasJs = midasLogic.engineJs || midasSpecialist.generateComputationEngine(blueprint);
@@ -22372,10 +22396,10 @@ Requirements:
         if (!isSyntaxOk || !midasJs || midasJs.length < 200 || !midasJs.includes("function") && !midasJs.includes("addEventListener")) {
           midasJs = midasSpecialist.generateComputationEngine(blueprint);
         }
-        await notify("PROGRESS", "[Milestone 4/6] Midas wired calculation engine & live state store.");
+        await notify("PROGRESS", "[Milestone 4/6] Midas wired calculation engine & live state store. Midas completed calculation engine & event handlers.");
         await taskAuditService.logToolExecution(taskId, "midas_logic_synthesis", { directive }, { length: midasJs.length }, "SUCCESS", 200);
         aegisHtml = this.autoAlignSharedElementIds(aegisHtml, midasJs);
-        await notify("PROGRESS", "[Milestone 5/6] Friday running compiler & integration tests.");
+        await notify("PROGRESS", "[Milestone 5/6] Friday running compiler & integration tests. Synthesis complete. Running autonomous verification...");
         const scope = classifyProjectScope(directive);
         let bundleRes;
         if (scope === "SCOPE_FULLSTACK" || blueprint.scope === "FULLSTACK_SAAS") {
@@ -22622,7 +22646,7 @@ var init_telegramNotifier = __esm({
         const isSoftware = isSoftwareBuildDirective2(directive);
         const title = directive.slice(0, 50).replace(/[_-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
         const ackMessage = isSoftware ? [
-          `\u{1F680} *[J.A.R.V.I.S. DEEP WORKER ENGAGED]*`,
+          `\u{1F680} *[J.A.R.V.I.S. SWARM DISPATCHED \u2014 DEEP CO-WORKER ENGAGED]*`,
           `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
           `\u2022 *Project:* \`${title}\``,
           `\u2022 *Specialist:* \`${specialist.toUpperCase()}\``,
@@ -22656,7 +22680,7 @@ var init_telegramNotifier = __esm({
                   specialist,
                   workspaceRoot: process.cwd(),
                   onProgress: async (stage, message) => {
-                    const formatted = message.startsWith("[Milestone") ? `\u23F3 *${message}*` : stage === "DISPATCH" ? `\u{1F4E1} *[Swarm Dispatch]* ${message}` : `\u2699\uFE0F *[Swarm Progress]* ${message}`;
+                    const formatted = stage === "DISPATCH" ? `\u{1F4E1} *[Swarm Dispatch]* ${message}` : `\u2699\uFE0F *[Swarm Progress]* ${message}`;
                     await this.sendMessage(formatted, chatId).catch(() => {
                     });
                   }

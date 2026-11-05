@@ -19,6 +19,10 @@ import { autonomousVerifier, VerificationRequest } from './AutonomousVerifier'
 import { taskAuditService } from '../../services/taskAuditService'
 import { telegramNotifier } from '../../services/telegramNotifier'
 import { AEGIS_SYSTEM_PROMPT } from '../specialists/AegisSpecialist'
+import { CEREBRO_SYSTEM_PROMPT } from '../specialists/CerebroSpecialist'
+import { RAPHAEL_SYSTEM_PROMPT } from '../specialists/RaphaelSpecialist'
+import { MIDAS_SYSTEM_PROMPT } from '../specialists/MidasSpecialist'
+import { FRIDAY_SYSTEM_PROMPT } from '../specialists/FridaySpecialist'
 
 export interface ToolCallRecord {
   id: string
@@ -157,7 +161,17 @@ OPERATIONAL INVARIANTS:
    - Do NOT quit or report failure when self-healing is possible.
 4. PROOF-OF-WORK VERIFICATION: Terminate only by calling 'finish_task' (or 'complete_task') with summary and artifacts once all tests pass.`
 
-  if (specialist === 'aegis' || taskType === 'coding') {
+  if (specialist === 'aegis') {
+    systemPrompt = `${AEGIS_SYSTEM_PROMPT}\n\n${systemPrompt}`
+  } else if (specialist === 'cerebro') {
+    systemPrompt = `${CEREBRO_SYSTEM_PROMPT}\n\n${systemPrompt}`
+  } else if (specialist === 'raphael') {
+    systemPrompt = `${RAPHAEL_SYSTEM_PROMPT}\n\n${systemPrompt}`
+  } else if (specialist === 'midas') {
+    systemPrompt = `${MIDAS_SYSTEM_PROMPT}\n\n${systemPrompt}`
+  } else if (specialist === 'friday') {
+    systemPrompt = `${FRIDAY_SYSTEM_PROMPT}\n\n${systemPrompt}`
+  } else if (taskType === 'coding') {
     systemPrompt = `${AEGIS_SYSTEM_PROMPT}\n\n${systemPrompt}`
   }
 

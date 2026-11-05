@@ -746,7 +746,7 @@ Requirements:
       aegisHtml = raphaelSpecialist.generateHtmlLayout(blueprint)
     }
 
-    await notify('PROGRESS', '[Milestone 2/6] Aegis coded Express REST endpoints & auth middleware.')
+    await notify('PROGRESS', '[Milestone 2/6] Aegis coded Express REST endpoints & auth middleware. Aegis completed semantic HTML structure.')
     await taskAuditService.logToolExecution(taskId, 'aegis_backend_synthesis', { directive }, { length: aegisBackend.routesJs.length }, 'SUCCESS', 200)
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -754,7 +754,7 @@ Requirements:
     // ──────────────────────────────────────────────────────────────────────────
     const raphaelFrontend = await raphaelSpecialist.executeFrontendSynthesis(blueprint)
     const raphaelCss = raphaelFrontend.css || raphaelSpecialist.generateResponsiveCss(blueprint)
-    await notify('PROGRESS', '[Milestone 3/6] Raphael coded React UI components (Sidebar, Dashboard, Canvas).')
+    await notify('PROGRESS', '[Milestone 3/6] Raphael coded React UI components (Sidebar, Dashboard, Canvas). Raphael completed glassmorphic styling system.')
     await taskAuditService.logToolExecution(taskId, 'raphael_frontend_synthesis', { directive }, { length: raphaelCss.length }, 'SUCCESS', 200)
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -776,13 +776,13 @@ Requirements:
       midasJs = midasSpecialist.generateComputationEngine(blueprint)
     }
 
-    await notify('PROGRESS', '[Milestone 4/6] Midas wired calculation engine & live state store.')
+    await notify('PROGRESS', '[Milestone 4/6] Midas wired calculation engine & live state store. Midas completed calculation engine & event handlers.')
     await taskAuditService.logToolExecution(taskId, 'midas_logic_synthesis', { directive }, { length: midasJs.length }, 'SUCCESS', 200)
 
     // Auto-align and heal shared contract DOM element IDs between Aegis/Raphael and Midas
     aegisHtml = this.autoAlignSharedElementIds(aegisHtml, midasJs)
 
-    await notify('PROGRESS', '[Milestone 5/6] Friday running compiler & integration tests.')
+    await notify('PROGRESS', '[Milestone 5/6] Friday running compiler & integration tests. Synthesis complete. Running autonomous verification...')
 
     // ──────────────────────────────────────────────────────────────────────────
     // STAGE 6: FRIDAY (QA Integration Audit, Preview Mount & DevOps Packaging)

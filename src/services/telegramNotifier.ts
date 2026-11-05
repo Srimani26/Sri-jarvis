@@ -146,7 +146,7 @@ export class TelegramNotifierService {
     const title = directive.slice(0, 50).replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 
     const ackMessage = isSoftware ? [
-      `🚀 *[J.A.R.V.I.S. DEEP WORKER ENGAGED]*`,
+      `🚀 *[J.A.R.V.I.S. SWARM DISPATCHED — DEEP CO-WORKER ENGAGED]*`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       `• *Project:* \`${title}\``,
       `• *Specialist:* \`${specialist.toUpperCase()}\``,
@@ -186,9 +186,9 @@ export class TelegramNotifierService {
               specialist,
               workspaceRoot: process.cwd(),
               onProgress: async (stage: string, message: string) => {
-                const formatted = message.startsWith('[Milestone')
-                  ? `⏳ *${message}*`
-                  : (stage === 'DISPATCH' ? `📡 *[Swarm Dispatch]* ${message}` : `⚙️ *[Swarm Progress]* ${message}`)
+                const formatted = (stage === 'DISPATCH')
+                  ? `📡 *[Swarm Dispatch]* ${message}`
+                  : `⚙️ *[Swarm Progress]* ${message}`
                 await this.sendMessage(formatted, chatId).catch(() => {})
               }
             })
