@@ -3882,6 +3882,36 @@ app.post('/swarm/scheduler/run', async (c) => {
   }
 });
 
+// GET /api/coworker/status — Check if Master Sri's local workstation daemon is connected
+app.get('/coworker/status', async (c) => {
+  try {
+    const { localCoWorkerBridge } = await import('./src/services/localCoWorkerBridge');
+    return c.json({ ok: true, ...localCoWorkerBridge.getStatus() });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Status check failed' }, 500);
+  }
+});
+
+// POST /api/coworker/execute — Dispatch direct action to Master Sri's local workstation
+app.post('/coworker/execute', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const action = body?.action || 'READ_FILE';
+    const workspace = body?.workspace || 'invi-theme';
+    const options = {
+      path: body?.path,
+      content: body?.content,
+      command: body?.command,
+      args: body?.args
+    };
+    const { localCoWorkerBridge } = await import('./src/services/localCoWorkerBridge');
+    const result = await localCoWorkerBridge.dispatchToLocal(action, workspace, options, body?.timeoutMs || 20000);
+    return c.json({ ok: result.success, ...result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Execution failed' }, 500);
+  }
+});
+
 // ============================================================================
 // HIGH-FIDELITY NEURAL VOICE ENGINE (DEEPGRAM NOVA-2 STT & ELEVENLABS TTS)
 // Distinct Male & Female voices for all 20 agents with zero stuttering

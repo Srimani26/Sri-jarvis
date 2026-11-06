@@ -50,6 +50,7 @@ import { createToolsHandlers } from '@shogo-ai/sdk/tools/server'
 import { TelegramBotListener, startTelegramBotListener, stopTelegramBotListener } from './src/notifications/TelegramBotListener'
 import { voiceGateway } from './src/services/voiceGateway'
 import { androidBridgeService } from './src/services/androidBridgeService'
+import { localCoWorkerBridge } from './src/services/localCoWorkerBridge'
 import { swarmModelRouter } from './src/swarm/engine/ModelRouter'
 import { swarmAutonomousScheduler } from './src/swarm/engine/AutonomousScheduler'
 import { telegramNotifier } from './src/services/telegramNotifier'
@@ -207,6 +208,7 @@ const serverInstance = serve({ port, fetch: app.fetch })
 try {
   voiceGateway.attachToServer(serverInstance as any)
   androidBridgeService.attachToServer(serverInstance as any)
+  localCoWorkerBridge.attach(serverInstance as any)
 } catch (wsErr: any) {
   console.warn('⚡ [VoiceGateway] WebSocket attach note:', wsErr?.message || wsErr)
 }

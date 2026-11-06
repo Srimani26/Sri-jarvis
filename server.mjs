@@ -24132,6 +24132,150 @@ var init_AutonomousScheduler2 = __esm({
   }
 });
 
+// src/services/localCoWorkerBridge.ts
+var localCoWorkerBridge_exports = {};
+__export(localCoWorkerBridge_exports, {
+  LocalCoWorkerBridgeService: () => LocalCoWorkerBridgeService,
+  localCoWorkerBridge: () => localCoWorkerBridge
+});
+import { WebSocketServer as WebSocketServer2, WebSocket as WebSocket2 } from "ws";
+var LocalCoWorkerBridgeService, localCoWorkerBridge;
+var init_localCoWorkerBridge = __esm({
+  "src/services/localCoWorkerBridge.ts"() {
+    "use strict";
+    LocalCoWorkerBridgeService = class _LocalCoWorkerBridgeService {
+      static instance;
+      wss = null;
+      connectedWorker = null;
+      pendingRequests = /* @__PURE__ */ new Map();
+      static getInstance() {
+        if (!_LocalCoWorkerBridgeService.instance) {
+          _LocalCoWorkerBridgeService.instance = new _LocalCoWorkerBridgeService();
+        }
+        return _LocalCoWorkerBridgeService.instance;
+      }
+      /**
+       * Attach WebSocket server to HTTP instance
+       */
+      attach(server) {
+        if (this.wss) return;
+        this.wss = new WebSocketServer2({
+          server,
+          path: "/api/coworker/bridge/ws"
+        });
+        this.wss.on("connection", (ws, req) => {
+          console.log("\u26A1 [LocalCoWorkerBridge] Inbound connection attempt from:", req.socket.remoteAddress);
+          ws.on("message", (raw2) => {
+            try {
+              const payload = JSON.parse(raw2.toString());
+              this.handleWorkerMessage(ws, payload);
+            } catch (err) {
+              console.error("[LocalCoWorkerBridge] Failed to parse worker message:", err.message);
+            }
+          });
+          ws.on("close", () => {
+            if (this.connectedWorker?.ws === ws) {
+              console.warn("\u26A0\uFE0F [LocalCoWorkerBridge] Local worker daemon disconnected.");
+              this.connectedWorker = null;
+            }
+          });
+          ws.on("error", (err) => {
+            console.error("[LocalCoWorkerBridge] Socket error:", err.message);
+          });
+        });
+        console.log("\u{1F680} [LocalCoWorkerBridge] Co-Worker Bridge WS listening at /api/coworker/bridge/ws");
+      }
+      handleWorkerMessage(ws, message) {
+        if (message.type === "WORKER_REGISTER") {
+          this.connectedWorker = {
+            id: message.workerId || "local-worker-1",
+            hostname: message.hostname || "MasterSri-PC",
+            os: message.os || "Windows",
+            workspaces: message.workspaces || {
+              "invi-theme": "E:\\Invi-theme",
+              "standardroofs-jarvis": "E:\\standardroofs-jarvis"
+            },
+            connectedAt: Date.now(),
+            lastSeen: Date.now(),
+            ws
+          };
+          console.log(`\u2705 [LocalCoWorkerBridge] Local Worker Connected: ${this.connectedWorker.hostname} (${this.connectedWorker.os})`);
+          ws.send(JSON.stringify({ type: "REGISTER_ACK", status: "ONLINE", timestamp: Date.now() }));
+          return;
+        }
+        if (message.requestId && this.pendingRequests.has(message.requestId)) {
+          const pending = this.pendingRequests.get(message.requestId);
+          clearTimeout(pending.timer);
+          this.pendingRequests.delete(message.requestId);
+          pending.resolve(message);
+          return;
+        }
+        if (message.type === "PING") {
+          if (this.connectedWorker) this.connectedWorker.lastSeen = Date.now();
+          ws.send(JSON.stringify({ type: "PONG", timestamp: Date.now() }));
+        }
+      }
+      /**
+       * Check if local worker is connected
+       */
+      isWorkerConnected() {
+        return !!(this.connectedWorker && this.connectedWorker.ws.readyState === WebSocket2.OPEN);
+      }
+      /**
+       * Get telemetry status
+       */
+      getStatus() {
+        const isOnline = this.isWorkerConnected();
+        return {
+          online: isOnline,
+          workerId: this.connectedWorker?.id || null,
+          hostname: this.connectedWorker?.hostname || null,
+          os: this.connectedWorker?.os || null,
+          workspaces: this.connectedWorker?.workspaces || {},
+          connectedAt: this.connectedWorker?.connectedAt || null,
+          lastSeen: this.connectedWorker?.lastSeen || null
+        };
+      }
+      /**
+       * Dispatch a real command to Master Sri's local workstation
+       */
+      async dispatchToLocal(action, workspace, options = {}, timeoutMs = 15e3) {
+        if (!this.isWorkerConnected()) {
+          return {
+            id: "no-worker",
+            success: false,
+            error: "Local Co-Worker Daemon is not connected. Start it on your PC by running: node scripts/jarvis-local-bridge.mjs"
+          };
+        }
+        const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const requestPayload = {
+          id: requestId,
+          action,
+          workspace,
+          path: options.path,
+          content: options.content,
+          command: options.command,
+          args: options.args,
+          timestamp: Date.now()
+        };
+        return new Promise((resolve20, reject) => {
+          const timer = setTimeout(() => {
+            this.pendingRequests.delete(requestId);
+            resolve20({
+              id: requestId,
+              success: false,
+              error: `Request timed out after ${timeoutMs}ms waiting for local workstation response.`
+            });
+          }, timeoutMs);
+          this.pendingRequests.set(requestId, { resolve: resolve20, reject, timer });
+          this.connectedWorker.ws.send(JSON.stringify(requestPayload));
+        });
+      }
+    };
+    localCoWorkerBridge = LocalCoWorkerBridgeService.getInstance();
+  }
+});
+
 // src/storage/ObjectStore.ts
 var ObjectStore_exports = {};
 __export(ObjectStore_exports, {
@@ -24293,7 +24437,7 @@ __export(voiceGateway_exports, {
   pcmToWav: () => pcmToWav,
   voiceGateway: () => voiceGateway
 });
-import { WebSocketServer as WebSocketServer2, WebSocket as WebSocket2 } from "ws";
+import { WebSocketServer as WebSocketServer3, WebSocket as WebSocket3 } from "ws";
 function pcmToWav(pcmBuffer, sampleRate = 16e3) {
   const header = Buffer.alloc(44);
   const dataSize = pcmBuffer.length;
@@ -24468,7 +24612,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
        */
       attachToServer(server) {
         if (this.wss) return;
-        this.wss = new WebSocketServer2({ noServer: true });
+        this.wss = new WebSocketServer3({ noServer: true });
         server.on("upgrade", (request, socket, head) => {
           const url = new URL(request.url || "", `http://${request.headers.host || "localhost"}`);
           if (url.pathname === "/api/voice/session") {
@@ -24534,7 +24678,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
                       directive: transcript,
                       author: "MASTER_SRI_VOICE",
                       onProgress: async (stage, message) => {
-                        if (session.ws && session.ws.readyState === WebSocket2.OPEN) {
+                        if (session.ws && session.ws.readyState === WebSocket3.OPEN) {
                           session.ws.send(JSON.stringify({
                             type: "SWARM_PROGRESS",
                             stage,
@@ -24798,7 +24942,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
                 directive: transcript,
                 author: "MASTER_SRI_VOICE",
                 onProgress: async (stage, message) => {
-                  if (session.ws && session.ws.readyState === WebSocket2.OPEN) {
+                  if (session.ws && session.ws.readyState === WebSocket3.OPEN) {
                     session.ws.send(JSON.stringify({
                       type: "SWARM_PROGRESS",
                       stage,
@@ -24808,7 +24952,7 @@ Keep voice responses crisp, cheerful, and under 2 sentences.`
                 }
               });
               if (result && "previewPath" in result && result.success) {
-                if (session.ws && session.ws.readyState === WebSocket2.OPEN) {
+                if (session.ws && session.ws.readyState === WebSocket3.OPEN) {
                   session.ws.send(JSON.stringify({
                     type: "OPEN_PREVIEW",
                     url: result.previewPath,
@@ -24864,7 +25008,7 @@ ${swarmResult.finalResponse}`,
                 } catch {
                 }
               }
-              if (session.ws && session.ws.readyState === WebSocket2.OPEN) {
+              if (session.ws && session.ws.readyState === WebSocket3.OPEN) {
                 session.ws.send(JSON.stringify({
                   type: "SWARM_TASK_COMPLETE",
                   agent: session.activeAgent,
@@ -33899,6 +34043,32 @@ app.post("/swarm/scheduler/run", async (c) => {
     return c.json({ ok: false, error: err?.message || "Failed to execute autonomous job" }, 500);
   }
 });
+app.get("/coworker/status", async (c) => {
+  try {
+    const { localCoWorkerBridge: localCoWorkerBridge2 } = await Promise.resolve().then(() => (init_localCoWorkerBridge(), localCoWorkerBridge_exports));
+    return c.json({ ok: true, ...localCoWorkerBridge2.getStatus() });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || "Status check failed" }, 500);
+  }
+});
+app.post("/coworker/execute", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const action = body?.action || "READ_FILE";
+    const workspace = body?.workspace || "invi-theme";
+    const options = {
+      path: body?.path,
+      content: body?.content,
+      command: body?.command,
+      args: body?.args
+    };
+    const { localCoWorkerBridge: localCoWorkerBridge2 } = await Promise.resolve().then(() => (init_localCoWorkerBridge(), localCoWorkerBridge_exports));
+    const result = await localCoWorkerBridge2.dispatchToLocal(action, workspace, options, body?.timeoutMs || 2e4);
+    return c.json({ ok: result.success, ...result });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || "Execution failed" }, 500);
+  }
+});
 app.get("/voice/profiles", async (c) => {
   return c.json({
     ok: true,
@@ -38069,6 +38239,7 @@ function stopTelegramBotListener() {
 // server.tsx
 init_voiceGateway();
 init_androidBridgeService();
+init_localCoWorkerBridge();
 init_ModelRouter();
 init_AutonomousScheduler2();
 init_telegramNotifier();
@@ -38212,6 +38383,7 @@ var serverInstance = serve({ port, fetch: app2.fetch });
 try {
   voiceGateway.attachToServer(serverInstance);
   androidBridgeService.attachToServer(serverInstance);
+  localCoWorkerBridge.attach(serverInstance);
 } catch (wsErr) {
   console.warn("\u26A1 [VoiceGateway] WebSocket attach note:", wsErr?.message || wsErr);
 }
