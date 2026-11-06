@@ -3855,6 +3855,33 @@ app.post('/swarm/execute', async (c) => {
   }
 })
 
+// GET /api/swarm/scheduler/jobs — List all 24x7 autonomous co-worker routines & telemetry
+app.get('/swarm/scheduler/jobs', async (c) => {
+  try {
+    const { swarmAutonomousScheduler } = await import('./src/swarm/engine/AutonomousScheduler');
+    const jobs = swarmAutonomousScheduler.listJobs();
+    return c.json({ ok: true, count: jobs.length, jobs });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Failed to list autonomous jobs' }, 500);
+  }
+});
+
+// POST /api/swarm/scheduler/run — Immediately execute an autonomous co-worker routine on-demand
+app.post('/swarm/scheduler/run', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const jobId = String(body?.jobId || '').trim();
+    if (!jobId) {
+      return c.json({ ok: false, error: 'jobId is required' }, 400);
+    }
+    const { swarmAutonomousScheduler } = await import('./src/swarm/engine/AutonomousScheduler');
+    const result = await swarmAutonomousScheduler.executeJob(jobId);
+    return c.json({ ok: true, jobId, ...result });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err?.message || 'Failed to execute autonomous job' }, 500);
+  }
+});
+
 // ============================================================================
 // HIGH-FIDELITY NEURAL VOICE ENGINE (DEEPGRAM NOVA-2 STT & ELEVENLABS TTS)
 // Distinct Male & Female voices for all 20 agents with zero stuttering

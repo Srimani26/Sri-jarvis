@@ -77,6 +77,42 @@ export class SwarmAutonomousScheduler {
       specialist: 'raphael',
       directive: 'Audit SessionMemoryManager entries, check API failover health, and prune expired temporary logs.'
     })
+
+    // 4. DAILY_INVI_STORE_THEME_AUDIT (Daily 10:00 AM IST / 04:30 UTC)
+    this.registerJob({
+      id: 'DAILY_INVI_STORE_THEME_AUDIT',
+      name: 'Daily Invi Luxury Theme & Store Audit',
+      cronExpression: '30 4 * * *',
+      specialist: 'raphael',
+      directive: 'Audit Shopify Liquid templates in Invi luxury theme: verify sections/invi-register-popup.liquid syntax, check schema JSON formatting, drawer z-index stacking contexts, and mobile responsive layout consistency.'
+    })
+
+    // 5. HOURLY_REVENUE_PIPELINE_MONITOR (Every hour)
+    this.registerJob({
+      id: 'HOURLY_REVENUE_PIPELINE_MONITOR',
+      name: 'Hourly Luxury Goods & Revenue Pipeline Monitor',
+      cronExpression: '0 * * * *',
+      specialist: 'midas',
+      directive: 'Track e-commerce luxury consumer goods pricing, conversion funnels, currency exchange velocity, and identify high-yield profit opportunities.'
+    })
+
+    // 6. CONTINUOUS_CYBER_DEFENSE_SWEEP (Every 4 hours)
+    this.registerJob({
+      id: 'CONTINUOUS_CYBER_DEFENSE_SWEEP',
+      name: 'Continuous Cyber Threat & Secret Leakage Defense',
+      cronExpression: '0 */4 * * *',
+      specialist: 'aegis',
+      directive: 'Audit environment keys, verify zero-trust perimeter, inspect git diffs for leaked secrets, and verify API token quota health.'
+    })
+
+    // 7. WORKFLOW_AUTOMATION_SYNC (Every 6 hours)
+    this.registerJob({
+      id: 'WORKFLOW_AUTOMATION_SYNC',
+      name: 'Autonomous Workflow & n8n Pipeline Sync',
+      cronExpression: '30 */6 * * *',
+      specialist: 'vortex',
+      directive: 'Verify automated webhook handlers, Shopify order dispatch pipelines, and external API connectors.'
+    })
   }
 
   /**

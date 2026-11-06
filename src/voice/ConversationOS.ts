@@ -92,7 +92,9 @@ export class ConversationOS {
       .replace(/\b(taskes|taks|taskss|lead task|lead tasks|lead-tasks|task page|tasks page|active task|active tasks)\b/gi, 'tasks')
       .replace(/\b(syber|cybr|sheeld|fierwal)\b/gi, 'cyber')
       .replace(/\b(code lap|kodlab|code labs|studio|ide|workbench)\b/gi, 'codlab')
-      .replace(/\b(automashun|automasion|workflow|workflows|n8n)\b/gi, 'automations');
+      .replace(/\b(automashun|automasion|workflow|workflows|n8n)\b/gi, 'automations')
+      .replace(/\b(popup|pop up|register pop|reg popup|register-popup)\b/gi, 'register popup')
+      .replace(/\b(teme|teem|theam|theem)\s+audit\b/gi, 'theme audit');
 
     return text;
   }

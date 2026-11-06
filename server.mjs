@@ -23909,6 +23909,229 @@ var init_EnterpriseTreasuryEngine = __esm({
   }
 });
 
+// src/swarm/engine/AutonomousScheduler.ts
+var AutonomousScheduler_exports = {};
+__export(AutonomousScheduler_exports, {
+  SwarmAutonomousScheduler: () => SwarmAutonomousScheduler,
+  swarmAutonomousScheduler: () => swarmAutonomousScheduler
+});
+var SwarmAutonomousScheduler, swarmAutonomousScheduler;
+var init_AutonomousScheduler2 = __esm({
+  "src/swarm/engine/AutonomousScheduler.ts"() {
+    "use strict";
+    init_AgentLoop();
+    init_telegramNotifier();
+    SwarmAutonomousScheduler = class _SwarmAutonomousScheduler {
+      static instance;
+      jobs = /* @__PURE__ */ new Map();
+      executingJobs = /* @__PURE__ */ new Set();
+      ticker = null;
+      isRunning = false;
+      static getInstance() {
+        if (!_SwarmAutonomousScheduler.instance) {
+          _SwarmAutonomousScheduler.instance = new _SwarmAutonomousScheduler();
+        }
+        return _SwarmAutonomousScheduler.instance;
+      }
+      constructor() {
+        this.registerDefaultJobs();
+      }
+      /**
+       * Register default sovereign autonomous routines
+       */
+      registerDefaultJobs() {
+        this.registerJob({
+          id: "NIGHTLY_REPO_INTEGRITY_SCAN",
+          name: "Nightly Repository & Cyber Integrity Scan",
+          cronExpression: "30 20 * * *",
+          specialist: "aegis",
+          directive: "Inspect git working tree, execute test suite, audit code syntax, and compile status report."
+        });
+        this.registerJob({
+          id: "MORNING_EXECUTIVE_BRIEF",
+          name: "Morning Executive Brief & Market Intel",
+          cronExpression: "30 2 * * *",
+          specialist: "friday",
+          directive: "Fetch live currency exchange rates (USD/INR), crypto market overview via Treg public routes, check server uptime, and summarize daily briefing."
+        });
+        this.registerJob({
+          id: "SYSTEM_HEALTH_HEARTBEAT",
+          name: "System Health Heartbeat & Memory Audit",
+          cronExpression: "0 */6 * * *",
+          specialist: "raphael",
+          directive: "Audit SessionMemoryManager entries, check API failover health, and prune expired temporary logs."
+        });
+        this.registerJob({
+          id: "DAILY_INVI_STORE_THEME_AUDIT",
+          name: "Daily Invi Luxury Theme & Store Audit",
+          cronExpression: "30 4 * * *",
+          specialist: "raphael",
+          directive: "Audit Shopify Liquid templates in Invi luxury theme: verify sections/invi-register-popup.liquid syntax, check schema JSON formatting, drawer z-index stacking contexts, and mobile responsive layout consistency."
+        });
+        this.registerJob({
+          id: "HOURLY_REVENUE_PIPELINE_MONITOR",
+          name: "Hourly Luxury Goods & Revenue Pipeline Monitor",
+          cronExpression: "0 * * * *",
+          specialist: "midas",
+          directive: "Track e-commerce luxury consumer goods pricing, conversion funnels, currency exchange velocity, and identify high-yield profit opportunities."
+        });
+        this.registerJob({
+          id: "CONTINUOUS_CYBER_DEFENSE_SWEEP",
+          name: "Continuous Cyber Threat & Secret Leakage Defense",
+          cronExpression: "0 */4 * * *",
+          specialist: "aegis",
+          directive: "Audit environment keys, verify zero-trust perimeter, inspect git diffs for leaked secrets, and verify API token quota health."
+        });
+        this.registerJob({
+          id: "WORKFLOW_AUTOMATION_SYNC",
+          name: "Autonomous Workflow & n8n Pipeline Sync",
+          cronExpression: "30 */6 * * *",
+          specialist: "vortex",
+          directive: "Verify automated webhook handlers, Shopify order dispatch pipelines, and external API connectors."
+        });
+      }
+      /**
+       * Register or replace a scheduled cron job
+       */
+      registerJob(spec) {
+        const nextRun = this.calculateNextRun(spec.cronExpression);
+        const job = {
+          ...spec,
+          nextRun
+        };
+        this.jobs.set(spec.id, job);
+        return job;
+      }
+      getJob(id) {
+        return this.jobs.get(id);
+      }
+      listJobs() {
+        return Array.from(this.jobs.values());
+      }
+      /**
+       * Simple Cron Parser to compute next execution timestamp
+       */
+      calculateNextRun(cronExpression, fromDate = /* @__PURE__ */ new Date()) {
+        const parts = cronExpression.trim().split(/\s+/);
+        if (parts.length < 5) {
+          return fromDate.getTime() + 60 * 60 * 1e3;
+        }
+        const [minExp, hourExp] = parts;
+        if (hourExp.startsWith("*/")) {
+          const step = parseInt(hourExp.replace("*/", ""), 10) || 6;
+          const next2 = new Date(fromDate);
+          next2.setUTCMinutes(0, 0, 0);
+          const currentUTCHour = next2.getUTCHours();
+          const nextHour = (Math.floor(currentUTCHour / step) + 1) * step;
+          next2.setUTCHours(nextHour);
+          return next2.getTime();
+        }
+        const targetMin = parseInt(minExp, 10) || 0;
+        const targetHour = parseInt(hourExp, 10) || 0;
+        const next = new Date(Date.UTC(
+          fromDate.getUTCFullYear(),
+          fromDate.getUTCMonth(),
+          fromDate.getUTCDate(),
+          targetHour,
+          targetMin,
+          0,
+          0
+        ));
+        if (next.getTime() <= fromDate.getTime()) {
+          next.setUTCDate(next.getUTCDate() + 1);
+        }
+        return next.getTime();
+      }
+      /**
+       * Execute a scheduled job immediately with non-overlapping lock
+       */
+      async executeJob(jobId) {
+        const job = this.jobs.get(jobId);
+        if (!job) {
+          throw new Error(`Job ${jobId} not found in AutonomousScheduler.`);
+        }
+        if (this.executingJobs.has(jobId)) {
+          console.warn(`\u{1F512} [AutonomousScheduler] Job ${jobId} is already executing. Skipping duplicate execution.`);
+          return { success: false, latencyMs: 0, summary: "Job already locked/executing." };
+        }
+        this.executingJobs.add(jobId);
+        const startTime = Date.now();
+        console.log(`\u23F1\uFE0F [AutonomousScheduler] Executing routine [${job.id}] via ${job.specialist.toUpperCase()}: "${job.directive}"`);
+        try {
+          const result = await executeAutonomousTask(job.directive, job.specialist);
+          const latencyMs = Date.now() - startTime;
+          const status = result.success ? "SUCCESS" : "FAILED";
+          const summary = result.finalResponse || "Routine completed successfully.";
+          job.lastRun = Date.now();
+          job.lastStatus = status;
+          job.lastLatencyMs = latencyMs;
+          job.lastSummary = summary;
+          job.nextRun = this.calculateNextRun(job.cronExpression);
+          await telegramNotifier.sendSwarmUpdate(job.specialist, job.name, status, latencyMs, summary).catch(() => {
+          });
+          return { success: result.success, latencyMs, summary };
+        } catch (err) {
+          const latencyMs = Date.now() - startTime;
+          const summary = `Execution error: ${err?.message || err}`;
+          job.lastRun = Date.now();
+          job.lastStatus = "FAILED";
+          job.lastLatencyMs = latencyMs;
+          job.lastSummary = summary;
+          job.nextRun = this.calculateNextRun(job.cronExpression);
+          await telegramNotifier.sendSwarmUpdate(job.specialist, job.name, "FAILED", latencyMs, summary).catch(() => {
+          });
+          return { success: false, latencyMs, summary };
+        } finally {
+          this.executingJobs.delete(jobId);
+        }
+      }
+      /**
+       * Scheduler tick: checks for due jobs
+       */
+      async tick() {
+        const now = Date.now();
+        for (const job of this.jobs.values()) {
+          if (now >= job.nextRun && !this.executingJobs.has(job.id)) {
+            this.executeJob(job.id).catch((err) => {
+              console.error(`\u26A0\uFE0F [AutonomousScheduler] Background execution error on ${job.id}:`, err?.message || err);
+            });
+          }
+        }
+      }
+      /**
+       * Start 24x7 scheduler loop
+       */
+      start(intervalMs = 15e3) {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        this.ticker = setInterval(() => {
+          this.tick().catch(() => {
+          });
+        }, intervalMs);
+        if (this.ticker && typeof this.ticker.unref === "function") {
+          this.ticker.unref();
+        }
+        console.log("\u26A1 [AutonomousScheduler] 24x7 Swarm Autonomous Scheduler running.");
+      }
+      /**
+       * Stop scheduler loop
+       */
+      stop() {
+        this.isRunning = false;
+        if (this.ticker) {
+          clearInterval(this.ticker);
+          this.ticker = null;
+        }
+        console.log("\u{1F6D1} [AutonomousScheduler] Scheduler stopped.");
+      }
+      getIsRunning() {
+        return this.isRunning;
+      }
+    };
+    swarmAutonomousScheduler = SwarmAutonomousScheduler.getInstance();
+  }
+});
+
 // src/storage/ObjectStore.ts
 var ObjectStore_exports = {};
 __export(ObjectStore_exports, {
@@ -28173,7 +28396,7 @@ var ConversationOS = class {
     if (!raw2) return "";
     let text = raw2.trim();
     text = text.replace(/\b(jervis|jarviz|javis|charvis|jarves|jarvez|zarvis|service)\b/gi, "jarvis").replace(/\b(fiday|fredy|fridy|fridey|frieday|fry day|fraiday)\b/gi, "friday").replace(/\b(rafel|rafeal|rafaell|raphail|raphle|ruffle|rough file|rafael)\b/gi, "raphael").replace(/\b(egis|agis|aegiss|aeges|ages|ageless|aygis|eygis|edges)\b/gi, "aegis").replace(/\b(medas|mides|midaz|midass|my does|minus|mydas|midus|my das|might as)\b/gi, "midas").replace(/\b(vortx|votex|fortex|vertex|war tax|what acts|vortax|vortecks|four text|wortex)\b/gi, "vortex").replace(/\b(cerebro|cerbro|cerebero|saribro|seribro)\b/gi, "cerebro");
-    text = text.replace(/\b(reveue|revenu|revnu|revnue|revanue|financial|finance)\b/gi, "revenue").replace(/\b(bunties|boundy|bountis)\b/gi, "bounties").replace(/\b(projets|projet|progect|invy store|invee store|clothing store|invy|envi|inve)\b/gi, "projects").replace(/\b(taskes|taks|taskss|lead task|lead tasks|lead-tasks|task page|tasks page|active task|active tasks)\b/gi, "tasks").replace(/\b(syber|cybr|sheeld|fierwal)\b/gi, "cyber").replace(/\b(code lap|kodlab|code labs|studio|ide|workbench)\b/gi, "codlab").replace(/\b(automashun|automasion|workflow|workflows|n8n)\b/gi, "automations");
+    text = text.replace(/\b(reveue|revenu|revnu|revnue|revanue|financial|finance)\b/gi, "revenue").replace(/\b(bunties|boundy|bountis)\b/gi, "bounties").replace(/\b(projets|projet|progect|invy store|invee store|clothing store|invy|envi|inve)\b/gi, "projects").replace(/\b(taskes|taks|taskss|lead task|lead tasks|lead-tasks|task page|tasks page|active task|active tasks)\b/gi, "tasks").replace(/\b(syber|cybr|sheeld|fierwal)\b/gi, "cyber").replace(/\b(code lap|kodlab|code labs|studio|ide|workbench)\b/gi, "codlab").replace(/\b(automashun|automasion|workflow|workflows|n8n)\b/gi, "automations").replace(/\b(popup|pop up|register pop|reg popup|register-popup)\b/gi, "register popup").replace(/\b(teme|teem|theam|theem)\s+audit\b/gi, "theme audit");
     return text;
   }
   static processUserSpeech(transcript) {
@@ -33653,6 +33876,29 @@ app.post("/swarm/execute", async (c) => {
     return c.json({ ok: false, error: err?.message || "Swarm tool execution failed" }, 500);
   }
 });
+app.get("/swarm/scheduler/jobs", async (c) => {
+  try {
+    const { swarmAutonomousScheduler: swarmAutonomousScheduler2 } = await Promise.resolve().then(() => (init_AutonomousScheduler2(), AutonomousScheduler_exports));
+    const jobs = swarmAutonomousScheduler2.listJobs();
+    return c.json({ ok: true, count: jobs.length, jobs });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || "Failed to list autonomous jobs" }, 500);
+  }
+});
+app.post("/swarm/scheduler/run", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const jobId = String(body?.jobId || "").trim();
+    if (!jobId) {
+      return c.json({ ok: false, error: "jobId is required" }, 400);
+    }
+    const { swarmAutonomousScheduler: swarmAutonomousScheduler2 } = await Promise.resolve().then(() => (init_AutonomousScheduler2(), AutonomousScheduler_exports));
+    const result = await swarmAutonomousScheduler2.executeJob(jobId);
+    return c.json({ ok: true, jobId, ...result });
+  } catch (err) {
+    return c.json({ ok: false, error: err?.message || "Failed to execute autonomous job" }, 500);
+  }
+});
 app.get("/voice/profiles", async (c) => {
   return c.json({
     ok: true,
@@ -37824,192 +38070,7 @@ function stopTelegramBotListener() {
 init_voiceGateway();
 init_androidBridgeService();
 init_ModelRouter();
-
-// src/swarm/engine/AutonomousScheduler.ts
-init_AgentLoop();
-init_telegramNotifier();
-var SwarmAutonomousScheduler = class _SwarmAutonomousScheduler {
-  static instance;
-  jobs = /* @__PURE__ */ new Map();
-  executingJobs = /* @__PURE__ */ new Set();
-  ticker = null;
-  isRunning = false;
-  static getInstance() {
-    if (!_SwarmAutonomousScheduler.instance) {
-      _SwarmAutonomousScheduler.instance = new _SwarmAutonomousScheduler();
-    }
-    return _SwarmAutonomousScheduler.instance;
-  }
-  constructor() {
-    this.registerDefaultJobs();
-  }
-  /**
-   * Register default sovereign autonomous routines
-   */
-  registerDefaultJobs() {
-    this.registerJob({
-      id: "NIGHTLY_REPO_INTEGRITY_SCAN",
-      name: "Nightly Repository & Cyber Integrity Scan",
-      cronExpression: "30 20 * * *",
-      specialist: "aegis",
-      directive: "Inspect git working tree, execute test suite, audit code syntax, and compile status report."
-    });
-    this.registerJob({
-      id: "MORNING_EXECUTIVE_BRIEF",
-      name: "Morning Executive Brief & Market Intel",
-      cronExpression: "30 2 * * *",
-      specialist: "friday",
-      directive: "Fetch live currency exchange rates (USD/INR), crypto market overview via Treg public routes, check server uptime, and summarize daily briefing."
-    });
-    this.registerJob({
-      id: "SYSTEM_HEALTH_HEARTBEAT",
-      name: "System Health Heartbeat & Memory Audit",
-      cronExpression: "0 */6 * * *",
-      specialist: "raphael",
-      directive: "Audit SessionMemoryManager entries, check API failover health, and prune expired temporary logs."
-    });
-  }
-  /**
-   * Register or replace a scheduled cron job
-   */
-  registerJob(spec) {
-    const nextRun = this.calculateNextRun(spec.cronExpression);
-    const job = {
-      ...spec,
-      nextRun
-    };
-    this.jobs.set(spec.id, job);
-    return job;
-  }
-  getJob(id) {
-    return this.jobs.get(id);
-  }
-  listJobs() {
-    return Array.from(this.jobs.values());
-  }
-  /**
-   * Simple Cron Parser to compute next execution timestamp
-   */
-  calculateNextRun(cronExpression, fromDate = /* @__PURE__ */ new Date()) {
-    const parts = cronExpression.trim().split(/\s+/);
-    if (parts.length < 5) {
-      return fromDate.getTime() + 60 * 60 * 1e3;
-    }
-    const [minExp, hourExp] = parts;
-    if (hourExp.startsWith("*/")) {
-      const step = parseInt(hourExp.replace("*/", ""), 10) || 6;
-      const next2 = new Date(fromDate);
-      next2.setUTCMinutes(0, 0, 0);
-      const currentUTCHour = next2.getUTCHours();
-      const nextHour = (Math.floor(currentUTCHour / step) + 1) * step;
-      next2.setUTCHours(nextHour);
-      return next2.getTime();
-    }
-    const targetMin = parseInt(minExp, 10) || 0;
-    const targetHour = parseInt(hourExp, 10) || 0;
-    const next = new Date(Date.UTC(
-      fromDate.getUTCFullYear(),
-      fromDate.getUTCMonth(),
-      fromDate.getUTCDate(),
-      targetHour,
-      targetMin,
-      0,
-      0
-    ));
-    if (next.getTime() <= fromDate.getTime()) {
-      next.setUTCDate(next.getUTCDate() + 1);
-    }
-    return next.getTime();
-  }
-  /**
-   * Execute a scheduled job immediately with non-overlapping lock
-   */
-  async executeJob(jobId) {
-    const job = this.jobs.get(jobId);
-    if (!job) {
-      throw new Error(`Job ${jobId} not found in AutonomousScheduler.`);
-    }
-    if (this.executingJobs.has(jobId)) {
-      console.warn(`\u{1F512} [AutonomousScheduler] Job ${jobId} is already executing. Skipping duplicate execution.`);
-      return { success: false, latencyMs: 0, summary: "Job already locked/executing." };
-    }
-    this.executingJobs.add(jobId);
-    const startTime = Date.now();
-    console.log(`\u23F1\uFE0F [AutonomousScheduler] Executing routine [${job.id}] via ${job.specialist.toUpperCase()}: "${job.directive}"`);
-    try {
-      const result = await executeAutonomousTask(job.directive, job.specialist);
-      const latencyMs = Date.now() - startTime;
-      const status = result.success ? "SUCCESS" : "FAILED";
-      const summary = result.finalResponse || "Routine completed successfully.";
-      job.lastRun = Date.now();
-      job.lastStatus = status;
-      job.lastLatencyMs = latencyMs;
-      job.lastSummary = summary;
-      job.nextRun = this.calculateNextRun(job.cronExpression);
-      await telegramNotifier.sendSwarmUpdate(job.specialist, job.name, status, latencyMs, summary).catch(() => {
-      });
-      return { success: result.success, latencyMs, summary };
-    } catch (err) {
-      const latencyMs = Date.now() - startTime;
-      const summary = `Execution error: ${err?.message || err}`;
-      job.lastRun = Date.now();
-      job.lastStatus = "FAILED";
-      job.lastLatencyMs = latencyMs;
-      job.lastSummary = summary;
-      job.nextRun = this.calculateNextRun(job.cronExpression);
-      await telegramNotifier.sendSwarmUpdate(job.specialist, job.name, "FAILED", latencyMs, summary).catch(() => {
-      });
-      return { success: false, latencyMs, summary };
-    } finally {
-      this.executingJobs.delete(jobId);
-    }
-  }
-  /**
-   * Scheduler tick: checks for due jobs
-   */
-  async tick() {
-    const now = Date.now();
-    for (const job of this.jobs.values()) {
-      if (now >= job.nextRun && !this.executingJobs.has(job.id)) {
-        this.executeJob(job.id).catch((err) => {
-          console.error(`\u26A0\uFE0F [AutonomousScheduler] Background execution error on ${job.id}:`, err?.message || err);
-        });
-      }
-    }
-  }
-  /**
-   * Start 24x7 scheduler loop
-   */
-  start(intervalMs = 15e3) {
-    if (this.isRunning) return;
-    this.isRunning = true;
-    this.ticker = setInterval(() => {
-      this.tick().catch(() => {
-      });
-    }, intervalMs);
-    if (this.ticker && typeof this.ticker.unref === "function") {
-      this.ticker.unref();
-    }
-    console.log("\u26A1 [AutonomousScheduler] 24x7 Swarm Autonomous Scheduler running.");
-  }
-  /**
-   * Stop scheduler loop
-   */
-  stop() {
-    this.isRunning = false;
-    if (this.ticker) {
-      clearInterval(this.ticker);
-      this.ticker = null;
-    }
-    console.log("\u{1F6D1} [AutonomousScheduler] Scheduler stopped.");
-  }
-  getIsRunning() {
-    return this.isRunning;
-  }
-};
-var swarmAutonomousScheduler = SwarmAutonomousScheduler.getInstance();
-
-// server.tsx
+init_AutonomousScheduler2();
 init_telegramNotifier();
 if (typeof dns2.setDefaultResultOrder === "function") {
   dns2.setDefaultResultOrder("ipv4first");

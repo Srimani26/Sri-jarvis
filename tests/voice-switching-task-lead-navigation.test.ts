@@ -93,6 +93,40 @@ describe('Voice Persona Switching, Auto-Lead Task Dispatch & Tab Navigation Suit
       assert.strictEqual(ConversationOS.normalizePhoneticUtterance('open lead-tasks'), 'open tasks')
       assert.strictEqual(ConversationOS.normalizePhoneticUtterance('check invy store'), 'check projects')
       assert.strictEqual(ConversationOS.normalizePhoneticUtterance('egis scan fierwal'), 'aegis scan cyber')
+      assert.strictEqual(ConversationOS.normalizePhoneticUtterance('run teem audit'), 'run theme audit')
+      assert.strictEqual(ConversationOS.normalizePhoneticUtterance('check reg popup'), 'check register popup')
+    })
+  })
+
+  describe('5. Autonomous Claude Co-Worker Engine & Zero-Touch Routines', () => {
+    it('should register all sovereign co-worker routines in AutonomousScheduler', async () => {
+      const { SwarmAutonomousScheduler } = await import('../src/swarm/engine/AutonomousScheduler')
+      const scheduler = SwarmAutonomousScheduler.getInstance()
+      const jobs = scheduler.listJobs()
+
+      const jobIds = jobs.map(j => j.id)
+      assert.ok(jobIds.includes('DAILY_INVI_STORE_THEME_AUDIT'), 'Must include Daily Invi theme audit')
+      assert.ok(jobIds.includes('HOURLY_REVENUE_PIPELINE_MONITOR'), 'Must include Hourly revenue monitor')
+      assert.ok(jobIds.includes('CONTINUOUS_CYBER_DEFENSE_SWEEP'), 'Must include Cyber defense sweep')
+      assert.ok(jobIds.includes('WORKFLOW_AUTOMATION_SYNC'), 'Must include Workflow automation sync')
+      assert.ok(jobIds.includes('MORNING_EXECUTIVE_BRIEF'), 'Must include Morning executive brief')
+    })
+
+    it('should map co-worker specialists to their respective domains', async () => {
+      const { SwarmAutonomousScheduler } = await import('../src/swarm/engine/AutonomousScheduler')
+      const scheduler = SwarmAutonomousScheduler.getInstance()
+
+      const inviJob = scheduler.getJob('DAILY_INVI_STORE_THEME_AUDIT')
+      assert.strictEqual(inviJob?.specialist, 'raphael', 'Raphael must lead UI & Liquid architecture')
+
+      const revJob = scheduler.getJob('HOURLY_REVENUE_PIPELINE_MONITOR')
+      assert.strictEqual(revJob?.specialist, 'midas', 'Midas must lead revenue monitoring')
+
+      const secJob = scheduler.getJob('CONTINUOUS_CYBER_DEFENSE_SWEEP')
+      assert.strictEqual(secJob?.specialist, 'aegis', 'Aegis must lead cyber security')
+
+      const flowJob = scheduler.getJob('WORKFLOW_AUTOMATION_SYNC')
+      assert.strictEqual(flowJob?.specialist, 'vortex', 'Vortex must lead automation pipelines')
     })
   })
 })

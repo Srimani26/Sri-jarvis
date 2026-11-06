@@ -446,7 +446,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [continuousMode, setContinuousMode] = useState(false) // Strictly false: mic stays OFF after playback
+  const [continuousMode, setContinuousMode] = useState(true) // Continuous mode default true for zero-touch interaction
   const [isSleeping, setIsSleeping] = useState(false) // Rest / Sleep mode
   const [deepseekMode, setDeepseekMode] = useState(true) // DeepSeek Harness Reasoning
   const [sovereignLock, setSovereignLock] = useState(true) // Biometric Voiceprint Lock
@@ -482,7 +482,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
   const silenceDebounceTimerRef = useRef<any>(null)
   const maxRecordingTimerRef = useRef<any>(null)
   const sovereignLockRef = useRef(true)
-  const continuousModeRef = useRef(false)
+  const continuousModeRef = useRef(true)
   const recognitionRef = useRef<any>(null)
   const voiceWsRef = useRef<WebSocket | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -652,6 +652,13 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           setActiveAgent(AGENTS[initialAgentId])
           activeAgentRef.current = AGENTS[initialAgentId]
           localStorage.removeItem('jarvis_initial_agent')
+        }
+        const initialCommand = localStorage.getItem('jarvis_initial_command')
+        if (initialCommand) {
+          localStorage.removeItem('jarvis_initial_command')
+          setTimeout(() => {
+            processCommand(initialCommand)
+          }, 900)
         }
       } catch {}
 
@@ -1415,6 +1422,29 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     conversationHistoryRef.current.push({ role: 'user', content: cmd })
     if (conversationHistoryRef.current.length > 30) conversationHistoryRef.current.shift()
 
+    // 0.0 CHECK FOR HANDS-FREE EXIT / DISMISS
+    if (
+      lower === 'close' ||
+      lower === 'close modal' ||
+      lower === 'close voice' ||
+      lower === 'dismiss' ||
+      lower === 'exit' ||
+      lower === 'goodbye' ||
+      lower === 'good bye' ||
+      lower === 'bye jarvis' ||
+      lower === 'see you later' ||
+      lower === 'stop listening'
+    ) {
+      const farewell = 'At your command, Master Sri. Returning to background ear.'
+      setJarvisResponse(farewell)
+      speakVoice(farewell, activeAgentRef.current?.lang || 'en-GB', () => {
+        onClose()
+      })
+      setTimeout(() => onClose(), 1200)
+      setIsProcessing(false)
+      return
+    }
+
     // 0. CHECK FOR REST / SLEEP COMMAND
     if (
       lower === 'no' ||
@@ -1543,6 +1573,56 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       setTimeout(() => {
         onClose()
       }, 1000)
+      return
+    }
+
+    // 0.35 AUTONOMOUS CLAUDE CO-WORKER ROUTINES (Theme Audit, Revenue Scan, Cyber Sweep, Daily Brief)
+    const isThemeAudit = /\b(audit my theme|theme audit|inspect theme|audit invi|invi audit|inspect register popup|check liquid)\b/i.test(lower)
+    const isRevenueScan = /\b(revenue scan|check revenue|revenue pipeline|run revenue sweep|market scan)\b/i.test(lower)
+    const isCyberSweep = /\b(cyber sweep|security audit|scan security|cyber defense scan|check secrets)\b/i.test(lower)
+    const isDailyBrief = /\b(daily brief|morning brief|executive brief|give me the brief|brief me)\b/i.test(lower)
+
+    if (isThemeAudit || isRevenueScan || isCyberSweep || isDailyBrief) {
+      let jobId = 'DAILY_INVI_STORE_THEME_AUDIT'
+      let agentKey = 'raphael'
+      let announce = 'Executing autonomous Invi theme and register popup audit across Liquid templates, Master Sri.'
+      
+      if (isRevenueScan) {
+        jobId = 'HOURLY_REVENUE_PIPELINE_MONITOR'
+        agentKey = 'midas'
+        announce = 'Midas executing autonomous luxury goods revenue and capital velocity sweep, Master Sri.'
+      } else if (isCyberSweep) {
+        jobId = 'CONTINUOUS_CYBER_DEFENSE_SWEEP'
+        agentKey = 'aegis'
+        announce = 'Aegis executing autonomous zero-trust cyber defense and secret scan, Master Sri.'
+      } else if (isDailyBrief) {
+        jobId = 'MORNING_EXECUTIVE_BRIEF'
+        agentKey = 'friday'
+        announce = 'Friday synthesizing full morning executive briefing and telemetry report, Master Sri.'
+      }
+
+      const swAgent = AGENTS[agentKey] || AGENTS.jarvis
+      setActiveAgent(swAgent)
+      activeAgentRef.current = swAgent
+      playJarvisChime('execute')
+      setJarvisResponse(`### ⚡ Autonomous Co-Worker Routine Dispatched\n- **Routine**: \`${jobId}\`\n- **Lead Specialist**: ${swAgent.name}\n- **Status**: Executing autonomously in background...`)
+      speakVoice(announce, swAgent.lang || 'en-GB', undefined, swAgent.id)
+
+      fetch('/api/swarm/scheduler/run', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({ jobId })
+      }).then(r => r.json()).then(data => {
+        if (data.ok) {
+          const completionSpeech = `Routine ${jobId} complete. ${data.summary || 'All checks passed cleanly.'}`
+          setJarvisResponse(`### 🎯 Routine Completed: ${jobId}\n**Latency**: ${data.latencyMs}ms\n\n${data.summary}`)
+          speakVoice(completionSpeech, swAgent.lang || 'en-GB', undefined, swAgent.id)
+        }
+      }).catch(err => {
+        console.error('Co-worker execution error:', err)
+      })
+
+      setIsProcessing(false)
       return
     }
 

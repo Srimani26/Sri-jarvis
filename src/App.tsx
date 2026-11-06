@@ -221,12 +221,16 @@ export default function App() {
   // Auto-welcome managed exclusively by voice transceiver
 
   const [sovereignAwakened, setSovereignAwakened] = useState(true)
+  const [ambientActive, setAmbientActive] = useState(true)
 
-  const handleOpenVoiceComms = (agentId?: string) => {
+  const handleOpenVoiceComms = (agentId?: string, initialDirective?: string) => {
     primeAudioPlayback()
     playJarvisChime('wake')
     if (agentId) {
       try { localStorage.setItem('jarvis_initial_agent', agentId) } catch {}
+    }
+    if (initialDirective) {
+      try { localStorage.setItem('jarvis_initial_command', initialDirective) } catch {}
     }
     setVoiceModalOpen(true)
   }
@@ -244,7 +248,8 @@ export default function App() {
   useEffect(() => {
     const handler = (e: any) => {
       const agentId = e.detail?.agentId
-      handleOpenVoiceComms(agentId)
+      const directive = e.detail?.directive
+      handleOpenVoiceComms(agentId, directive)
     }
     window.addEventListener('open-jarvis-voice', handler)
     return () => window.removeEventListener('open-jarvis-voice', handler)
@@ -266,9 +271,7 @@ export default function App() {
 
   // OpenJarvis Untouched Hands-Free Ambient Wake-Word Listener (Zero Touch Activation)
   useEffect(() => {
-    // Dormant on dashboard to prevent OS microphone beeps and device thrashing; wakes via Voice HUD
-    const ambientEnabled = false
-    if (!ambientEnabled || !token || voiceModalOpen) return
+    if (!ambientActive || !token || voiceModalOpen) return
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
 
@@ -288,26 +291,49 @@ export default function App() {
           for (let i = event.resultIndex; i < event.results.length; i++) {
             phrase += (event.results[i][0]?.transcript || '') + ' '
           }
-          const lower = phrase.toLowerCase().trim()
+          let lower = phrase.toLowerCase().trim()
+          lower = ConversationOS.normalizePhoneticUtterance(lower)
 
-          // Detect agent triggers untouched
+          // 1. Detect agent triggers untouched
           let matchedAgent: string | null = null
           if (/\b(hey friday|friday|f\.r\.i\.d\.a\.y)\b/i.test(lower)) matchedAgent = 'friday'
           else if (/\b(hey midas|midas|my does)\b/i.test(lower)) matchedAgent = 'midas'
           else if (/\b(hey aegis|aegis|a just)\b/i.test(lower)) matchedAgent = 'aegis'
           else if (/\b(hey raphael|raphael|lord of wisdom)\b/i.test(lower)) matchedAgent = 'raphael'
           else if (/\b(hey vortex|vortex)\b/i.test(lower)) matchedAgent = 'vortex'
+          else if (/\b(hey cerebro|cerebro)\b/i.test(lower)) matchedAgent = 'cerebro'
           else if (/\b(hey jarvis|hello jarvis|jarvis|drivers|wake up)\b/i.test(lower)) matchedAgent = 'jarvis'
 
           if (matchedAgent) {
+            // Extract trailing instruction in single breath
+            const remainder = lower
+              .replace(/^(hey|hello|hi|ok)?\s*(jarvis|friday|midas|aegis|raphael|vortex|cerebro|drivers|wake\s+up)[,\s:]*/i, '')
+              .trim()
+
+            // 1.1 Direct Zero-Touch Tab Navigation (without even opening modal)
+            const navMatch = remainder.match(/(?:go to|open|switch to|take me to|navigate to|show)\s+(tasks|lead tasks|lead task|lead-tasks|revenue|projects|invi|storage|chat|swarms|cyber|apis|codlab|automations|techrader|knowledge|inbox)\b/i)
+            if (navMatch && navMatch[1]) {
+              let targetTab = navMatch[1].toLowerCase()
+              if (targetTab.includes('task')) targetTab = 'tasks'
+              else if (targetTab.includes('invi') || targetTab.includes('project')) targetTab = 'projects'
+              
+              try { recognition.abort() } catch {}
+              setActiveTab(targetTab)
+              playJarvisChime('execute')
+              playNeuralSpeech(`Switching to ${targetTab}, Master Sri.`, 'en-GB', undefined, undefined, undefined, matchedAgent)
+              setTimeout(initWakeRecognition, 1800)
+              return
+            }
+
+            // 1.2 Direct Zero-Touch Task Dispatch or Complex Voice Query
             try { recognition.abort() } catch {}
-            handleOpenVoiceComms(matchedAgent)
+            handleOpenVoiceComms(matchedAgent, remainder || undefined)
           }
         }
 
         recognition.onerror = () => {}
         recognition.onend = () => {
-          if (!isStopped && !voiceModalOpen && typeof document !== 'undefined' && !document.hidden) {
+          if (!isStopped && !voiceModalOpen && typeof document !== 'undefined' && !document.hidden && ambientActive) {
             setTimeout(initWakeRecognition, 1200)
           }
         }
@@ -318,7 +344,7 @@ export default function App() {
     const onVisibilityChange = () => {
       if (document.hidden) {
         try { recognition?.abort() } catch {}
-      } else if (!voiceModalOpen) {
+      } else if (!voiceModalOpen && ambientActive) {
         setTimeout(initWakeRecognition, 1000)
       }
     }
@@ -331,7 +357,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', onVisibilityChange)
       try { recognition?.abort() } catch {}
     }
-  }, [token, voiceModalOpen])
+  }, [token, voiceModalOpen, ambientActive])
 
   // Global Hands-Free Voice Navigation & Task Dispatcher
   useEffect(() => {
@@ -611,6 +637,21 @@ export default function App() {
             >
               <span className={cn("w-2 h-2 rounded-full", thermalState.isLowPowerMode ? "bg-emerald-400" : "bg-cyan-400 animate-pulse")} />
               <span>{thermalState.isLowPowerMode ? "ECO COLD" : "TURBO HUD"}</span>
+            </button>
+
+            {/* Zero-Touch Hands-Free Ambient Listener Pill */}
+            <button
+              onClick={() => setAmbientActive(!ambientActive)}
+              className={cn(
+                "hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-[11px] font-mono font-bold transition-all border cursor-pointer",
+                ambientActive
+                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  : "bg-slate-900/80 text-slate-500 border-slate-800"
+              )}
+              title={ambientActive ? "Zero-Touch Voice ACTIVE: Say 'Hey Jarvis', 'Friday', 'Midas', or 'Vortex' hands-free" : "Zero-Touch Voice PAUSED: Click to enable hands-free voice"}
+            >
+              <span className={cn("w-2 h-2 rounded-full", ambientActive ? "bg-emerald-400 animate-pulse" : "bg-slate-600")} />
+              <span>{ambientActive ? "HANDS-FREE: ACTIVE" : "HANDS-FREE: OFF"}</span>
             </button>
 
             {/* Direct Voice Comms Trigger */}
