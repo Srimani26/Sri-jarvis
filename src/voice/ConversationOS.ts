@@ -76,22 +76,23 @@ export class ConversationOS {
 
     // Agent Names Phonetic Normalization
     text = text
-      .replace(/\b(jervis|jarviz|javis|charvis|jarves|jarvez|zarvis)\b/gi, 'jarvis')
-      .replace(/\b(fiday|fredy|fridy|fridey|frieday)\b/gi, 'friday')
-      .replace(/\b(rafel|rafeal|rafaell|raphail|raphle)\b/gi, 'raphael')
-      .replace(/\b(egis|agis|aegiss|aeges)\b/gi, 'aegis')
-      .replace(/\b(medas|mides|midaz|midass)\b/gi, 'midas')
-      .replace(/\b(vortx|votex|fortex)\b/gi, 'vortex');
+      .replace(/\b(jervis|jarviz|javis|charvis|jarves|jarvez|zarvis|service)\b/gi, 'jarvis')
+      .replace(/\b(fiday|fredy|fridy|fridey|frieday|fry day|fraiday)\b/gi, 'friday')
+      .replace(/\b(rafel|rafeal|rafaell|raphail|raphle|ruffle|rough file|rafael)\b/gi, 'raphael')
+      .replace(/\b(egis|agis|aegiss|aeges|ages|ageless|aygis|eygis|edges)\b/gi, 'aegis')
+      .replace(/\b(medas|mides|midaz|midass|my does|minus|mydas|midus|my das|might as)\b/gi, 'midas')
+      .replace(/\b(vortx|votex|fortex|vertex|war tax|what acts|vortax|vortecks|four text|wortex)\b/gi, 'vortex')
+      .replace(/\b(cerebro|cerbro|cerebero|saribro|seribro)\b/gi, 'cerebro');
 
     // System Hubs & Operations Phonetic Normalization
     text = text
-      .replace(/\b(reveue|revenu|revnu|revnue|revanue)\b/gi, 'revenue')
+      .replace(/\b(reveue|revenu|revnu|revnue|revanue|financial|finance)\b/gi, 'revenue')
       .replace(/\b(bunties|boundy|bountis)\b/gi, 'bounties')
-      .replace(/\b(projets|projet|progect|invy|envi|inve|invee store)\b/gi, 'projects')
-      .replace(/\b(taskes|taks|taskss)\b/gi, 'tasks')
+      .replace(/\b(projets|projet|progect|invy store|invee store|clothing store|invy|envi|inve)\b/gi, 'projects')
+      .replace(/\b(taskes|taks|taskss|lead task|lead tasks|lead-tasks|task page|tasks page|active task|active tasks)\b/gi, 'tasks')
       .replace(/\b(syber|cybr|sheeld|fierwal)\b/gi, 'cyber')
-      .replace(/\b(code lap|kodlab|code labs)\b/gi, 'codlab')
-      .replace(/\b(automashun|automasion)\b/gi, 'automation');
+      .replace(/\b(code lap|kodlab|code labs|studio|ide|workbench)\b/gi, 'codlab')
+      .replace(/\b(automashun|automasion|workflow|workflows|n8n)\b/gi, 'automations');
 
     return text;
   }
@@ -172,23 +173,30 @@ export class ConversationOS {
 
     // Dynamic Multi-Agent Addressing & Specialty Routing
     let targetAgent = (persona || 'jarvis').toLowerCase();
-    if (/\b(friday|f\.r\.i\.d\.a\.y)\b/i.test(lower)) targetAgent = 'friday';
+    const switchMatch = lower.match(/\b(?:call|switch to|talk to|ask|bring up|connect me to|speak to|change to)\s+(vortex|midas|aegis|raphael|friday|cerebro|jarvis)\b/i);
+    if (switchMatch && switchMatch[1]) {
+      targetAgent = switchMatch[1].toLowerCase();
+    } else if (/\b(friday|f\.r\.i\.d\.a\.y)\b/i.test(lower)) targetAgent = 'friday';
     else if (/\b(raphael|lord of wisdom|great sage|sage)\b/i.test(lower)) targetAgent = 'raphael';
     else if (/\b(aegis)\b/i.test(lower)) targetAgent = 'aegis';
     else if (/\b(midas)\b/i.test(lower)) targetAgent = 'midas';
     else if (/\b(vortex)\b/i.test(lower)) targetAgent = 'vortex';
+    else if (/\b(cerebro)\b/i.test(lower)) targetAgent = 'cerebro';
     else if (/\b(jarvis)\b/i.test(lower)) targetAgent = 'jarvis';
 
     let assignedAgent = targetAgent;
 
     // Intelligent System Action Recognition
     let action: VoiceSystemAction | null = null;
-    if (/\b(build|deploy|create|generate|refactor|fix bug|audit code)\b/i.test(lower)) {
-      action = { type: 'create_task', taskTitle: cleanInput, agentId: targetAgent };
+    const isTaskDirective = /\b(build|deploy|create|generate|refactor|fix bug|audit code|implement|code an?|develop)\b/i.test(lower);
+    if (isTaskDirective) {
+      action = { type: 'create_task', taskTitle: cleanInput, agentId: targetAgent, targetTab: 'tasks' };
+    } else if (switchMatch && switchMatch[1]) {
+      action = { type: 'switch_agent', agentId: targetAgent };
     } else if (/\b(revenue|freelance|bounties|bounty|capital|money|earnings)\b/i.test(lower)) {
       action = { type: 'navigate', targetTab: 'revenue' };
       if (targetAgent === 'jarvis') targetAgent = 'midas';
-    } else if (/\b(active tasks|what are you doing|working on|show tasks|task progress|status of tasks|what's running)\b/i.test(lower)) {
+    } else if (/\b(tasks|lead tasks|task pipeline|what are you doing|working on|show tasks|task progress|status of tasks|what's running)\b/i.test(lower)) {
       action = { type: 'navigate', targetTab: 'tasks' };
     } else if (/\b(cyber|security|firewall|threat|lockdown|defend|scan threat|intrusion)\b/i.test(lower)) {
       action = { type: 'cyber_scan', targetTab: 'cyber' };
@@ -315,8 +323,23 @@ Voice Spoken Directives:
   }
 
   private static generateTacticalVoiceReply(query: string, agentId: string): string {
-    if (agentId === 'software_engineer') {
+    if (agentId === 'vortex') {
+      return `Vortex operational, Master Sri. Enterprise workflows, n8n swarms, and data pipelines standing by.`;
+    }
+    if (agentId === 'midas') {
+      return `Midas at your service, Master Sri. Trading intelligence, revenue pipelines, and capital velocity active.`;
+    }
+    if (agentId === 'raphael') {
+      return `Lord of Wisdom, Raphael, has initialized. Optimal calculation path established for Master Sri.`;
+    }
+    if (agentId === 'aegis') {
+      return `Aegis online, Master Sri. Full-stack compilers and cyber defense primed.`;
+    }
+    if (agentId === 'friday' || agentId === 'software_engineer') {
       return `Understood, Master Sri. Routing this directly to F.R.I.D.A.Y. for code execution and testing.`;
+    }
+    if (agentId === 'cerebro') {
+      return `Cerebro intelligence grid active, Master Sri. Technical documentation and deep research ready.`;
     }
     if (agentId === 'architect') {
       return `Analyzing system topology now. D.A.E.D.A.L.U.S. is mapping the architecture.`;

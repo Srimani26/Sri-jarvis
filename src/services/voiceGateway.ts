@@ -17,7 +17,7 @@ import type { Server as HttpServer } from 'node:http'
 import { swarmModelRouter } from '../swarm/engine/ModelRouter'
 import { isSoftwareBuildDirective } from './telegramNotifier'
 
-export type SpecialistAgent = 'jarvis' | 'aegis' | 'raphael' | 'friday'
+export type SpecialistAgent = 'jarvis' | 'aegis' | 'raphael' | 'friday' | 'vortex' | 'midas' | 'cerebro'
 
 export interface VoiceSessionState {
   id: string
@@ -192,8 +192,8 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
   }
 
   // 6. Specialist Persona Handoff Patterns
-  const handoffMatch = lower.match(/(?:call|switch to|ask|talk to)\s+(aegis|raphael|friday|jarvis)/i) ||
-    lower.match(/^(?:hey\s+)?(aegis|raphael|friday|jarvis)[,\s]/i)
+  const handoffMatch = lower.match(/(?:call|switch to|ask|talk to|connect me to|speak to|bring up)\s+(aegis|raphael|friday|vortex|midas|cerebro|jarvis)/i) ||
+    lower.match(/^(?:hey\s+)?(aegis|raphael|friday|vortex|midas|cerebro|jarvis)[,\s]/i)
   if (handoffMatch && handoffMatch[1]) {
     const matchedAgent = handoffMatch[1].toLowerCase() as SpecialistAgent
     let ack = ''
@@ -203,6 +203,12 @@ export function parseVoiceIntent(rawText: string, currentAgent: SpecialistAgent)
       ack = 'Raphael awakened. DeepSeek logic core initialized for your inquiry, Master Sri.'
     } else if (matchedAgent === 'friday') {
       ack = 'Friday here, boss! Executive reconnaissance ready at your word.'
+    } else if (matchedAgent === 'vortex') {
+      ack = 'Vortex operational, Master Sri. Enterprise workflows, n8n swarms, and data pipelines standing by.'
+    } else if (matchedAgent === 'midas') {
+      ack = 'Midas at your service, Master Sri. Trading intelligence, revenue pipelines, and capital velocity active.'
+    } else if (matchedAgent === 'cerebro') {
+      ack = 'Cerebro intelligence grid active, Master Sri. Technical documentation and deep research ready.'
     } else {
       ack = 'J.A.R.V.I.S. resumed. High command channel cleared, Master Sri.'
     }

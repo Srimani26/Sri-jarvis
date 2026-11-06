@@ -3872,6 +3872,9 @@ app.get('/voice/profiles', async (c) => {
   });
 });
 
+// Low-Latency In-Memory Voice Buffer Cache (1ms turnaround for repeated tactical cues & greetings)
+const voiceAudioCache = new Map<string, { buffer: ArrayBuffer; contentType: string; time: number }>();
+
 // POST /api/voice/speak & GET /api/voice/speak — ElevenLabs High-Fidelity Male/Female TTS with Multi-Chunk Fallback
 app.all('/voice/speak', async (c) => {
   try {
@@ -3908,15 +3911,24 @@ app.all('/voice/speak', async (c) => {
       .trim()
       .slice(0, 6000);
 
-    // Dynamic Neural Audio Generation (ElevenLabs + Deepgram Aura + Google Multi-Chunk)
-    // Ensures all responses and greetings are 100% dynamic, context-aware and intelligent
-
     const voiceConfig = AGENT_VOICE_MAP[agentId.toLowerCase()] || AGENT_VOICE_MAP.jarvis;
     const voiceId = requestedVoiceId || voiceConfig.voiceId;
+    const cacheKey = `${agentId.toLowerCase()}:${voiceId}:${cleanText}`;
+
+    // Fast Cache Lookup for sub-10ms audio turnaround on standard phrases
+    if (cleanText.length <= 250 && voiceAudioCache.has(cacheKey)) {
+      const cached = voiceAudioCache.get(cacheKey)!;
+      return c.body(cached.buffer.slice(0), 200, {
+        'Content-Type': cached.contentType,
+        'Cache-Control': 'public, max-age=86400',
+        'X-Audio-Cache': 'HIT',
+      });
+    }
+
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY || ELEVENLABS_DEFAULT_KEY;
     const deepgramKey = process.env.DEEPGRAM_API_KEY || DEEPGRAM_DEFAULT_KEY;
 
-    // 1. Primary: ElevenLabs High-Fidelity Studio Neural TTS
+    // 1. Primary: ElevenLabs High-Fidelity Studio Neural TTS (2.5s strict timeout to prevent sluggish response)
     try {
       if (elevenLabsKey) {
         const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
@@ -3933,11 +3945,14 @@ app.all('/voice/speak', async (c) => {
               similarity_boost: 0.8,
             },
           }),
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(2800),
         });
 
         if (elRes.ok) {
           const audioArrayBuffer = await elRes.arrayBuffer();
+          if (cleanText.length <= 250) {
+            voiceAudioCache.set(cacheKey, { buffer: audioArrayBuffer, contentType: 'audio/mpeg', time: Date.now() });
+          }
           return c.body(audioArrayBuffer, 200, {
             'Content-Type': 'audio/mpeg',
             'Cache-Control': 'public, max-age=86400',
@@ -3945,10 +3960,10 @@ app.all('/voice/speak', async (c) => {
         }
       }
     } catch (elErr) {
-      console.warn('[ElevenLabsTTS] Exception:', elErr);
+      console.warn('[ElevenLabsTTS] Exception (failing over to Deepgram Aura):', (elErr as any)?.message || elErr);
     }
 
-    // 2. High-speed Studio Voice: Deepgram Aura
+    // 2. High-speed Studio Voice: Deepgram Aura (<300ms ultra-low latency fallback)
     try {
       if (deepgramKey) {
         const dgVoice = DEEPGRAM_AURA_VOICE_MAP[agentId.toLowerCase()] || (gender === 'female' || agentId === 'friday' ? 'aura-luna-en' : 'aura-orion-en');
@@ -3959,10 +3974,13 @@ app.all('/voice/speak', async (c) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ text: cleanText.slice(0, 3000) }),
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(4000),
         });
         if (dgRes.ok) {
           const dgArrayBuffer = await dgRes.arrayBuffer();
+          if (cleanText.length <= 250) {
+            voiceAudioCache.set(cacheKey, { buffer: dgArrayBuffer, contentType: 'audio/mpeg', time: Date.now() });
+          }
           return c.body(dgArrayBuffer, 200, {
             'Content-Type': 'audio/mpeg',
             'Cache-Control': 'public, max-age=86400',

@@ -416,6 +416,23 @@ function cleanAndDeduplicateTranscript(raw: string): string {
     }
   }
 
+  // 5. Intelligent Phonetic Accent & STT Normalization for Agents and Hubs
+  text = text
+    .replace(/\b(jervis|jarviz|javis|charvis|jarves|jarvez|zarvis|service)\b/gi, 'jarvis')
+    .replace(/\b(fiday|fredy|fridy|fridey|frieday|fry day|fraiday)\b/gi, 'friday')
+    .replace(/\b(rafel|rafeal|rafaell|raphail|raphle|ruffle|rough file|rafael)\b/gi, 'raphael')
+    .replace(/\b(egis|agis|aegiss|aeges|ages|ageless|aygis|eygis|edges)\b/gi, 'aegis')
+    .replace(/\b(medas|mides|midaz|midass|my does|minus|mydas|midus|my das|might as)\b/gi, 'midas')
+    .replace(/\b(vortx|votex|fortex|vertex|war tax|what acts|vortax|vortecks|four text|wortex)\b/gi, 'vortex')
+    .replace(/\b(cerebro|cerbro|cerebero|saribro|seribro)\b/gi, 'cerebro')
+    .replace(/\b(reveue|revenu|revnu|revnue|revanue|financial|finance)\b/gi, 'revenue')
+    .replace(/\b(bunties|boundy|bountis)\b/gi, 'bounties')
+    .replace(/\b(projets|projet|progect|invy store|invee store|clothing store|invy|envi|inve)\b/gi, 'projects')
+    .replace(/\b(taskes|taks|taskss|lead task|lead tasks|lead-tasks|task page|tasks page|active task|active tasks)\b/gi, 'tasks')
+    .replace(/\b(syber|cybr|sheeld|fierwal)\b/gi, 'cyber')
+    .replace(/\b(code lap|kodlab|code labs|studio|ide|workbench)\b/gi, 'codlab')
+    .replace(/\b(automashun|automasion|workflow|workflows|n8n)\b/gi, 'automations');
+
   // Final single word stutter clean
   text = text.replace(/\b([\w']+)(?:\s+\1\b)+/gi, '$1')
   return text.replace(/\s+/g, ' ').trim()
@@ -1436,6 +1453,99 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       return
     }
 
+    // 0.2 IMMEDIATE AGENT CALL / HANDOFF SWITCHING (e.g. "call vortex", "call midas", "switch to raphael", "talk to friday")
+    const agentHandoffMatch = lower.match(/(?:call|switch to|talk to|ask|bring up|connect me to|speak to|change to)\s+(jarvis|friday|raphael|aegis|vortex|midas|cerebro)\b/i) ||
+      lower.match(/^(?:hey\s+)?(vortex|midas|aegis|raphael|friday|cerebro|jarvis)[,\s:]*$/i)
+
+    if (agentHandoffMatch) {
+      const rawAgentName = (agentHandoffMatch[1] || '').toLowerCase()
+      const nextAgent = AGENTS[rawAgentName] || AGENTS.jarvis
+      setActiveAgent(nextAgent)
+      activeAgentRef.current = nextAgent
+      playJarvisChime('wake')
+
+      let ackText = ''
+      if (rawAgentName === 'vortex') {
+        ackText = 'Vortex operational, Master Sri. Enterprise workflows, n8n swarms, and data pipelines standing by.'
+      } else if (rawAgentName === 'midas') {
+        ackText = 'Midas at your service, Master Sri. Trading intelligence, revenue pipelines, and capital velocity active. What is your directive?'
+      } else if (rawAgentName === 'raphael') {
+        ackText = 'Notice: Lord of Wisdom, Raphael, has initialized. Optimal calculation path established for Master Sri. Awaiting inquiry.'
+      } else if (rawAgentName === 'aegis') {
+        ackText = 'Aegis online, Master Sri. Full-stack compilers and cyber defense primed. What are we building today?'
+      } else if (rawAgentName === 'friday') {
+        ackText = 'Right here, Boss! Tactical operations and revenue channels ready. What can I do, Boss?'
+      } else if (rawAgentName === 'cerebro') {
+        ackText = 'Cerebro intelligence grid active, Master Sri. Technical documentation and deep research ready.'
+      } else {
+        ackText = 'Grand Marshal J.A.R.V.I.S. resumed. High command channel cleared, Master Sri.'
+      }
+
+      setJarvisResponse(ackText)
+      speakVoice(ackText, nextAgent.lang || 'en-GB', undefined, nextAgent.id)
+      setIsProcessing(false)
+      return
+    }
+
+    // 0.3 UNIVERSAL HANDS-FREE TAB NAVIGATION (e.g. "go to tasks", "open revenue", "switch to projects")
+    const navRegex = /(?:go to|open|show|navigate to|switch to|take me to|view)\s+(?:the\s+)?(dashboard|telemetry|studio|vault|chat|settings|storage|cyber|defense|code|codlab|revenue|tasks|lead tasks|lead task|task|projects|store|invi|automations|memory|profile|apis|arsenal|command)/i
+    const navDirectMatch = lower.match(navRegex)
+    if (navDirectMatch && navDirectMatch[1]) {
+      const rawTarget = navDirectMatch[1].toLowerCase().trim()
+      let targetTab = 'command'
+      let surfaceName = 'Command Center'
+
+      if (rawTarget === 'tasks' || rawTarget === 'task' || rawTarget === 'lead tasks' || rawTarget === 'lead task' || rawTarget === 'pipeline') {
+        targetTab = 'tasks'
+        surfaceName = 'Lead Task Execution Panel'
+      } else if (rawTarget === 'revenue' || rawTarget === 'money' || rawTarget === 'midas') {
+        targetTab = 'revenue'
+        surfaceName = 'Sovereign Revenue Engine'
+      } else if (rawTarget === 'projects' || rawTarget === 'store' || rawTarget === 'invi' || rawTarget === 'clothing') {
+        targetTab = 'projects'
+        surfaceName = 'Sovereign Projects'
+      } else if (rawTarget === 'cyber' || rawTarget === 'defense' || rawTarget === 'soc' || rawTarget === 'security') {
+        targetTab = 'cyber'
+        surfaceName = 'Cyber Threat Defense'
+      } else if (rawTarget === 'code' || rawTarget === 'codlab' || rawTarget === 'studio' || rawTarget === 'ide') {
+        targetTab = 'codlab'
+        surfaceName = 'Code Lab'
+      } else if (rawTarget === 'automations' || rawTarget === 'automation' || rawTarget === 'workflows' || rawTarget === 'n8n' || rawTarget === 'vortex') {
+        targetTab = 'automations'
+        surfaceName = 'Automations & Workflow Swarms'
+      } else if (rawTarget === 'storage' || rawTarget === 'vault' || rawTarget === 'files') {
+        targetTab = 'storage'
+        surfaceName = 'Storage Vault'
+      } else if (rawTarget === 'memory' || rawTarget === 'brain' || rawTarget === 'obsidian') {
+        targetTab = 'memory'
+        surfaceName = 'Memory Vault'
+      } else if (rawTarget === 'chat' || rawTarget === 'conversation') {
+        targetTab = 'chat'
+        surfaceName = 'AI Chat Feed'
+      } else if (rawTarget === 'settings' || rawTarget === 'profile' || rawTarget === 'keys') {
+        targetTab = 'profile'
+        surfaceName = 'Profile & Settings'
+      } else if (rawTarget === 'apis' || rawTarget === 'arsenal') {
+        targetTab = 'apis'
+        surfaceName = 'Omni API Arsenal'
+      } else {
+        targetTab = 'command'
+        surfaceName = 'Mission Control'
+      }
+
+      onNavigate(targetTab)
+      window.dispatchEvent(new CustomEvent('jarvis-navigate', { detail: { surface: targetTab, tab: targetTab } }))
+      playJarvisChime('execute')
+      const spokenAck = `Navigating directly to ${surfaceName}, Master Sri.`
+      setJarvisResponse(`### 🧭 Hands-Free Navigation\n- **Target Surface**: \`${targetTab.toUpperCase()}\` (${surfaceName})\n- **Status**: Dispatched successfully.`)
+      speakVoice(spokenAck, activeAgentRef.current?.lang || 'en-GB')
+      setIsProcessing(false)
+      setTimeout(() => {
+        onClose()
+      }, 1000)
+      return
+    }
+
     // Dynamic Multi-Agent Address: Switch persona if user addresses an agent by name
     let targetAgent = activeAgentRef.current || AGENTS.jarvis
     if (/\b(friday|f\.r\.i\.d\.a\.y)\b/i.test(lower) && AGENTS.friday) targetAgent = AGENTS.friday
@@ -1443,6 +1553,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     else if (/\b(aegis)\b/i.test(lower) && AGENTS.aegis) targetAgent = AGENTS.aegis
     else if (/\b(midas)\b/i.test(lower) && AGENTS.midas) targetAgent = AGENTS.midas
     else if (/\b(vortex)\b/i.test(lower) && AGENTS.vortex) targetAgent = AGENTS.vortex
+    else if (/\b(cerebro)\b/i.test(lower) && AGENTS.cerebro) targetAgent = AGENTS.cerebro
     else if (/\b(jarvis)\b/i.test(lower) && AGENTS.jarvis) targetAgent = AGENTS.jarvis
 
     if (targetAgent.id !== activeAgentRef.current?.id) {
@@ -1451,21 +1562,51 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
 
     // Direct Voice Trigger to Multi-Agent Swarm Orchestrator (Aegis + Raphael + Midas)
-    const actionPattern = /\b(build|create|develop|code|scaffold|make|implement|generate|deploy|program)\b/i
-    const softwarePattern = /\b(app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view|tracker|hub|engine|service|manager|suite|crm|erp|website|fullstack|frontend|backend|api|database|worker)\b/i
+    const actionPattern = /\b(build|create|develop|code|scaffold|make|implement|generate|deploy|program|refactor|fix bug)\b/i
+    const softwarePattern = /\b(app|saas|platform|system|dashboard|calculator|tool|portal|interface|page|widget|view|tracker|hub|engine|service|manager|suite|crm|erp|website|fullstack|frontend|backend|api|database|worker|store)\b/i
     const isBuildDirective = (actionPattern.test(cmd) && softwarePattern.test(cmd)) ||
       /\b(fullstack|frontend|backend|microservice|rest api)\b/i.test(cmd)
 
     if (isBuildDirective) {
-      const ack = 'Directive acknowledged, Master Sri. Initiating swarm decomposition across Aegis, Raphael, and Midas.'
-      setJarvisResponse(`### 🚀 Swarm Build Dispatched\n*${ack}*\n\nDecomposing across **Aegis** (Structure), **Raphael** (Styling), and **Midas** (Computation)...`)
-      speakVoice(ack, 'en-GB')
+      const ack = `Task created and dispatched, Master Sri. Switching to your Lead Task Dashboard now.`
+      setJarvisResponse(`### 🚀 Task Created & Dispatched\n*${cmd}*\n\n**Assigned Agent**: ${targetAgent.name}\n**Status**: Real task initiated. Switching you to the Lead Task page to monitor live execution...`)
+      speakVoice(ack, targetAgent.lang || 'en-GB', undefined, targetAgent.id)
 
-      fetch('/api/voice/intent', {
+      // 1. Dispatch real task to backend TaskStore & Swarm Orchestrator
+      fetch('/api/tasks/dispatch', {
         method: 'POST',
         headers: jsonAuthHeaders(),
-        body: JSON.stringify({ text: cmd, agent: targetAgent.id })
+        body: JSON.stringify({
+          title: cmd,
+          agentId: targetAgent.id,
+          author: 'MASTER_SRI_VOICE'
+        })
       }).catch(() => {})
+
+      fetch('/api/swarm/dispatch', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({
+          directive: cmd,
+          author: 'MASTER_SRI_VOICE'
+        })
+      }).catch(() => {})
+
+      // 2. Dispatch custom event to App.tsx
+      window.dispatchEvent(new CustomEvent('jarvis-create-task', {
+        detail: { title: cmd, agentId: targetAgent.id }
+      }))
+
+      // 3. Immediately switch active tab to 'tasks' (Lead Task Execution Panel)
+      onNavigate('tasks')
+      window.dispatchEvent(new CustomEvent('jarvis-navigate', {
+        detail: { surface: 'tasks', tab: 'tasks' }
+      }))
+
+      // 4. Auto-dismiss voice modal after 1.2s so user sees the live Lead Task page
+      setTimeout(() => {
+        onClose()
+      }, 1200)
 
       setIsProcessing(false)
       return
@@ -1496,15 +1637,18 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
             // 2. Dynamically execute system actions
             if (resp.action) {
-              if (resp.action.type === 'navigate' && resp.action.targetTab) {
+              if ((resp.action.type === 'navigate' || resp.action.targetTab) && resp.action.targetTab) {
                 onNavigate(resp.action.targetTab)
+                window.dispatchEvent(new CustomEvent('jarvis-navigate', { detail: { surface: resp.action.targetTab, tab: resp.action.targetTab } }))
+                setTimeout(() => onClose(), 1000)
               } else if (resp.action.type === 'create_task') {
+                const taskTitle = resp.action.taskTitle || cmd
                 const liveTask: AgentTask = {
                   id: `task_${Date.now()}`,
                   taskNumber: `TASK-${Math.floor(1000 + Math.random() * 9000)}`,
                   agentId: resp.action.agentId || targetAgent.id,
                   agentName: targetAgent.name,
-                  title: resp.action.taskTitle || cmd,
+                  title: taskTitle,
                   status: 'IN_PROGRESS',
                   progress: 25,
                   totalSteps: 4,
@@ -1513,6 +1657,30 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
                   startedAt: new Date().toISOString()
                 }
                 setActiveTask(liveTask)
+
+                fetch('/api/tasks/dispatch', {
+                  method: 'POST',
+                  headers: jsonAuthHeaders(),
+                  body: JSON.stringify({
+                    title: taskTitle,
+                    agentId: resp.action.agentId || targetAgent.id,
+                    author: 'MASTER_SRI_VOICE'
+                  })
+                }).catch(() => {})
+
+                window.dispatchEvent(new CustomEvent('jarvis-create-task', {
+                  detail: { title: taskTitle, agentId: resp.action.agentId || targetAgent.id }
+                }))
+
+                onNavigate('tasks')
+                window.dispatchEvent(new CustomEvent('jarvis-navigate', {
+                  detail: { surface: 'tasks', tab: 'tasks' }
+                }))
+                setTimeout(() => onClose(), 1200)
+              } else if (resp.action.type === 'switch_agent' && resp.action.targetAgent && AGENTS[resp.action.targetAgent]) {
+                const swAgent = AGENTS[resp.action.targetAgent]
+                setActiveAgent(swAgent)
+                activeAgentRef.current = swAgent
               } else if (resp.action.type === 'cyber_scan') {
                 setSecurityAlert({
                   level: 'HIGH',
@@ -3838,8 +4006,9 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
             transcriptRef.current = currentText
           }
 
-          // Detect speech completion using a 1200ms silence debounce timer
+          // Detect speech completion using dynamic debounce: 650ms for final recognized speech, 1000ms for interim
           if (silenceDebounceTimerRef.current) clearTimeout(silenceDebounceTimerRef.current)
+          const debounceDelay = final ? 650 : 1000
           silenceDebounceTimerRef.current = setTimeout(async () => {
             const finalSpeech = transcriptRef.current.trim()
             if (finalSpeech && voiceStateRef.current === 'LISTENING') {
@@ -3853,7 +4022,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
 
               await dispatchVoiceSession(finalSpeech)
             }
-          }, 1200)
+          }, debounceDelay)
         }
 
         recognition.onerror = (e: any) => {

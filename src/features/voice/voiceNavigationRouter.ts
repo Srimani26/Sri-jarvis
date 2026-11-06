@@ -90,10 +90,10 @@ export const NAVIGATION_RULES: NavigationRouteRule[] = [
     targetRoute: '/tasks',
     tabKey: 'tasks',
     patterns: [
-      /(?:go to|open|show|navigate to|switch to|view)\s+(?:the\s+)?(tasks|pipeline|task manager|milestones|queue|active tasks)/i,
-      /(?:show active tasks|what is running|show queue)/i
+      /(?:go to|open|show|navigate to|switch to|view)\s+(?:the\s+)?(tasks|lead tasks|lead task|lead-tasks|pipeline|task manager|milestones|queue|active tasks|task board|task execution|tasks page)/i,
+      /(?:show active tasks|what is running|show queue|show lead tasks|open lead tasks)/i
     ],
-    confirmationVoice: 'Opening active task pipelines.'
+    confirmationVoice: 'Opening active lead task pipelines.'
   },
   {
     targetRoute: '/projects',
