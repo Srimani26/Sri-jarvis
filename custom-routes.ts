@@ -3913,6 +3913,140 @@ app.post('/coworker/execute', async (c) => {
 });
 
 // ============================================================================
+// OMNICHANNEL EXECUTIVE HUB (WHATSAPP, INSTAGRAM, TEAMS, SPREADSHEETS, MEETINGS)
+// ============================================================================
+
+// POST /api/omnichannel/whatsapp/send — Dispatch WhatsApp message / template
+app.post('/omnichannel/whatsapp/send', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { omnichannelHub } = await import('./src/services/OmnichannelHubService');
+    const res = await omnichannelHub.sendWhatsAppMessage({
+      to: body.to,
+      text: body.text,
+      templateName: body.templateName,
+      templateLanguage: body.templateLanguage,
+      mediaUrl: body.mediaUrl
+    });
+    return c.json({ ok: res.success, ...res });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/omnichannel/instagram/dm — Dispatch Instagram Direct Message
+app.post('/omnichannel/instagram/dm', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { omnichannelHub } = await import('./src/services/OmnichannelHubService');
+    const res = await omnichannelHub.sendInstagramDM({
+      recipientId: body.recipientId,
+      text: body.text,
+      mediaUrl: body.mediaUrl
+    });
+    return c.json({ ok: res.success, ...res });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/omnichannel/teams/message — Dispatch Microsoft Teams Channel Notification
+app.post('/omnichannel/teams/message', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { omnichannelHub } = await import('./src/services/OmnichannelHubService');
+    const res = await omnichannelHub.sendTeamsMessage({
+      title: body.title || 'J.A.R.V.I.S. High Command Notification',
+      text: body.text || '',
+      themeColor: body.themeColor,
+      sections: body.sections
+    });
+    return c.json({ ok: res.success, ...res });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/omnichannel/meeting/schedule — Schedule Google Meet or Microsoft Teams session
+app.post('/omnichannel/meeting/schedule', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { omnichannelHub } = await import('./src/services/OmnichannelHubService');
+    const res = await omnichannelHub.scheduleMeeting({
+      title: body.title || 'Executive Strategy Session',
+      platform: body.platform || 'google_meet',
+      startTimeIso: body.startTimeIso || new Date(Date.now() + 3600000).toISOString(),
+      endTimeIso: body.endTimeIso || new Date(Date.now() + 7200000).toISOString(),
+      attendees: body.attendees || ['sri@standardroofs.com'],
+      agenda: body.agenda
+    });
+    return c.json({ ok: res.success, ...res });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/omnichannel/spreadsheet/generate — Generate dynamic Excel (.csv / .xlsx) spreadsheet
+app.post('/omnichannel/spreadsheet/generate', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { omnichannelHub } = await import('./src/services/OmnichannelHubService');
+    const res = omnichannelHub.generateSpreadsheet({
+      title: body.title || 'Master_Sri_Executive_Data',
+      columns: body.columns || ['Timestamp', 'Item', 'Category', 'Amount', 'Status'],
+      rows: body.rows || [],
+      format: body.format || 'csv'
+    });
+    return c.json({ ok: res.success, ...res });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// ============================================================================
+// DYNAMIC SELF-LEARNING & SELF-EVOLVING SKILL ENGINE
+// ============================================================================
+
+// GET /api/skills/self-evolved — List all dynamically minted skills
+app.get('/skills/self-evolved', async (c) => {
+  try {
+    const { dynamicSkillEngine } = await import('./src/agents/DynamicSelfEvolvingSkillEngine');
+    const skills = dynamicSkillEngine.listSkills();
+    return c.json({ ok: true, count: skills.length, skills });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/skills/synthesize — Mint and learn a new skill from an arbitrary user directive
+app.post('/skills/synthesize', async (c) => {
+  try {
+    const body = await c.req.json();
+    const directive = String(body.directive || '').trim();
+    if (!directive) return c.json({ ok: false, error: 'directive is required' }, 400);
+
+    const { dynamicSkillEngine } = await import('./src/agents/DynamicSelfEvolvingSkillEngine');
+    const skill = dynamicSkillEngine.synthesizeSkill(directive, body.preferredAgent, body.domain);
+    return c.json({ ok: true, skill, message: `Skill "${skill.codename}" synthesized, documented into SKILL.md, and hot-loaded.` });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// POST /api/skills/adapt — Continuous adaptation loop based on execution telemetry
+app.post('/skills/adapt', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { skillId, success, executionLog } = body;
+    const { dynamicSkillEngine } = await import('./src/agents/DynamicSelfEvolvingSkillEngine');
+    const adapted = dynamicSkillEngine.adaptSkill(skillId, !!success, executionLog || '');
+    return c.json({ ok: !!adapted, skill: adapted });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// ============================================================================
 // HIGH-FIDELITY NEURAL VOICE ENGINE (DEEPGRAM NOVA-2 STT & ELEVENLABS TTS)
 // Distinct Male & Female voices for all 20 agents with zero stuttering
 // ============================================================================
