@@ -322,6 +322,7 @@ export class MissionOrchestrator {
               memories: relevantMemories.map((m: any) => m.content),
             },
             policyCeiling: request.policyCeiling,
+            deferTaskCompletion: true,
           }
         );
 
@@ -422,6 +423,13 @@ export class MissionOrchestrator {
     const reportMarkdown = ReportGenerator.generateMarkdownReport(reportData);
 
     // 11. Finalize Task in TaskStore
+    if (finalStatus === 'COMPLETED') {
+      await TaskStore.updateTask(task.id, {
+        status: 'VERIFYING',
+        currentOperation: 'Running final mission verification',
+        verificationResult: reportData.verification,
+      });
+    }
     await TaskStore.updateTask(task.id, {
       status: finalStatus,
       progress: finalStatus === 'COMPLETED' ? 100 : 50,

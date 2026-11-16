@@ -87,3 +87,15 @@ Every security event, failed login attempt, path violation, and token refresh is
 The foreground voice upload route now requires a valid Jarvis JWT, enforces a 10 MB upload limit, supported audio MIME types, and a 12-per-minute per-user process-local limit. The progress WebSocket requires a random single-use ticket minted by an authenticated REST endpoint; tickets expire after 30 seconds and are consumed on connection. The startup invite-code log and raw unhandled-error response detail have been removed. The voice UI requires a user-visible editable transcript and an explicit send action before command routing.
 
 This is a partial boundary, not a full security sign-off. The separate Android bridge still needs strict JWT/session-revocation validation, the `jarvis` wildcard tool scope still needs an enforced least-privilege policy, and high-impact actions still need a structured approval gate. Ticket/rate state also needs shared storage if deployed across multiple independent server instances.
+
+## Mission approval checkpoint status
+
+The mission checkpoint crypto and persistence primitives use AES-256-GCM, bind approvals to a user and SHA-256 action digest, expire pending requests, and atomically consume an approved action before it can be dispatched. The decrypted checkpoint is verified against the approved tool/action digest. These primitives are not yet connected to every tool dispatcher or authenticated approval route; treat approval-backed execution as unavailable until those integrations and their route-level tests ship. Never bypass the dispatcher to use the store directly.
+
+`MISSION_CHECKPOINT_ENCRYPTION_KEY` is a dedicated canonical base64 encoding of exactly 32 random bytes. Generate one with:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Store it in the deployment secret manager and local environment only; never commit it, log it, or derive it from `JWT_SECRET`. Approval checkpoint writes and resumes must fail closed when it is missing or invalid. The key has not been configured in Render by this code change. The current envelope supports one active key and does not implement online key rotation: drain or expire pending approvals before a controlled re-encryption migration; do not simply replace the environment value while encrypted checkpoints remain.

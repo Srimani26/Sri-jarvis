@@ -10,8 +10,6 @@
  * 5. Telemetry and audit logging persisted to Neon PostgreSQL.
  */
 
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { SWARM_TOOL_SCHEMAS, dispatchToolCall } from '../tools/toolRegistry'
 import { swarmModelRouter, SwarmSpecialist } from './ModelRouter'
@@ -23,6 +21,7 @@ import { CEREBRO_SYSTEM_PROMPT } from '../specialists/CerebroSpecialist'
 import { RAPHAEL_SYSTEM_PROMPT } from '../specialists/RaphaelSpecialist'
 import { MIDAS_SYSTEM_PROMPT } from '../specialists/MidasSpecialist'
 import { FRIDAY_SYSTEM_PROMPT } from '../specialists/FridaySpecialist'
+import { classifyMissionOutcome, type MissionStatus } from '../../../../src/kernel/missionLifecycle'
 
 export interface ToolCallRecord {
   id: string
@@ -36,6 +35,7 @@ export interface ToolCallRecord {
 export interface AutonomousTaskResult {
   taskId: string
   success: boolean
+  status: MissionStatus
   specialist: SwarmSpecialist
   directive: string
   finalResponse: string
@@ -56,6 +56,12 @@ export interface AutonomousLoopOptions {
   testCommand?: string
   workspaceRoot?: string
   onStepProgress?: (step: number, thought: string, tool: string, observation: any) => void
+  modelDispatch?: (specialist: SwarmSpecialist, messages: any[], tools: any[]) => Promise<{ content?: string; tool_calls?: any[] }>
+  toolDispatch?: (toolName: string, args: any) => Promise<any>
+  verifyDeliverable?: (request: VerificationRequest, root: string) => Promise<any>
+  createTask?: (directive: string, specialist: SwarmSpecialist, taskId: string) => Promise<any>
+  logToolExecution?: (taskId: string, tool: string, args: any, output: any, status: 'SUCCESS' | 'ERROR', latencyMs: number) => Promise<any>
+  completeTask?: (taskId: string, status: 'COMPLETED' | 'FAILED' | 'BLOCKED', result: string) => Promise<any>
 }
 
 const MAX_CONTEXT_CHARS = 120_000 // Approximate 30,000-32,000 token boundary
@@ -139,8 +145,14 @@ export async function executeAutonomousReAct(
   const maxSteps = options.maxSteps || (taskType === 'coding' ? 35 : 25)
   const specialist: SwarmSpecialist = options.specialist || (isCodingTask ? 'aegis' : 'jarvis')
   const workspaceRoot = options.workspaceRoot || process.cwd()
+  const modelDispatch = options.modelDispatch || ((agent, history, tools) => swarmModelRouter.dispatch(agent, history, tools))
+  const toolDispatch = options.toolDispatch || dispatchToolCall
+  const verifyDeliverable = options.verifyDeliverable || ((request, root) => autonomousVerifier.verifyDeliverable(request, root))
+  const createTask = options.createTask || ((request, agent, id) => taskAuditService.createTask(request, agent, id))
+  const logToolExecution = options.logToolExecution || ((id, tool, args, output, status, latency) => taskAuditService.logToolExecution(id, tool, args, output, status, latency))
+  const completeTask = options.completeTask || ((id, status, result) => taskAuditService.completeTask(id, status, result))
 
-  await taskAuditService.createTask(directive, specialist, taskId)
+  await createTask(directive, specialist, taskId)
 
   let systemPrompt = `You are J.A.R.V.I.S. Sovereign Autonomous Agent Runtime Engine matching Claude Code & Groq Agent performance.
 You operate under the High Command of Master Sri with autonomous self-healing authorization.
@@ -186,6 +198,8 @@ OPERATIONAL INVARIANTS:
   let success = false
   let selfHealed = false
   let verificationDetails: any = null
+  let terminalIntentReceived = false
+  let executionState: 'IDLE' | 'RUNNING' | 'ERROR' | 'EXHAUSTED' = 'EXHAUSTED'
   let discoveredSlug = options.slug || ''
   const filesWritten: string[] = []
 
@@ -194,14 +208,14 @@ OPERATIONAL INVARIANTS:
     messages = compactContextWindow(messages)
 
     // 2. Dispatch to Specialist Model
-    const completion = await swarmModelRouter.dispatch(specialist, messages, SWARM_TOOL_SCHEMAS)
+    const completion = await modelDispatch(specialist, messages, SWARM_TOOL_SCHEMAS)
 
     const modelContent = completion.content || ''
     const toolCalls = completion.tool_calls || []
 
     if (!toolCalls || toolCalls.length === 0) {
-      finalResponse = modelContent || 'Autonomous directive executed.'
-      success = true
+      finalResponse = modelContent || 'No action was executed.'
+      executionState = 'IDLE'
       break
     }
 
@@ -232,7 +246,7 @@ OPERATIONAL INVARIANTS:
       let status: 'SUCCESS' | 'ERROR' = 'SUCCESS'
 
       try {
-        output = await dispatchToolCall(toolName, args)
+        output = await toolDispatch(toolName, args)
       } catch (err: any) {
         status = 'ERROR'
         output = {
@@ -242,7 +256,7 @@ OPERATIONAL INVARIANTS:
       }
 
       const latencyMs = Date.now() - start
-      await taskAuditService.logToolExecution(taskId, toolName, args, output, status, latencyMs)
+      await logToolExecution(taskId, toolName, args, output, status, latencyMs)
 
       toolCallHistory.push({
         id: toolId,
@@ -282,7 +296,7 @@ OPERATIONAL INVARIANTS:
       }
 
       // Finish Task Inspection & Automated Proof-of-Work Verification (supports finish_task & complete_task)
-      if (toolName === 'finish_task' || toolName === 'complete_task') {
+      if ((toolName === 'finish_task' || toolName === 'complete_task') && status === 'SUCCESS' && output?.success !== false) {
         const targetSlug = discoveredSlug || options.slug || 'app-preview'
         if (options.requireVerification) {
           const req: VerificationRequest = {
@@ -292,7 +306,7 @@ OPERATIONAL INVARIANTS:
             testCommand: options.testCommand
           }
 
-          const verifyRes = await autonomousVerifier.verifyDeliverable(req, workspaceRoot)
+          const verifyRes = await verifyDeliverable(req, workspaceRoot)
           verificationDetails = verifyRes
 
           if (!verifyRes.verified) {
@@ -311,36 +325,15 @@ OPERATIONAL INVARIANTS:
         }
 
         finishTaskEncountered = true
-        success = true
-        finalResponse = args.summary || output?.summary || 'Task completed and verified.'
+        terminalIntentReceived = true
+        executionState = 'IDLE'
+        finalResponse = args.summary || output?.summary || 'Task completed.'
         if (Array.isArray(args.artifacts)) artifacts.push(...args.artifacts)
         if (args.previewUrl && !artifacts.includes(args.previewUrl)) artifacts.push(args.previewUrl)
         if (targetSlug && options.deliverableType === 'web_app' && !artifacts.includes(`/preview/${targetSlug}`)) {
           artifacts.push(`/preview/${targetSlug}`)
         }
         break
-      }
-
-      // AUTO-COMPLETION GATE 1: If aegis_scaffold_and_deploy_web succeeded, app is complete and mounted
-      if (toolName === 'aegis_scaffold_and_deploy_web' && output?.success && output?.previewUrl) {
-        finishTaskEncountered = true
-        success = true
-        finalResponse = `Web application successfully scaffolded and mounted at ${output.previewUrl}.`
-        if (!artifacts.includes(output.previewUrl)) artifacts.push(output.previewUrl)
-        break
-      }
-
-      // AUTO-COMPLETION GATE 2: As soon as index.html is written in artifacts/builds, terminate immediately with SUCCESS
-      if ((options.deliverableType === 'web_app' || isCodingTask) && discoveredSlug) {
-        const buildDir = join(workspaceRoot, 'artifacts', 'builds', discoveredSlug)
-        if (existsSync(join(buildDir, 'index.html'))) {
-          finishTaskEncountered = true
-          success = true
-          finalResponse = `Web application successfully built and verified at /preview/${discoveredSlug}.`
-          const previewUrl = `/preview/${discoveredSlug}`
-          if (!artifacts.includes(previewUrl)) artifacts.push(previewUrl)
-          break
-        }
       }
 
       // Append Observation to context with structured self-healing feedback on command failure
@@ -365,12 +358,11 @@ OPERATIONAL INVARIANTS:
   }
 
   if (!finalResponse) {
-    finalResponse = `Autonomous ReAct execution concluded after ${toolCallHistory.length} tool executions.`
-    success = true
+    finalResponse = `Mission did not complete: execution reached its step limit after ${toolCallHistory.length} tool actions without a finish signal.`
   }
 
   // Final Proof-of-Work Verification gate if required and not already verified
-  if (options.requireVerification && !verificationDetails) {
+  if (terminalIntentReceived && options.requireVerification && !verificationDetails) {
     const targetSlug = discoveredSlug || options.slug || 'app-preview'
     const req: VerificationRequest = {
       deliverableType: options.deliverableType || 'general',
@@ -378,11 +370,8 @@ OPERATIONAL INVARIANTS:
       slug: targetSlug,
       testCommand: options.testCommand
     }
-    verificationDetails = await autonomousVerifier.verifyDeliverable(req, workspaceRoot)
-    if (!verificationDetails.verified) {
-      success = false
-    } else {
-      success = true
+    verificationDetails = await verifyDeliverable(req, workspaceRoot)
+    if (verificationDetails.verified) {
       if (options.deliverableType === 'web_app') {
         const previewPath = `/preview/${targetSlug}`
         if (!artifacts.includes(previewPath)) artifacts.push(previewPath)
@@ -390,13 +379,31 @@ OPERATIONAL INVARIANTS:
     }
   }
 
-  await taskAuditService.completeTask(taskId, success ? 'COMPLETED' : 'FAILED', finalResponse)
+  const status = classifyMissionOutcome({
+    executedActions: toolCallHistory.length,
+    terminalIntentReceived,
+    executionState,
+    verification: !options.requireVerification
+      ? 'NOT_REQUIRED'
+      : verificationDetails?.verified
+        ? 'PASSED'
+        : verificationDetails
+          ? 'FAILED'
+          : 'NOT_RUN',
+  })
+  success = status === 'COMPLETED'
+  if (!success && !terminalIntentReceived && !finalResponse.startsWith('Mission did not complete:')) {
+    finalResponse = `Mission did not complete: ${finalResponse}`
+  }
+
+  const auditStatus = status === 'COMPLETED' ? 'COMPLETED' : status === 'FAILED' ? 'FAILED' : 'BLOCKED'
+  await completeTask(taskId, auditStatus, finalResponse)
 
   // Report to Telegram
   telegramNotifier.sendSwarmUpdate(
     specialist,
     `Autonomous ReAct: ${directive.substring(0, 60)}...`,
-    success ? 'SUCCESS' : 'FAILED',
+    status === 'COMPLETED' ? 'SUCCESS' : status === 'BLOCKED' ? 'BLOCKED' : 'FAILED',
     toolCallHistory.reduce((acc, t) => acc + t.latencyMs, 0),
     `Steps: ${toolCallHistory.length} | Self-Healed: ${selfHealed ? 'YES' : 'NO'}\nDeliverables: ${artifacts.join(', ') || 'N/A'}`
   ).catch(() => {})
@@ -404,6 +411,7 @@ OPERATIONAL INVARIANTS:
   return {
     taskId,
     success,
+    status,
     specialist,
     directive,
     finalResponse,

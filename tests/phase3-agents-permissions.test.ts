@@ -62,7 +62,7 @@ describe('Phase 3: J.A.R.V.I.S. Specialist Agent Workforce & Runtime', () => {
     assert.equal(AgentRegistry.canUseTool('jarvis', 'any_arbitrary_tool'), true);
   });
 
-  test('AgentRuntime executes task with verified lifecycle and records telemetry', async () => {
+  test('AgentRuntime blocks actionable work when no tools are planned', async () => {
     const task = await TaskStore.createTask({
       title: 'Design distributed database indexing',
       description: 'Create indexing strategy for audit logs',
@@ -77,13 +77,15 @@ describe('Phase 3: J.A.R.V.I.S. Specialist Agent Workforce & Runtime', () => {
       inputData: { targetTable: 'audit_logs', columns: ['timestamp', 'userId'] },
     });
 
-    assert.equal(response.success, true);
-    assert.equal(response.verificationPassed, true);
+    assert.equal(response.success, false);
+    assert.equal(response.verificationPassed, false);
+    assert.equal(response.status, 'BLOCKED');
+    assert.match(response.errors?.[0] || '', /no executable tool actions were planned/);
     assert.ok(response.durationMs >= 0);
 
     const agent = AgentRegistry.getAgent('database_engineer');
     assert.ok((agent?.telemetry.invocations || 0) >= 1, 'Telemetry invocations must increment');
-    assert.ok((agent?.telemetry.successes || 0) >= 1, 'Telemetry successes must increment');
+    assert.ok((agent?.telemetry.failures || 0) >= 1, 'No-tool missions are recorded as incomplete');
   });
 
   test('AgentRuntime blocks policy violations and records failure telemetry', async () => {
@@ -128,9 +130,10 @@ describe('Phase 3: J.A.R.V.I.S. Specialist Agent Workforce & Runtime', () => {
       expectedOutput: 'Write auth middleware tests and functions',
     });
 
-    assert.equal(handoffResult.success, true);
+    assert.equal(handoffResult.success, false);
+    assert.equal(handoffResult.status, 'BLOCKED');
     assert.equal(handoffResult.agentId, 'software_engineer');
-    assert.equal(handoffResult.verificationPassed, true);
+    assert.equal(handoffResult.verificationPassed, false);
 
     // 2. Multi-Agent Pipeline (Architect -> Software Engineer -> QA Engineer)
     const pipelineResult = await AgentRuntime.executePipeline(task.id, [
@@ -139,7 +142,7 @@ describe('Phase 3: J.A.R.V.I.S. Specialist Agent Workforce & Runtime', () => {
       { agentId: 'qa_engineer', objective: 'Validate endpoint responses and status codes' },
     ]);
 
-    assert.equal(pipelineResult.success, true);
+    assert.equal(pipelineResult.success, false);
     assert.equal(pipelineResult.results.length, 3);
     assert.equal(pipelineResult.results[0].agentId, 'architect');
     assert.equal(pipelineResult.results[1].agentId, 'software_engineer');

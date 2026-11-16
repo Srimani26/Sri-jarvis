@@ -11,6 +11,7 @@ import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { playJarvisChime } from '@/lib/sound'
 import TaskProgressCard from '@/components/TaskProgressCard'
 import { MobileThermalShield } from '@/lib/thermal-shield'
+import { getMissionStatusPresentation } from '@/components/missionStatus'
 
 interface TaskEvent {
   id: string
@@ -26,7 +27,7 @@ interface AgentTask {
   title: string
   description?: string
   agentId: string
-  status: 'QUEUED' | 'RUNNING' | 'WAITING' | 'RETRYING' | 'RECOVERING' | 'VERIFYING' | 'COMPLETED' | 'FAILED' | 'BLOCKED'
+  status: 'CREATED' | 'QUEUED' | 'PLANNING' | 'ASSIGNED' | 'RUNNING' | 'WAITING' | 'WAITING_FOR_INPUT' | 'AWAITING_APPROVAL' | 'RETRYING' | 'RECOVERING' | 'VERIFYING' | 'COMPLETED' | 'FAILED' | 'BLOCKED' | 'CANCELLED'
   progress: number
   currentOperation?: string
   currentTool?: string
@@ -434,14 +435,15 @@ export default function ActiveTaskExecutionPanel({ onTriggerTask }: { onTriggerT
                 <span className="text-xs font-mono text-slate-400 uppercase">
                   AGENT: <strong className="text-white">{activeTask.agentId.toUpperCase()}</strong>
                 </span>
-                <span className={cn(
+                <span role="status" aria-live="polite" className={cn(
                   "px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border",
                   activeTask.status === 'RUNNING' && "bg-cyan-500/20 text-cyan-300 border-cyan-400 animate-pulse",
                   activeTask.status === 'COMPLETED' && "bg-emerald-500/20 text-emerald-300 border-emerald-400",
                   activeTask.status === 'FAILED' && "bg-rose-500/20 text-rose-300 border-rose-400",
-                  activeTask.status === 'QUEUED' && "bg-slate-800 text-slate-300 border-slate-700"
+                  activeTask.status === 'QUEUED' && "bg-slate-800 text-slate-300 border-slate-700",
+                  ['WAITING', 'WAITING_FOR_INPUT', 'AWAITING_APPROVAL'].includes(activeTask.status) && "bg-amber-500/15 text-amber-200 border-amber-500/40"
                 )}>
-                  {activeTask.status}
+                  {getMissionStatusPresentation(activeTask.status).label}
                 </span>
               </div>
               <h3 className="text-lg font-bold text-white mt-1">{activeTask.title}</h3>

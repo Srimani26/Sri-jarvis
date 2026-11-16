@@ -9,7 +9,7 @@
  */
 
 import { executeAutonomousTask } from '../swarm/engine/AgentLoop'
-import { swarmModelRouter, SwarmSpecialist } from '../swarm/engine/ModelRouter'
+import { swarmModelRouter, type SwarmSpecialist } from '../swarm/engine/ModelRouter'
 
 export const MASTER_CHAT_ID = '1377862282'
 
@@ -103,7 +103,7 @@ export class TelegramNotifierService {
   public async sendSwarmUpdate(
     specialist: string,
     jobName: string,
-    status: 'SUCCESS' | 'FAILED',
+    status: 'SUCCESS' | 'FAILED' | 'BLOCKED',
     latencyMs: number,
     resultSummary: string
   ): Promise<boolean> {
@@ -111,7 +111,7 @@ export class TelegramNotifierService {
       '⚡ *[J.A.R.V.I.S. 24x7 Swarm Update]*',
       `*Specialist:* \`${specialist.toUpperCase()}\``,
       `*Task:* \`${jobName}\``,
-      `*Status:* ${status === 'SUCCESS' ? '✅ SUCCESS' : '❌ FAILED'} (Latency: ${latencyMs}ms)`,
+      `*Status:* ${status === 'SUCCESS' ? '✅ SUCCESS' : status === 'BLOCKED' ? '⏸ BLOCKED' : '❌ FAILED'} (Latency: ${latencyMs}ms)`,
       '',
       `*Summary:* ${resultSummary.substring(0, 800)}`
     ].join('\n')

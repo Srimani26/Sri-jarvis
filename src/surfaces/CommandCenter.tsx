@@ -302,6 +302,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
 
   // Live Task Stream
   const [agentTasks, setAgentTasks] = useState<AgentTask[]>([])
+  const [tasksLoaded, setTasksLoaded] = useState(false)
   const [activeTask, setActiveTask] = useState<AgentTask | null>(null)
   const [rollcallOutput, setRollcallOutput] = useState<string | null>(null)
   const [isRollcalling, setIsRollcalling] = useState(false)
@@ -343,6 +344,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
         const data = await res.json()
         const fetched: AgentTask[] = data.tasks || []
         setAgentTasks(fetched)
+        setTasksLoaded(true)
         if (fetched.length > 0) {
           const running = fetched.find(t => t.status === 'RUNNING' || t.status === 'QUEUED')
           if (running) {
@@ -475,7 +477,7 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
       })
       if (res.ok) {
         const data = await res.json()
-        setRollcallOutput(data.unifiedBrief || 'All 20 specialist agents reporting nominal, tools operational, tests 100% passing.')
+        setRollcallOutput(data.unifiedBrief || 'The agent service returned no roll-call summary.')
         playJarvisChime('execute')
       }
     } catch (err) {
@@ -540,9 +542,6 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
               <span className="text-[11px] font-mono tracking-widest text-cyan-400 font-extrabold uppercase">
                 J.A.R.V.I.S. MARK-VI // SOVEREIGN AUTONOMOUS OS
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
-                142/142 TESTS PASSING (100%)
-              </span>
             </div>
 
             <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
@@ -555,21 +554,23 @@ export default function CommandCenter({ onNavigate, onVoiceTrigger }: CommandCen
               <span className="text-slate-600">·</span>
               <span>{formatDate()}</span>
               <span className="text-slate-600">·</span>
-              <span className="text-cyan-300 font-semibold">20 Specialist Agents Armed</span>
+              <span className="text-cyan-300 font-semibold">
+                {tasksLoaded ? `${agentTasks.filter(task => task.status === 'RUNNING' || task.status === 'QUEUED').length} active missions` : 'Mission status loading'}
+              </span>
             </p>
           </div>
 
           {/* Quick HUD Metrics Island */}
           <div className="flex items-center gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-cyan-500/30 text-center min-w-[5.5rem] shadow-lg">
-              <p className="text-[10px] font-mono text-slate-400 uppercase">Agents</p>
-              <p className="text-xl font-extrabold text-cyan-400">20/20</p>
-              <p className="text-[9px] font-mono text-emerald-400">ONLINE</p>
+              <p className="text-[10px] font-mono text-slate-400 uppercase">Active missions</p>
+              <p className="text-xl font-extrabold text-cyan-400">{tasksLoaded ? agentTasks.filter(task => task.status === 'RUNNING' || task.status === 'QUEUED').length : '—'}</p>
+              <p className="text-[9px] font-mono text-slate-400">{tasksLoaded ? `${agentTasks.length} recorded` : 'Loading status'}</p>
             </div>
             <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-blue-500/30 text-center min-w-[5.5rem] shadow-lg">
-              <p className="text-[10px] font-mono text-slate-400 uppercase">Chrome</p>
-              <p className="text-xl font-extrabold text-blue-400">READY</p>
-              <p className="text-[9px] font-mono text-cyan-300">PUPPETEER</p>
+              <p className="text-[10px] font-mono text-slate-400 uppercase">Agent service</p>
+              <p className="text-sm font-bold text-blue-300">{isRollcalling ? 'Checking' : rollcallOutput ? 'Responded' : 'Not checked'}</p>
+              <p className="text-[9px] font-mono text-slate-400">Live roll call</p>
             </div>
             <div
               onClick={handleVoiceClick}

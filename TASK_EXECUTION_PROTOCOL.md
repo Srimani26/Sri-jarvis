@@ -27,6 +27,12 @@ No task in J.A.R.V.I.S. may transition to `COMPLETED` based on conversational ac
 
 ## 2. Detailed Lifecycle Stages
 
+### Implementation status for mission approvals
+- Mission lifecycle classification and one-use encrypted approval storage are implemented as primitives in this branch.
+- The approval store is not yet the final tool-dispatch boundary, and not all voice, scheduler, or ReAct entry points use a shared coordinator. Until those adapters and authenticated routes are completed, do not claim end-to-end autonomous mission completion or enable approval-backed dispatch.
+- A persisted `COMPLETED` result must be based on executed actions, explicit terminal intent, and passing required verification. Plain model text, a tool's success flag, or artifact existence alone is not sufficient evidence.
+- Approval checkpoint encryption requires `MISSION_CHECKPOINT_ENCRYPTION_KEY`; deployment configuration and migrations must be validated before release.
+
 ### Stage 1: PLAN
 - Parse the natural language directive using `VoiceEngine` or `CommandCenter`.
 - Identify the target specialist agent (`Aegis`, `Vortex`, `Midas`, `Cerebro`, `Stark OS`, or canonical specialist).

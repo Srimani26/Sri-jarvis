@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { playJarvisChime } from '@/lib/sound'
+import { getMissionStatusPresentation } from '@/components/missionStatus'
 
 export interface TaskEvent {
   id: string
@@ -27,7 +28,7 @@ export interface AgentTask {
   title: string
   description?: string
   agentId: string
-  status: 'QUEUED' | 'RUNNING' | 'WAITING' | 'RETRYING' | 'RECOVERING' | 'VERIFYING' | 'COMPLETED' | 'FAILED' | 'BLOCKED'
+  status: 'CREATED' | 'QUEUED' | 'PLANNING' | 'ASSIGNED' | 'RUNNING' | 'WAITING' | 'WAITING_FOR_INPUT' | 'AWAITING_APPROVAL' | 'RETRYING' | 'RECOVERING' | 'VERIFYING' | 'COMPLETED' | 'FAILED' | 'BLOCKED' | 'CANCELLED'
   progress: number
   currentOperation?: string
   currentTool?: string
@@ -122,6 +123,7 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
   const [showLogs, setShowLogs] = useState(true)
   const prevStatusRef = useRef(liveTask.status)
   const audioPlayedRef = useRef(false)
+  const statusPresentation = getMissionStatusPresentation(liveTask.status)
 
   useEffect(() => {
     setLiveTask(task)
@@ -130,7 +132,7 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
   // Real-time live polling while task is active
   useEffect(() => {
     if (!liveTask?.id) return
-    const isOngoing = ['QUEUED', 'PLANNING', 'RUNNING', 'WAITING', 'RETRYING', 'VERIFYING'].includes(liveTask.status)
+    const isOngoing = ['QUEUED', 'PLANNING', 'RUNNING', 'WAITING', 'WAITING_FOR_INPUT', 'AWAITING_APPROVAL', 'RETRYING', 'RECOVERING', 'VERIFYING'].includes(liveTask.status)
     if (!isOngoing) return
 
     const interval = setInterval(async () => {
@@ -242,15 +244,19 @@ export default function TaskProgressCard({ task, onDismiss, onSelect }: TaskProg
           </div>
 
           <span
+            role="status"
+            aria-live="polite"
             className={cn(
               "px-2.5 py-1 rounded-lg text-[10px] font-mono font-black uppercase tracking-wider border",
               liveTask.status === 'RUNNING' && "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 animate-pulse",
               liveTask.status === 'COMPLETED' && "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
               liveTask.status === 'FAILED' && "bg-rose-500/20 text-rose-300 border-rose-500/50",
-              liveTask.status === 'QUEUED' && "bg-slate-800 text-slate-300 border-slate-700"
+              ['QUEUED', 'CREATED', 'ASSIGNED'].includes(liveTask.status) && "bg-slate-800 text-slate-300 border-slate-700",
+              ['WAITING', 'WAITING_FOR_INPUT', 'AWAITING_APPROVAL'].includes(liveTask.status) && "bg-amber-500/15 text-amber-200 border-amber-500/40",
+              ['BLOCKED', 'CANCELLED'].includes(liveTask.status) && "bg-slate-800 text-slate-300 border-slate-700"
             )}
           >
-            {liveTask.status}
+            {statusPresentation.label}
           </span>
         </div>
       </div>

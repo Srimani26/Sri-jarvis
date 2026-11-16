@@ -36,6 +36,7 @@ import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } fr
 import { playJarvisChime, playNeuralSpeech, primeAudioPlayback } from '@/lib/sound'
 import { ConversationOS } from './voice/ConversationOS'
 import { MobileThermalShield, type ThermalState } from './lib/thermal-shield'
+import { mobileDestinations, persistentVoiceAction } from './components/app/navigation'
 
 const primaryNav = [
   { id: 'command', icon: <LayoutDashboard className="w-4 h-4 text-cyan-400" />, label: 'HQ Core', mobileLabel: 'HQ' },
@@ -64,13 +65,13 @@ const arsenalNav = [
 
 const navItems = [...primaryNav, ...arsenalNav]
 
-const bottomTabs = [
-  { id: 'command', icon: <LayoutDashboard className="w-5 h-5" />, label: 'HQ' },
-  { id: 'chat', icon: <MessageSquare className="w-5 h-5 text-cyan-300" />, label: 'Chat' },
-  { id: 'voice', icon: <Mic className="w-5 h-5 text-cyan-400" />, label: 'Voice' },
-  { id: 'tasks', icon: <Activity className="w-5 h-5 text-blue-400" />, label: 'Tasks' },
-  { id: 'more', icon: <Menu className="w-5 h-5" />, label: 'Arsenal' },
-]
+const mobileDestinationIcons = {
+  command: <LayoutDashboard className="w-5 h-5" />,
+  tasks: <Activity className="w-5 h-5" />,
+  chat: <MessageSquare className="w-5 h-5" />,
+  apps: <Menu className="w-5 h-5" />,
+}
+const bottomTabs = mobileDestinations.map(item => ({ ...item, icon: mobileDestinationIcons[item.id] }))
 
 function MemoryView() {
   const [stats, setStats] = useState<any>(null)
@@ -555,7 +556,7 @@ export default function App() {
               </div>
               <p className="text-[9px] text-cyan-400/90 font-mono tracking-wider flex items-center gap-1.5 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping inline-block" />
-                20 SWARMS PRIMED // DUPLEX NEURAL // 28ms
+                Personal assistant · Voice and missions
               </p>
             </div>
           </div>
@@ -698,7 +699,7 @@ export default function App() {
               </div>
               <p className="text-[8px] text-cyan-400 font-mono tracking-tight flex items-center gap-1">
                 <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" />
-                ONLINE // 20 SWARMS
+                Voice and missions
               </p>
             </div>
           </div>
@@ -795,55 +796,41 @@ export default function App() {
       </div>
 
       {/* Bottom Nav Dock — Mobile (Floating Ergonomic Glass Island Dock) */}
-      <div className="md:hidden fixed bottom-2 left-2 right-2 z-40 bg-[#030712]/92 backdrop-blur-3xl border border-cyan-500/30 rounded-3xl shadow-[0_12px_45px_rgba(0,0,0,0.85)] mobile-safe-bottom">
-        <div className="flex items-center justify-around py-1.5 px-2">
+      <nav aria-label="Primary navigation" className="md:hidden fixed bottom-2 left-2 right-2 z-40 bg-[#0b101a]/95 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-xl mobile-safe-bottom">
+        <div className="relative flex items-center justify-around py-2 px-2">
           {bottomTabs.map(tab => {
-            const isVoice = tab.id === 'voice'
-            const isActive = activeTab === tab.id
+            const isApps = tab.id === 'apps'
+            const isActive = isApps ? mobileMenuOpen || activeTab === 'more' : activeTab === tab.id
             return (
               <button
                 key={tab.id}
+                type="button"
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => {
-                  if (tab.id === 'more') setMobileMenuOpen(true)
-                  else if (tab.id === 'voice') handleOpenVoiceComms()
+                  if (isApps) setMobileMenuOpen(true)
                   else handleNavigate(tab.id)
                 }}
                 className={cn(
-                  "relative flex flex-col items-center justify-center transition-all touch-feedback",
-                  isVoice
-                    ? "-mt-7 w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-400 via-blue-500 to-indigo-600 text-slate-950 font-black shadow-[0_0_30px_rgba(6,182,212,0.9)] border-2 border-cyan-200 animate-holographic-ripple"
-                    : "flex-1 py-1 px-1 rounded-2xl"
+                  "min-w-0 flex-1 min-h-11 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-colors touch-feedback focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300",
+                  isActive ? "text-cyan-200 bg-cyan-400/10" : "text-slate-400 hover:text-slate-200"
                 )}
               >
-                {isVoice ? (
-                  <div className="relative flex items-center justify-center">
-                    <Mic className="w-6 h-6 text-slate-950 animate-pulse" />
-                    <span className="absolute -bottom-4 text-[7px] font-black font-mono text-cyan-300 tracking-wider">VOICE</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className={cn(
-                      "p-1.5 rounded-xl transition-all duration-300",
-                      isActive ? "bg-cyan-500/20 text-cyan-300 scale-110 shadow-[0_0_15px_rgba(6,182,212,0.4)] animate-pill-pop" : "text-slate-400 hover:text-slate-200"
-                    )}>
-                      {tab.icon}
-                    </div>
-                    <span className={cn(
-                      "text-[9px] font-mono mt-0.5 tracking-tight transition-colors",
-                      isActive ? "text-cyan-300 font-bold" : "text-slate-400"
-                    )}>
-                      {tab.label}
-                    </span>
-                    {isActive && (
-                      <span className="w-1.5 h-0.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4] mt-0.5 animate-pulse" />
-                    )}
-                  </>
-                )}
+                {tab.icon}
+                <span className="text-[10px] font-medium leading-4">{tab.label}</span>
               </button>
             )
           })}
+          <button
+            type="button"
+            aria-label={persistentVoiceAction.label}
+            onClick={() => handleOpenVoiceComms()}
+            className="absolute left-1/2 -top-7 -translate-x-1/2 size-14 rounded-full border-2 border-slate-950 bg-cyan-300 text-slate-950 shadow-lg flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
+          >
+            <Mic className="size-5" aria-hidden="true" />
+            <span className="text-[9px] font-semibold leading-none">Voice</span>
+          </button>
         </div>
-      </div>
+      </nav>
 
       {/* Sovereign Welcome & Auto-Wake Overlay on First Open */}
       {!sovereignAwakened && (
@@ -869,7 +856,7 @@ export default function App() {
               J.A.R.V.I.S. MARK-VI
             </h1>
             <p className="text-sm text-cyan-300/90 font-mono">
-              ⚡ Sovereign Quantum Core Online • 20 Specialist Swarms Synchronized • Duplex Neural Comms Activated
+              Your personal assistant for questions, voice commands, and day-to-day work.
             </p>
             <div className="pt-2">
               <button className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 text-slate-950 font-black text-sm font-mono tracking-widest uppercase shadow-[0_0_50px_rgba(6,182,212,0.8)] hover:scale-105 active:scale-95 transition-all">

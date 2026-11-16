@@ -204,6 +204,7 @@ model AgentTask {
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
   events             TaskEvent[]
+  approvals          TaskApproval[]
 
   @@index([status])
   @@index([agentId])
@@ -222,4 +223,24 @@ model TaskEvent {
   @@index([taskId])
   @@index([eventType])
   @@map("task_events")
+}
+
+model TaskApproval {
+  id                 String    @id @default(cuid())
+  taskId             String    @map("task_id")
+  userId             String    @map("user_id")
+  toolName           String    @map("tool_name")
+  actionDigest       String    @map("action_digest")
+  summary            String
+  encryptedCheckpoint String   @map("encrypted_checkpoint")
+  status             String    @default("PENDING")
+  expiresAt          DateTime  @map("expires_at")
+  decidedAt          DateTime? @map("decided_at")
+  consumedAt          DateTime? @map("consumed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  task               AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, status, expiresAt])
+  @@index([userId, status, expiresAt])
+  @@map("task_approvals")
 }

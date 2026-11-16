@@ -403,7 +403,7 @@ export default function AgentEcosystem({ onOpenVoice }: AgentEcosystemProps) {
     playJarvisChime('wake')
 
     playNeuralSpeech(
-      agent.greeting,
+      `Voice preview for ${agent.name}. This configured profile focuses on ${agent.specialties.slice(0, 3).join(', ')}. Live runtime availability is not checked on this screen.`,
       agent.voiceLang,
       () => setPlayingVoiceId(agent.id),
       () => setPlayingVoiceId(null),
@@ -525,22 +525,22 @@ export default function AgentEcosystem({ onOpenVoice }: AgentEcosystemProps) {
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                SOVEREIGN J.A.R.V.I.S. 16-AGENT SUPREME MATRIX
+                J.A.R.V.I.S. AGENT CATALOG
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {agents.length} SOVEREIGN AGENTS ACTIVE
+                {agents.length} CONFIGURED AGENTS
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                16 ADVANCED NEURAL HUMAN VOICES
+                Voice previews
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-              <span>All 16 AI Agents Command Ecosystem</span>
+              <span>Configured agents</span>
               <Sparkles className="w-6 h-6 text-cyan-400 animate-pulse" />
             </h1>
             <p className="text-sm text-slate-300 max-w-3xl mt-1">
-              Master Sri, all sixteen sovereign AI agents are armed, equipped with distinct human neural voices, and directly accessible below. You can test each agent's voice, open a direct voice comm, or dispatch autonomous tasks across engineering, revenue, automation, and deep research.
+              Browse configured agent roles and capabilities. Live health and verified task counts are not connected on this screen yet; review each request before dispatch.
             </p>
           </div>
 
@@ -669,7 +669,7 @@ export default function AgentEcosystem({ onOpenVoice }: AgentEcosystemProps) {
                 {/* Bottom Actions Bar */}
                 <div className="pt-3 border-t border-slate-900 space-y-2">
                   <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                    <span>Tasks: <strong className="text-slate-200">{agent.tasksCompleted}</strong></span>
+                    <span>Runtime: <strong className="text-amber-200">Not checked</strong></span>
                     <span className="text-[10px] text-cyan-400/80 font-mono">{agent.voice.split('-')[2] || 'Neural'}</span>
                   </div>
 
@@ -683,10 +683,10 @@ export default function AgentEcosystem({ onOpenVoice }: AgentEcosystemProps) {
                           ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.6)]'
                           : 'bg-slate-900 hover:bg-slate-800 text-cyan-300 border-cyan-500/30 hover:border-cyan-500/60'
                       )}
-                      title={`Play ${agent.name}'s Neural Voice Greeting`}
+                      title={`Preview the configured voice for ${agent.name}`}
                     >
                       {isPlaying ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                      <span>{isPlaying ? 'STOP' : 'VOICE'}</span>
+                      <span>{isPlaying ? 'STOP' : 'PREVIEW'}</span>
                     </button>
 
                     {/* Direct Voice Comm Button */}

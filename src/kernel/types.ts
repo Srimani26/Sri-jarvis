@@ -10,6 +10,8 @@ export type TaskStatus =
   | 'ASSIGNED'
   | 'RUNNING'
   | 'WAITING_FOR_INPUT'
+  | 'AWAITING_APPROVAL'
+  | 'RECOVERING'
   | 'BLOCKED'
   | 'RETRYING'
   | 'VERIFYING'
@@ -50,6 +52,8 @@ export type EventType =
   | 'VERIFICATION_FAILED'
   | 'TASK_COMPLETED'
   | 'TASK_FAILED'
+  | 'TASK_BLOCKED'
+  | 'TASK_AWAITING_APPROVAL'
   | 'WAITING_FOR_CAPABILITY';
 
 export type ExecutionPolicy =

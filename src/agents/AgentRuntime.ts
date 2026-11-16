@@ -15,6 +15,15 @@ import { ExecutionKernel } from '../kernel/ExecutionKernel';
 import { TaskStore } from '../kernel/TaskStore';
 import { ExecutionPolicy, KernelExecutionContext } from '../kernel/types';
 
+function redactToolArguments(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactToolArguments);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => {
+    if (/password|secret|token|api[_-]?key|authorization|cookie|credential/i.test(key)) return [key, '[REDACTED]'];
+    return [key, redactToolArguments(item)];
+  }));
+}
+
 export class AgentRuntime {
   /**
    * Execute an objective with a designated specialist agent
@@ -78,6 +87,7 @@ export class AgentRuntime {
     });
 
     const toolsUsed: string[] = [];
+    const actionResults: Array<{ tool: string; result: unknown }> = [];
     const errors: string[] = [];
     let outputResult: any = null;
 
@@ -107,32 +117,45 @@ export class AgentRuntime {
           );
 
           // Execute requested tools
-          if (inputData?.toolsToRun && Array.isArray(inputData.toolsToRun)) {
+          if (Array.isArray(inputData?.toolsToRun) && inputData.toolsToRun.length > 0) {
             for (const toolReq of inputData.toolsToRun) {
               const { name, args } = toolReq;
               // Check tool permissions
               if (!AgentRegistry.canUseTool(agentId, name)) {
                 throw new Error(`Tool '${name}' is not in allowedTools list for agent '${agentId}'`);
               }
+              const registeredTool = ExecutionKernel.getTool(name);
+              if (!registeredTool) throw new Error(`Tool '${name}' is not registered in the execution kernel`);
+              if (!AgentRegistry.isPermissionAllowed(agentId, registeredTool.requiredPermission)) {
+                throw new Error(`Permission denied: '${agentId}' cannot use '${name}' at ${registeredTool.requiredPermission}`);
+              }
+              const permission = ExecutionKernel.checkPermission(registeredTool.requiredPermission, effectivePolicy);
+              if (!permission.allowed) throw new Error(permission.reason || `Permission denied for '${name}'`);
+              if (registeredTool.requiresConfirmation || registeredTool.risk === 'HIGH' || registeredTool.risk === 'CRITICAL') {
+                throw new Error(`Mission blocked: '${name}' requires an approval coordinator before dispatch`);
+              }
 
               toolsUsed.push(name);
-              await context.emitEvent('TOOL_STARTED', `[${agent.name}] Calling authorized tool '${name}'`, { tool: name, args });
+              await context.emitEvent('TOOL_STARTED', `[${agent.name}] Calling authorized tool '${name}'`, { tool: name, args: redactToolArguments(args) });
               const toolResult = toolExecutor
                 ? await toolExecutor(name, args || {})
                 : await ExecutionKernel.executeTool(name, args || {}, context);
               if (!toolResult.success) {
                 throw new Error(`Tool '${name}' failed: ${toolResult.error}`);
               }
+              actionResults.push({ tool: name, result: toolResult.output ?? toolResult });
               await context.emitEvent('TOOL_COMPLETED', `[${agent.name}] Tool '${name}' completed successfully`, { tool: name });
             }
+          } else {
+            throw new Error('Mission blocked: no executable tool actions were planned');
           }
 
           clearTimeout(timer);
           resolve({
-            summary: `Objective successfully completed by ${agent.name}`,
+            summary: `Executed ${toolsUsed.length} tool action(s) for the objective.`,
             objective,
             agentId,
-            details: inputData || {},
+            actions: actionResults,
           });
         } catch (execErr) {
           clearTimeout(timer);
@@ -147,8 +170,18 @@ export class AgentRuntime {
         `Running deterministic verification for agent '${agent.name}'`,
         { checklist: agent.verificationChecklist }
       );
+      if (!request.deferTaskCompletion) {
+        await TaskStore.updateTask(taskId, {
+          status: 'VERIFYING',
+          currentOperation: `Verifying ${toolsUsed.length} recorded action(s)`,
+        });
+      }
 
       const verificationFailures: string[] = [];
+
+      if (!Array.isArray(inputData?.filesToVerify) || inputData.filesToVerify.length === 0) {
+        verificationFailures.push('No independent artifact verification target was supplied');
+      }
 
       // Check 1: Verify output artifact
       if (!outputResult) {
@@ -193,9 +226,18 @@ export class AgentRuntime {
       await TaskStore.emitEvent(
         taskId,
         'VERIFICATION_PASSED',
-        `Verification passed for '${agent.name}' against ${agent.verificationChecklist.length} criteria with all files verified on disk`,
-        { checklist: agent.verificationChecklist, verifiedFiles: inputData?.filesToVerify || [] }
+        `Artifact verification passed for ${inputData?.filesToVerify?.length || 0} provided file(s)`,
+        { verifiedFiles: inputData?.filesToVerify || [] }
       );
+
+      // The caller owns the mission's terminal state. This runtime records verification but does not complete a shared task.
+      if (!request.deferTaskCompletion) {
+        await TaskStore.updateTask(taskId, {
+          status: 'COMPLETED',
+          currentOperation: 'Actions and artifact verification completed',
+          verificationResult: 'Passed',
+        });
+      }
 
       return {
         taskId,
@@ -205,6 +247,7 @@ export class AgentRuntime {
         toolsUsed,
         durationMs,
         verificationPassed: true,
+        status: 'COMPLETED',
       };
 
     } catch (err: any) {
@@ -219,6 +262,15 @@ export class AgentRuntime {
         { error: errorMsg, agentId }
       );
 
+      const blocked = errorMsg.includes('Mission blocked:') || errorMsg.includes('not in allowedTools list');
+      if (!request.deferTaskCompletion) {
+        await TaskStore.updateTask(taskId, {
+          status: blocked ? 'BLOCKED' : 'FAILED',
+          currentOperation: blocked ? 'Mission needs a permitted action plan' : 'Agent execution failed',
+          errorDetails: errorMsg,
+        }).catch(() => undefined);
+      }
+
       AgentRegistry.recordTelemetry(agentId, durationMs, false);
 
       return {
@@ -229,6 +281,7 @@ export class AgentRuntime {
         toolsUsed,
         durationMs,
         verificationPassed: false,
+        status: blocked ? 'BLOCKED' : 'FAILED',
         errors,
       };
     }
@@ -280,11 +333,17 @@ export class AgentRuntime {
         agentId: step.agentId,
         objective: step.objective,
         inputData: inputWithContext,
+        deferTaskCompletion: true,
       });
 
       results.push(stepResponse);
 
       if (!stepResponse.success) {
+        await TaskStore.updateTask(taskId, {
+          status: stepResponse.status === 'BLOCKED' ? 'BLOCKED' : 'FAILED',
+          currentOperation: 'Agent pipeline stopped before verified completion',
+          errorDetails: stepResponse.errors?.join('; '),
+        }).catch(() => undefined);
         return {
           success: false,
           results,
@@ -292,6 +351,16 @@ export class AgentRuntime {
         };
       }
     }
+
+    await TaskStore.updateTask(taskId, {
+      status: 'VERIFYING',
+      currentOperation: 'Verifying all agent pipeline steps',
+    });
+    await TaskStore.updateTask(taskId, {
+      status: 'COMPLETED',
+      currentOperation: 'All agent pipeline steps verified',
+      verificationResult: 'Passed',
+    });
 
     return {
       success: true,

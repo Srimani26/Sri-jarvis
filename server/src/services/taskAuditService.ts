@@ -14,7 +14,7 @@ export interface SwarmTaskRecord {
   id: string
   directive: string
   specialist: string
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'BLOCKED'
   result?: string
   createdAt: Date
   completedAt?: Date
@@ -212,7 +212,7 @@ export class TaskAuditService {
   /**
    * Complete task with outcome and deliverables
    */
-  public async completeTask(taskId: string, status: 'COMPLETED' | 'FAILED', result: string): Promise<void> {
+  public async completeTask(taskId: string, status: 'COMPLETED' | 'FAILED' | 'BLOCKED', result: string): Promise<void> {
     await this.initSchema()
     const task = this.inMemoryTasks.get(taskId)
     const completedAt = new Date()

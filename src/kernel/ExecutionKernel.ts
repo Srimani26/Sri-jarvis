@@ -15,6 +15,7 @@ import {
   KernelPlanStep,
   KernelVerificationResult
 } from './types';
+import { sanitizePayload } from '../security/SecretSanitizer';
 
 export class ExecutionKernel {
   private static tools = new Map<string, KernelToolDefinition>();
@@ -136,7 +137,7 @@ export class ExecutionKernel {
     }
 
     const startTime = Date.now();
-    await context.emitEvent('TOOL_STARTED', `Invoking tool: ${toolName}`, { tool: toolName, args });
+    await context.emitEvent('TOOL_STARTED', `Invoking tool: ${toolName}`, { tool: toolName, args: sanitizePayload(args) });
 
     let timer: NodeJS.Timeout | null = null;
     try {

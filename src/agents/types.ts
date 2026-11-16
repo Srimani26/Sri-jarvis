@@ -75,6 +75,8 @@ export interface AgentExecutionRequest {
   inputData?: Record<string, any>;
   policyCeiling?: ExecutionPolicy;
   callingAgentId?: string;
+  /** Lets a mission coordinator or multi-step caller own the terminal task transition. */
+  deferTaskCompletion?: boolean;
 }
 
 export interface AgentExecutionResponse {
@@ -85,6 +87,7 @@ export interface AgentExecutionResponse {
   toolsUsed: string[];
   durationMs: number;
   verificationPassed: boolean;
+  status?: 'COMPLETED' | 'BLOCKED' | 'FAILED';
   handoff?: AgentHandoffRequest;
   errors?: string[];
 }

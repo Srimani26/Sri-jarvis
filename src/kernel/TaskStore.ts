@@ -8,6 +8,7 @@ import { prisma } from '../lib/db';
 import { TaskStatus, EventType, KernelEvent } from './types';
 import { ExecutionKernel } from './ExecutionKernel';
 import { EventStream } from './EventStream';
+import { canTransitionTaskStatus } from './missionLifecycle';
 
 export interface CreateTaskInput {
   title?: string;
@@ -134,6 +135,18 @@ export class TaskStore {
    * Update task state and computed progress
    */
   public static async updateTask(taskId: string, input: UpdateTaskInput) {
+    let currentStatus: TaskStatus | undefined;
+    if (input.status) {
+      const current = await (prisma as any).agentTask.findUnique({
+        where: { id: taskId },
+        select: { status: true },
+      });
+      if (!current) throw new Error(`Task ${taskId} was not found`);
+      if (!canTransitionTaskStatus(current.status as TaskStatus, input.status)) {
+        throw new Error(`Illegal task status transition: ${current.status} -> ${input.status}`);
+      }
+      currentStatus = current.status as TaskStatus;
+    }
     const data: any = {};
     if (input.status) data.status = input.status;
     if (input.currentOperation) data.currentOperation = input.currentOperation;
@@ -158,22 +171,33 @@ export class TaskStore {
       if (input.status === 'COMPLETED') data.progress = 100;
     }
 
-    const updated = await (prisma as any).agentTask.update({
-      where: { id: taskId },
-      data,
-    });
+    const updated = input.status
+      ? await (prisma as any).agentTask.updateMany({
+          where: { id: taskId, status: currentStatus },
+          data,
+        })
+      : await (prisma as any).agentTask.update({ where: { id: taskId }, data });
+
+    if (input.status && updated.count !== 1) {
+      throw new Error(`Task ${taskId} changed while applying status ${input.status}`);
+    }
+    const updatedTask = input.status
+      ? await (prisma as any).agentTask.findUnique({ where: { id: taskId } })
+      : updated;
 
     if (input.status) {
       const eventType: EventType =
         input.status === 'COMPLETED' ? 'TASK_COMPLETED' :
         input.status === 'FAILED' ? 'TASK_FAILED' :
+        input.status === 'BLOCKED' ? 'TASK_BLOCKED' :
+        input.status === 'AWAITING_APPROVAL' ? 'TASK_AWAITING_APPROVAL' :
         input.status === 'VERIFYING' ? 'VERIFICATION_STARTED' :
         input.status === 'PLANNING' ? 'TASK_PLANNED' : 'TASK_ASSIGNED';
 
       await this.emitEvent(taskId, eventType, `Task status transitioned to ${input.status}: ${input.currentOperation || ''}`);
     }
 
-    return updated;
+    return updatedTask;
   }
 
   public static parseTaskOutput(task: any) {
@@ -233,7 +257,7 @@ export class TaskStore {
       const tasks = await (prisma as any).agentTask.findMany({
         where: {
           status: {
-            in: ['CREATED', 'QUEUED', 'PLANNING', 'ASSIGNED', 'RUNNING', 'WAITING_FOR_INPUT', 'BLOCKED', 'RETRYING', 'VERIFYING', 'RECOVERING']
+            in: ['CREATED', 'QUEUED', 'PLANNING', 'ASSIGNED', 'RUNNING', 'WAITING_FOR_INPUT', 'AWAITING_APPROVAL', 'BLOCKED', 'RETRYING', 'VERIFYING', 'RECOVERING']
           }
         },
         include: {
@@ -269,7 +293,7 @@ export class TaskStore {
 
       const allTasks = allTasksRaw.map((t: any) => this.parseTaskOutput(t));
       const total = allTasks.length;
-      const active = allTasks.filter((t: any) => ['RUNNING', 'PLANNING', 'VERIFYING', 'QUEUED', 'RECOVERING'].includes(t.status)).length;
+      const active = allTasks.filter((t: any) => ['RUNNING', 'PLANNING', 'VERIFYING', 'QUEUED', 'RECOVERING', 'AWAITING_APPROVAL'].includes(t.status)).length;
       const completed = allTasks.filter((t: any) => t.status === 'COMPLETED').length;
       const failed = allTasks.filter((t: any) => t.status === 'FAILED').length;
       const blocked = allTasks.filter((t: any) => t.status === 'BLOCKED').length;
