@@ -221,7 +221,7 @@ export default function App() {
   // Auto-welcome managed exclusively by voice transceiver
 
   const [sovereignAwakened, setSovereignAwakened] = useState(true)
-  const [ambientActive, setAmbientActive] = useState(true)
+  const ambientActive = false
 
   const handleOpenVoiceComms = (agentId?: string, initialDirective?: string) => {
     primeAudioPlayback()
@@ -638,22 +638,6 @@ export default function App() {
               <span className={cn("w-2 h-2 rounded-full", thermalState.isLowPowerMode ? "bg-emerald-400" : "bg-cyan-400 animate-pulse")} />
               <span>{thermalState.isLowPowerMode ? "ECO COLD" : "TURBO HUD"}</span>
             </button>
-
-            {/* Zero-Touch Hands-Free Ambient Listener Pill */}
-            <button
-              onClick={() => setAmbientActive(!ambientActive)}
-              className={cn(
-                "hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-[11px] font-mono font-bold transition-all border cursor-pointer",
-                ambientActive
-                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                  : "bg-slate-900/80 text-slate-500 border-slate-800"
-              )}
-              title={ambientActive ? "Zero-Touch Voice ACTIVE: Say 'Hey Jarvis', 'Friday', 'Midas', or 'Vortex' hands-free" : "Zero-Touch Voice PAUSED: Click to enable hands-free voice"}
-            >
-              <span className={cn("w-2 h-2 rounded-full", ambientActive ? "bg-emerald-400 animate-pulse" : "bg-slate-600")} />
-              <span>{ambientActive ? "HANDS-FREE: ACTIVE" : "HANDS-FREE: OFF"}</span>
-            </button>
-
             {/* Direct Voice Comms Trigger */}
             <button
               onClick={() => handleOpenVoiceComms()}

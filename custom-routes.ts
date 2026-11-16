@@ -3,6 +3,7 @@ import { TaskEngine, AGENT_REGISTRY, SelfHealingEngine } from './src/lib/task-en
 import { ensureDatabaseTables } from './src/lib/ensure-db'
 import { SOVEREIGN_TOOLS, executeSovereignTool, handleMCPJsonRpc } from './src/lib/sovereign-mcp'
 import { Hono } from 'hono'
+import { issueVoiceSessionTicket } from './src/services/voiceGateway'
 import {
   DeepSeekHarness,
   ConversableAgent,
@@ -281,9 +282,9 @@ app.use('*', async (c, next) => {
 // An unhandled throw used to produce a bare "Internal Server Error" body the UI
 // could not explain. Always answer with JSON carrying the real message.
 app.onError((err: any, c) => {
-  const message = String(err?.message ?? err ?? 'Unknown server error')
-  console.error('[jarvis] unhandled error on', c.req.method, c.req.path, '-', message)
-  return c.json({ error: 'Server error', detail: message.slice(0, 500) }, 500)
+  // Keep internals out of public responses and logs; provider and auth errors may contain secrets.
+  console.error('[jarvis] unhandled error on', c.req.method, c.req.path, '-', err?.name || 'Error')
+  return c.json({ error: 'Server error' }, 500)
 })
 
 // Input sanitizer
@@ -330,7 +331,6 @@ function loadInviteCode(): string {
 }
 
 const INVITE_CODE = loadInviteCode()
-console.log(`🔑 JARVIS invite code (needed to add accounts): ${INVITE_CODE}`)
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,32}$/
 
@@ -376,6 +376,12 @@ async function requireAuth(c: any, next: any) {
   }
 }
 
+// POST /api/voice/session-ticket — issue a short-lived, single-use WebSocket ticket.
+app.post('/voice/session-ticket', requireAuth, (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+  return c.json({ ticket: issueVoiceSessionTicket(userId), expiresInMs: 30_000 })
+})
 // Session tokens MUST be unique. jwt.sign() of the same payload inside the
 // same wall-clock second produces a byte-identical string, and
 // auth_sessions.token is UNIQUE — that collision used to 500 every login that
@@ -4475,9 +4481,29 @@ Format your response in Markdown with:
 // STARK VOICE ENGINE — CALIBRATED MULTIMODAL STT CASCADE
 // Primary: Google Gemini 1.5 Flash (calibrated for Indian English accent & technical vocabulary)
 // Secondary: Groq Whisper (whisper-large-v3)
-// Confidence Guard: < 0.65 triggers "Master Sri, I didn't catch that clearly. Please repeat."
 // ============================================================================
-app.post('/voice/transcribe', async (c) => {
+const voiceTranscriptionLimits = new Map<string, { count: number; resetAt: number }>()
+const MAX_VOICE_UPLOAD_BYTES = 10 * 1024 * 1024
+const ALLOWED_VOICE_MIME_TYPES = new Set([
+  'audio/webm', 'audio/ogg', 'audio/wav', 'audio/x-wav',
+  'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/flac'
+])
+
+app.post('/voice/transcribe', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || 'unknown')
+  const now = Date.now()
+  const rate = voiceTranscriptionLimits.get(userId)
+  if (rate && now < rate.resetAt && rate.count >= 12) {
+    return c.json({ ok: false, error: 'Voice transcription rate limit exceeded. Try again shortly.' }, 429)
+  }
+  if (!rate || now >= rate.resetAt) voiceTranscriptionLimits.set(userId, { count: 1, resetAt: now + 60_000 })
+  else rate.count++
+
+  const declaredLength = Number(c.req.header('content-length') || 0)
+  if (declaredLength > MAX_VOICE_UPLOAD_BYTES) {
+    return c.json({ ok: false, error: 'Audio upload exceeds the 10 MB limit.' }, 413)
+  }
+
   try {
     let file: any = null
     let buffer: Buffer | null = null
@@ -4512,6 +4538,12 @@ app.post('/voice/transcribe', async (c) => {
     if (!buffer || buffer.length === 0) {
       return c.json({ ok: false, error: 'Audio file is required', text: '' }, 400)
     }
+    if (buffer.length > MAX_VOICE_UPLOAD_BYTES) {
+      return c.json({ ok: false, error: 'Audio upload exceeds the 10 MB limit.', text: '' }, 413)
+    }
+    if (!ALLOWED_VOICE_MIME_TYPES.has(mimeType.toLowerCase())) {
+      return c.json({ ok: false, error: 'Unsupported audio format.', text: '' }, 415)
+    }
 
     const keys = loadKeys()
     const groqKey = process.env.GROQ_API_KEY || keys.groq
@@ -4545,17 +4577,15 @@ app.post('/voice/transcribe', async (c) => {
             return c.json({
               ok: true,
               text,
-              confidence: 0.98,
               engine: 'groq-whisper-large-v3',
               promptRepeat: false
             })
           }
         } else {
-          const errText = await res.text().catch(() => '')
-          console.warn(`[STT] Groq Whisper returned ${res.status}: ${errText.slice(0, 150)}. Failing over to Deepgram Nova-2...`)
+          console.warn(`[STT] Groq Whisper returned HTTP ${res.status}; failing over to Deepgram.`)
         }
       } catch (groqErr: any) {
-        console.warn(`[STT] Groq Whisper failed: ${groqErr.message}. Failing over to Deepgram Nova-2...`)
+        console.warn(`[STT] Groq Whisper failed (${groqErr?.name || 'Error'}); failing over to Deepgram.`)
       }
     }
 
@@ -4574,22 +4604,19 @@ app.post('/voice/transcribe', async (c) => {
         if (dgRes.ok) {
           const dgData: any = await dgRes.json()
           const dgTranscript = dgData?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || ''
-          const dgConfidence = dgData?.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0.98
           if (dgTranscript) {
             return c.json({
               ok: true,
               text: dgTranscript,
-              confidence: dgConfidence,
               engine: 'deepgram-nova-2',
               promptRepeat: false,
             })
           }
         } else {
-          const errText = await dgRes.text().catch(() => '')
-          console.warn(`[STT] Deepgram Nova-2 returned ${dgRes.status}: ${errText.slice(0, 100)}. Failing over to Gemini...`)
+          console.warn(`[STT] Deepgram Nova-2 returned HTTP ${dgRes.status}; failing over to Gemini.`)
         }
       } catch (dgErr: any) {
-        console.warn(`[STT] Deepgram Nova-2 failed: ${dgErr.message}. Failing over to Gemini...`)
+        console.warn(`[STT] Deepgram Nova-2 failed (${dgErr?.name || 'Error'}); failing over to Gemini.`)
       }
     }
 
@@ -4599,17 +4626,9 @@ app.post('/voice/transcribe', async (c) => {
         const base64Audio = buffer.toString('base64')
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiKey}`
 
-        const sttPrompt = `You are the speech-to-text recognition system for J.A.R.V.I.S. Mark-V.
-The speaker is Master Sri, who speaks English with an Indian accent and frequent technical and e-commerce commands.
-Special vocabulary list: ${techVocabulary}.
-
-Instructions:
-1. Accurately transcribe what was spoken verbatim into clear English.
-2. If the audio is silence, background murmur, unintelligible, or you are not at least 65% confident in the words, respond with JSON:
-{"text": "", "confidence": 0.0}
-3. If valid speech is recognized with >= 0.65 confidence, respond with JSON:
-{"text": "<transcribed English sentence>", "confidence": <estimated float between 0.65 and 1.0>}
-Return ONLY valid JSON matching this schema.`
+        const sttPrompt = `You transcribe English speech for J.A.R.V.I.S. The speaker may have an Indian English accent and use technical or e-commerce vocabulary.
+        Special vocabulary: ${techVocabulary}.
+        Return only valid JSON in the form {"text":"recognized words"}. Do not guess when speech is unclear.`
 
         const res = await fetch(geminiUrl, {
           method: 'POST',
@@ -4632,63 +4651,49 @@ Return ONLY valid JSON matching this schema.`
           const rawResponseText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
           
           let parsedText = ''
-          let confidence = 0.9
 
-          // Try parsing structured JSON
           try {
             const cleanJsonStr = rawResponseText.replace(/^```json/i, '').replace(/```$/i, '').trim()
             const parsed = JSON.parse(cleanJsonStr)
             parsedText = (parsed.text || '').trim()
-            if (typeof parsed.confidence === 'number') {
-              confidence = parsed.confidence
-            }
           } catch {
             parsedText = rawResponseText
           }
 
-          if (parsedText && confidence >= 0.65) {
+          if (parsedText) {
             return c.json({
               ok: true,
               text: parsedText,
-              confidence,
-              engine: 'gemini-1.5-flash',
+              engine: 'gemini-3.5-flash-lite',
               fallbackUsed: true,
               promptRepeat: false
             })
-          } else if (confidence < 0.65 || !parsedText) {
+          } else {
             return c.json({
               ok: false,
               silent: true,
               text: '',
-              confidence,
-              engine: 'gemini-1.5-flash',
-              promptRepeat: false,
-              message: ''
+              error: 'No clear speech recognized. Please try again or type your message.'
             })
           }
         }
       } catch (geminiErr: any) {
-        console.warn(`[STT] Gemini Audio failed: ${geminiErr.message}`)
+        console.warn(`[STT] Gemini Audio failed (${geminiErr?.name || 'Error'}).`)
       }
     }
 
     return c.json({
       ok: false,
-      silent: true,
       text: '',
-      confidence: 0.0,
-      promptRepeat: false,
-      error: 'NO_ACTIVE_STT_PROVIDER_RESPONSE'
-    }, 200)
+      error: 'Voice transcription is temporarily unavailable. Please try again or type your message.'
+    }, 502)
   } catch (err: any) {
+    console.error('[STT] Transcription request failed:', err?.name || 'Error')
     return c.json({
       ok: false,
-      silent: true,
       text: '',
-      confidence: 0.0,
-      promptRepeat: false,
-      error: err?.message || String(err)
-    }, 200)
+      error: 'Voice transcription failed. Please try again or type your message.'
+    }, 500)
   }
 })
 

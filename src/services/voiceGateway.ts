@@ -16,12 +16,32 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { Server as HttpServer } from 'node:http'
 import { swarmModelRouter } from '../swarm/engine/ModelRouter'
 import { isSoftwareBuildDirective } from './telegramNotifier'
+import { randomBytes } from 'node:crypto'
 
 export type SpecialistAgent = 'jarvis' | 'aegis' | 'raphael' | 'friday' | 'vortex' | 'midas' | 'cerebro'
 
+const voiceSessionTickets = new Map<string, { userId: string; expiresAt: number }>()
+const VOICE_TICKET_TTL_MS = 30_000
+
+export function issueVoiceSessionTicket(userId: string): string {
+  const now = Date.now()
+  for (const [ticket, entry] of voiceSessionTickets) {
+    if (entry.expiresAt <= now) voiceSessionTickets.delete(ticket)
+  }
+  const ticket = randomBytes(32).toString('base64url')
+  voiceSessionTickets.set(ticket, { userId, expiresAt: now + VOICE_TICKET_TTL_MS })
+  return ticket
+}
+
+function consumeVoiceSessionTicket(ticket: string): string | null {
+  const entry = voiceSessionTickets.get(ticket)
+  voiceSessionTickets.delete(ticket)
+  if (!entry || entry.expiresAt <= Date.now()) return null
+  return entry.userId
+}
 export interface VoiceSessionState {
   id: string
-  token: string
+  userId: string
   activeAgent: SpecialistAgent
   ws: WebSocket
   pcmBuffer: Buffer[]
@@ -250,20 +270,25 @@ export class VoiceGatewayService {
       const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`)
       
       if (url.pathname === '/api/voice/session') {
-        const token = url.searchParams.get('token') || request.headers['sec-websocket-protocol'] || ''
+        const userId = consumeVoiceSessionTicket(url.searchParams.get('ticket') || '')
+        if (!userId) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+          socket.destroy()
+          return
+        }
 
         this.wss!.handleUpgrade(request, socket, head, (ws) => {
-          this.wss!.emit('connection', ws, request, token)
+          this.wss!.emit('connection', ws, request, userId)
         })
       }
     })
 
-    this.wss.on('connection', (ws: WebSocket, request: any, token: string) => {
+    this.wss.on('connection', (ws: WebSocket, request: any, userId: string) => {
       const sessionId = `vses_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
       
       const session: VoiceSessionState = {
         id: sessionId,
-        token: String(token || 'bio_sri_session'),
+        userId,
         activeAgent: 'jarvis',
         ws,
         pcmBuffer: [],

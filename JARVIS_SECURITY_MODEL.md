@@ -81,3 +81,9 @@ Every security event, failed login attempt, path violation, and token refresh is
 - `level`: `info`, `warn`, `error`, `critical`.
 - `action`: Specific security event code (`LOGIN_SUCCESS`, `INVALID_2FA`, `BLOCKED_TRAVERSAL`, `PROVIDER_CIRCUIT_TRIP`).
 - `details`: Sanitized metadata (IP address, user agent, target resource).
+
+## Current voice-boundary implementation status
+
+The foreground voice upload route now requires a valid Jarvis JWT, enforces a 10 MB upload limit, supported audio MIME types, and a 12-per-minute per-user process-local limit. The progress WebSocket requires a random single-use ticket minted by an authenticated REST endpoint; tickets expire after 30 seconds and are consumed on connection. The startup invite-code log and raw unhandled-error response detail have been removed. The voice UI requires a user-visible editable transcript and an explicit send action before command routing.
+
+This is a partial boundary, not a full security sign-off. The separate Android bridge still needs strict JWT/session-revocation validation, the `jarvis` wildcard tool scope still needs an enforced least-privilege policy, and high-impact actions still need a structured approval gate. Ticket/rate state also needs shared storage if deployed across multiple independent server instances.

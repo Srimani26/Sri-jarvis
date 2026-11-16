@@ -2,7 +2,7 @@
 **Document**: Speech Recognition, Synthesis & Audio State Specification  
 **System**: J.A.R.V.I.S. MARK-V Sovereign Voice Subsystem  
 **Owner**: Master Sri  
-**Status**: Production Verified  
+**Status**: Foreground voice implementation in progress; not handset-verified
 
 ---
 
@@ -111,3 +111,13 @@ try {
 - **Idle State**: Waveform array remains pinned at baseline minimums (`[8, 8, 8, 8, ...]`). No artificial jitter or fake perpetual animation is rendered.
 - **Capturing State**: Waveform reflects real audio frequency bins sampled via `Web Audio API` `AnalyserNode` (`fftSize = 64`).
 - **Speaking State**: Equalizer bars animate proportionally to synthetic speech synthesis buffer events.
+
+## Current foreground voice implementation
+
+The current Jarvis modal follows a tap-to-talk turn: opening the modal does not activate the camera or microphone; one explicit microphone press captures one utterance. The user can edit the recognized text and must press **Send to Jarvis** before command routing. Speech and text use the same assistant command path, and one transcript cannot be submitted twice without a new capture or edit.
+
+Web Speech is used when available; MediaRecorder uploads to `POST /api/voice/transcribe` as the fallback. The upload route requires a Jarvis session, limits each user to 12 requests per minute and 10 MB per upload, and checks the declared audio MIME type. The server cascade is Groq Whisper, Deepgram, then Gemini. Provider failures return a user-facing retry message; no confidence score is invented when a provider does not supply one.
+
+The modal no longer sends raw audio through the separate voice WebSocket. Realtime progress uses an authenticated `POST /api/voice/session-ticket` and a random single-use ticket valid for 30 seconds at upgrade. Playback completion, silence, and app resume do not silently restart microphone capture. Background wake-word listening is not enabled or claimed.
+
+The ticket and transcription rate-limit maps are process-local. Production deployments with independently load-balanced ticket and WebSocket requests need sticky routing or shared short-lived ticket storage. Android packaging and physical-device behavior have not yet been verified.

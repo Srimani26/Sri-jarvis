@@ -127,8 +127,10 @@ const nativeFetch: typeof fetch =
   typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : (globalThis.fetch as typeof fetch)
 
 async function retryingFetch(input: any, init?: RequestInit): Promise<Response> {
-  const isApiCall = typeof input === 'string' && input.startsWith('/api/')
-  if (!isApiCall || !bodyIsResendable(init?.body)) return nativeFetch(input, init)
+  const requestUrl = typeof input === 'string' ? input : String(input?.url || '')
+  const isApiCall = requestUrl.startsWith('/api/')
+  const isVoiceUpload = requestUrl.split(/[?#]/, 1)[0].endsWith('/api/voice/transcribe')
+  if (!isApiCall || isVoiceUpload || !bodyIsResendable(init?.body)) return nativeFetch(input, init)
 
   for (let attempt = 1; ; attempt++) {
     try {
@@ -194,7 +196,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<an
   let res = await fetch(path, { ...init, headers })
 
   // If 401 occurs, retry twice with exponential backoff before surfacing error
-  if (res.status === 401 && !path.includes('/api/auth/login') && !path.includes('/api/auth/refresh')) {
+  if (res.status === 401 && !path.includes('/api/voice/transcribe') && !path.includes('/api/auth/login') && !path.includes('/api/auth/refresh')) {
     for (let retry = 1; retry <= 2; retry++) {
       await delay(200 * Math.pow(2, retry - 1))
       const refreshed = await attemptTokenRefresh().catch(() => null)

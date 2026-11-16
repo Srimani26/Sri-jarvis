@@ -474,6 +474,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
 
   // Persistent Refs to eliminate React closure traps
   const transcriptRef = useRef('')
+  const submittedTranscriptRef = useRef('')
   const isListeningRef = useRef(false)
   const isSpeakingRef = useRef(false)
   const isSleepingRef = useRef(false)
@@ -662,9 +663,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         }
       } catch {}
 
-      // Autonomous front camera biometric scan & executive greeting
-      mobileWakeLock.enableHandsFree().catch(() => {})
-      startBiometricFaceScan()
+      // The user opens this surface explicitly; microphone activation stays on the mic control.
     }
     if (!isOpen) {
       isRollingCallRef.current = false
@@ -693,14 +692,23 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     }
   }, [isOpen])
 
-  // Enterprise Voice WebSocket connection to /api/voice/session for Swarm progress & live preview
+  // Realtime session uses a short-lived single-use ticket; the reusable JWT stays on the authenticated POST.
   useEffect(() => {
     if (!isOpen) return
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${proto}//${window.location.host}/api/voice/session`
+    let cancelled = false
     let ws: WebSocket | null = null
 
-    try {
+    const connect = async () => {
+      const response = await fetch('/api/voice/session-ticket', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+      })
+      if (!response.ok) throw new Error(`Voice session ticket unavailable (${response.status})`)
+      const { ticket } = await response.json()
+      if (cancelled || typeof ticket !== 'string' || !ticket) return
+
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsUrl = `${proto}//${window.location.host}/api/voice/session?ticket=${encodeURIComponent(ticket)}`
       ws = new WebSocket(wsUrl)
       voiceWsRef.current = ws
       ws.onmessage = (event) => {
@@ -714,11 +722,14 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
           }
         } catch {}
       }
-    } catch (e) {
-      console.warn('[JarvisVoiceModal] Voice WebSocket session warning:', e)
     }
 
+    connect().catch(error => {
+      if (!cancelled) console.warn('[JarvisVoiceModal] Realtime session unavailable:', error)
+    })
+
     return () => {
+      cancelled = true
       voiceWsRef.current = null
       if (ws) {
         try { ws.close() } catch {}
@@ -839,17 +850,10 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         try { navigator.vibrate(50) } catch {}
       }
 
-      // Transition immediately to LISTENING and awaken the microphone
-      setVoiceState('LISTENING')
-      voiceStateRef.current = 'LISTENING'
-
-      if (onDone) {
-        onDone()
-      } else if (isOpenRef.current) {
-        setIsSleeping(false)
-        isSleepingRef.current = false
-        startListening()
-      }
+      // End the voice turn after playback. The user starts the next turn explicitly.
+      setVoiceState('IDLE')
+      voiceStateRef.current = 'IDLE'
+      if (onDone) onDone()
     }
 
     playNeuralSpeech(
@@ -896,8 +900,8 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     stopNeuralSpeech()
     setIsSleeping(true)
     isSleepingRef.current = true
-    setJarvisResponse("### 🌙 Sovereign Standby Mode Active\n*Resting in low-power standby. Ear is active. Speak anytime or call any specialist agent to command.*")
-    startListening()
+    setJarvisResponse("### 🌙 Standby\n*Microphone is off. Tap the microphone when you are ready to speak.")
+    stopListening()
   }
 
   // Wake Up Handler: immediately opens microphone for Master Sri without canned interruptions or beeps
@@ -4025,11 +4029,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data)
           vad.pushChunk(e.data)
-          if (voiceWsRef.current && voiceWsRef.current.readyState === WebSocket.OPEN) {
-            try {
-              voiceWsRef.current.send(e.data)
-            } catch {}
-          }
+
         }
       }
 
@@ -4049,13 +4049,8 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         isListeningRef.current = false
 
         if (audioBlob.size < 400 || !vad.isSpeechActive) {
-          if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-            setTimeout(() => {
-              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-                startWhisperRecording()
-              }
-            }, 250)
-          }
+          setVoiceState('IDLE')
+          voiceStateRef.current = 'IDLE'
           return
         }
 
@@ -4069,28 +4064,29 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
             method: 'POST',
             body: form,
           })
-          if (res.ok) {
-            const data = await res.json()
-            if (data.text?.trim()) {
-              const transcribed = data.text.trim()
-              setTranscript(transcribed)
-              transcriptRef.current = transcribed
-              await processCommand(transcribed)
-              return
-            }
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            setJarvisResponse(data.error || `Transcription failed (HTTP ${res.status}). Tap the microphone to retry.`)
+            return
           }
-        } catch (e) {
-          console.error('[Voice] Transcribe error:', e)
+          const data = await res.json().catch(() => ({}))
+          if (data.text?.trim()) {
+            const transcribed = data.text.trim()
+            setTranscript(transcribed)
+            submittedTranscriptRef.current = ''
+            transcriptRef.current = transcribed
+            setVoiceState('IDLE')
+            voiceStateRef.current = 'IDLE'
+            return
+          }
+          setJarvisResponse(data.error || 'I could not recognize that clearly. Try again or edit the transcript before sending.')
+        } catch {
+          setJarvisResponse('Voice transcription could not reach Jarvis. Check your connection and tap the microphone to retry.')
         } finally {
           setIsProcessing(false)
           isProcessingRef.current = false
-          if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-            setTimeout(() => {
-              if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-                startWhisperRecording()
-              }
-            }, 250)
-          }
+          setVoiceState('IDLE')
+          voiceStateRef.current = 'IDLE'
         }
       }
 
@@ -4124,6 +4120,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
 
   const startListening = () => {
     if (isSpeakingRef.current || isProcessingRef.current) return
+    submittedTranscriptRef.current = ''
 
     if (silenceDebounceTimerRef.current) {
       clearTimeout(silenceDebounceTimerRef.current)
@@ -4187,7 +4184,13 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
               isProcessingRef.current = true
               try { recognition.stop() } catch {}
 
-              await dispatchVoiceSession(finalSpeech)
+              setTranscript(finalSpeech)
+              submittedTranscriptRef.current = ''
+              transcriptRef.current = finalSpeech
+              setIsProcessing(false)
+              isProcessingRef.current = false
+              setVoiceState('IDLE')
+              voiceStateRef.current = 'IDLE'
             }
           }, debounceDelay)
         }
@@ -4202,14 +4205,8 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         }
 
         recognition.onend = () => {
-          // If still in LISTENING state, immediately re-arm recognition
-          if (voiceStateRef.current === 'LISTENING' && isOpenRef.current) {
-            try {
-              recognition.start()
-            } catch (e) {
-              // ignore already started
-            }
-          }
+          setIsListening(false)
+          isListeningRef.current = false
         }
 
         try {
@@ -4241,11 +4238,8 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         }
         stopListening()
         stopNeuralSpeech()
-      } else if (isOpenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-          audioCtxRef.current.resume().catch(() => {})
-        }
-        startListening()
+      } else if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {})
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
@@ -4619,7 +4613,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
                 {isSleeping ? (
                   <div className="flex flex-col items-center justify-center animate-pulse">
                     <Mic className="w-8 h-8 text-cyan-300" />
-                    <span className="text-[8px] font-mono text-cyan-400 font-black mt-0.5 tracking-wider uppercase">EAR ACTIVE</span>
+                    <span className="text-[8px] font-mono text-cyan-400 font-black mt-0.5 tracking-wider uppercase">MIC OFF</span>
                   </div>
                 ) : isListening ? (
                   <Mic className="w-10 h-10 text-cyan-300 animate-bounce" />
@@ -4638,7 +4632,7 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
           <div className="space-y-0.5">
             <div className="text-xs font-mono font-bold tracking-wider text-slate-200">
               {isSleeping
-                ? 'STANDBY // EAR ACTIVE (SPEAK ANY DIRECTIVE)'
+                ? 'STANDBY // MIC OFF (TAP TO SPEAK)'
                 : isListening
                 ? 'LISTENING TO MASTER SRI (SPEAK ANY DIRECTIVE)'
                 : isSpeaking
@@ -5088,13 +5082,31 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
           {/* Executive Dialogue Box (Master Sri & J.A.R.V.I.S.) */}
           <div className="w-full bg-slate-950/90 border border-slate-800/80 rounded-2xl p-4 text-left space-y-2.5 max-h-48 overflow-y-auto">
             {transcript && (
-              <div className="space-y-1 pb-2 border-b border-slate-800/80">
-                <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">
-                  Master Sri Said:
-                </span>
-                <p className="text-sm font-semibold text-white">
-                  "{transcript}"
-                </p>
+              <div className="space-y-2 pb-2 border-b border-slate-800/80">
+                <label htmlFor="jarvis-voice-transcript" className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">
+                  Review transcript before sending
+                </label>
+                <textarea
+                  id="jarvis-voice-transcript"
+                  value={transcript}
+                  onChange={event => setTranscript(event.target.value)}
+                  rows={2}
+                  aria-label="Edit recognized speech before sending to Jarvis"
+                  className="w-full resize-y rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30"
+                />
+                <button
+                  type="button"
+                  disabled={isProcessing || !transcript.trim() || submittedTranscriptRef.current === transcript.trim()}
+                  onClick={() => {
+                    const command = transcript.trim()
+                    if (!command || isProcessingRef.current || submittedTranscriptRef.current === command) return
+                    submittedTranscriptRef.current = command
+                    void processCommand(command)
+                  }}
+                  className="min-h-11 rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 transition-colors hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Send to Jarvis
+                </button>
               </div>
             )}
 
