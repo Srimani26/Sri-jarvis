@@ -236,12 +236,55 @@ export class TelegramNotifierService {
         const isCodingTask = specialist === 'aegis' || isWebApp || lower.includes('code') || lower.includes('build')
         const maxSteps = isCodingTask ? 35 : 25
 
+        // Persist a mission task so every tool call is policy-checked and
+        // consequential actions pause for approval instead of running inline.
+        const { TaskStore } = await import('../kernel/TaskStore')
+        let missionTaskId: string | undefined
+        try {
+          const missionTask = await TaskStore.createTask({
+            title: directive.slice(0, 100),
+            description: directive,
+            agentId: specialist,
+            totalSteps: 1,
+          })
+          missionTaskId = missionTask.id
+          await TaskStore.updateTask(missionTask.id, {
+            status: 'RUNNING',
+            currentOperation: 'Executing Telegram directive',
+          }).catch(() => {})
+        } catch (taskErr: any) {
+          // Without a persisted task the approval boundary cannot attach, so the
+          // loop keeps its legacy behaviour rather than failing the directive.
+          console.warn('[Telegram] Mission task could not be persisted:', taskErr?.message)
+        }
+
         const result = await executeAutonomousReAct(directive, {
           specialist,
           maxSteps,
           requireVerification: true,
-          deliverableType
+          deliverableType,
+          mission: missionTaskId
+            ? { userId: `telegram:${chatId}`, taskId: missionTaskId, agentId: specialist }
+            : undefined,
         })
+
+        if (missionTaskId) {
+          const finalStatus = result.status === 'COMPLETED'
+            ? 'COMPLETED'
+            : result.status === 'FAILED'
+              ? 'FAILED'
+              : result.status === 'AWAITING_APPROVAL'
+                ? 'AWAITING_APPROVAL'
+                : 'BLOCKED'
+          if (finalStatus === 'COMPLETED') {
+            await TaskStore.updateTask(missionTaskId, { status: 'VERIFYING' }).catch(() => {})
+          }
+          await TaskStore.updateTask(missionTaskId, {
+            status: finalStatus as any,
+            executionResult: result.finalResponse,
+            filesChanged: result.artifacts,
+          }).catch(() => {})
+        }
 
         const latencyMs = Date.now() - startTime
 
@@ -282,7 +325,8 @@ export class TelegramNotifierService {
         const summary = [
           `⚡ *[Task Completed by ${specialist.toUpperCase()}]*`,
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-          `• *Status:* ${result.success ? '✅ SUCCESS' : '❌ FAILED'}`,
+          `• *Status:* ${result.status === 'AWAITING_APPROVAL' ? '⏸ AWAITING APPROVAL' : result.success ? '✅ SUCCESS' : '❌ FAILED'}`,
+          result.pendingApprovalId ? `• *Approval Required:* \`${result.pendingApprovalId}\`` : null,
           `• *Execution Latency:* \`${latencyMs}ms\``,
           `• *ReAct Turns:* \`${result.stepsExecuted}\` (Self-Healed: \`${result.selfHealed ? 'YES' : 'NO'}\`)`,
           `• *Verification:* ${verifyStatus}`,

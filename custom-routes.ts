@@ -6878,6 +6878,103 @@ app.post('/moa/deliberate', requireAuth, async (c) => {
   }
 })
 
+// Runs a directive through the guarded autonomous ReAct loop for one operator:
+// a persisted mission task, policy-checked tool calls, and a truthful status.
+const REACT_SPECIALISTS: Record<string, string> = {
+  jarvis: 'jarvis',
+  friday: 'friday',
+  software_engineer: 'friday',
+  aegis: 'aegis',
+  cerebro: 'cerebro',
+  midas: 'midas',
+  raphael: 'raphael',
+  vortex: 'vortex',
+  architect: 'raphael',
+  automation_agent: 'vortex',
+  business_agent: 'midas',
+  research_agent: 'cerebro',
+}
+
+async function runGuardedDirective(params: {
+  userId: string
+  directive: string
+  agentId?: string
+  requireVerification?: boolean
+  deliverableType?: 'web_app' | 'logic_backend' | 'document' | 'general'
+}) {
+  const agentId = String(params.agentId || 'jarvis').toLowerCase()
+  const task = await TaskStore.createTask({
+    title: params.directive.slice(0, 100),
+    description: params.directive,
+    agentId,
+    totalSteps: 1,
+  })
+
+  await TaskStore.updateTask(task.id, { status: 'RUNNING', currentOperation: `Autonomous execution: ${params.directive.slice(0, 80)}` }).catch(() => {})
+
+  const { executeAutonomousReAct } = await import('./src/swarm/engine/AutonomousAgentLoop')
+  const result = await executeAutonomousReAct(params.directive, {
+    specialist: (REACT_SPECIALISTS[agentId] ?? 'jarvis') as any,
+    maxSteps: 35,
+    requireVerification: params.requireVerification === true,
+    deliverableType: params.deliverableType,
+    mission: { userId: params.userId, taskId: task.id, agentId },
+  })
+
+  const finalStatus = result.status === 'COMPLETED'
+    ? 'COMPLETED'
+    : result.status === 'FAILED'
+      ? 'FAILED'
+      : result.status === 'AWAITING_APPROVAL'
+        ? 'AWAITING_APPROVAL'
+        : 'BLOCKED'
+
+  if (finalStatus === 'COMPLETED') {
+    await TaskStore.updateTask(task.id, { status: 'VERIFYING', currentOperation: 'Mission verification' }).catch(() => {})
+  }
+  await TaskStore.updateTask(task.id, {
+    status: finalStatus as any,
+    progress: finalStatus === 'COMPLETED' ? 100 : 50,
+    executionResult: result.finalResponse,
+    filesChanged: result.artifacts,
+  }).catch(() => {})
+
+  return {
+    taskId: task.id,
+    taskNumber: task.taskNumber,
+    status: result.status,
+    success: result.success,
+    summary: result.finalResponse,
+    stepsExecuted: result.stepsExecuted,
+    artifacts: result.artifacts,
+    pendingApprovalId: result.pendingApprovalId,
+    verification: result.verificationDetails ?? null,
+  }
+}
+
+// POST /api/missions/voice — a spoken directive becomes a guarded mission task.
+app.post('/missions/voice', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const directive = String(body.transcript ?? body.text ?? body.directive ?? '').trim()
+  if (!directive) return c.json({ error: 'transcript is required' }, 400)
+
+  try {
+    const result = await runGuardedDirective({
+      userId,
+      directive,
+      agentId: body.agent,
+      requireVerification: body.requireVerification === true,
+      deliverableType: body.deliverableType,
+    })
+    return c.json(result, result.status === 'COMPLETED' ? 200 : 202)
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Voice mission could not be started' }, 500)
+  }
+})
+
 // POST /api/moa/orchestrate — real Mixture-of-Agents: specialist proposers run in
 // parallel, then an aggregator synthesises one plan. Risky proposals come back
 // flagged as requiring approval instead of being accepted silently.
@@ -8708,7 +8805,7 @@ app.post('/voice/intent', async (c) => {
 });
 
 // POST /api/voice/session — Autonomous Voice Session & Swarm Dispatch
-app.post('/voice/session', async (c) => {
+app.post('/voice/session', requireAuth, async (c) => {
   try {
     const { parseVoiceIntent } = await import('./src/services/voiceGateway');
     const { SwarmOrchestrator } = await import('./src/swarm/engine/SwarmOrchestrator');
