@@ -6878,6 +6878,38 @@ app.post('/moa/deliberate', requireAuth, async (c) => {
   }
 })
 
+// POST /api/moa/orchestrate — real Mixture-of-Agents: specialist proposers run in
+// parallel, then an aggregator synthesises one plan. Risky proposals come back
+// flagged as requiring approval instead of being accepted silently.
+app.post('/moa/orchestrate', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const objective = String(body.objective ?? '').trim()
+  if (!objective) return c.json({ error: 'objective is required' }, 400)
+
+  const proposers = Array.isArray(body.proposers)
+    ? body.proposers
+        .filter((proposer: any) => proposer && typeof proposer.agentId === 'string')
+        .map((proposer: any) => ({ agentId: proposer.agentId, systemPrompt: proposer.systemPrompt }))
+    : undefined
+
+  try {
+    const { createDefaultMixtureOfAgents } = await import('./src/council/MixtureOfAgents')
+    const engine = await createDefaultMixtureOfAgents()
+    const result = await engine.run({
+      objective,
+      proposers,
+      context: typeof body.context === 'string' ? body.context : undefined,
+      synthesizerAgentId: typeof body.synthesizerAgentId === 'string' ? body.synthesizerAgentId : undefined,
+    })
+    return c.json({ moa: result })
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Mixture-of-Agents deliberation failed' }, 502)
+  }
+})
+
 // POST /api/tasks/:id/resume — resume a mission whose approval is already APPROVED
 app.post('/tasks/:id/resume', requireAuth, async (c) => {
   const userId = String(c.get('userId') || '')
