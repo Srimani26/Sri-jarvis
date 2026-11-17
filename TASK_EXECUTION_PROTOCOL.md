@@ -28,10 +28,13 @@ No task in J.A.R.V.I.S. may transition to `COMPLETED` based on conversational ac
 ## 2. Detailed Lifecycle Stages
 
 ### Implementation status for mission approvals
-- Mission lifecycle classification and one-use encrypted approval storage are implemented as primitives in this branch.
-- The approval store is not yet the final tool-dispatch boundary, and not all voice, scheduler, or ReAct entry points use a shared coordinator. Until those adapters and authenticated routes are completed, do not claim end-to-end autonomous mission completion or enable approval-backed dispatch.
+- Mission lifecycle classification, one-use encrypted approvals, and the encrypted resume checkpoint are implemented and unit-tested.
+- `src/kernel/MissionToolPolicy.ts` is the dispatch boundary: agent identity, agent allowlist, agent permission ceiling, task scope and per-tool risk class are all checked immediately before execution, and unknown agents/tools fail closed.
+- `src/kernel/MissionCoordinator.ts` owns the lifecycle for API-driven missions: it persists the task, records redacted evidence, pauses in `AWAITING_APPROVAL` for external sends, deploys and irreversible commands, and resumes from the encrypted checkpoint after a one-use approval. Resuming re-checks policy *before* burning the approval.
+- Authenticated surface: `POST /api/missions/start`, `GET /api/tasks/:id/approvals`, `POST /api/tasks/:id/approvals/:approvalId/decision`, `POST /api/tasks/:id/resume`, `POST /api/moa/deliberate`.
+- Still open: the legacy voice/Telegram/scheduler adapters and the two ReAct loops do not yet all pass through `MissionCoordinator`; they retain their existing behaviour. Do not claim end-to-end autonomous mission completion from those surfaces until those adapters land.
 - A persisted `COMPLETED` result must be based on executed actions, explicit terminal intent, and passing required verification. Plain model text, a tool's success flag, or artifact existence alone is not sufficient evidence.
-- Approval checkpoint encryption requires `MISSION_CHECKPOINT_ENCRYPTION_KEY`; deployment configuration and migrations must be validated before release.
+- Approval checkpoint encryption requires `MISSION_CHECKPOINT_ENCRYPTION_KEY` (canonical base64 of 32 random bytes). Without it, mission start fails closed with an explicit error and nothing dispatches; the variable is declared in `render.yaml` and must be set in the Render dashboard.
 
 ### Stage 1: PLAN
 - Parse the natural language directive using `VoiceEngine` or `CommandCenter`.

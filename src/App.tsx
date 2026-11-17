@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { authHeaders, jsonAuthHeaders, attemptTokenRefresh, setRefreshToken } from '@/lib/api'
-import { playJarvisChime, playNeuralSpeech, primeAudioPlayback } from '@/lib/sound'
+import { playJarvisChime, playNeuralSpeech, primeAudioPlayback, speakInstantNativeSpeech } from '@/lib/sound'
 import { ConversationOS } from './voice/ConversationOS'
 import { MobileThermalShield, type ThermalState } from './lib/thermal-shield'
 import { mobileDestinations, persistentVoiceAction } from './components/app/navigation'
@@ -262,10 +262,13 @@ export default function App() {
     if (token && !hasGreeted) {
       setHasGreeted(true)
       const greeting = ConversationOS.generateDynamicGreeting(username || 'Master Sri')
+      try { sessionStorage.setItem('jarvis_greeted_at', String(Date.now())) } catch {}
+      // Instant local synthesis: the greeting is audible well inside 2s of open and
+      // does not wait on a network TTS round-trip.
       const timer = setTimeout(() => {
         playJarvisChime('wake')
-        playNeuralSpeech(greeting, 'en-GB', undefined, undefined, undefined, 'jarvis')
-      }, 1000)
+        speakInstantNativeSpeech(greeting, 'en-GB', undefined, undefined, undefined, 'jarvis')
+      }, 120)
       return () => clearTimeout(timer)
     }
   }, [token, hasGreeted, username])

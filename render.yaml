@@ -25,6 +25,12 @@ services:
         generateValue: true
       - key: JWT_SECRET
         generateValue: true
+      # Required for approval-backed missions (consequential tool dispatch).
+      # Must be the canonical base64 encoding of exactly 32 random bytes:
+      #   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      # Mission start returns a clear error while this is unset; nothing dispatches.
+      - key: MISSION_CHECKPOINT_ENCRYPTION_KEY
+        sync: false
       - key: GEMINI_API_KEY
         sync: false # Set securely in Render dashboard secrets
       - key: GROQ_API_KEY

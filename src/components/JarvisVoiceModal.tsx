@@ -16,6 +16,8 @@ import { wakeWordDetector } from '@/features/voice/WakeWordDetector'
 import { resolveVoiceNavigation } from '@/features/voice/voiceNavigationRouter'
 import { AdaptiveVAD } from '@/voice/AdaptiveVAD'
 import { ConversationOS } from '@/voice/ConversationOS'
+import { voiceSession, resolveAgentVoice } from '@/voice/VoiceSession'
+import { recognizeOnce } from '@/voice/NativeRecognition'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { processOfflineCommand } from '@/lib/offline-core'
 import TaskProgressCard, { AgentTask, StepAction } from '@/components/TaskProgressCard'
@@ -583,8 +585,44 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     return jarvisPool[Math.floor(Math.random() * jarvisPool.length)]
   }
 
+  // Executive greeting + standby. Runs the instant the voice surface opens, in
+  // parallel with the (slower) optical scan, so the greeting is audible inside 2s.
+  const beginVoiceGreeting = () => {
+    const currentAgent = activeAgentRef.current || AGENTS.jarvis
+    // One spoken greeting per session: App already greeted on launch.
+    let lastGreetAt = 0
+    try { lastGreetAt = Number(sessionStorage.getItem('jarvis_greeted_at') || 0) || 0 } catch {}
+    const shouldSpeakGreeting = !lastGreetAt || Date.now() - lastGreetAt > 60_000
+    const greeting = shouldSpeakGreeting ? getDynamicExecutiveGreeting(currentAgent) : ''
+    setJarvisResponse(greeting || `${currentAgent.name} standing by, Master Sri.`)
+    try { sessionStorage.setItem('jarvis_greeted_at', String(Date.now())) } catch {}
+
+    voiceSession.open(
+      {
+        speak: (text, profile) => new Promise<void>((resolve) => {
+          speakVoice(text, profile.lang, resolve, profile.agentId)
+          // Safety net: a stalled TTS engine must still reach standby.
+          setTimeout(resolve, 14000)
+        }),
+        stopSpeaking: () => {
+          stopNeuralSpeech()
+          try { window.speechSynthesis?.cancel() } catch {}
+        },
+        startListening: () => {
+          setBiometricStatus('STANDBY')
+          setIsSleeping(true)
+          isSleepingRef.current = true
+          startListening()
+        },
+        stopListening: () => stopListening(),
+      },
+      { greeting, profile: resolveAgentVoice(currentAgent.id) },
+    ).catch(() => {})
+  }
+
   // Master Sri Front Camera Autonomous Biometric Face Recognition
   const startBiometricFaceScan = async () => {
+    beginVoiceGreeting()
     setBiometricStatus('SCANNING')
     setBiometricProgress(20)
     setBiometricMessage('ENGAGING FRONT OPTICAL SENSOR...')
@@ -628,19 +666,6 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       }
     } catch {}
 
-    // Autonomous Dynamic Executive Greeting
-    const currentAgent = activeAgentRef.current || AGENTS.jarvis
-    const greeting = getDynamicExecutiveGreeting(currentAgent)
-    setJarvisResponse(greeting)
-    speakVoice(greeting, currentAgent.lang || 'en-GB', undefined, currentAgent.id)
-
-    // Smoothly transition into Silent Standby Mode (no beeps, continuous ear)
-    setTimeout(() => {
-      setBiometricStatus('STANDBY')
-      setIsSleeping(true)
-      isSleepingRef.current = true
-      startListening()
-    }, 2200)
   }
 
   useEffect(() => {
@@ -668,6 +693,7 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
     if (!isOpen) {
       isRollingCallRef.current = false
       mobileWakeLock.release()
+      voiceSession.close()
       stopListening(true)
       stopNeuralSpeech()
       audioQueuePlayer.stopAll()
@@ -4057,6 +4083,29 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
         setIsProcessing(true)
         isProcessingRef.current = true
 
+        const acceptTranscript = (text: string) => {
+          const transcribed = text.trim()
+          setTranscript(transcribed)
+          submittedTranscriptRef.current = ''
+          transcriptRef.current = transcribed
+          setVoiceState('IDLE')
+          voiceStateRef.current = 'IDLE'
+        }
+
+        // Second opinion: the on-device recognizer, so one bad server turn never
+        // swallows what Master Sri actually said.
+        const recoverWithNative = async () => {
+          const native = await recognizeOnce({
+            lang: activeAgentRef.current?.lang || 'en-IN',
+            timeoutMs: 7000,
+          })
+          if (native.text.trim() && (native.confidence === 0 || native.confidence >= 0.45)) {
+            acceptTranscript(native.text)
+            return true
+          }
+          return false
+        }
+
         try {
           const form = new FormData()
           form.append('file', audioBlob, 'voice.webm')
@@ -4065,22 +4114,20 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
             body: form,
           })
           if (!res.ok) {
+            if (await recoverWithNative()) return
             const data = await res.json().catch(() => ({}))
             setJarvisResponse(data.error || `Transcription failed (HTTP ${res.status}). Tap the microphone to retry.`)
             return
           }
           const data = await res.json().catch(() => ({}))
           if (data.text?.trim()) {
-            const transcribed = data.text.trim()
-            setTranscript(transcribed)
-            submittedTranscriptRef.current = ''
-            transcriptRef.current = transcribed
-            setVoiceState('IDLE')
-            voiceStateRef.current = 'IDLE'
+            acceptTranscript(data.text)
             return
           }
+          if (await recoverWithNative()) return
           setJarvisResponse(data.error || 'I could not recognize that clearly. Try again or edit the transcript before sending.')
         } catch {
+          if (await recoverWithNative()) return
           setJarvisResponse('Voice transcription could not reach Jarvis. Check your connection and tap the microphone to retry.')
         } finally {
           setIsProcessing(false)
@@ -4141,7 +4188,9 @@ All OpenJarvis composable primitives and thermal optimization protocols are now 
 
         recognition.continuous = false // Mobile Chrome drops continuous: true
         recognition.interimResults = true
-        recognition.lang = 'en-US'
+        // Match the active agent's locale so accented English is recognized,
+        // not forced through a default en-US model.
+        recognition.lang = activeAgentRef.current?.lang || 'en-IN'
 
         recognition.onstart = () => {
           setIsListening(true)

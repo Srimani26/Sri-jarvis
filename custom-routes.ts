@@ -63,6 +63,9 @@ import { randomBytes } from 'crypto'
 
 import { SovereignGate } from './src/security/SovereignGate'
 import { MissionOrchestrator } from './src/orchestrator/MissionOrchestrator'
+import type { MissionCoordinator } from './src/kernel/MissionCoordinator'
+import { MissionApprovalStore } from './src/kernel/MissionApprovalStore'
+import { AgentCouncil } from './src/council/AgentCouncil'
 import { AgentRegistry } from './src/agents/AgentRegistry'
 import { WorkspaceManager } from './src/workspace/WorkspaceManager'
 import { AutonomousReActEngine } from './src/agents/AutonomousReActEngine'
@@ -6749,6 +6752,147 @@ app.post('/open-source/execute-agent', requireAuth, async (c) => {
 });
 
 // GET /api/tasks/active — Real-time telemetry of currently running tasks
+// ============================================================================
+// MISSION LIFECYCLE API — one coordinator for voice, chat, task and scheduler
+// requests. Every tool call is policy-checked before dispatch, consequential
+// actions pause for a one-use approval, and completion requires evidence.
+// ============================================================================
+let missionCoordinatorPromise: Promise<MissionCoordinator> | null = null
+
+async function getMissionCoordinator(): Promise<MissionCoordinator> {
+  if (!missionCoordinatorPromise) {
+    missionCoordinatorPromise = (async () => {
+      const { createDefaultMissionPorts } = await import('./src/kernel/MissionCoordinator')
+      return new MissionCoordinator(await createDefaultMissionPorts())
+    })().catch(err => {
+      missionCoordinatorPromise = null
+      throw err
+    })
+  }
+  return missionCoordinatorPromise
+}
+
+// POST /api/missions/start
+app.post('/missions/start', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const objective = String(body.objective ?? body.directive ?? '').trim()
+  const agentId = String(body.agentId ?? body.agent ?? 'jarvis').toLowerCase()
+  const source = ['voice', 'chat', 'task_api', 'scheduler'].includes(body.source) ? body.source : 'task_api'
+  const steps = Array.isArray(body.steps)
+    ? body.steps
+        .filter((step: any) => step && typeof step.toolName === 'string')
+        .map((step: any) => ({ toolName: step.toolName, args: step.args ?? {}, title: step.title }))
+    : typeof body.toolName === 'string'
+      ? [{ toolName: body.toolName, args: body.args ?? {} }]
+      : []
+
+  if (!objective) return c.json({ error: 'objective is required' }, 400)
+  if (steps.length === 0) return c.json({ error: 'At least one actionable step (toolName) is required' }, 400)
+
+  try {
+    const coordinator = await getMissionCoordinator()
+    const result = await coordinator.start({
+      userId,
+      objective,
+      agentId,
+      source,
+      steps,
+      taskScope: body.taskScope,
+      requireVerification: body.requireVerification === true,
+    })
+    return c.json(result, result.status === 'COMPLETED' ? 200 : 202)
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Mission could not be started' }, 400)
+  }
+})
+
+// GET /api/tasks/:id/approvals — pending actions, summaries only
+app.get('/tasks/:id/approvals', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const approvals = await new MissionApprovalStore().getPendingApprovals(c.req.param('id'), userId)
+    return c.json({
+      approvals: approvals.map(approval => ({
+        id: approval.id,
+        toolName: approval.toolName,
+        actionDigest: approval.actionDigest,
+        summary: approval.summary,
+        expiresAt: approval.expiresAt,
+        status: approval.status,
+      })),
+    })
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Approvals unavailable' }, 400)
+  }
+})
+
+// POST /api/tasks/:id/approvals/:approvalId/decision — approve/reject, then resume
+app.post('/tasks/:id/approvals/:approvalId/decision', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const decision = body.decision === 'REJECT' ? 'REJECT' : 'APPROVE'
+  const actionDigest = String(body.actionDigest ?? '').trim()
+  if (!/^[a-f0-9]{64}$/i.test(actionDigest)) return c.json({ error: 'actionDigest is required' }, 400)
+
+  const taskId = c.req.param('id')
+  const approvalId = c.req.param('approvalId')
+
+  try {
+    const store = new MissionApprovalStore()
+    const decided = await store.approveOnce({ id: approvalId, userId, actionDigest, decision })
+
+    if (decision === 'REJECT') {
+      return c.json({ decision: 'REJECTED', approval: { id: decided.id, status: decided.status } }, 200)
+    }
+
+    const coordinator = await getMissionCoordinator()
+    const result = await coordinator.resume(taskId, userId, approvalId)
+    return c.json({ decision: 'APPROVED', result }, result.status === 'COMPLETED' ? 200 : 202)
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Approval decision failed' }, 400)
+  }
+})
+
+// POST /api/moa/deliberate — Mixture-of-Agents council review for a high-stakes plan.
+// Proposers vote, a synthesizer merges them, and a security veto blocks the plan.
+app.post('/moa/deliberate', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const topic = String(body.topic ?? '').trim()
+  const proposal = String(body.proposal ?? body.proposalText ?? '').trim()
+  if (!topic || !proposal) return c.json({ error: 'topic and proposal are required' }, 400)
+
+  try {
+    const result = await AgentCouncil.deliberate(topic, proposal, String(body.proposedBy ?? 'jarvis').toLowerCase())
+    return c.json({ moa: result, members: AgentCouncil.getCouncilMembers() })
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Council deliberation failed' }, 400)
+  }
+})
+
+// POST /api/tasks/:id/resume — resume a mission whose approval is already APPROVED
+app.post('/tasks/:id/resume', requireAuth, async (c) => {
+  const userId = String(c.get('userId') || '')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({} as any))
+  if (!body.approvalId) return c.json({ error: 'approvalId is required' }, 400)
+  try {
+    const coordinator = await getMissionCoordinator()
+    const result = await coordinator.resume(c.req.param('id'), userId, String(body.approvalId))
+    return c.json(result, result.status === 'COMPLETED' ? 200 : 202)
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Mission could not be resumed' }, 400)
+  }
+})
+
 app.get('/tasks/active', requireAuth, async (c) => {
   try {
     const activeTasks = await TaskStore.getActiveTasks();
