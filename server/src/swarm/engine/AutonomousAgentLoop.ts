@@ -22,6 +22,7 @@ import { RAPHAEL_SYSTEM_PROMPT } from '../specialists/RaphaelSpecialist'
 import { MIDAS_SYSTEM_PROMPT } from '../specialists/MidasSpecialist'
 import { FRIDAY_SYSTEM_PROMPT } from '../specialists/FridaySpecialist'
 import { classifyMissionOutcome, type MissionStatus } from '../../../../src/kernel/missionLifecycle'
+import { createMissionLoopGuard, MISSION_APPROVAL_SENTINEL, type MissionLoopContext } from '../../../../src/kernel/MissionLoopGuard'
 
 export interface ToolCallRecord {
   id: string
@@ -44,6 +45,8 @@ export interface AutonomousTaskResult {
   artifacts: string[]
   selfHealed: boolean
   verificationDetails?: any
+  /** Set when a consequential action paused the loop for approval. */
+  pendingApprovalId?: string
 }
 
 export interface AutonomousLoopOptions {
@@ -62,6 +65,11 @@ export interface AutonomousLoopOptions {
   createTask?: (directive: string, specialist: SwarmSpecialist, taskId: string) => Promise<any>
   logToolExecution?: (taskId: string, tool: string, args: any, output: any, status: 'SUCCESS' | 'ERROR', latencyMs: number) => Promise<any>
   completeTask?: (taskId: string, status: 'COMPLETED' | 'FAILED' | 'BLOCKED', result: string) => Promise<any>
+  /**
+   * Route tool calls through the mission dispatch boundary. Without it the loop
+   * keeps its legacy behaviour; with it, consequential tools pause for approval.
+   */
+  mission?: MissionLoopContext
 }
 
 const MAX_CONTEXT_CHARS = 120_000 // Approximate 30,000-32,000 token boundary
@@ -147,6 +155,7 @@ export async function executeAutonomousReAct(
   const workspaceRoot = options.workspaceRoot || process.cwd()
   const modelDispatch = options.modelDispatch || ((agent, history, tools) => swarmModelRouter.dispatch(agent, history, tools))
   const toolDispatch = options.toolDispatch || dispatchToolCall
+  const missionGuard = options.mission ? createMissionLoopGuard(options.mission, toolDispatch) : null
   const verifyDeliverable = options.verifyDeliverable || ((request, root) => autonomousVerifier.verifyDeliverable(request, root))
   const createTask = options.createTask || ((request, agent, id) => taskAuditService.createTask(request, agent, id))
   const logToolExecution = options.logToolExecution || ((id, tool, args, output, status, latency) => taskAuditService.logToolExecution(id, tool, args, output, status, latency))
@@ -199,6 +208,8 @@ OPERATIONAL INVARIANTS:
   let selfHealed = false
   let verificationDetails: any = null
   let terminalIntentReceived = false
+  let awaitingApproval = false
+  let pendingApprovalId: string | undefined
   let executionState: 'IDLE' | 'RUNNING' | 'ERROR' | 'EXHAUSTED' = 'EXHAUSTED'
   let discoveredSlug = options.slug || ''
   const filesWritten: string[] = []
@@ -246,7 +257,13 @@ OPERATIONAL INVARIANTS:
       let status: 'SUCCESS' | 'ERROR' = 'SUCCESS'
 
       try {
-        output = await toolDispatch(toolName, args)
+        output = missionGuard ? await missionGuard.dispatch(toolName, args) : await toolDispatch(toolName, args)
+        if (output && typeof output === 'object' && output[MISSION_APPROVAL_SENTINEL] === true) {
+          awaitingApproval = true
+          pendingApprovalId = output.approvalId
+          finalResponse = `Mission paused for approval. ${output.summary ?? ''}`.trim()
+          executionState = 'IDLE'
+        }
       } catch (err: any) {
         status = 'ERROR'
         output = {
@@ -270,6 +287,8 @@ OPERATIONAL INVARIANTS:
       if (options.onStepProgress) {
         options.onStepProgress(step, modelContent, toolName, output)
       }
+
+      if (awaitingApproval) break
 
       // Track created artifacts, slugs, and files
       if (output?.previewUrl && typeof output.previewUrl === 'string') {
@@ -352,7 +371,7 @@ OPERATIONAL INVARIANTS:
       }
     }
 
-    if (finishTaskEncountered) {
+    if (finishTaskEncountered || awaitingApproval) {
       break
     }
   }
@@ -390,9 +409,10 @@ OPERATIONAL INVARIANTS:
         : verificationDetails
           ? 'FAILED'
           : 'NOT_RUN',
+    awaitingApproval,
   })
   success = status === 'COMPLETED'
-  if (!success && !terminalIntentReceived && !finalResponse.startsWith('Mission did not complete:')) {
+  if (!success && !terminalIntentReceived && !awaitingApproval && !finalResponse.startsWith('Mission did not complete:')) {
     finalResponse = `Mission did not complete: ${finalResponse}`
   }
 
@@ -419,6 +439,7 @@ OPERATIONAL INVARIANTS:
     toolCallHistory,
     artifacts,
     selfHealed,
-    verificationDetails
+    verificationDetails,
+    pendingApprovalId
   }
 }
