@@ -43,6 +43,12 @@ canonical workforce roles) its own locale, gender, voice name, rate and pitch.
 `resolveAgentVoice()` maps aliases such as `F.R.I.D.A.Y.` or `stark os` to the
 right profile and falls back to Jarvis for unknown ids.
 
+## 0.1 Continuous conversation and mission routing
+
+- **Follow-up listening** (`src/voice/ConversationFlow.ts`): after Jarvis finishes speaking, `nextTurnDecision()` decides whether to re-arm the microphone. It listens for follow-ups inside a 45s window, waits while Jarvis is still speaking or thinking, re-arms immediately after a barge-in, and stays in standby after sleep/close or a hidden tab (`rearmDelayMs` keeps a small gap so Jarvis never records its own tail).
+- **Spoken work orders become missions** (`src/voice/directiveRouter.ts`): `classifyVoiceDirective()` separates navigation ("open tasks"), conversation ("how do I build a payment flow?") and real work ("Aegis fix the failing test suite"). Work orders POST to `/api/missions/voice`, which persists a task and runs the guarded ReAct loop — so every tool call is policy-checked and consequential steps return `pendingApprovalId`. Destructive wording is flagged, and the mission policy enforces the actual approval.
+- **Conversation memory**: `ConversationOS` persists the last 40 turns to `localStorage`, so a reload does not make Jarvis forget the thread. Storage failures fall back to memory-only.
+
 ## 1. Pipeline Overview
 The voice engine (`src/voice/VoiceEngine.ts`) implements real-time audio interaction with zero latency degradation:
 1. **Audio Capture & VAD**: Web Audio API with a deterministic 2-second silence cutoff to capture completed user thoughts without premature cutoffs.

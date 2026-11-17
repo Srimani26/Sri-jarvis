@@ -33,10 +33,45 @@ export interface TacticalDialogueResponse {
   targetAgent?: string;
 }
 
+const HISTORY_STORAGE_KEY = 'jarvis_conversation_history';
+const MAX_PERSISTED_TURNS = 40;
+
 export class ConversationOS {
   private static currentState: ConversationState = 'IDLE';
   private static history: Utterance[] = [];
   private static activePlaybackAbortController: AbortController | null = null;
+  private static hydrated = false;
+
+  /**
+   * Restores the last conversation so a reload does not make Jarvis forget what
+   * you were working on. Storage failures are non-fatal by design.
+   */
+  private static hydrateHistory(): void {
+    if (this.hydrated) return;
+    this.hydrated = true;
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      this.history = parsed
+        .filter((entry: any) => entry && typeof entry.text === 'string' && (entry.sender === 'user' || entry.sender === 'jarvis'))
+        .slice(-MAX_PERSISTED_TURNS);
+    } catch {
+      // Corrupt or unavailable storage: start a fresh conversation.
+      this.history = [];
+    }
+  }
+
+  private static persistHistory(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(this.history.slice(-MAX_PERSISTED_TURNS)));
+    } catch {
+      // Quota or private mode: memory-only history is still correct.
+    }
+  }
 
   public static getState(): ConversationState {
     return this.currentState;
@@ -111,7 +146,9 @@ export class ConversationOS {
       text: cleanInput,
       timestamp: new Date().toISOString(),
     };
+    this.hydrateHistory();
     this.history.push(utterance);
+    this.persistHistory();
 
     // Fast tactical routing to specialists
     let assignedAgent = 'jarvis';
@@ -171,7 +208,9 @@ export class ConversationOS {
       text: cleanInput,
       timestamp: new Date().toISOString(),
     };
+    this.hydrateHistory();
     this.history.push(utterance);
+    this.persistHistory();
 
     // Dynamic Multi-Agent Addressing & Specialty Routing
     let targetAgent = (persona || 'jarvis').toLowerCase();
@@ -408,12 +447,17 @@ Voice Spoken Directives:
   }
 
   public static getHistory(): Utterance[] {
+    this.hydrateHistory();
     return [...this.history];
   }
 
   public static reset(): void {
     this.currentState = 'IDLE';
     this.history = [];
+    this.hydrated = true;
+    if (typeof localStorage !== 'undefined') {
+      try { localStorage.removeItem(HISTORY_STORAGE_KEY); } catch {}
+    }
     if (this.activePlaybackAbortController) {
       this.activePlaybackAbortController.abort();
       this.activePlaybackAbortController = null;

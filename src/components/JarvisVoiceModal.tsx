@@ -18,6 +18,8 @@ import { AdaptiveVAD } from '@/voice/AdaptiveVAD'
 import { ConversationOS } from '@/voice/ConversationOS'
 import { voiceSession, resolveAgentVoice } from '@/voice/VoiceSession'
 import { recognizeOnce } from '@/voice/NativeRecognition'
+import { nextTurnDecision, rearmDelayMs } from '@/voice/ConversationFlow'
+import { classifyVoiceDirective } from '@/voice/directiveRouter'
 import { authHeaders, jsonAuthHeaders } from '@/lib/api'
 import { processOfflineCommand } from '@/lib/offline-core'
 import TaskProgressCard, { AgentTask, StepAction } from '@/components/TaskProgressCard'
@@ -876,9 +878,28 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
         try { navigator.vibrate(50) } catch {}
       }
 
-      // End the voice turn after playback. The user starts the next turn explicitly.
       setVoiceState('IDLE')
       voiceStateRef.current = 'IDLE'
+
+      // Continuous conversation: re-arm the mic so Master Sri can simply answer,
+      // with no tap. Sleep/close and a hidden tab never re-arm.
+      const interrupted = ConversationOS.getState() === 'BARGE_IN_INTERRUPTED'
+      const decision = nextTurnDecision({
+        isOpen: isOpenRef.current !== false && !isSleepingRef.current,
+        isSpeaking: isSpeakingRef.current,
+        isProcessing: isProcessingRef.current,
+        interrupted,
+        lastExchangeAt: lastActiveRef.current,
+        now: Date.now(),
+      })
+      if (decision === 'LISTEN') {
+        setTimeout(() => {
+          if (!isOpenRef.current || isSleepingRef.current) return
+          if (isSpeakingRef.current || isProcessingRef.current) return
+          startListening()
+        }, rearmDelayMs(interrupted))
+      }
+
       if (onDone) onDone()
     }
 
@@ -1511,6 +1532,40 @@ export default function JarvisVoiceModal({ isOpen, onClose, onNavigate }: Jarvis
       handleExecutePlan()
       setIsProcessing(false)
       return
+    }
+
+    // 0.1 AUTONOMOUS MISSION DISPATCH: spoken work orders become real missions.
+    // The mission route authorizes every tool call and pauses for approval before
+    // anything consequential (sending, deploying, deleting) happens.
+    const voiceDirective = classifyVoiceDirective(cmd)
+    if (voiceDirective.kind === 'mission') {
+      try {
+        const res = await fetch('/api/missions/voice', {
+          method: 'POST',
+          headers: jsonAuthHeaders(),
+          body: JSON.stringify({
+            transcript: cmd,
+            agent: voiceDirective.agentId || activeAgentRef.current?.id || 'jarvis',
+            deliverableType: /app|site|dashboard|store|landing|page/i.test(cmd) ? 'web_app' : undefined,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+
+        const approvalNote = data.pendingApprovalId
+          ? ' A consequential step needs your approval — open Tasks to approve it.'
+          : ''
+        const spoken = `${data.summary || 'Mission dispatched, Master Sri.'}${approvalNote}`.slice(0, 600)
+        setJarvisResponse(spoken)
+        speakVoice(spoken, activeAgentRef.current?.lang || 'en-GB', undefined, activeAgentRef.current?.id)
+        if (data.taskId) onNavigate('tasks')
+        setIsProcessing(false)
+        return
+      } catch (missionErr) {
+        // Route unavailable (older deployment) or server error: fall through to
+        // the conversational pipeline instead of swallowing the directive.
+        console.warn('[Voice] Mission dispatch unavailable:', missionErr)
+      }
     }
 
     // 0.2 IMMEDIATE AGENT CALL / HANDOFF SWITCHING (e.g. "call vortex", "call midas", "switch to raphael", "talk to friday")
