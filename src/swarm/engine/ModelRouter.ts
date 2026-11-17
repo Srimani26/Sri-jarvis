@@ -11,6 +11,7 @@
 import { virtualKeyVault } from '../../security/SecretSanitizer'
 import { SWARM_TOOL_SCHEMAS } from '../tools/toolRegistry'
 import { ollamaLocalProvider } from './OllamaLocalProvider'
+import { dispatchAnthropic, isAnthropicConfigured, anthropicModels, ANTHROPIC_MODELS_ENDPOINT, anthropicKeys } from './AnthropicProvider'
 
 export type SwarmSpecialist =
   | 'jarvis'
@@ -166,6 +167,27 @@ export class SwarmModelRouter {
   ): Promise<ModelCompletionResult> {
     const failedTiers: number[] = []
     const specLower = (specialist || 'jarvis').toLowerCase().trim()
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // TIER 0: Anthropic Claude — frontier agentic reasoning, used first when a
+    // key is configured. Falls through silently to the free/low-cost tiers when
+    // it is absent, throttled or rejects the key.
+    // ──────────────────────────────────────────────────────────────────────────
+    if (isAnthropicConfigured()) {
+      const claude = await dispatchAnthropic(messages, tools, { specialist: specLower })
+      if (claude) {
+        return {
+          content: claude.content,
+          tool_calls: claude.tool_calls,
+          provider: `anthropic-claude/${claude.model}`,
+          tier: 0,
+          failedTiers,
+        }
+      }
+      failedTiers.push(0)
+    } else {
+      failedTiers.push(0)
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // SPECIALIST PRIMARY OVERRIDES: Best-in-class reasoning model by role
@@ -603,6 +625,31 @@ export class SwarmModelRouter {
       models: ollamaProbe.models.length > 0 ? ollamaProbe.models : ['ollama/qwen3:4b', 'ollama/deepseek-r1:latest'],
       status: ollamaProbe.online ? 'ONLINE' : 'UNAVAILABLE',
       latencyMs: ollamaProbe.latencyMs
+    }
+
+    // 0. Tier 0: Anthropic Claude Frontier (if key present)
+    if (isAnthropicConfigured()) {
+      const start = Date.now()
+      try {
+        const res = await fetch(ANTHROPIC_MODELS_ENDPOINT, {
+          headers: {
+            'x-api-key': anthropicKeys()[0],
+            'anthropic-version': '2023-06-01',
+          },
+          signal: AbortSignal.timeout(1500),
+        })
+        const status = res.ok ? 'ONLINE' : (res.status === 429 ? 'THROTTLED' : 'UNAVAILABLE')
+        report.anthropic = {
+          tier: 0,
+          models: anthropicModels().map((model) => `anthropic/${model}`),
+          status,
+          latencyMs: Date.now() - start,
+        }
+      } catch {
+        report.anthropic = { tier: 0, models: anthropicModels().map((model) => `anthropic/${model}`), status: 'UNAVAILABLE' }
+      }
+    } else {
+      report.anthropic = { tier: 0, models: anthropicModels().map((model) => `anthropic/${model}`), status: 'UNAVAILABLE' }
     }
 
     // 1. Tier 1: Groq High-Speed Engine
